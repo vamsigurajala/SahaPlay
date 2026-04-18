@@ -1,0 +1,650 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Camera, Shield, Zap, Volume2, Video, Settings, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe } from 'lucide-react';
+import toast from 'react-hot-toast';
+import Cropper from 'react-easy-crop';
+import { getCroppedImg } from '../utils/CropImage';
+
+const API = 'http://127.0.0.1:3001';
+
+const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
+  const [avatar, setAvatar] = useState(null);
+  useEffect(() => {
+    const token = localStorage.getItem('watch_token');
+    fetch(`${API}/api/users/${uname}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => { if (d.avatarPath) setAvatar(d.avatarPath); })
+      .catch(()=>{});
+  }, [uname]);
+
+  const h = Array.from(uname).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = ['#6366f1','#a855f7','#ec4899','#ef4444','#f97316','#10b981','#3b82f6','#06b6d4'];
+  const color = colors[h % colors.length];
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color, fontSize: 13, fontWeight: 800, overflow: 'hidden' }}>
+          {avatar ? <img src={`${API}${avatar}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : uname.slice(0,2).toUpperCase()}
+        </div>
+        <span style={{ fontSize: 15, color: '#eee', fontWeight: 600 }}>@{uname}</span>
+      </div>
+       <button
+         onClick={() => {
+           onUnban(uname);
+           socket.emit('mod_unban', { roomId: (roomId || '').toLowerCase(), username: uname });
+           toast.success(`User @${uname} has been unbanned.`);
+         }}
+         style={{ background: 'rgba(16,185,129,0.1)', border: 'none', color: '#10b981', padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}
+         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+       >
+         Unban
+       </button>
+    </div>
+  );
+};
+
+export default function RoomSettingsModal({ 
+  isOpen, 
+  onClose, 
+  room, 
+  socket, 
+  isHost,
+  roomId
+}) {
+  const [activeTab, setActiveTab] = useState('general');
+  const [roomName, setRoomName] = useState(room?.roomName || '');
+  const [permissions, setPermissions] = useState(room?.permissions || { changeMedia: 'all', chat: 'all', cam: 'all' });
+  const [settings, setSettings] = useState(room?.settings || { audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player' });
+  const [thumbnail, setThumbnail] = useState(room?.thumbnailPath || null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [bannedUsers, setBannedUsers] = useState(room?.bannedUsers || []);
+
+  // Cropper states
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleteConfirmed, setIsDeleteConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'security' && socket) {
+      socket.emit('mod_fetch_bans', { roomId: (roomId || '').toLowerCase() });
+    }
+  }, [activeTab, roomId, socket]);
+
+  useEffect(() => {
+    const handleSettingsUpdate = (data) => {
+      if (data.bannedUsers !== undefined) {
+        setBannedUsers(data.bannedUsers);
+      }
+    };
+    if (socket) {
+      socket.on('room_settings_updated', handleSettingsUpdate);
+      return () => socket.off('room_settings_updated', handleSettingsUpdate);
+    }
+  }, [socket]);
+
+  useEffect(() => {
+    if (room) {
+      setRoomName(room.roomName);
+      if (room.permissions) setPermissions(room.permissions);
+      if (room.settings) setSettings(room.settings);
+      setThumbnail(room.thumbnailPath);
+      // Removed setBannedUsers sync here to prevent global room_state heartbeats from overwriting the fetched bans list.
+    }
+  }, [room, isOpen]);
+
+  const handleSave = () => {
+    socket.emit('update_room_settings', {
+      roomId: (roomId || '').toLowerCase(),
+      newName: roomName,
+      permissions,
+      settings
+    });
+    toast.success('Settings updated!');
+    onClose();
+  };
+
+  const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setImageSrc(reader.result);
+      setShowCropper(true);
+    });
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmCrop = async () => {
+    try {
+      setIsUploading(true);
+      const croppedImageBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
+      
+      const formData = new FormData();
+      formData.append('thumbnail', croppedImageBlob, 'thumbnail.jpg');
+      formData.append('roomId', roomId);
+
+      const res = await fetch(`${API}/api/rooms/thumbnail`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.thumbnailPath) {
+        setThumbnail(data.thumbnailPath);
+        toast.success('Thumbnail updated!');
+        setShowCropper(false);
+        setImageSrc(null);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to process and upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteRoom = () => {
+    socket.emit('delete_room', { roomId: (roomId || '').toLowerCase() });
+    // Remove from local pinned rooms
+    try {
+      const pinned = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
+      const filtered = pinned.filter(id => id !== roomId);
+      localStorage.setItem('pinned_rooms', JSON.stringify(filtered));
+    } catch(e) {}
+    
+    toast.success('Room deleted successfully!');
+    setShowDeleteConfirm(false);
+    onClose();
+    navigate('/');
+  };
+
+  if (!isOpen) return null;
+
+  const TabButton = ({ id, label, icon: Icon }) => (
+    <button 
+      onClick={() => setActiveTab(id)}
+      style={{
+        position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderRadius: 10, border: 'none',
+        background: activeTab === id ? 'rgba(99,102,241,0.15)' : 'transparent',
+        color: activeTab === id ? '#818cf8' : '#888',
+        fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+      }}
+    >
+      {activeTab === id && <div style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: '#818cf8', borderRadius: '0 10px 10px 0'}} />}
+      <Icon size={16} /> {label}
+    </button>
+  );
+
+  return (
+    <>
+      <div 
+        onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 10, 35, 0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div 
+        onClick={e => e.stopPropagation()}
+        className="modal-enter" 
+        style={{ position: 'relative', background: 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 28, width: '100%', maxWidth: 740, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
+      >
+        
+        {/* Absolute Close Button */}
+        <button onClick={onClose} style={{ position: 'absolute', top: -2, right: -58, width: 48, height: 48, borderRadius: '50%', background: 'rgba(30, 27, 46, 0.8)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(10px)', boxShadow: '0 8px 16px rgba(0,0,0,0.5)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} onMouseEnter={e => { e.currentTarget.style.background='rgba(45, 41, 69, 0.9)'; e.currentTarget.style.transform='scale(1.1) rotate(90deg)'; e.currentTarget.style.borderColor='rgba(168, 85, 247, 0.4)' }} onMouseLeave={e => { e.currentTarget.style.background='rgba(30, 27, 46, 0.8)'; e.currentTarget.style.transform='scale(1) rotate(0deg)'; e.currentTarget.style.borderColor='rgba(255, 255, 255, 0.1)' }}>
+          <X size={22} />
+        </button>
+        
+        {/* Header */}
+        <div style={{ padding: '24px 30px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>Room Settings</h2>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Manage your room preferences and security</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Sidebar */}
+          <div style={{ width: 220, padding: 24, background: 'rgba(21, 10, 46, 0.4)', borderRight: '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <TabButton id="general" label="General" icon={Settings} />
+            <TabButton id="media" label="Media Player" icon={Zap} />
+            <TabButton id="security" label="Security" icon={Shield} />
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, padding: 30, overflowY: 'auto' }}>
+            {activeTab === 'general' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Room Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Name</label>
+                  <input 
+                    value={roomName}
+                    onChange={e => setRoomName(e.target.value)}
+                    style={{ width: '100%', padding: '16px 20px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 16, color: '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
+                    placeholder="Enter room name..."
+                    onFocus={e => { e.target.style.borderColor = '#a855f7'; e.target.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.2)'; e.target.style.background = 'rgba(0,0,0,0.4)'; }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(168, 85, 247, 0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(0,0,0,0.3)'; }}
+                  />
+                  <p style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>Visible across the platform once saved.</p>
+                </div>
+
+                {/* Thumbnail */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Thumbnail</label>
+                  <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+                    <div style={{ width: 160, height: 100, borderRadius: 18, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+                      {thumbnail ? (
+                        <img src={`${API}${thumbnail}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <ImageIcon size={24} color="#333" />
+                      )}
+                      {isUploading && (
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ width: 20, height: 20, border: '2px solid transparent', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        type="file" 
+                        id="thumb-upload" 
+                        hidden 
+                        accept="image/*" 
+                        onChange={handleFileSelect} 
+                      />
+                      <label htmlFor="thumb-upload" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'rgba(255,255,255,0.05)', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <Camera size={16} /> Choose New
+                      </label>
+                      <p style={{ fontSize: 12, color: '#555', marginTop: 10, lineHeight: 1.4 }}>Recommended size: 1200x800px. JPG or PNG.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'media' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Custom Name */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Media Player Name</label>
+                  <input 
+                    value={settings.playerCustomName}
+                    onChange={e => setSettings({...settings, playerCustomName: e.target.value})}
+                    style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', outline: 'none' }}
+                  />
+                </div>
+
+                {/* Audio Ducking */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
+                      <Volume2 size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Audio Ducking</h4>
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Lower media volume when others speak</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSettings({...settings, audioDucking: !settings.audioDucking})}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                  >
+                    <div style={{ position: 'absolute', top: 3, left: settings.audioDucking ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                  </button>
+                </div>
+
+                {/* Webcam Sync */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                      <Video size={20} />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Webcam Syncing</h4>
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Coordinate camera grids across users</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSettings({...settings, webcamSync: !settings.webcamSync})}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.webcamSync ? '#10b981' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                  >
+                    <div style={{ position: 'absolute', top: 3, left: settings.webcamSync ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'security' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                {/* Access Management */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Access Management</label>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* Lock Room Toggle */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.1)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <Lock size={18} color="#a855f7" />
+                          <span style={{ fontSize: 13, color: '#eee', fontWeight: 700 }}>Lock Room</span>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({...settings, lockRoom: !settings.lockRoom})}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.lockRoom ? '#a855f7' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                        >
+                          <div style={{ position: 'absolute', top: 2, left: settings.lockRoom ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                        </button>
+                      </div>
+                      <div style={{ paddingLeft: 30 }}>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>Require host approval to join</span>
+                      </div>
+                    </div>
+
+                    {/* Logged In Only Toggle */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: 'rgba(59, 130, 246, 0.04)', borderRadius: 16, border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <UserCheck size={18} color="#3b82f6" />
+                          <span style={{ fontSize: 13, color: '#eee', fontWeight: 700 }}>Members Only</span>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({...settings, onlyLoggedIn: !settings.onlyLoggedIn})}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.onlyLoggedIn ? '#3b82f6' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                        >
+                          <div style={{ position: 'absolute', top: 2, left: settings.onlyLoggedIn ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                        </button>
+                      </div>
+                      <div style={{ paddingLeft: 30 }}>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>Only logged-in users enter</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Admin Privileges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Admin Privileges</label>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '20px 24px', background: 'rgba(16, 185, 129, 0.04)', borderRadius: 16, border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <Shield size={20} color="#10b981" />
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Auto-Admin Members</h4>
+                      </div>
+                      <button 
+                        onClick={() => setSettings({...settings, newMembersAdmins: !settings.newMembersAdmins})}
+                        style={{ width: 44, height: 24, borderRadius: 12, background: settings.newMembersAdmins ? '#10b981' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <div style={{ position: 'absolute', top: 3, left: settings.newMembersAdmins ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                      </button>
+                    </div>
+                    <div style={{ paddingLeft: 34 }}>
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Give new members admin permissions by default</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Permissions */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Permissions</label>
+                  
+                  {[
+                    { id: 'chat', label: 'Who can send messages?', icon: Zap },
+                    { id: 'cam', label: 'Who can use webcam?', icon: Video },
+                    { id: 'mic', label: 'Who can use microphone?', icon: Mic },
+                  ].map(p => {
+                    const val = permissions[p.id] || 'all';
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', background: 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.1)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                           <p.icon size={16} color="#a855f7" />
+                           <span style={{ fontSize: 13, color: '#eee', fontWeight: 500 }}>{p.label}</span>
+                        </div>
+                        <div style={{ display: 'flex', background: 'rgba(10, 5, 25, 0.6)', padding: 4, borderRadius: 10 }}>
+                          {['all', 'host'].map(v => (
+                            <button 
+                              key={v}
+                              onClick={() => setPermissions({...permissions, [p.id]: v})}
+                              style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'transparent', color: val === v ? '#fff' : '#555', transition: 'all 0.3s' }}
+                            >
+                              {v === 'all' ? 'ALL' : 'HOST ONLY'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Chat Filtering */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Messaging Controls</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {[
+                      { id: 'allowLinks', label: 'Allow Links', icon: Link2 },
+                      { id: 'allowMedia', label: 'Allow Media', icon: ImageIcon },
+                    ].map(f => (
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <f.icon size={14} color="#888" />
+                          <span style={{ fontSize: 12, color: '#bbb' }}>{f.label}</span>
+                        </div>
+                        <button 
+                          onClick={() => setPermissions({...permissions, [f.id]: permissions[f.id] === false ? true : false})}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: permissions[f.id] !== false ? '#6366f1' : '#333', border: 'none', position: 'relative', cursor: 'pointer' }}
+                        >
+                          <div style={{ position: 'absolute', top: 2, left: permissions[f.id] !== false ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: '0.2s' }}></div>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Ban Management */}
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                       <ShieldAlert size={16} color="#ef4444" />
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
+                           Security Banned Users {bannedUsers.length > 0 ? `(${bannedUsers.length})` : ''}
+                        </label>
+                       <button 
+                         onClick={() => socket.emit('mod_fetch_bans', { roomId })}
+                         style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#a855f7', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                       >
+                         <Zap size={12} /> Sync Now
+                       </button>
+                    </div>
+                   <div style={{ padding: '24px 28px', background: 'rgba(255,255,255,0.02)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.05)', minHeight: 140 }}>
+                       {bannedUsers.length > 0 ? (
+                         bannedUsers.map(uname => (
+                           <BannedUserItem 
+                             key={uname} 
+                             uname={uname} 
+                             socket={socket} 
+                             roomId={roomId} 
+                             onUnban={(u) => setBannedUsers(prev => prev.filter(x => x !== u))} 
+                           />
+                         ))
+                       ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 140, gap: 14 }}>
+                          <UserMinus size={36} color="#555" />
+                          <div style={{ textAlign: 'center', color: '#777', fontSize: 14, fontWeight: 500 }}>No users are banned from this room.</div>
+                        </div>
+                      )}
+                   </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div style={{ marginTop: 24, padding: 32, borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)' }}>
+                  <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+                    <ShieldAlert color="#ef4444" size={28} style={{ marginTop: 2 }} />
+                    <div style={{ flex: 1 }}>
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Danger Zone</h4>
+                      <p style={{ fontSize: 13, color: '#991b1b', margin: '8px 0 20px', lineHeight: 1.6 }}>
+                        Deleting this room is a permanent action. All metadata, pinned status, and chat messages hosted here will be destroyed.
+                      </p>
+                      <button 
+                        onClick={() => setShowDeleteConfirm(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        <Trash2 size={18} /> Delete Forever
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding: '24px 30px', borderTop: '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: 'rgba(15, 10, 35, 0.2)' }}>
+          <button onClick={onClose} style={{ padding: '14px 28px', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}>Cancel</button>
+          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}>Save Changes</button>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .modal-enter { animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes modalIn {
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+      `}</style>
+      {/* Cropper Overlay */}
+      {showCropper && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 20000, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: 500, background: '#111', borderRadius: 24, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <Cropper
+              image={imageSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={3 / 2}
+              onCropChange={setCrop}
+              onCropComplete={onCropComplete}
+              onZoomChange={setZoom}
+            />
+          </div>
+
+          <div style={{ marginTop: 30, width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Zoom Slider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 15, background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 100 }}>
+              <ZoomOut size={18} color="#888" />
+              <input
+                type="range"
+                value={zoom}
+                min={1}
+                max={3}
+                step={0.1}
+                aria-labelledby="Zoom"
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: '#a855f7' }}
+              />
+              <ZoomIn size={18} color="#888" />
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button 
+                onClick={() => { setShowCropper(false); setImageSrc(null); }}
+                style={{ flex: 1, padding: '14px', borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmCrop}
+                disabled={isUploading}
+                style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isUploading ? 0.7 : 1 }}
+              >
+                {isUploading ? 'Uploading...' : <><Save size={18} /> Apply & Save</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </div>
+
+      {/* Delete Confirmation Overlay */}
+      {showDeleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 30000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="modal-enter" style={{ background: '#1a1025', border: '1px solid #ef444430', borderRadius: 28, width: '100%', maxWidth: 420, padding: 32, boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
+              <div style={{ width: 72, height: 72, borderRadius: '24px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', marginBottom: 8, transform: 'rotate(-5deg)' }}>
+                <Trash2 size={36} />
+              </div>
+              <h3 style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>Delete this room?</h3>
+              <p style={{ fontSize: 15, color: '#aaa', lineHeight: 1.6, margin: 0 }}>
+                This is a <strong style={{ color: '#ef4444' }}>permanent action</strong>. All chats, history, and room metadata will be destroyed forever.
+              </p>
+
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: 12, 
+                width: '100%', 
+                marginTop: 12, 
+                padding: '14px 16px', 
+                background: 'rgba(239,68,68,0.05)', 
+                borderRadius: 16, 
+                cursor: 'pointer',
+                textAlign: 'left',
+                border: isDeleteConfirmed ? '1px solid #ef444450' : '1px solid transparent',
+                transition: 'all 0.2s'
+              }}>
+                <input 
+                  type="checkbox" 
+                  checked={isDeleteConfirmed}
+                  onChange={e => setIsDeleteConfirmed(e.target.checked)}
+                  style={{ width: 18, height: 18, marginTop: 2, accentColor: '#ef4444', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 13, color: isDeleteConfirmed ? '#eee' : '#bbb', fontWeight: 500, lineHeight: 1.4 }}>
+                  I understand that all chats and room data will be <strong>permanently deleted</strong>.
+                </span>
+              </label>
+              
+              <div style={{ display: 'flex', gap: 12, width: '100%', marginTop: 12 }}>
+                <button 
+                  onClick={() => { setShowDeleteConfirm(false); setIsDeleteConfirmed(false); }}
+                  style={{ flex: 1, padding: '16px 0', borderRadius: 16, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#ccc', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleDeleteRoom}
+                  disabled={!isDeleteConfirmed}
+                  style={{ 
+                    flex: 1, 
+                    padding: '16px 0', 
+                    borderRadius: 16, 
+                    border: 'none', 
+                    background: isDeleteConfirmed ? 'linear-gradient(135deg, #ef4444, #f43f5e)' : '#333', 
+                    color: isDeleteConfirmed ? '#fff' : '#666', 
+                    fontWeight: 800, 
+                    cursor: isDeleteConfirmed ? 'pointer' : 'not-allowed', 
+                    transition: 'all 0.3s'
+                  }}
+                  onMouseEnter={e => { if(isDeleteConfirmed) { e.currentTarget.style.transform = 'translateY(-2px)'; } }}
+                  onMouseLeave={e => { if(isDeleteConfirmed) { e.currentTarget.style.transform = 'translateY(0)'; } }}
+                >
+                  Delete Room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+

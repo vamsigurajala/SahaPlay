@@ -1,0 +1,3449 @@
+const express = require('express');
+const rateLimit = require('express-rate-limit');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config(); // Load variables
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_jwt_key_for_watch_together';
+
+// Initialize Supabase (replaces SQLite)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE'; // In a real app, use dotenv
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+
+// Initialize DB
+const { Pool } = require('pg');
+const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  max: 50,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+class SupabaseAdapter {
+  constructor() {
+    this.serialize = (cb) => { if (cb) cb(); };
+    this.close = () => pool.end();
+  }
+  
+  _convertSql(sql, params) {
+    let p = params || [];
+    if (!Array.isArray(p)) p = [p];
+    
+    let _idx = 0;
+    let pgSql = sql.replace(/\?/g, () => '$' + (++_idx));
+    
+    const camelCols = [
+        'roomId', 'senderId', 'senderName', 'targetId', 'targetName', 
+        'ephemeralPublicKey', 'replyTo', 'hiddenFor', 'mediaType', 'mediaUrl', 
+        'roomName', 'hostUsername', 'isPublic', 'thumbnailPath', 
+        'followerId', 'followingId', 'createdAt', 'isVerified', 
+        'verificationToken', 'resetToken', 'resetTokenExpiry', 'displayName', 
+        'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
+        'notifyFriendRequests', 'notifyLeave', 'showCountry', 'pinnedRooms', 
+        'lastSeen', 'senderAvatar', 'senderAvatarPath', 'senderMessage'
+    ];
+    
+    const q = String.fromCharCode(34); // actual double-quote character
+    camelCols.forEach(col => {
+      // Match camelCase column names not already quoted
+      const regex = new RegExp('(?<!["\\w])' + col + '(?!["\\w])', 'g');
+      pgSql = pgSql.replace(regex, q + col + q);
+    });
+    
+    pgSql = pgSql.replace(/INSERT OR IGNORE/gi, 'INSERT');
+    pgSql = pgSql.replace(/AUTOINCREMENT/gi, '');
+    pgSql = pgSql.replace(/COLLATE NOCASE/gi, ''); // Postgres handles case insensitivity differently
+    
+    return { pgSql, p };
+  }
+
+  run(sql, params, callback) {
+    if (typeof params === 'function') { callback = params; params = []; }
+    const { pgSql, p } = this._convertSql(sql, params);
+    
+    let finalSql = pgSql;
+    if (sql.match(/INSERT OR IGNORE/i) && !finalSql.includes('ON CONFLICT')) {
+      finalSql += ' ON CONFLICT DO NOTHING';
+    }
+
+    console.log("[DB EXEC RUN] ", finalSql.substring(0, 100));
+    pool.query(finalSql, p)
+      .then(res => {
+        if (callback) callback.call({ changes: res.rowCount, lastID: res.rows?.[0]?.id }, null);
+      })
+      .catch(err => {
+        if (err.code === '23505' && sql.match(/INSERT OR IGNORE/i)) {
+          if (callback) callback.call({ changes: 0 }, null);
+        } else {
+          console.error("Database Engine Error [RUN]:", err.message, "\nSQL:", finalSql);
+          if (callback) callback(err);
+        }
+      });
+  }
+
+  get(sql, params, callback) {
+    if (typeof params === 'function') { callback = params; params = []; }
+    const { pgSql, p } = this._convertSql(sql, params);
+    console.log("[DB EXEC GET] ", pgSql.substring(0, 100));
+    pool.query(pgSql, p)
+      .then(res => { if (callback) callback(null, res.rows[0] || null); })
+      .catch(err => { console.error("Database Engine Error [GET]:", err.message, "\nSQL:", pgSql); if (callback) callback(err, null); });
+  }
+
+  all(sql, params, callback) {
+    if (typeof params === 'function') { callback = params; params = []; }
+    const { pgSql, p } = this._convertSql(sql, params);
+    console.log("[DB EXEC ALL] ", pgSql.substring(0, 100));
+    pool.query(pgSql, p)
+      .then(res => { if (callback) callback(null, res.rows || []); })
+      .catch(err => { 
+        console.error("Database Engine Error [ALL]:", err.message, "\nSQL:", pgSql, "\nParams:", p, "\nStack:", err.stack); 
+        if (callback) callback(err, null); 
+      });
+  }
+}
+
+
+const db = new SupabaseAdapter();
+
+const app = express();
+const server = http.createServer(app);
+
+// Keep track of rooms in memory
+// roomID => { currentMedia: string, currentTime: number, isPlaying: boolean, uploaderSocketId: string, timestampUpdatedAt: number }
+const rooms = new Map();
+
+// Global map: username -> Set of socketIds (all connected sockets for that user)
+const connectedSockets = new Map();
+function registerSocket(username, socketId) {
+  if (!username || username === 'Anonymous') return;
+  if (!connectedSockets.has(username)) connectedSockets.set(username, new Set());
+  connectedSockets.get(username).add(socketId);
+}
+function unregisterSocket(username, socketId) {
+  if (!username || !connectedSockets.has(username)) return;
+  connectedSockets.get(username).delete(socketId);
+  if (connectedSockets.get(username).size === 0) connectedSockets.delete(username);
+}
+function emitToUser(username, event, data) {
+  const sids = connectedSockets.get(username);
+  if (!sids) return;
+  sids.forEach(sid => io.to(sid).emit(event, data));
+}
+
+// ─── Zero Latency Cache ───
+const memoryCache = new Map();
+
+/**
+ * Generates a unique cache key based on route and user
+ */
+function getCacheKey(req) {
+  const user = req.user ? req.user.username : 'anon';
+  return `${req.method}:${req.baseUrl || ''}${req.path}:${JSON.stringify(req.query)}:${user}`;
+}
+
+/**
+ * Middleware to intercept database results and store them in RAM
+ */
+function apiCacheMiddleware(req, res, next) {
+  const key = getCacheKey(req);
+  const cached = memoryCache.get(key);
+  
+  if (cached && (Date.now() - cached.timestamp < 60000)) { // 60s TTL
+    // console.log(`[CACHE HIT] ${key}`);
+    return res.json(cached.data);
+  }
+
+  // Intercept res.json
+  const originalJson = res.json;
+  res.json = function(data) {
+    if (res.statusCode === 200 && data && !data.error) {
+      memoryCache.set(key, { data, timestamp: Date.now(), user: req.user?.username });
+    }
+    return originalJson.call(this, data);
+  };
+  next();
+}
+
+/**
+ * Wipes cache for a specific user to ensure instant updates after actions
+ */
+function invalidateCacheForUser(username) {
+  if (!username) return;
+  // console.log(`[CACHE INVALIDATE] User: ${username}`);
+  for (const [key, value] of memoryCache.entries()) {
+    if (value.user === username) {
+      memoryCache.delete(key);
+    }
+  }
+}
+
+// Fetch avatar and emit message utility
+function broadcastMessage(roomId, msg, senderSocketId, senderUsername) {
+  db.get('SELECT avatarPath FROM users WHERE username = ?', [senderUsername], (err, row) => {
+    const avatar = row ? row.avatarPath : null;
+    db.get('SELECT roomName, permissions, settings FROM room_names WHERE roomId = ?', [roomId], (err, roomRow) => {
+      let roomPerms = null;
+      let roomSettings = null;
+      let rName = roomRow ? roomRow.roomName : null;
+      if (roomRow) {
+        try { roomPerms = JSON.parse(roomRow.permissions); } catch(e){}
+        try { roomSettings = JSON.parse(roomRow.settings); } catch(e){}
+      }
+
+      const enrichedMsg = { ...msg, senderAvatar: avatar, roomPermissions: roomPerms, roomSettings, roomName: rName };
+      
+      if (enrichedMsg.type === 'group' && roomId) {
+        // Send chat_message to everyone in room socket
+        io.in(roomId).emit('chat_message', enrichedMsg);
+        
+        // Enhance: Send new_chat_message to ALL connected sockets of anyone who might be in this room's context
+        // This ensures the "Global Chat" widget gets it even if the user isn't physically in the room tab.
+        // We broadcast to everyone except the sender's current socket.
+        if (senderSocketId) {
+          io.emit('global_new_chat_message', { ...enrichedMsg, senderName: senderUsername });
+        } else {
+          io.emit('global_new_chat_message', { ...enrichedMsg, senderName: senderUsername });
+        }
+      } else if (enrichedMsg.type === 'private') {
+        emitToUser(enrichedMsg.senderName, 'private_message', { ...enrichedMsg, isMe: true });
+        emitToUser(enrichedMsg.targetName, 'private_message', { ...enrichedMsg, isMe: false });
+        emitToUser(enrichedMsg.targetName, 'new_chat_message', { ...enrichedMsg, senderName: senderUsername });
+        
+        invalidateCacheForUser(enrichedMsg.senderName);
+        invalidateCacheForUser(enrichedMsg.targetName);
+      }
+    });
+  });
+}
+
+app.use(cors());
+app.use(express.json());
+
+// Global Rate Limiter (200 requests per 15 mins)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 5000, 
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+});
+app.use(globalLimiter);
+
+// Strict Rate Limiter (20 requests per 15 mins) for sensitive auth/create endpoints
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 20, 
+  message: { error: 'Too many sensitive requests. Please slow down.' }
+});
+app.use('/api/auth/', strictLimiter);
+app.use('/api/rooms/create', strictLimiter);
+
+
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  },
+  pingTimeout: 30000,
+  pingInterval: 10000,
+  connectTimeout: 20000,
+  allowEIO3: true
+});
+
+// Multer setup for local file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, 'uploads');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+const upload = multer({ storage });
+
+// â”€â”€ YouTube Search Proxy (via yt-search) â”€â”€
+const ytSearch = require('yt-search');
+
+app.get('/api/youtube/search', async (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json([]);
+  
+  try {
+    const r = await ytSearch(q);
+    const results = r.videos.slice(0, 20).map(v => ({
+      videoId: v.videoId,
+      title: v.title,
+      author: v.author.name,
+      lengthSeconds: v.seconds,
+      thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`
+    }));
+    return res.json(results);
+  } catch (error) {
+    console.error('YouTube search error:', error);
+    res.status(502).json({ error: 'YouTube search unavailable. Try again shortly.' });
+  }
+});
+
+// --- Twitch Discovery (Simulated Mode) ---
+const SIMULATED_TWITCH_CHANNELS = [
+  { id: 'xqc', name: 'xQc', title: 'Just Chatting & Reacts', category: 'Just Chatting' },
+  { id: 'kaicenat', name: 'KaiCenat', title: 'Mafiathon 2.0', category: 'Just Chatting' },
+  { id: 'ibai', name: 'ibai', title: 'League of Legends Mundiales', category: 'League of Legends' },
+  { id: 'auronplay', name: 'auronplay', title: 'Talking & Games', category: 'Just Chatting' },
+  { id: 'gaules', name: 'gaules', title: 'Major CS coverage', category: 'Counter-Strike 2' },
+  { id: 'ninja', name: 'Ninja', title: 'Fortnite WITH SUBS!', category: 'Fortnite' },
+  { id: 'shroud', name: 'shroud', title: 'Playing everything', category: 'Valorant' },
+  { id: 'riotgames', name: 'Riot Games', title: 'LEC Spring Split', category: 'League of Legends' },
+  { id: 'tarik', name: 'tarik', title: 'VCT Watchparty!', category: 'Valorant' },
+  { id: 'hasanabi', name: 'HasanAbi', title: 'News & Politics', category: 'Just Chatting' },
+  { id: 'buddha', name: 'buddha', title: 'NoPixel GTA RP', category: 'GTA V' },
+  { id: 'sykkuno', name: 'Sykkuno', title: 'GTA Heists', category: 'GTA V' },
+  { id: 'zerkaa', name: 'Zerkaa', title: 'Mandem RP', category: 'GTA V' },
+  { id: 'pokimane', name: 'pokimane', title: 'Just Chatting & Games', category: 'Just Chatting' },
+  { id: 'asmongold', name: 'Asmongold', title: 'MMO Grinding', category: 'World of Warcraft' },
+  { id: 'summit1g', name: 'summit1g', title: 'Racing & chill', category: 'DayZ' },
+  { id: 'esl_csgo', name: 'ESL_CSGO', title: 'Pro League Season 20', category: 'Counter-Strike 2' },
+  { id: 'tenz', name: 'TenZ', title: 'Ranked Valorant', category: 'Valorant' },
+  { id: 's1mple', name: 's1mple', title: 'CS Ranked', category: 'Counter-Strike 2' },
+  { id: 'pestily', name: 'Pestily', title: 'Tarkov Raids', category: 'Escape from Tarkov' },
+  { id: 'lvndmark', name: 'LVNDMARK', title: 'Full Stash Runs', category: 'Escape from Tarkov' },
+  { id: 'amouranth', name: 'amouranth', title: 'ASMR & more', category: 'Just Chatting' },
+  { id: 'mizkif', name: 'mizkif', title: 'Iron Forge Gym', category: 'Just Chatting' },
+  { id: 'lirik', name: 'Lirik', title: 'Variety Sunday', category: 'Variety' },
+  { id: 'cohhcarnage', name: 'CohhCarnage', title: 'Full Playthrough', category: 'Variety' },
+  { id: 'chess', name: 'Chess', title: 'Grandmaster Tournaments', category: 'Chess' },
+  { id: 'gothamchess', name: 'GothamChess', title: 'Guess The Move', category: 'Chess' },
+  { id: 'rocketleague', name: 'Rocket League', title: 'RLCS Major', category: 'Rocket League' },
+  { id: 'overwatchleague', name: 'overwatchleague', title: 'Live Matches', category: 'Overwatch 2' },
+  { id: 'valorant', name: 'valorant', title: 'Champions Tour', category: 'Valorant' },
+  { id: 'callofduty', name: 'callofduty', title: 'CDL Matches', category: 'Call of Duty' },
+  { id: 'bethesda', name: 'bethesda', title: 'Developer Showcase', category: 'Gaming' },
+  { id: 'nintendo', name: 'nintendo', title: 'Direct Mini', category: 'Gaming' },
+  { id: 'xbox', name: 'xbox', title: 'Game Pass Showcase', category: 'Gaming' },
+  { id: 'playstation', name: 'playstation', title: 'State of Play', category: 'Gaming' },
+  { id: 'gamesdonequick', name: 'gamesdonequick', title: 'SGDQ 2024', category: 'Speedrunning' },
+  { id: 'monstercat', name: 'monstercat', title: '24/7 Music', category: 'Music' },
+  { id: 'chillhop', name: 'chillhop', title: 'Lofi hip hop radio', category: 'Music' },
+  { id: 'ludwig', name: 'ludwig', title: 'Mogul Moves', category: 'YouTube/Twitch' },
+  { id: 'nickmercs', name: 'nickmercs', title: 'Apex Predator Grinding', category: 'Apex Legends' },
+  { id: 'timthetatman', name: 'timthetatman', title: 'Warzone Wins', category: 'Call of Duty' },
+  { id: 'tfue', name: 'tfue', title: 'Zero Build Fortnite', category: 'Fortnite' },
+  { id: 'sodapoppin', name: 'sodapoppin', title: 'Variety degenerate', category: 'Variety' },
+  { id: 'kyedae', name: 'kyedae', title: 'Val with friends', category: 'Valorant' },
+  { id: 'otzdarva', name: 'otzdarva', title: 'Trapper main', category: 'Dead by Daylight' },
+  { id: 'sacriel', name: 'sacriel', title: 'Tactical Tarkov', category: 'Escape from Tarkov' },
+  { id: 'jerma985', name: 'jerma985', title: 'Dollhouse Stream', category: 'Variety' },
+  { id: 'criticalrole', name: 'criticalrole', title: 'Campaign 3', category: 'D&D' }
+].map(c => ({
+  ...c,
+  // Official Twitch preview template (shows actual live frame)
+  thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${c.id.toLowerCase()}-440x248.jpg`
+}));
+
+app.get('/api/twitch/top', (req, res) => {
+  res.json(SIMULATED_TWITCH_CHANNELS.slice(0, 50));
+});
+
+// --- Vimeo Discovery (Simulated Staff Picks) ---
+const SIMULATED_VIMEO_VIDEOS = [
+  { id: '118671603', name: 'The Last Knit', title: 'Award Winning Animation', category: 'Animation' },
+  { id: '119421832', name: 'Alike', title: 'Emotional Story of Life', category: 'Creative' },
+  { id: '221532151', name: 'The Present', title: 'A Boy and a Gift', category: 'Storytelling' },
+  { id: '269661571', name: 'In a Heartbeat', title: 'Animated Short Film', category: 'Animation' },
+  { id: '231791807', name: 'The Maker', title: 'Stop Motion Masterpiece', category: 'Arts' },
+  { id: '8354924', name: 'Falling', title: 'Cinematography Showcase', category: 'Cinema' },
+  { id: '7127490', name: 'Mortimer', title: 'Short Film Selection', category: 'Experimental' },
+  { id: '27246366', name: 'The Elephant\'s Garden', title: 'Surreal Visual Voyage', category: 'Psychedelic' },
+  { id: '2475184', name: 'Address Is Approximate', title: 'Google Maps Journey', category: 'Travel' },
+  { id: '22439234', name: 'Symmetry', title: 'The Beauty of Math', category: 'Science' }
+].map(v => ({
+  ...v,
+  thumbnail: `https://vumbnail.com/${v.id}.jpg`
+}));
+
+app.get('/api/vimeo/top', (req, res) => {
+  res.json(SIMULATED_VIMEO_VIDEOS);
+});
+
+app.get('/api/vimeo/search', (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json([]);
+  const query = q.toLowerCase();
+  const matches = SIMULATED_VIMEO_VIDEOS.filter(v => 
+    v.id.toLowerCase().includes(query) || 
+    v.name.toLowerCase().includes(query) ||
+    v.title.toLowerCase().includes(query) ||
+    v.category.toLowerCase().includes(query)
+  );
+  if (matches.length > 0) return res.json(matches);
+  
+  // Fallback for direct ID join
+  res.json([{
+    id: q.replace(/\D/g, ''), // Keep only digits for Vimeo IDs
+    name: `Video ${q}`,
+    title: 'Watch Professional Video',
+    category: 'Vimeo Search',
+    thumbnail: `https://vumbnail.com/${q.replace(/\D/g, '')}.jpg`
+  }]);
+});
+
+// Reports API
+app.post('/api/reports', (req, res) => {
+  const { roomId, reporterUsername, reportedUsername, message } = req.body;
+  if (!roomId || !reporterUsername || !message) {
+    return res.status(400).json({ error: 'roomId, reporterUsername, and message are required' });
+  }
+  db.run(
+    'INSERT INTO reports (roomId, reporterUsername, reportedUsername, message) VALUES (?, ?, ?, ?)',
+    [roomId, reporterUsername, reportedUsername || 'Unknown', message],
+    function(err) {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.json({ success: true, reportId: this.lastID });
+    }
+  );
+});
+
+app.get('/api/reports', (req, res) => {
+  db.all('SELECT * FROM reports ORDER BY createdAt DESC LIMIT 100', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    res.json(rows);
+  });
+});
+
+// Auth Endpoints
+app.post('/api/signup', async (req, res) => {
+  const { username: rawUsername, email, password } = req.body;
+  if (!rawUsername || !email || !password) {
+    return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+  const username = rawUsername.toLowerCase();
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Detect country from IP
+  let detectedCountry = null;
+  try {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const cleanIp = ip.replace('::ffff:', '');
+    // Use a free IP geolocation API
+    const geoRes = await fetch(`http://ip-api.com/json/${cleanIp === '127.0.0.1' || cleanIp === '::1' ? '' : cleanIp}?fields=country,countryCode`);
+    const geoData = await geoRes.json();
+    if (geoData && geoData.country) detectedCountry = geoData.country;
+  } catch (e) { /* silent */ }
+  
+  // Automatically verify the user in "mock setup" mode
+  db.run('INSERT INTO users (username, email, password, isVerified, country) VALUES (?, ?, ?, 1, ?)', 
+    [username, email, hashedPassword, detectedCountry], 
+    function(err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Username or email already exists' });
+        }
+        return res.status(500).json({ error: 'Database error' });
+      }
+      
+      // Return a short-lived token so the client can immediately call /api/auth/setup-keys
+      const setupToken = jwt.sign({ id: this.lastID, username }, JWT_SECRET, { expiresIn: '10m' });
+      return res.json({ message: 'User created and auto-verified successfully! You can now log in.', token: setupToken });
+    }
+  );
+});
+
+app.get('/api/verify', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Token is required' });
+
+  db.get('SELECT * FROM users WHERE verificationToken = ?', [token], (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
+
+    db.run('UPDATE users SET isVerified = 1, verificationToken = NULL WHERE id = ?', [user.id], (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: 'Failed to verify user' });
+      res.json({ message: 'Email successfully verified. You can now login.' });
+    });
+  });
+});
+
+app.post('/api/login', (req, res) => {
+  const { username: rawUsername, password } = req.body;
+  const username = rawUsername ? rawUsername.toLowerCase() : '';
+  console.log('[LOGIN] Request received for:', username);
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  db.get('SELECT * FROM users WHERE username = ? OR email = ?', [username, username], async (err, user) => {
+    console.log('[LOGIN] DB callback fired. err:', err?.message, 'user found:', !!user);
+    if (err) { console.error('[LOGIN] DB Error:', err); return res.status(500).json({ error: 'Database error' }); }
+    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
+    
+    console.log('[LOGIN] isVerified:', user.isVerified, 'type:', typeof user.isVerified);
+    if (user.isVerified === 0) {
+      return res.status(403).json({ error: 'Please verify your email address before logging in.' });
+    }
+    
+    // If the user originated from Google, they might not have a password
+    if (!user.password && password) {
+       return res.status(400).json({ error: 'Please sign in with Google' });
+    }
+
+    console.log('[LOGIN] Comparing password...');
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('[LOGIN] Password match:', isValidPassword);
+    if (!isValidPassword) return res.status(400).json({ error: 'Invalid credentials' });
+
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    console.log('[LOGIN] Success! Sending token.');
+    // Return E2EE key blobs so client can decrypt private key in-browser
+    res.json({
+      message: 'Login successful',
+      token,
+      username: user.username,
+      encryptedPrivateKey: user.encryptedPrivateKey || null,
+      publicKey: user.publicKey || null
+    });
+  });
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) {
+    return res.status(400).json({ error: 'Google credential is required' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    const { email, name } = payload;
+    
+    // Check if user exists
+    db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      
+      if (user) {
+        // User exists, log them in
+        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+        return res.json({ message: 'Login successful', token, username: user.username });
+      } else {
+        // User does not exist, create them
+        // We set password to null since they use Google
+        // We set isVerified to 1 since Google already verified the email
+        // We make sure the username is somewhat unique if they happen to clash
+        const baseUsername = name.replace(/\s+/g, '').toLowerCase();
+        const randSuffix = Math.floor(Math.random() * 10000);
+        const finalUsername = `${baseUsername}${randSuffix}`;
+        
+        db.run('INSERT INTO users (username, email, password, isVerified) VALUES (?, ?, NULL, 1)', 
+          [finalUsername, email], 
+          function(insertErr) {
+            if (insertErr) return res.status(500).json({ error: 'Failed to create Google user' });
+            
+            const token = jwt.sign({ id: this.lastID, username: finalUsername }, JWT_SECRET, { expiresIn: '30d' });
+            return res.json({ message: 'Signup successful', token, username: finalUsername });
+          }
+        );
+      }
+    });
+
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    res.status(401).json({ error: 'Invalid Google token' });
+  }
+});
+
+app.post('/api/forgot-password', (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email or username is required' });
+
+  // Accept either email OR username lookup
+  db.get('SELECT * FROM users WHERE email = ? OR username = ?', [email, email], (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    
+    // If user doesn't exist or uses Google OAuth (null password), return generic success to prevent email enumeration
+    if (!user || !user.password) {
+      return res.json({ message: 'If an account matches that email, a password reset link has been sent.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpiry = Date.now() + 3600000; // 1 hour from now
+
+    db.run('UPDATE users SET resetToken = ?, resetTokenExpiry = ? WHERE id = ?', [resetToken, resetExpiry, user.id], async (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: 'Failed to generate reset token' });
+
+      // --- DEV MODE: Return direct reset link so no email service needed ---
+      const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+      console.log(`[RESET] Password reset link for @${user.username}: ${resetLink}`);
+
+      // Attempt Ethereal email (non-blocking — always return resetLink)
+      try {
+        let testAccount = await nodemailer.createTestAccount();
+        let transporter = nodemailer.createTransport({
+          host: "smtp.ethereal.email",
+          port: 587,
+          secure: false,
+          auth: { user: testAccount.user, pass: testAccount.pass },
+        });
+        let info = await transporter.sendMail({
+          from: '"Watch Together App" <noreply@watchtogether.local>',
+          to: user.email,
+          subject: "Password Reset Request",
+          text: `Reset your password: ${resetLink}`,
+          html: `<p>You requested a password reset.</p><p><a href="${resetLink}">Click here to reset your password</a></p><p>This link expires in 1 hour.</p>`,
+        });
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        return res.json({ message: 'Password reset link generated!', resetLink, previewUrl });
+      } catch (emailErr) {
+        console.error('[RESET] Ethereal email failed (ignored):', emailErr.message);
+        // Always succeed — return direct link even if Ethereal fails
+        return res.json({ message: 'Password reset link generated!', resetLink });
+      }
+    });
+  });
+});
+
+app.post('/api/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+
+  db.get('SELECT * FROM users WHERE resetToken = ?', [token], async (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!user) return res.status(400).json({ error: 'Invalid or expired reset token' });
+    
+    if (Date.now() > user.resetTokenExpiry) {
+      return res.status(400).json({ error: 'Reset token has expired' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    db.run('UPDATE users SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?', [hashedPassword, user.id], (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: 'Failed to reset password' });
+      // Return a short-lived token so ResetPassword.jsx can call /api/auth/rekey immediately
+      const rekeyToken = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '10m' });
+      res.json({ message: 'Password has been successfully reset. You can now login.', token: rekeyToken });
+    });
+  });
+});
+
+// ─── E2EE Key Management Endpoints ──────────────────────────────────────────
+
+/**
+ * POST /api/auth/setup-keys
+ * Called after signup (or first login for legacy accounts).
+ * Stores the user's public key and PBKDF2+AES-wrapped private key.
+ * The raw private key NEVER reaches the server.
+ */
+app.post('/api/auth/setup-keys', async (req, res) => {
+  // Accept both JWT auth and username-keyed unauthenticated (for legacy path)
+  let userId = null;
+  let usernameFromToken = null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const tok = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(tok, JWT_SECRET);
+      userId = decoded.id;
+      usernameFromToken = decoded.username;
+    } catch { /* allow username fallback */ }
+  }
+
+  const { username, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
+  if (!publicKey || !encryptedPrivateKey) {
+    return res.status(400).json({ error: 'publicKey and encryptedPrivateKey are required' });
+  }
+
+  // Resolve userId from username if not from token
+  const resolvedUsername = usernameFromToken || username;
+  if (!resolvedUsername) return res.status(400).json({ error: 'username required' });
+
+  try {
+    await new Promise((resolve, reject) => {
+      const sql = userId
+        ? 'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4'
+        : 'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE username = $4';
+      const param = userId || resolvedUsername;
+      pool.query(sql, [publicKey, encryptedPrivateKey, recoveryKeyHash || null, param])
+        .then(r => resolve(r))
+        .catch(e => reject(e));
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[setup-keys] DB error:', err);
+    res.status(500).json({ error: 'Failed to store keys' });
+  }
+});
+
+/**
+ * POST /api/auth/rekey
+ * Called after a password reset to re-wrap private key with new password.
+ * Only updates encryptedPrivateKey — the public key stays the same.
+ */
+app.post('/api/auth/rekey', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token required' });
+  }
+  const tok = authHeader.split(' ')[1];
+  let decoded;
+  try { decoded = jwt.verify(tok, JWT_SECRET); }
+  catch { return res.status(403).json({ error: 'Invalid token' }); }
+
+  const { encryptedPrivateKey, publicKey, recoveryKeyHash } = req.body;
+  if (!encryptedPrivateKey) return res.status(400).json({ error: 'encryptedPrivateKey required' });
+
+  try {
+    const updates = ['"encryptedPrivateKey" = $1'];
+    const params = [encryptedPrivateKey];
+    if (publicKey) { updates.push(`"publicKey" = $${params.length + 1}`); params.push(publicKey); }
+    if (recoveryKeyHash) { updates.push(`"recoveryKeyHash" = $${params.length + 1}`); params.push(recoveryKeyHash); }
+    params.push(decoded.id);
+    await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[rekey] DB error:', err);
+    res.status(500).json({ error: 'Failed to re-key' });
+  }
+});
+
+/**
+ * GET /api/auth/public-key/:username
+ * Returns the public key for a given user so other users can encrypt messages for them.
+ * This endpoint is intentionally unauthenticated (public keys are meant to be shared).
+ */
+app.get('/api/auth/public-key/:username', (req, res) => {
+  const username = req.params.username ? req.params.username.toLowerCase() : '';
+  pool.query('SELECT "publicKey" FROM users WHERE username = $1', [username])
+    .then(r => {
+      if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
+      res.json({ publicKey: r.rows[0].publicKey || null });
+    })
+    .catch(err => {
+      console.error('[public-key] DB error:', err);
+      res.status(500).json({ error: 'Database error' });
+    });
+});
+
+/**
+ * GET /api/users/:username/public-key
+ * Alias for public-key fetch (requested by frontend/Claude)
+ */
+app.get('/api/users/:username/public-key', (req, res) => {
+  const username = req.params.username ? req.params.username.toLowerCase() : '';
+  pool.query('SELECT "publicKey" FROM users WHERE username = $1', [username])
+    .then(r => {
+      if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
+      res.json({ publicKey: r.rows[0].publicKey || null });
+    })
+    .catch(err => {
+      console.error('[public-key-alias] DB error:', err);
+      res.status(500).json({ error: 'Database error' });
+    });
+});
+
+// ─── Fetch Active Room Participant Public Keys ───
+// Falls back to DB when room is not in-memory (e.g. sent from GlobalChatWidget without Room.jsx open)
+app.get('/api/rooms/:roomId/public-keys', authenticateToken, async (req, res) => {
+  const { roomId } = req.params;
+  const normalizedId = (roomId || '').toLowerCase();
+  const room = rooms.get(normalizedId);
+
+  // Build keys from in-memory room first (most accurate — includes users currently connected)
+  const keyMap = {}; // username -> publicKey string
+  if (room) {
+    for (const [socketId, pk] of Object.entries(room.publicKeys || {})) {
+      const userObj = room.users.find(u => u.socketId === socketId);
+      if (userObj && pk) keyMap[userObj.username] = pk;
+    }
+  }
+
+  // DB fallback: for users who recently participated but may not be connected right now
+  try {
+    const recentSenders = await new Promise((resolve, reject) =>
+      db.all(
+        `SELECT DISTINCT senderName FROM messages WHERE roomId = ? AND type = 'group' ORDER BY timestamp DESC LIMIT 50`,
+        [normalizedId],
+        (err, rows) => err ? reject(err) : resolve(rows || [])
+      )
+    );
+
+    await Promise.all(recentSenders.map(async ({ senderName }) => {
+      if (keyMap[senderName]) return; // already have it from in-memory
+      const u = await new Promise((resolve, reject) =>
+        db.get('SELECT "publicKey" FROM users WHERE username = ?', [senderName],
+          (err, row) => err ? reject(err) : resolve(row))
+      );
+      if (u && u.publicKey) keyMap[senderName] = u.publicKey;
+    }));
+
+    // Also include the requesting user themselves (so sender can decrypt own messages)
+    const reqUsername = req.user.username;
+    if (!keyMap[reqUsername]) {
+      const self = await new Promise((resolve, reject) =>
+        db.get('SELECT "publicKey" FROM users WHERE username = ?', [reqUsername],
+          (err, row) => err ? reject(err) : resolve(row))
+      );
+      if (self && self.publicKey) keyMap[reqUsername] = self.publicKey;
+    }
+  } catch (e) {
+    console.error('[public-keys] DB fallback error:', e);
+  }
+
+  const connectedKeys = Object.entries(keyMap).map(([username, publicKey]) => ({ username, publicKey }));
+  // Always return 200 (even if empty) so frontend can decide whether to abort
+  return res.json({ keys: connectedKeys });
+});
+
+// ─── Fetch Active Room Participant Public Keys (Legacy/Direct Fallback) ───
+app.get('/api/:roomId/public-keys', authenticateToken, async (req, res) => {
+  const { roomId } = req.params;
+  const normalizedId = (roomId || '').toLowerCase();
+  const room = rooms.get(normalizedId);
+
+  const keyMap = {};
+  if (room) {
+    for (const [socketId, pk] of Object.entries(room.publicKeys || {})) {
+      const userObj = room.users.find(u => u.socketId === socketId);
+      if (userObj && pk) keyMap[userObj.username] = pk;
+    }
+  }
+
+  try {
+    const recentSenders = await new Promise((resolve, reject) =>
+      db.all(
+        `SELECT DISTINCT senderName FROM messages WHERE roomId = ? AND type = 'group' ORDER BY timestamp DESC LIMIT 50`,
+        [normalizedId],
+        (err, rows) => err ? reject(err) : resolve(rows || [])
+      )
+    );
+    await Promise.all(recentSenders.map(async ({ senderName }) => {
+      if (keyMap[senderName]) return;
+      const u = await new Promise((resolve, reject) =>
+        db.get('SELECT "publicKey" FROM users WHERE username = ?', [senderName],
+          (err, row) => err ? reject(err) : resolve(row))
+      );
+      if (u && u.publicKey) keyMap[senderName] = u.publicKey;
+    }));
+  } catch (e) {
+    console.error('[public-keys-legacy] DB fallback error:', e);
+  }
+
+  const connectedKeys = Object.entries(keyMap).map(([username, publicKey]) => ({ username, publicKey }));
+  return res.json({ keys: connectedKeys });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/auth/my-keys
+ * Returns the encrypted private key blob for the currently authenticated user.
+ * Used by the frontend after a browser tab close clears sessionStorage, so the
+ * user can re-enter their password and re-derive the key without a full logout/login.
+ * The raw private key NEVER leaves the client.
+ */
+app.get('/api/auth/my-keys', authenticateToken, (req, res) => {
+  pool.query(
+    'SELECT "encryptedPrivateKey", "publicKey" FROM users WHERE id = $1',
+    [req.user.id]
+  )
+    .then(r => {
+      if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
+      res.json({
+        encryptedPrivateKey: r.rows[0].encryptedPrivateKey || null,
+        publicKey: r.rows[0].publicKey || null
+      });
+    })
+    .catch(err => {
+      console.error('[my-keys] DB error:', err);
+      res.status(500).json({ error: 'Database error' });
+    });
+});
+
+// ─── JWT Auth Middleware ───
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token required' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    // Normalize username to lowercase to ensure database joins work correctly
+    req.user = { ...user, username: user.username.toLowerCase() };
+    next();
+  });
+}
+
+// â”€â”€ Avatar upload storage â”€â”€
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'avatars');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, `${req.user.id}-${Date.now()}${ext}`);
+  }
+});
+const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+const roomThumbnailStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, 'uploads', 'room_thumbnails');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.png';
+    cb(null, `room-${Date.now()}${ext}`);
+  }
+});
+const roomThumbnailUpload = multer({ storage: roomThumbnailStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.use('/uploads/room_thumbnails', express.static(path.join(__dirname, 'uploads', 'room_thumbnails')));
+
+app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('thumbnail'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const { roomId } = req.body;
+  if (!roomId) return res.status(400).json({ error: 'roomId required' });
+  const thumbnailPath = `/uploads/room_thumbnails/${req.file.filename}`;
+  db.run('UPDATE room_names SET thumbnailPath = ? WHERE roomId = ?', [thumbnailPath, roomId], (err) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    
+    // Sync in-memory room if it exists
+    const room = rooms.get(roomId);
+    if (room) {
+      room.thumbnailPath = thumbnailPath;
+    }
+    
+    // Broadcast to all users in the room so the UI updates immediately
+    io.in(roomId).emit('room_thumbnail_updated', { thumbnailPath });
+    
+    res.json({ thumbnailPath });
+  });
+});
+
+// Serve avatars statically
+app.use('/avatars', express.static(path.join(__dirname, 'avatars')));
+
+// â”€â”€ GET Profile (own) â”€â”€
+const queryAll = (sql, params) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows)));
+const queryGet = (sql, params) => new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row)));
+
+app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) => {
+  try {
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, pinnedRooms FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const [followersRow, followingRow] = await Promise.all([
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE followerId = ? AND status = ?', [user.username, 'accepted'])
+    ]);
+
+    res.json({
+      ...user,
+      followersCount: followersRow?.count || 0,
+      followingCount: followingRow?.count || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// â”€â”€ UPDATE Pinned Rooms â”€â”€
+app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
+  const { pinnedRooms } = req.body;
+  if (!Array.isArray(pinnedRooms)) return res.status(400).json({ error: 'pinnedRooms must be an array' });
+  let jsonStr = '[]';
+  try {
+    jsonStr = JSON.stringify(pinnedRooms);
+  } catch(e) {}
+  db.run('UPDATE users SET pinnedRooms = ? WHERE id = ?', [jsonStr, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Pinned rooms updated', pinnedRooms: jsonStr });
+  });
+});
+
+// â”€â”€ Search Users Worldwide (exclude deleted/non-existent and blocked) â”€â”€
+app.get('/api/users/search', authenticateToken, (req, res) => {
+  const query = req.query.q;
+  const myUsername = req.user.username;
+  if (!query) return res.json([]);
+  db.all(
+    `SELECT username, displayName, avatarPath, bio FROM users 
+     WHERE (username ILIKE ? OR displayName ILIKE ?) 
+     AND username != ? 
+     AND username NOT IN (SELECT blocked FROM blocks WHERE blocker = ?) 
+     AND username NOT IN (SELECT blocker FROM blocks WHERE blocked = ?) 
+     LIMIT 20`,
+    [`%${query}%`, `%${query}%`, myUsername, myUsername, myUsername],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.json(rows || []);
+    }
+  );
+});
+
+// â”€â”€ GET Public Profile by username â”€â”€
+app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (req, res) => {
+  const { username } = req.params;
+  const viewerUsername = req.user.username;
+  
+  try {
+    const [myBlock, theirBlock] = await Promise.all([
+      queryGet('SELECT * FROM blocks WHERE blocker = ? AND blocked = ?', [viewerUsername, username]),
+      queryGet('SELECT * FROM blocks WHERE blocker = ? AND blocked = ?', [username, viewerUsername])
+    ]);
+    
+    if (myBlock) return res.json({ isBlockedByMe: true, username });
+    if (theirBlock) return res.status(404).json({ error: 'User not found' });
+    
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, showCountry FROM users WHERE username = ?', [username]);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    if (!user.showCountry || user.showCountry == 0 || user.showCountry === '0' || user.showCountry === false) {
+      user.country = null;
+    }
+    delete user.showCountry;
+    
+    const [followersRow, followingRow, followRow, theyFollowMeRow] = await Promise.all([
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE followerId = ? AND status = ?', [user.username, 'accepted']),
+      queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [viewerUsername, user.username]),
+      queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [user.username, viewerUsername])
+    ]);
+    
+    res.json({
+      ...user,
+      followersCount: followersRow?.count || 0,
+      followingCount: followingRow?.count || 0,
+      followStatus: followRow?.status || null,
+      isFollowingMe: theyFollowMeRow?.status === 'accepted'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// â”€â”€ Promisify queries locally for cleaner async/await â”€â”€
+// (queryGet and queryAll moved above)
+
+// â”€â”€ GET Recent Chats â”€â”€
+app.get('/api/chats/recent', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  let lastSeen = {};
+  if (req.query.lastSeen) {
+    try { lastSeen = JSON.parse(decodeURIComponent(req.query.lastSeen)); } catch{}
+  }
+
+  try {
+    // 1. Private chats: get latest message per partner
+    const privateRows = await queryAll(`
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN m.senderName = $1 THEN m.targetName ELSE m.senderName END as partner,
+        m.roomId,
+        m.message,
+        m."senderMessage" as "senderMessage",
+        m.nonce,
+        m."ephemeralPublicKey" as "ephemeralPublicKey",
+        m."mediaUrl" as "mediaUrl",
+        m."mediaType" as "mediaType",
+        'private' as type,
+        m.senderName = $2 as isMyLastMessage
+      FROM messages m
+      WHERE m.type = 'private' 
+        AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
+        AND (m.hiddenFor IS NULL OR m.hiddenFor NOT LIKE '%' || $5 || '%')
+      ORDER BY partner, m.timestamp DESC
+    `, [username, username, username, username, `"${username}"`]);
+
+    const finalPrivate = await Promise.all(privateRows.map(async (row) => {
+      const partnerLower = row.partner.toLowerCase();
+      const u = await queryGet('SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = ?', [partnerLower]);
+      
+      const seenTs = lastSeen[row.partner] || 0;
+      const countRow = await queryGet(`SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND senderName = ? AND targetName = ? AND timestamp > ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`, [row.partner, username, seenTs, `"${username}"`]);
+      
+      const isMedia = !!row.mediaUrl || !!row.mediaType;
+      const mediaPreview = isMedia
+        ? (row.mediaType && row.mediaType.startsWith('video') ? 'Video' : 'Photo')
+        : null;
+      return {
+        id: row.partner,
+        partner: row.partner,
+        displayName: u?.displayName || row.partner,
+        partnerAvatar: u?.avatarPath || null,
+        message: mediaPreview || row.message || '',
+        senderMessage: isMedia ? null : (row.senderMessage || null),
+        nonce: isMedia ? null : (row.nonce || null),
+        ephemeralPublicKey: isMedia ? null : (row.ephemeralPublicKey || null),
+        partnerPublicKey: u?.publicKey || null,
+        lastTimestamp: row.lastTimestamp,
+        type: 'private',
+        isMyLastMessage: !!row.isMyLastMessage,
+        unread: countRow ? Number(countRow.c) : 0
+      };
+    }));
+
+    // 2. Group chats — rooms where user sent messages or is in DB room_names with messages
+    const groupRows = await queryAll(`
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+        m.message,
+        m.mediaUrl,
+        m.mediaType,
+        m."nonce",
+        m."ephemeralPublicKey",
+        u."publicKey" as "senderPublicKey",
+        'room' as type,
+        (m.senderName = $1) as "isMyLastMessage"
+      FROM messages m
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
+      WHERE m.type = 'group' AND m."roomId" IN (
+        SELECT DISTINCT "roomId" FROM messages WHERE LOWER("senderName") = LOWER($2) AND type = 'group'
+      )
+      ORDER BY m."roomId", m.timestamp DESC
+    `, [username, username]);
+    
+    // Fill in room names + unread counts
+    const finalGroup = await Promise.all(groupRows.map(async (row) => {
+      const dbRoom = await queryGet('SELECT roomName, hostUsername, thumbnailPath, permissions, settings FROM room_names WHERE roomId = ?', [row.roomId]);
+      const memRoom = rooms.get(row.roomId);
+      const displayName = memRoom?.roomName || dbRoom?.roomName || row.roomId;
+      const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
+      const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
+      let permissions = null;
+      let settings = null;
+      try { permissions = dbRoom?.permissions ? JSON.parse(dbRoom.permissions) : (memRoom?.permissions || null); } catch(e){}
+      try { settings = dbRoom?.settings ? JSON.parse(dbRoom.settings) : (memRoom?.settings || null); } catch(e){}
+      
+      // Count unread messages since lastSeen
+      const ls = lastSeen[row.roomId] || 0;
+      const unreadRow = await queryGet(
+        `SELECT COUNT(*) as c FROM messages WHERE type = 'group' AND roomId = ? AND timestamp > ? AND senderName != ?`,
+        [row.roomId, ls, username]
+      );
+
+      const e2ee = (row.nonce && row.ephemeralPublicKey) ? {
+        nonce: row.nonce,
+        keys: (() => { try { const p = JSON.parse(row.ephemeralPublicKey); return (typeof p === 'object' && !Array.isArray(p)) ? p : null; } catch(e){ return null; } })(),
+        senderPublicKey: row.senderPublicKey || null
+      } : null;
+
+      return {
+        id: row.roomId,
+        partner: row.roomId,
+        displayName: displayName,
+        partnerAvatar: thumbnailPath,
+        e2ee: e2ee,
+        message: row.message || '',
+        lastTimestamp: row.lastTimestamp,
+        type: 'room',
+        isMyLastMessage: !!row.isMyLastMessage,
+        isHost: hostUsername === username,
+        unread: unreadRow ? Number(unreadRow.c) : 0
+      };
+    }));
+
+    // 3. Pinned rooms: show even if no messages
+    const userRow = await queryGet('SELECT pinnedRooms FROM users WHERE username = ?', [username]);
+    let pinnedIds = [];
+    try { pinnedIds = JSON.parse(userRow?.pinnedRooms || '[]'); } catch(e) { console.error('Error parsing pinnedRooms:', e); }
+
+    const groupRoomIds = new Set(finalGroup.map(g => g.id));
+    for (const rid of pinnedIds) {
+      if (!groupRoomIds.has(rid)) {
+        const dbRoom = await queryGet('SELECT roomName, thumbnailPath FROM room_names WHERE roomId = ?', [rid]);
+        const memRoom = rooms.get(rid);
+        const displayName = memRoom?.roomName || dbRoom?.roomName || rid;
+        const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
+
+        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type = ? ORDER BY timestamp DESC LIMIT 1', [rid, 'group']);
+        const pinnedMediaPreview = lastMsg && (!lastMsg.message || lastMsg.message === '') && lastMsg.mediaUrl
+          ? (lastMsg.mediaType && lastMsg.mediaType.startsWith('video') ? '🎥 Video' : '📷 Photo')
+          : null;
+        finalGroup.push({
+          id: rid,
+          partner: rid,
+          displayName: displayName,
+          partnerAvatar: thumbnailPath,
+          message: pinnedMediaPreview || (lastMsg ? lastMsg.message : 'No messages yet'),
+          lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
+          type: 'room',
+          isMyLastMessage: lastMsg ? lastMsg.senderName === username : false
+        });
+      }
+    }
+
+    // 4. In-memory connected rooms: user is currently in room but may not have sent messages
+    // This ensures receivers always see the group room in their conversation list
+    const allGroupIds = new Set(finalGroup.map(g => g.id));
+    for (const [rid, room] of rooms.entries()) {
+      if (allGroupIds.has(rid)) continue; // already included
+      const isInRoom = room.users && room.users.some(u => u.username === username);
+      if (!isInRoom) continue;
+      // Get last message from in-memory or DB
+      const lastMsg = room.groupMessages.length > 0 
+        ? room.groupMessages[room.groupMessages.length - 1]
+        : await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type = ? ORDER BY timestamp DESC LIMIT 1', [rid, 'group']);
+      // Count unread from DB + in-memory messages since lastSeen
+      const ls = lastSeen[rid] || 0;
+      const dbUnreadRow = await queryGet(
+        `SELECT COUNT(*) as c FROM messages WHERE type = 'group' AND roomId = ? AND timestamp > ? AND senderName != ?`,
+        [rid, ls, username]
+      );
+      const memUnread = room.groupMessages.filter(m => m.timestamp > ls && m.username !== username).length;
+      const roomUnread = Math.max(dbUnreadRow ? Number(dbUnreadRow.c) : 0, memUnread);
+      const lmPreview = lastMsg && (!lastMsg.message && lastMsg.mediaUrl)
+        ? (lastMsg.mediaType?.startsWith('video') ? '🎥 Video' : '📷 Photo')
+        : (lastMsg?.message || '');
+      finalGroup.push({
+        id: rid,
+        partner: rid,
+        displayName: room.roomName || rid,
+        partnerAvatar: room.thumbnailPath || null,
+        message: lmPreview || 'Group conversation',
+        lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
+        type: 'room',
+        isMyLastMessage: lastMsg ? (lastMsg.username === username || lastMsg.senderName === username) : false,
+        isHost: room.hostUsername === username,
+        unread: roomUnread
+      });
+    }
+
+    let finalArr = [...finalPrivate, ...finalGroup];
+
+    // Handle blocks
+    const blockRows = await queryAll('SELECT blocker, blocked FROM blocks WHERE blocker = ? OR blocked = ?', [username, username]);
+    if (blockRows.length > 0) {
+      finalArr = finalArr.map(c => {
+        if (c.type === 'private') {
+          const amIBlocked = blockRows.find(b => b.blocker === c.partner && b.blocked === username);
+          const didIBlock = blockRows.find(b => b.blocker === username && b.blocked === c.partner);
+          if (amIBlocked || didIBlock) {
+            return { ...c, displayName: 'User', partnerAvatar: null, isBlocked: !!didIBlock };
+          }
+        }
+        return c;
+      });
+    }
+
+    finalArr.sort((a,b) => b.lastTimestamp - a.lastTimestamp);
+    res.json(finalArr);
+  } catch(err) {
+    console.error('Recent chats error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// â”€â”€ GET Chat History â”€â”€
+app.get('/api/chats/history', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  const { type, partner } = req.query; 
+  
+  if (!type || !partner) return res.status(400).json({ error: 'type and partner required' });
+
+  try {
+    if (type === 'private') {
+      // Use parameterized query with $N notation for PostgreSQL
+      const rows = await pool.query(`
+        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        FROM messages m
+        LEFT JOIN users u ON u.username = m."senderName"
+        WHERE m.type = 'private'
+          AND ((m."senderName" = $1 AND m."targetName" = $2)
+            OR (m."senderName" = $3 AND m."targetName" = $4))
+        ORDER BY m.timestamp ASC
+      `, [username, partner, partner, username]).then(r => r.rows);
+
+      const filtered = rows
+        .filter(r => !(r.hiddenFor && r.hiddenFor.includes('"' + username + '"')))
+        .map(r => ({
+          id: r.id.toString(),
+          isMe: r.senderName === username,
+          senderId: r.senderId,
+          senderName: r.senderName,
+          senderAvatar: r.senderAvatarPath || null,
+          targetId: r.targetId,
+          targetName: r.targetName,
+          message: r.message,
+          senderMessage: r.senderMessage || null,
+          nonce: r.nonce || null,
+          ephemeralPublicKey: r.ephemeralPublicKey || null,
+          mediaUrl: r.mediaUrl || null,
+          mediaType: r.mediaType || null,
+          timestamp: r.timestamp,
+          reactions: r.reactions ? JSON.parse(r.reactions) : {},
+          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
+        }));
+      res.json(filtered);
+    } else if (type === 'room') {
+      const rows = await pool.query(`
+        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        FROM messages m
+        LEFT JOIN users u ON u.username = m."senderName"
+        WHERE m."roomId" = $1 AND m.type = 'group'
+        ORDER BY m.timestamp ASC LIMIT 200
+      `, [partner]).then(r => r.rows);
+
+      const mapped = rows.map(r => {
+        // ephemeralPublicKey column contains JSON {username: keyWrap, ...} for encrypted group messages
+        // senderPublicKey (from users JOIN) is needed so recipients can decrypt their key-wrap
+        let e2ee = null;
+        if (r.nonce && r.ephemeralPublicKey) {
+          try {
+            const parsed = JSON.parse(r.ephemeralPublicKey);
+            if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+              e2ee = { nonce: r.nonce, keys: parsed, senderPublicKey: r.senderPublicKey || null };
+            } else {
+              e2ee = { nonce: r.nonce, keys: null, senderPublicKey: r.ephemeralPublicKey };
+            }
+          } catch {
+            e2ee = { nonce: r.nonce, keys: null, senderPublicKey: r.ephemeralPublicKey };
+          }
+        }
+        return {
+          id: r.id.toString(),
+          isMe: r.senderName === username,
+          userId: r.senderId,
+          senderName: r.senderName,
+          username: r.senderName,
+          senderAvatar: r.senderAvatarPath || null,
+          message: r.message,
+          nonce: r.nonce || null,
+          ephemeralPublicKey: r.ephemeralPublicKey || null,
+          e2ee,
+          mediaUrl: r.mediaUrl || null,
+          mediaType: r.mediaType || null,
+          timestamp: r.timestamp,
+          reactions: r.reactions ? JSON.parse(r.reactions) : {},
+          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
+        };
+      });
+      res.json(mapped);
+    } else {
+      res.status(400).json({ error: 'invalid type' });
+    }
+  } catch (err) {
+    console.error('[chats/history] error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ─── POST Toggle Chat Reaction ───
+app.post('/api/chats/react', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  const { messageId, emoji } = req.body;
+  if (!messageId || !emoji) return res.status(400).json({ error: 'invalid payload' });
+  
+  try {
+    // Handle optimistic IDs (socketId-timestamp)
+    const matchId = String(messageId);
+    let tsFromId = null;
+    const tsMatch = matchId.match(/\b(\d{13})\b/);
+    if (tsMatch) tsFromId = tsMatch[1];
+    
+    // SELECT * so we get type, senderName, targetName for broadcast routing
+    const row = await queryGet(`SELECT * FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId]);
+    if (!row) return res.status(404).json({ error: 'Message not found' });
+    
+    let rx = {};
+    try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch{}
+
+    // Enforce single reaction per user: remove from all emojis first
+    const hadThisEmoji = rx[emoji] && rx[emoji].includes(username);
+    for (const em of Object.keys(rx)) {
+      rx[em] = rx[em].filter(u => u !== username);
+    }
+    // If user didn't already have this emoji, add them
+    if (!hadThisEmoji) {
+      if (!rx[emoji]) rx[emoji] = [];
+      rx[emoji].push(username);
+    }
+    // Clean up empty arrays
+    for (const em of Object.keys(rx)) {
+      if (rx[em].length === 0) delete rx[em];
+    }
+    
+    await queryAll(`UPDATE messages SET reactions = ? WHERE id = ? OR timestamp = ?`, [JSON.stringify(rx), messageId, messageId]);
+    
+    // Broadcast to all connected sockets — works for Home, Profile, AND Room pages
+    if (row.type === 'private') {
+      const otherUser = row.senderName === username ? row.targetName : row.senderName;
+      // Include timestampId so frontend can match optimistic messages (which use timestamp as ID)
+      const payload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderName: username, emoji, targetName: otherUser };
+      // Use emitToUser which targets ALL connected sockets for the user, regardless of which page they are on
+      emitToUser(username, 'chat:private_reaction', payload);
+      emitToUser(otherUser, 'chat:private_reaction', payload);
+    } else if (row.type === 'group') {
+      const ioRoom = rooms.get(row.roomId);
+      if (ioRoom) {
+        const msg = ioRoom.groupMessages.find(m => m.id === messageId || String(m.id) === String(messageId) || m.timestamp === messageId || String(m.timestamp) === String(messageId));
+        if (msg) msg.reactions = rx;
+      }
+      // Broadcast to room socket (covers Room.jsx users) + global emit (covers GlobalChatWidget users via track_rooms)
+      const reactionPayload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderUsername: username, roomId: row.roomId };
+      io.in(row.roomId).emit('chat:reaction', reactionPayload);
+      // Also emit globally so GlobalChatWidget users (who join via track_rooms) receive it
+      io.emit('chat:reaction', reactionPayload);
+    }
+
+    invalidateCacheForUser(username);
+    if (row.type === 'private') {
+      const otherUser = row.senderName === username ? row.targetName : row.senderName;
+      invalidateCacheForUser(otherUser);
+    }
+
+    res.json({ success: true, reactions: rx });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/chats/send', authenticateToken, async (req, res) => {
+  const username = req.user.username.toLowerCase();
+  const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
+          nonce, ephemeralPublicKey, e2eeKeys, senderMessage } = req.body;
+  const partner = rawPartner ? rawPartner.toLowerCase() : '';
+  // message can be empty if there's a media attachment
+  if (!type || !partner || (!message && !mediaUrl)) return res.status(400).json({ error: 'invalid payload' });
+
+  const actualMessage = message || '';
+  const ts = Date.now();
+  try {
+    if (type === 'private') {
+      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [username, partner]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [partner, username]);
+      const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
+
+      if (!areFriends) {
+        return res.status(403).json({ error: 'You must be mutual friends to send messages.' });
+      }
+
+      // Fetch targetId for the message
+      const targetUser = await queryGet('SELECT id FROM users WHERE username = ?', [partner]);
+      const targetId = targetUser ? String(targetUser.id) : null;
+
+      const dmUsers = [username, partner].sort();
+      const roomId = 'dm-' + dmUsers.join('-');
+
+      // Store message + sender-readable copy (senderMessage) so sender can decrypt history
+      await pool.query(
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
+         actualMessage, senderMessage || null,
+         mediaUrl || null, mediaType || null, ts,
+         replyTo ? JSON.stringify(replyTo) : null,
+         nonce || null, ephemeralPublicKey || null]
+      );
+
+      const payload = {
+        id: String(ts),
+        senderId: req.user.id || 'http_client',
+        senderName: username,
+        targetName: partner,
+        message: actualMessage,
+        senderMessage: senderMessage || null,
+        mediaUrl: mediaUrl || null,
+        mediaType: mediaType || null,
+        timestamp: ts,
+        isMe: false,
+        replyTo: replyTo || null,
+        tempId: tempId || null,
+        nonce: nonce || null,
+        ephemeralPublicKey: ephemeralPublicKey || null,
+      };
+
+      emitToUser(partner, 'private_message', payload);
+      
+      // Emit back to sender so other active components (e.g. Room.jsx or across tabs) receive it.
+      // We pass isMe: true so the sender correctly plots the UI bubbles and uses senderMessage for decryption.
+      const senderPayload = { ...payload, isMe: true };
+      emitToUser(username, 'private_message', senderPayload);
+
+      invalidateCacheForUser(username);
+      invalidateCacheForUser(partner);
+
+      res.json({ success: true, timestamp: ts });
+    } else if (type === 'room') {
+      // ─── Room Permissions Check ───
+      const roomRow = await queryGet('SELECT hostUsername, permissions FROM room_names WHERE roomId = ?', [partner]);
+      if (roomRow) {
+        const perms = roomRow.permissions ? JSON.parse(roomRow.permissions) : {};
+        const isHost = roomRow.hostUsername && roomRow.hostUsername.toLowerCase() === username.toLowerCase();
+
+        if (perms.chat === 'host' && !isHost) {
+          return res.status(400).json({ error: 'Only the host can send messages in this room.' });
+        }
+
+        const hasLink = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g.test(actualMessage);
+        if (hasLink && perms.allowLinks === false && !isHost) {
+          return res.status(400).json({ error: 'Links are not allowed in this room.' });
+        }
+
+        if (mediaUrl && perms.allowMedia === false && !isHost) {
+          return res.status(400).json({ error: 'Media uploads are not allowed in this room.' });
+        }
+      }
+
+      // Store: ephemeralPublicKey column = JSON key-map {username: keyWrap, ...}
+      // The sender's own publicKey is fetched from users table on history read
+      const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
+
+      await pool.query(
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [partner, 'group', String(req.user.id || 'http_client'), username,
+         actualMessage, mediaUrl || null, mediaType || null, ts,
+         replyTo ? JSON.stringify(replyTo) : null,
+         nonce || null,
+         ephemText || null]  // key-map JSON stored here
+      );
+
+      // Build e2ee broadcast payload — include senderPublicKey (= ephemeralPublicKey from frontend for group)
+      // plus the key-map so every recipient can decrypt their own copy
+      const senderPubKeyForGroup = ephemeralPublicKey || null;
+      const e2eeBroadcast = (nonce && e2eeKeys)
+        ? { nonce, keys: e2eeKeys, senderPublicKey: senderPubKeyForGroup }
+        : null;
+
+      const msg = {
+        id: String(ts),
+        userId: req.user.id || 'http_client',
+        username,
+        senderName: username,
+        message: actualMessage,
+        roomId: partner,
+        type: 'group',
+        mediaUrl: mediaUrl || null,
+        mediaType: mediaType || null,
+        timestamp: ts,
+        reactions: {},
+        replyTo: replyTo || null,
+        tempId: tempId || null,
+        nonce: nonce || null,
+        e2ee: e2eeBroadcast,
+      };
+
+      const ioRoom = rooms.get(partner);
+      if (ioRoom) {
+        ioRoom.groupMessages.push(msg);
+        if (ioRoom.groupMessages.length > 200) ioRoom.groupMessages.shift();
+      }
+
+      let roomPerms = null;
+      try { roomPerms = roomRow?.permissions ? JSON.parse(roomRow.permissions) : null; } catch(e){}
+
+      io.in(partner).emit('chat_message', { ...msg, roomPermissions: roomPerms });
+      io.emit('global_new_chat_message', { ...msg, roomPermissions: roomPerms });
+
+      invalidateCacheForUser(username);
+      res.json({ success: true, timestamp: ts });
+    }
+  } catch (err) {
+    console.error('[chats/send] error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// â”€â”€ POST Upload Chat Media (no roomId required) â”€â”€
+app.post('/api/upload/chat', authenticateToken, upload.single('media'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+  // Check if media is allowed in this room
+  const roomId = req.body.roomId;
+  if (roomId) {
+    const room = rooms.get(roomId);
+    if (room && room.permissions && room.permissions.allowMedia === false) {
+      return res.status(400).json({ error: 'Sharing media is disabled in this room.' });
+    }
+  }
+  const mediaUrl = `/api/stream/${req.file.filename}`;
+  res.json({ url: mediaUrl, mimeType: req.file.mimetype });
+});
+
+// ─── DELETE Chat Message ───
+app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
+  const messageId = req.params.id; // Could be database ID or timestamp (for optimistic messages)
+  const username = req.user.username;
+  const action = req.query.action; // 'local' or undefined
+  
+  try {
+    const isIdNumeric = !isNaN(messageId) && !messageId.toString().includes('opt-') && !messageId.toString().includes('http-');
+    
+    let msg = null;
+    if (isIdNumeric) {
+        msg = await queryGet('SELECT * FROM messages WHERE id = ?', [messageId]);
+      } else {
+        // Robust pattern match to find the 13-digit Unix timestamp
+        const matchStr = messageId.toString();
+        let tsFromId = null;
+        const tsMatch = matchStr.match(/\b(\d{13})\b/);
+        if (tsMatch) tsFromId = tsMatch[1];
+        
+        // Use COALESCE or exact checks for BIGINT timestamp
+        msg = await queryGet('SELECT * FROM messages WHERE id::text = $1 OR timestamp::text = $2 OR (timestamp IS NOT NULL AND timestamp = $3)', 
+          [messageId, messageId, Number(tsFromId) || 0]);
+      }
+
+    if (!msg) {
+      // It might be a group message stored entirely in memory cache (volatile)
+      let memoryMsgFound = false;
+      for (const [roomId, room] of rooms.entries()) {
+        const idx = room.groupMessages.findIndex(m => m.id === messageId || m.timestamp.toString() === messageId || (m.id && m.id.toString()) === messageId);
+        if (idx !== -1) {
+          const m = room.groupMessages[idx];
+          if (m.senderName === username && action !== 'local') {
+             // Global Unsend
+             const removedMsg = room.groupMessages.splice(idx, 1)[0];
+             const deletePayload = { roomId, messageId: removedMsg.id.toString(), originalId: messageId, timestampId: removedMsg.timestamp.toString() };
+             io.in(roomId).emit('chat:message_deleted', deletePayload);
+             io.emit('chat:message_deleted', deletePayload);
+             room.users.forEach(u => emitToUser(u.username, 'chat:message_deleted', deletePayload));
+             memoryMsgFound = true;
+             return res.json({ success: true, deletedId: removedMsg.id });
+          } else {
+             // Local delete
+             m.hiddenFor = m.hiddenFor || [];
+             if (!m.hiddenFor.includes(username)) m.hiddenFor.push(username);
+             emitToUser(username, 'chat:message_deleted', { messageId: m.id.toString(), originalId: messageId });
+             memoryMsgFound = true;
+             return res.json({ success: true, hiddenId: m.id });
+          }
+        }
+      }
+
+      if (!memoryMsgFound) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+    }
+
+    // Now working with a DB message
+    if (action === 'local' || msg.senderName !== username) {
+       // Local Hide Delete
+       let hidden = [];
+       try { hidden = JSON.parse(msg.hiddenFor || '[]'); } catch(e){}
+       if (!hidden.includes(username)) hidden.push(username);
+       await queryAll('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), msg.id]);
+       
+       // Tell just this user to remove it from UI
+       emitToUser(username, 'chat:message_deleted', { messageId: msg.id.toString(), originalId: messageId, timestampId: msg.timestamp.toString() });
+       return res.json({ success: true, hiddenId: msg.id });
+    } else {
+       // Global Unsend (msg.senderName === username)
+       await queryAll('DELETE FROM messages WHERE id = ?', [msg.id]);
+
+       if (msg.type === 'private') {
+         emitToUser(msg.senderName, 'chat:message_deleted', { messageId: msg.id.toString(), originalId: messageId, timestampId: msg.timestamp.toString() });
+         if (msg.targetName) emitToUser(msg.targetName, 'chat:message_deleted', { messageId: msg.id.toString(), originalId: messageId, timestampId: msg.timestamp.toString() });
+       } else if (msg.type === 'group') {
+         const payload = { messageId: msg.id.toString(), originalId: messageId, timestampId: msg.timestamp.toString(), roomId: msg.roomId };
+         io.in(msg.roomId).emit('chat:message_deleted', payload);
+         io.emit('chat:message_deleted', payload);
+         
+         const ioRoom = rooms.get(msg.roomId);
+         if (ioRoom) {
+           ioRoom.groupMessages = ioRoom.groupMessages.filter(m => String(m.id) !== String(msg.id) && String(m.timestamp) !== String(msg.timestamp));
+         }
+       }
+       invalidateCacheForUser(username);
+       if (msg.targetName) invalidateCacheForUser(msg.targetName);
+
+       return res.json({ success: true, deletedId: msg.id });
+    }
+  } catch (err) {
+    console.error('Delete message error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// â”€â”€ BLOCKS endpoints â”€â”€
+app.post('/api/block/:username', authenticateToken, (req, res) => {
+  const blocker = req.user.username;
+  const blocked = req.params.username;
+  if (blocker.toLowerCase() === blocked.toLowerCase()) return res.status(400).json({ error: 'Cannot block yourself' });
+  
+  db.run('INSERT OR IGNORE INTO blocks (blocker, blocked) VALUES (?, ?)', [blocker, blocked], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    // Also unfollow each other silently
+    invalidateCacheForUser(blocker);
+    invalidateCacheForUser(blocked);
+    res.json({ success: true, blocked: true });
+  });
+});
+
+app.delete('/api/block/:username', authenticateToken, (req, res) => {
+  const blocker = req.user.username;
+  const blocked = req.params.username;
+  db.run('DELETE FROM blocks WHERE blocker = ? AND blocked = ?', [blocker, blocked], function(err) {
+    invalidateCacheForUser(blocker);
+    invalidateCacheForUser(blocked);
+    res.json({ success: true, unblocked: true });
+  });
+});
+
+app.get('/api/blocks', authenticateToken, (req, res) => {
+  const username = req.user.username;
+  db.all(
+    `SELECT b.blocked as username, u.displayName, u.avatarPath 
+     FROM blocks b 
+     JOIN users u ON b.blocked = u.username 
+     WHERE b.blocker = ?`,
+    [username],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.json(rows || []);
+    }
+  );
+});
+
+// â”€â”€ FOLLOW a user â”€â”€
+app.post('/api/follow/:username', authenticateToken, (req, res) => {
+  const follower = req.user.username;
+  const following = req.params.username;
+  if (follower.toLowerCase() === following.toLowerCase()) return res.status(400).json({ error: 'Cannot follow yourself' });
+  // Check if either user has blocked the other
+  db.get(
+    'SELECT id FROM blocks WHERE (blocker = ? AND blocked = ?) OR (blocker = ? AND blocked = ?)',
+    [following, follower, follower, following],
+    (blockErr, blockRow) => {
+      if (blockErr) return res.status(500).json({ error: 'Database error' });
+      if (blockRow) return res.status(403).json({ error: 'Cannot send follow request' });
+      // Insert as pending (request sent)
+      db.run('INSERT OR IGNORE INTO follows (followerId, followingId, status) VALUES (?, ?, ?)', [follower, following, 'pending'], function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        invalidateCacheForUser(follower);
+        invalidateCacheForUser(following);
+        res.json({ success: true, status: 'pending' });
+      });
+    }
+  );
+});
+
+// â”€â”€ ACCEPT a follow request â”€â”€
+app.post('/api/follow/:username/accept', authenticateToken, (req, res) => {
+  const accepter = req.user.username;
+  const requester = req.params.username;
+  db.run('UPDATE follows SET status = ? WHERE followerId = ? AND followingId = ?', ['accepted', requester, accepter], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(accepter);
+    invalidateCacheForUser(requester);
+    res.json({ success: true, status: 'accepted' });
+  });
+});
+
+// â”€â”€ UNFOLLOW / Cancel request â”€â”€
+app.delete('/api/follow/:username', authenticateToken, (req, res) => {
+  const follower = req.user.username;
+  const following = req.params.username;
+  db.run('DELETE FROM follows WHERE followerId = ? AND followingId = ?', [follower, following], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(follower);
+    invalidateCacheForUser(following);
+    res.json({ success: true });
+  });
+});
+
+// â”€â”€ GET Follow Requests (incoming) â”€â”€
+app.get('/api/follow/requests', authenticateToken, apiCacheMiddleware, (req, res) => {
+  const username = req.user.username;
+  // Fetch pending and accepted follows from the last 10 days (or just all for simplicity, limit 50)
+  db.all(`
+    SELECT 
+      f.followerId as username, u.displayName, u.avatarPath, f.status,
+      (SELECT status FROM follows WHERE followerId = ? AND followingId = f.followerId) as myFollowStatus
+    FROM follows f 
+    JOIN users u ON u.username = f.followerId 
+    WHERE f.followingId = ? 
+    ORDER BY f.createdAt DESC LIMIT 50
+  `, [username, username], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    res.json(rows || []);
+  });
+});
+
+// â”€â”€ GET Followers / Following list for a user â”€â”€
+app.get('/api/follow/:username/list', authenticateToken, (req, res) => {
+  const { username } = req.params;
+  db.all(
+    `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON u.username = f.followerId WHERE f.followingId = ? AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+    [username],
+    (err, followers) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      db.all(
+        `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON u.username = f.followingId WHERE f.followerId = ? AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+        [username],
+        (err2, following) => {
+          if (err2) return res.status(500).json({ error: 'Database error' });
+          res.json({ followers: followers || [], following: following || [] });
+        }
+      );
+    }
+  );
+});
+
+// â”€â”€ UPDATE Display Name and Bio â”€â”€
+app.put('/api/profile', authenticateToken, (req, res) => {
+  const { displayName, bio } = req.body;
+  if (!displayName || !displayName.trim()) return res.status(400).json({ error: 'Display name is required' });
+  db.run('UPDATE users SET displayName = ?, bio = ? WHERE id = ?', [displayName.trim(), bio !== undefined ? bio : null, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Profile updated', displayName: displayName.trim(), bio });
+  });
+});
+
+// â”€â”€ DELETE User Account â”€â”€
+app.delete('/api/profile', authenticateToken, (req, res) => {
+  // First get the username to delete rooms
+  db.get('SELECT username FROM users WHERE id = ?', [req.user.id], (err, user) => {
+    if (err || !user) return res.status(500).json({ error: 'Failed to find user' });
+    
+    // Delete from users table
+    db.run('DELETE FROM users WHERE id = ?', [req.user.id], function(err) {
+      if (err) {
+        console.error('DELETE ACCOUNT ERROR (users):', err);
+        return res.status(500).json({ error: 'Failed to delete account (main table)' });
+      }
+      
+      // Also delete any rooms they were hosting
+      db.run('DELETE FROM room_names WHERE hostUsername = ?', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (room_names):', err);
+        res.json({ message: 'Account permanently deleted' });
+      });
+    });
+  });
+});
+
+// â”€â”€ Upload Avatar â”€â”€
+app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const avatarUrl = `/avatars/${req.file.filename}`;
+  // Delete old avatar if exists
+  db.get('SELECT avatarPath FROM users WHERE id = ?', [req.user.id], (err, row) => {
+    if (!err && row && row.avatarPath) {
+      const oldPath = path.join(__dirname, row.avatarPath);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    db.run('UPDATE users SET avatarPath = ? WHERE id = ?', [avatarUrl, req.user.id], function(updateErr) {
+      if (updateErr) return res.status(500).json({ error: 'Database error' });
+      invalidateCacheForUser(req.user.username);
+      res.json({ message: 'Avatar updated', avatarPath: avatarUrl });
+    });
+  });
+});
+
+// â”€â”€ Change Password â”€â”€
+app.post('/api/profile/change-password', authenticateToken, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+
+  db.get('SELECT * FROM users WHERE id = ?', [req.user.id], async (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user.password) return res.status(400).json({ error: 'Account uses Google sign-in, password cannot be changed here' });
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(400).json({ error: 'Current password is incorrect' });
+    const hashed = await bcrypt.hash(newPassword, 10);
+    db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, user.id], (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: 'Failed to change password' });
+      res.json({ message: 'Password changed successfully' });
+    });
+  });
+});
+
+// â”€â”€ GET App Settings â”€â”€
+app.get('/api/settings', authenticateToken, (req, res) => {
+  db.get('SELECT language, country, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave FROM users WHERE id = ?', [req.user.id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+    res.json(row);
+  });
+});
+
+// â”€â”€ UPDATE App Settings â”€â”€
+app.put('/api/settings', authenticateToken, (req, res) => {
+  const allowed = ['language', 'country', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave'];
+  const updates = [];
+  const values = [];
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) {
+      updates.push(`${key} = ?`);
+      values.push(req.body[key]);
+    }
+  }
+  if (updates.length === 0) return res.status(400).json({ error: 'No valid settings provided' });
+  values.push(req.user.id);
+  db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values, function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Settings updated' });
+  });
+});
+
+// Endpoint to upload a local media file to a room
+app.post('/api/upload', upload.single('media'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded.' });
+  }
+  const { roomId } = req.body;
+  if (!roomId) {
+    // Clean up if no room provided
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'roomId is required.' });
+  }
+
+  const mediaUrl = `/api/stream/${req.file.filename}`;
+  res.json({ url: mediaUrl });
+});
+
+// Endpoint to stream the uploaded media using HTTP Range Requests (Zero buffering seeking)
+app.get('/api/stream/:filename', (req, res) => {
+  const filePath = path.join(__dirname, 'uploads', req.params.filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp'
+  };
+  // Default to video/mp4 for streamed files without extensions to ensure browser compatibility
+  const contentType = mimeTypes[ext] || (req.path.includes('/api/stream') ? 'video/mp4' : 'application/octet-stream');
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+    if (start >= fileSize) {
+      res.status(416).send('Requested range not satisfiable\n'+start+' >= '+fileSize);
+      return;
+    }
+
+    const chunksize = (end - start) + 1;
+    const file = fs.createReadStream(filePath, {
+      start, 
+      end, 
+      highWaterMark: 128 * 1024 // 128KB buffer for smoother 4K streaming
+    });
+    const head = {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': contentType,
+    };
+
+    res.writeHead(206, head);
+    file.pipe(res);
+  } else {
+    const head = {
+      'Content-Length': fileSize,
+      'Content-Type': contentType,
+    };
+    res.writeHead(200, head);
+    fs.createReadStream(filePath, { highWaterMark: 128 * 1024 }).pipe(res);
+  }
+});
+
+app.get('/api/rooms/info', (req, res) => {
+  const idsParam = req.query.ids;
+  if (!idsParam) return res.json([]);
+  const ids = idsParam.split(',').filter(Boolean);
+  
+  const promises = ids.map(id => {
+    return new Promise((resolve) => {
+      let activeRoom = rooms.get(id);
+      db.get('SELECT roomName, category, thumbnailPath FROM room_names WHERE roomId = ?', [id], (err, row) => {
+        if (!row && !activeRoom) {
+          console.log(`[INFO] Room Info Request: ${id} -> NOT FOUND`);
+          return resolve(null);
+        }
+        let name = (row && row.roomName) ? row.roomName : (activeRoom ? activeRoom.roomName : 'Room Chat');
+        let category = (row && row.category) ? row.category : (activeRoom ? activeRoom.category : 'other');
+        let thumbnailPath = (row && row.thumbnailPath) ? row.thumbnailPath : (activeRoom ? activeRoom.thumbnailPath : null);
+        let userCount = activeRoom ? activeRoom.users.length : 0;
+        console.log(`[INFO] Room Info Request: ${id} -> FOUND (name: ${name}, active: ${!!activeRoom})`);
+        resolve({ id, name, userCount, category, thumbnailPath });
+      });
+    });
+  });
+
+  Promise.all(promises).then(data => res.json(data.filter(Boolean))).catch(() => res.json([]));
+});
+
+
+
+
+app.post('/api/rooms/create', (req, res) => {
+  const { roomId, roomName, category, isPublic, hostUsername } = req.body;
+  if (!roomId) return res.status(400).json({ error: 'roomId required' });
+  const name = (roomName && roomName.trim()) ? roomName.trim() : 'Room Chat';
+  const pub = isPublic ? 1 : 0;
+  const cat = category || 'other';
+  db.run(
+    'INSERT INTO room_names (roomId, roomName, isPublic, hostUsername, category) VALUES (?, ?, ?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET roomName = excluded.roomName, isPublic = excluded.isPublic, hostUsername = excluded.hostUsername, category = excluded.category',
+    [roomId, name, pub, hostUsername || null, cat],
+    (err) => {
+      if (err) return res.status(500).json({ error: 'DB error' });
+      res.json({ success: true });
+    }
+  );
+});
+
+app.post('/api/rooms/make-private', (req, res) => {
+  const { roomId, username } = req.body;
+  const room = rooms.get(roomId);
+  // Check both in-memory and DB host
+  db.get('SELECT hostUsername FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
+    const dbHost = row && row.hostUsername;
+    const memHost = room && room.hostUsername;
+    const isHost = (username && (
+      (memHost && String(memHost).toLowerCase() === String(username).toLowerCase()) ||
+      (dbHost && String(dbHost).toLowerCase() === String(username).toLowerCase())
+    ));
+    if (!isHost) return res.status(403).json({ error: 'Permission denied or room not found' });
+    if (room) {
+      room.isPublic = false;
+      io.to(roomId).emit('room_public_status', { isPublic: false });
+    }
+    // Persist private status to DB
+    db.run('UPDATE room_names SET isPublic = 0 WHERE roomId = ?', [roomId]);
+    return res.json({ success: true });
+  });
+});
+
+app.get('/api/rooms/public', (req, res) => {
+    db.all('SELECT roomId, roomName, hostUsername, category, thumbnailPath FROM room_names WHERE isPublic = 1', [], (err, rows) => {
+    if (err) return res.json([]);
+
+    // Merge with in-memory rooms
+    const inMemoryPublic = [];
+    for (const [id, room] of rooms.entries()) {
+      if (room.isPublic) {
+        inMemoryPublic.push({ roomId: id, roomName: room.roomName || 'Room Chat', hostUsername: room.hostUsername || null, category: room.category || 'other', thumbnailPath: room.thumbnailPath || null });
+      }
+    }
+
+    // Combine DB rows + in-memory, dedupe by roomId
+    const allPublicMap = new Map();
+    (rows || []).forEach(r => allPublicMap.set(r.roomId, r));
+    inMemoryPublic.forEach(r => {
+      if (!allPublicMap.has(r.roomId)) allPublicMap.set(r.roomId, r);
+    });
+
+    const result = [];
+    for (const [roomId, dbRow] of allPublicMap.entries()) {
+      const memRoom = rooms.get(roomId);
+      const userCount = memRoom ? memRoom.users.length : 0;
+      const hostUsername = (memRoom?.hostUsername) || dbRow.hostUsername || null;
+      const name = (memRoom?.roomName && memRoom.roomName !== 'Room Chat') ? memRoom.roomName : (dbRow.roomName || 'Room Chat');
+      const category = (memRoom?.category) || dbRow.category || 'other';
+      const thumbnailPath = (memRoom?.thumbnailPath) || dbRow.thumbnailPath || null;
+      result.push({ id: roomId, name, userCount, hostUsername, category, thumbnailPath });
+    }
+
+    res.json(result);
+  });
+});
+
+function buildUserList(room) {
+  return room.users.map(u => ({
+    socketId: u.socketId,
+    username: u.username,
+    isMuted: u.isMuted || room.mutedUsers.has(u.username),
+    isHost: u.socketId === room.hostId,
+    publicKey: room.publicKeys?.[u.socketId] || null,
+    avatarPath: u.avatarPath || null
+  }));
+}
+
+function getSerializableRoom(room) {
+  if (!room) return null;
+  return {
+    roomName: room.roomName || 'Room Chat',
+    currentMedia: room.currentMedia || null,
+    currentTime: room.currentTime || 0,
+    isPlaying: !!room.isPlaying,
+    timestampUpdatedAt: room.timestampUpdatedAt || Date.now(),
+    isPublic: !!room.isPublic,
+    category: room.category || 'other',
+    thumbnailPath: room.thumbnailPath || null,
+    permissions: room.permissions || {},
+    settings: room.settings || {},
+    bannedUsers: Array.from(room.bannedUsers || []),
+    activeExternalApp: room.activeExternalApp || null,
+    screenshareHostId: room.screenshareHostId || null,
+    users: buildUserList(room)
+  };
+}
+
+// Helper to check if a user has admin privileges in a room
+function isUserAdmin(room, socket) {
+  if (!room || !socket) return false;
+  // Host is always admin
+  const isHost = (room.hostId === socket.id) || 
+                 (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+  if (isHost) return true;
+  
+  // If "Auto-Admin Members" is on, any registered user is admin
+  // Guests (Anonymous) are NEVER auto-admins
+  if (room.settings?.newMembersAdmins && socket.username && socket.username !== 'Anonymous' && !socket.username.toLowerCase().startsWith('guest_')) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Socket.io middleware to handle JWT auth
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(); // Allow anonymous for now if needed, but we'll try to get username
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) return next();
+    socket.user = decoded;
+    socket.username = decoded.username;
+    next();
+  });
+});
+
+// Socket.io connection logic
+function isNSFWUrl(url) {
+  if (!url) return false;
+  const nsfwKeywords = ['porn', 'xxx', 'sex', 'xrated', 'nsfw', 'adult', 'erotic', 'brazers', 'redtube', 'xvideos', 'pornhub', 'youporn'];
+  const nsfwDomains = ['pornhub.com', 'xvideos.com', 'redtube.com', 'youporn.com', 'xnxx.com', 'brazzers.com', 'xhamster.com', 'chaturbate.com', 'bongacams.com'];
+  
+  const lowerUrl = url.toLowerCase();
+  // Simple check for domains and keywords in URL
+  const isKeywordMatch = nsfwKeywords.some(k => lowerUrl.includes(k));
+  const isDomainMatch = nsfwDomains.some(d => lowerUrl.includes(d));
+  
+  return isKeywordMatch || isDomainMatch;
+}
+
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
+  // Register in global map if authenticated
+  if (socket.username) registerSocket(socket.username, socket.id);
+
+  socket.on('disconnect', () => {
+    unregisterSocket(socket.username, socket.id);
+  });
+
+  // ─── Helper for Finalizing Room Join ───
+  function executeFinalJoin(targetSocket, roomObj, roomId, username) {
+    if (!roomObj) return;
+
+    if (username !== 'Anonymous') {
+      roomObj.users = roomObj.users.filter(u => u.username !== username);
+    }
+
+    const isDbHost = roomObj.hostUsername && username && roomObj.hostUsername.toLowerCase() === username.toLowerCase();
+    const isGuestStr = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+
+    if (roomObj.users.length === 0) {
+      // Only assign hostId to the first joiner if they are the true host, or if it's a new room and they are not a guest
+      if (isDbHost || (!roomObj.hostUsername && !isGuestStr)) {
+        roomObj.hostId = targetSocket.id;
+      }
+      roomObj.currentMedia = null;
+      roomObj.currentTime = 0;
+      roomObj.isPlaying = false;
+      roomObj.timestampUpdatedAt = Date.now();
+    } else if (isDbHost) {
+      // True host rejoined while others are inside
+      roomObj.hostId = targetSocket.id;
+    }
+
+    if (roomObj.bannedUsers.has(username)) {
+      targetSocket.emit('kicked_out', { reason: 'banned' });
+      targetSocket.leave(roomId);
+      return;
+    }
+
+    targetSocket.join(roomId);
+    targetSocket.roomId = roomId;
+    targetSocket.username = username;
+    registerSocket(username, targetSocket.id);
+
+    if (!roomObj.users.find(u => u.socketId === targetSocket.id)) {
+      // Fetch and cache avatarPath for profile picture display in group chat
+      const userEntry = { socketId: targetSocket.id, username, avatarPath: null };
+      roomObj.users.push(userEntry);
+      if (username && username !== 'Anonymous') {
+        db.get('SELECT avatarPath FROM users WHERE username = ?', [username], (err, row) => {
+          if (!err && row && row.avatarPath) {
+            userEntry.avatarPath = row.avatarPath;
+            // Broadcast updated user list so all clients see the avatar immediately
+            io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
+          }
+        });
+      }
+    }
+
+    // If newMembersAdmins is on and user is a registered member (not guest/anonymous), notify them they have admin rights
+    const isAutoAdmin = roomObj.settings?.newMembersAdmins && !isGuestStr;
+    const isRoomHost = (roomObj.hostId === targetSocket.id) || isDbHost;
+    if (isAutoAdmin && !isRoomHost) {
+      targetSocket.emit('you_are_now_host');
+    }
+
+    // Emit initial state
+    const state = getSerializableRoom(roomObj);
+    if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
+    targetSocket.emit('room_state', state);
+    targetSocket.broadcast.to(roomId).emit('user_joined', { socketId: targetSocket.id, username, isMuted: false, isHost: roomObj.hostId === targetSocket.id, publicKey: null });
+
+    // Save to DB
+    if (username !== 'Anonymous') {
+      db.run(
+        'INSERT INTO room_names (roomId, roomName, hostUsername) VALUES (?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET hostUsername = excluded.hostUsername WHERE room_names.hostUsername IS NULL',
+        [roomId, 'Room Chat', username]
+      );
+    }
+
+    // Fetch history — JOIN with users so senderAvatar is included;
+    // senderPublicKey is resolved from in-memory publicKeys map + PostgreSQL fallback
+    db.all(`
+      SELECT m.*, u.avatarPath as senderAvatarPath
+      FROM messages m
+      LEFT JOIN users u ON u.username = m.senderName
+      WHERE m.roomId = ? AND m.type = 'group'
+      ORDER BY m.timestamp ASC LIMIT 200
+    `, [roomId], async (err, groupRows) => {
+      if (!err && groupRows && groupRows.length > 0) {
+        // 1. Build username→publicKey from currently-connected sockets (fast, in-memory)
+        const usernameToPublicKey = {};
+        if (roomObj.publicKeys) {
+          for (const [sid, pk] of Object.entries(roomObj.publicKeys)) {
+            const userObj = roomObj.users.find(u => u.socketId === sid);
+            if (userObj && pk) usernameToPublicKey[userObj.username.toLowerCase()] = pk;
+          }
+        }
+
+        // 2. PostgreSQL fallback: for senders NOT currently connected, fetch publicKey from DB
+        const missingUsers = [...new Set(
+          groupRows
+            .filter(r => r.nonce && r.ephemeralPublicKey && !usernameToPublicKey[(r.senderName || '').toLowerCase()])
+            .map(r => (r.senderName || '').toLowerCase())
+            .filter(Boolean)
+        )];
+        if (missingUsers.length > 0) {
+          try {
+            const pgResult = await pool.query(
+              `SELECT LOWER(username) as username, "publicKey" FROM users WHERE LOWER(username) = ANY($1)`,
+              [missingUsers]
+            );
+            for (const row of pgResult.rows) {
+              if (row.username && row.publicKey) usernameToPublicKey[row.username] = row.publicKey;
+            }
+          } catch(pgErr) { console.warn('[chat_history] PG publicKey fallback failed:', pgErr.message); }
+        }
+
+        const history = groupRows.map(r => ({
+          id: r.id.toString(), userId: r.senderId, username: r.senderName, message: r.message,
+          timestamp: r.timestamp,
+          senderAvatar: r.senderAvatarPath || null,
+          reactions: (() => { try { return r.reactions ? JSON.parse(r.reactions) : {}; } catch{ return {}; } })(),
+          e2ee: (() => {
+            if (!r.nonce || !r.ephemeralPublicKey) return null;
+            try {
+              const keysMap = JSON.parse(r.ephemeralPublicKey);
+              if (typeof keysMap !== 'object' || Array.isArray(keysMap)) throw new Error('not a keys map');
+              const senderPK = usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
+              return { nonce: r.nonce, keys: keysMap, senderPublicKey: senderPK };
+            } catch(e) { 
+               return null; 
+            }
+          })(),
+          mediaUrl: r.mediaUrl || null,
+          mediaType: r.mediaType || null,
+          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null
+        }));
+        targetSocket.emit('chat_history', history);
+        roomObj.groupMessages = history;
+      } else {
+        targetSocket.emit('chat_history', roomObj.groupMessages.slice(-200));
+      }
+    });
+
+    db.all(`SELECT * FROM messages WHERE type = 'private' AND (senderName = ? OR targetName = ?) ORDER BY timestamp ASC`,
+      [username, username], (err, dmRows) => {
+        if (!err && dmRows && dmRows.length > 0) {
+          // Build the same { [otherUser]: [...messages] } map that Room.jsx's chat_history_dm handler expects
+          const dmHistory = {};
+          dmRows.forEach(row => {
+            if (row.hiddenFor && row.hiddenFor.includes(`"${username}"`)) return;
+            const isMe = row.senderName === username;
+            const otherName = isMe ? row.targetName : row.senderName;
+            if (!dmHistory[otherName]) dmHistory[otherName] = [];
+            dmHistory[otherName].push({
+              id: row.id.toString(),
+              isMe,
+              senderId: row.senderId,
+              senderName: row.senderName,
+              targetId: row.targetId,
+              targetName: row.targetName,
+              message: row.message,
+              senderMessage: row.senderMessage || null,
+              nonce: row.nonce,
+              ephemeralPublicKey: row.ephemeralPublicKey,
+              timestamp: row.timestamp,
+              mediaUrl: row.mediaUrl || null,
+              mediaType: row.mediaType || null,
+              reactions: (() => { try { return row.reactions ? JSON.parse(row.reactions) : {}; } catch { return {}; } })(),
+              replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null
+            });
+          });
+          // Emit with the correct event name (chat_history_dm) that Room.jsx listens for
+          targetSocket.emit('chat_history_dm', dmHistory);
+        }
+      });
+
+    if (roomObj.screenshareHostId) targetSocket.emit('webrtc_screenshare_started', roomObj.screenshareHostId);
+
+    // CRITICAL: Notify everyone in the room about the new participant
+    io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
+  }
+
+  // ─── Join Room ───
+  socket.on('join_room', (data) => {
+    let roomId = typeof data === 'string' ? data : data.roomId;
+    if (roomId) roomId = roomId.toLowerCase();
+    // Prioritize authenticated username from token, fallback to provided, then Anonymous
+    const username = socket.username || (typeof data === 'string' ? 'Anonymous' : (data.username || 'Anonymous'));
+    
+    // FAST TRACK: If room is already in memory, perform the Guest Block check INSTANTLY.
+    if (rooms.has(roomId)) {
+      const room = rooms.get(roomId);
+      const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+      const isActuallyHost = (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
+      
+      if (room.settings?.onlyLoggedIn && isGuestOrLocal && !isActuallyHost) {
+        console.log(`[Security] Fast-tracking rejection for ${username} in Members Only room ${roomId}`);
+        socket.emit('join_rejected', { reason: 'members_only' });
+        return;
+      }
+    }
+
+    // DO NOT socket.join(roomId) here! This is the fix for ghost notifications.
+    // Wait until security checks pass in executeFinalJoin.
+    
+    console.log(`User ${socket.id} (${username}) requesting join to room ${roomId}`);
+    // ─── Database Existence Check ───
+    db.get('SELECT roomId FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
+      const existsInDb = !!row;
+      const existsInMemory = rooms.has(roomId);
+
+      if (!existsInDb && !existsInMemory) {
+        console.log(`Join Room Failed: Room ${roomId} not found in DB or Memory.`);
+        socket.emit('room_not_found');
+        return;
+      }
+
+      if (!rooms.has(roomId)) {
+      rooms.set(roomId, {
+        currentMedia: null, currentTime: 0, isPlaying: false,
+        timestampUpdatedAt: Date.now(), screenshareHostId: null,
+        hostId: null, // Will be set when true host joins
+        hostUsername: null, // Trust the database
+        users: [],
+        pendingJoins: new Map(), // socketId -> { username, socket }
+        approvedSockets: new Set(), // socketId -> approved
+        mutedUsers: new Set(), bannedUsers: new Set(),
+        groupMessages: [], publicKeys: {},
+        roomName: 'Room Chat',
+        category: 'other',
+        isPublic: false,
+        thumbnailPath: null,
+        permissions: { 
+          changeMedia: 'all', chat: 'all', cam: 'all', mic: 'all',
+          allowLinks: true, allowMedia: true 
+        },
+        settings: { 
+          audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player',
+          lockRoom: false, onlyLoggedIn: false, newMembersAdmins: false
+        }
+      });
+    }
+    const room = rooms.get(roomId);
+
+    // Ensure metadata and bans are loaded before proceeding
+    const loadMetadata = new Promise(resolve => {
+      db.get('SELECT * FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
+        if (!err && row) {
+          if (row.roomName && row.roomName !== 'Room Chat') room.roomName = row.roomName;
+          if (row.isPublic !== undefined && row.isPublic !== null) room.isPublic = !!row.isPublic;
+          if (row.hostUsername) room.hostUsername = row.hostUsername;
+          if (row.category) room.category = row.category;
+          try { if (row.permissions) room.permissions = JSON.parse(row.permissions); } catch (e) { }
+          try { if (row.settings) room.settings = JSON.parse(row.settings); } catch (e) { }
+        }
+        resolve();
+      });
+    });
+
+    const loadBans = new Promise(resolve => {
+      db.all('SELECT username FROM room_bans WHERE roomId = ?', [roomId], (err, rows) => {
+        if (!err && rows) {
+          rows.forEach(r => room.bannedUsers.add(r.username));
+        }
+        resolve();
+      });
+    });
+
+    Promise.all([loadMetadata, loadBans]).then(() => {
+      // ─── Advanced Security Checks ───
+      // Check if user is the true DB host, or if no DB host exists and they were temporarily assigned.
+      let isActuallyHost = (room.hostId === socket.id) || (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
+      
+      if (!isActuallyHost) {
+        const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+        if (room.settings.onlyLoggedIn && isGuestOrLocal) {
+          socket.emit('join_rejected', { reason: 'members_only' });
+          return;
+        }
+
+        if (room.settings.lockRoom && !room.approvedSockets?.has(socket.id)) {
+          room.pendingJoins.set(socket.id, { username, socket });
+          socket.emit('waiting_for_approval');
+          
+          // Notify ALL current room members who are admins (host OR newMembersAdmins users)
+          room.users.forEach(u => {
+            const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
+            const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
+            if (uIsHost || uIsAutoAdmin) {
+              io.to(u.socketId).emit('join_requested', { socketId: socket.id, username });
+            }
+          });
+          return;
+        }
+      }
+
+      executeFinalJoin(socket, room, roomId, username);
+    });
+  });
+});
+
+  // ─── Public key exchange for E2E DMs ───
+  socket.on('chat:publicKey', ({ roomId, publicKey }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.publicKeys[socket.id] = publicKey;
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+  });
+
+  // Typing indicator merged below in the unified section (around line 2131)
+
+
+  // ─── Group chat message (saved in history) ───
+  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, username, replyTo, mediaUrl, mediaType, tempId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.log(`[Chat] Room not found in memory: ${roomId} (Original: ${rawRoomId})`);
+      return;
+    }
+    console.log(`[Chat] Message from ${username} in ${roomId}: ${message || '[Media]'}`);
+    
+    // Check Permissions
+    const allowChat = room.permissions?.chat || 'all';
+    const isRoomHost = room.hostUsername && socket.username === room.hostUsername;
+    if (allowChat === 'host' && !isRoomHost) {
+      socket.emit('error_notification', 'Only the host can send messages in this room.');
+      return;
+    }
+
+    if (room.mutedUsers.has(socket.id)) { socket.emit('you_are_muted'); return; }
+
+    const safeMessage = message || '';
+    
+    // â”€â”€ Content Filtering â”€â”€
+    if (room.permissions && room.permissions.allowLinks === false) {
+       // Match http/https links AND bare domains like google.com, website.in, etc.
+       const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
+       if (urlRegex.test(safeMessage)) {
+          socket.emit('error_notification', 'Sharing links is disabled in this room.');
+          return;
+       }
+    }
+    
+    if (room.permissions && room.permissions.allowMedia === false) {
+       if (mediaUrl || safeMessage.includes('data:image/') || safeMessage.includes('uploads/') || safeMessage.includes('/api/files/') || safeMessage.includes('/api/stream/')) {
+          socket.emit('error_notification', 'Sharing media is disabled in this room.');
+          return;
+       }
+    }
+
+    const msg = {
+      id: `${socket.id}-${Date.now()}`,
+      userId: socket.id, 
+      username, 
+      message: message || '',
+      timestamp: Date.now(), 
+      reactions: {}, 
+      replyTo: replyTo || null,
+      mediaUrl: mediaUrl || null,
+      mediaType: mediaType || null,
+      tempId: tempId || null,
+      type: 'group',
+      roomId: roomId,
+      e2ee: e2ee || null
+    };
+    room.groupMessages.push(msg);
+    if (room.groupMessages.length > 200) room.groupMessages.shift();
+    
+    // Save to DB
+    const nonceText = e2ee ? e2ee.nonce : null;
+    const ephemText = e2ee && e2ee.keys ? JSON.stringify(e2ee.keys) : null;
+
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, message, timestamp, replyTo, mediaUrl, mediaType, nonce, "ephemeralPublicKey") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [roomId, 'group', socket.id, username, message || '', msg.timestamp, replyTo ? JSON.stringify(replyTo) : null, msg.mediaUrl, msg.mediaType, nonceText, ephemText], (err) => {
+        if (err) console.error('Error saving group message:', err);
+      });
+
+    broadcastMessage(roomId, msg, socket.id, username);
+  });
+
+  // â”€â”€ Standardized Mark Read â”€â”€
+  socket.on('chat:mark_read', ({ chatId, timestamp }) => {
+    if (!socket.username || !chatId) return;
+    const now = timestamp || Date.now();
+    
+    // Persist to DB
+    db.get('SELECT lastSeen FROM users WHERE username = ?', [socket.username], (err, row) => {
+      let ls = {};
+      try { ls = JSON.parse(row?.lastSeen || '{}'); } catch(e){}
+      ls[chatId] = now;
+      db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username]);
+      
+      // Broadcast to other sockets of the same user to sync unread badges across tabs
+      emitToUser(socket.username, 'chat:mark_read', { chatId, timestamp: now });
+    });
+  });
+
+  // Passive room tracking: allows GlobalChatWidget to receive updates for rooms
+  // the user has previously participated in without showing up in the user list.
+  socket.on('track_rooms', ({ roomIds }) => {
+    if (!Array.isArray(roomIds)) return;
+    roomIds.forEach(rid => {
+      if (rid) socket.join(rid.toLowerCase());
+    });
+  });
+
+  // ─── Unified Typing Indicators (Supports both Room and Global Widget) ───
+  const typingTimers = {}; // { socketId: timer }
+  socket.on('chat:typing', ({ partner, type, roomId, isTyping }) => {
+    if (!socket.username) return;
+    
+    // Support Format 1: { partner, type } (Global Chat Widget)
+    // Support Format 2: { roomId, isTyping } (Room.jsx)
+    const targetRoom = (type === 'room' ? partner : roomId)?.toLowerCase();
+    const isDM = type === 'private';
+    const isStart = isTyping !== false;
+
+    if (isDM) {
+      const payload = { partner: socket.username, username: socket.username, type: 'private', isTyping: isStart };
+      emitToUser(partner, 'chat:typing', payload);
+      if (!isStart) emitToUser(partner, 'chat:stop_typing', payload);
+    } else if (targetRoom) {
+      const payload = { partner: targetRoom, username: socket.username, type: 'room', isTyping: isStart };
+      socket.to(targetRoom).emit('chat:typing', payload);
+      if (!isStart) socket.to(targetRoom).emit('chat:stop_typing', payload);
+      
+      // Auto-stop typing after 5s for room view (safety)
+      if (isStart) {
+        if (typingTimers[socket.id]) clearTimeout(typingTimers[socket.id]);
+        typingTimers[socket.id] = setTimeout(() => {
+          socket.to(targetRoom).emit('chat:typing', { ...payload, isTyping: false });
+          socket.to(targetRoom).emit('chat:stop_typing', payload);
+        }, 5000);
+      }
+    }
+  });
+
+  socket.on('chat:stop_typing', ({ partner, type, roomId }) => {
+    if (!socket.username) return;
+    const targetRoom = (type === 'room' ? partner : roomId)?.toLowerCase();
+    const isDM = type === 'private';
+
+    if (isDM) {
+      const payload = { partner: socket.username, username: socket.username, type: 'private', isTyping: false };
+      emitToUser(partner, 'chat:stop_typing', payload);
+      emitToUser(partner, 'chat:typing', payload);
+    } else if (targetRoom) {
+      const payload = { partner: targetRoom, username: socket.username, type: 'room', isTyping: false };
+      socket.to(targetRoom).emit('chat:stop_typing', payload);
+      socket.to(targetRoom).emit('chat:typing', payload);
+      if (typingTimers[socket.id]) clearTimeout(typingTimers[socket.id]);
+    }
+  });
+
+  // ─── Room Chat Reactions ───
+  socket.on('chat:reaction', ({ roomId: rawRoomId, messageId, emoji }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const msg = room.groupMessages.find(m => String(m.id) === String(messageId) || String(m.timestamp) === String(messageId));
+    if (msg) {
+      const rx = {};
+      const username = socket.username;
+      for (const [em, uids] of Object.entries(msg.reactions || {})) {
+        const filtered = uids.filter(u => u !== username);
+        if (filtered.length > 0) rx[em] = filtered;
+      }
+      const hadIt = (msg.reactions?.[emoji] || []).includes(username);
+      if (!hadIt) {
+        if (!rx[emoji]) rx[emoji] = [];
+        rx[emoji].push(username);
+      }
+      msg.reactions = rx;
+      const reactionPayload = { roomId, messageId: String(messageId), reactions: rx, senderUsername: username };
+      // Use io.emit for global delivery — ensures GlobalChatWidget and all tabs update
+      io.emit('chat:reaction', reactionPayload);
+    }
+  });
+
+  socket.on('chat:private_reaction', ({ targetName, messageId, emoji }) => {
+    const senderName = socket.username;
+    // Send to both sender and recipient for cross-tab sync
+    emitToUser(senderName, 'chat:private_reaction', { messageId, senderName, emoji, targetName });
+    emitToUser(targetName, 'chat:private_reaction', { messageId, senderName, emoji, targetName });
+  });
+
+  // â”€â”€ Clear DM â”€â”€
+  socket.on('clear_dm', async ({ targetUsername, clearForBoth }) => {
+    const sender = socket.username;
+    if (!sender || !targetUsername) return;
+    
+    // Soft delete by appending usernames to hiddenFor JSON array in messages
+    db.all(`SELECT id, hiddenFor FROM messages WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+      [sender, targetUsername, targetUsername, sender],
+      (err, rows) => {
+        if (err || !rows) return;
+        rows.forEach(r => {
+          let hidden = [];
+          try { hidden = JSON.parse(r.hiddenFor || '[]'); } catch{}
+          
+          let modified = false;
+          if (!hidden.includes(sender)) {
+            hidden.push(sender);
+            modified = true;
+          }
+          if (clearForBoth && !hidden.includes(targetUsername)) {
+            hidden.push(targetUsername);
+            modified = true;
+          }
+          
+          if (modified) {
+            db.run('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), r.id]);
+          }
+        });
+        
+        // Let the client know the clear was successful so it can update UI immediately
+        socket.emit('dm_cleared', { targetUsername });
+        
+        if (clearForBoth) {
+          const targetSockets = connectedSockets.get(targetUsername);
+          if (targetSockets) {
+             targetSockets.forEach(sid => io.to(sid).emit('dm_cleared', { targetUsername: sender }));
+          }
+        }
+      }
+    );
+  });
+
+  // â”€â”€ Emoji reaction â”€â”€
+  socket.on('chat:reaction', ({ roomId, messageId, emoji }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const username = socket.username;
+    
+    // Robust ID matching: extract the 13-digit Unix timestamp reliably from any format ID
+    const matchId = String(messageId);
+    let tsFromId = null;
+    const tsMatch = matchId.match(/\b(\d{13})\b/);
+    if (tsMatch) tsFromId = tsMatch[1];
+
+    // Always use DB as source of truth so historical messages work too
+    db.get(`SELECT reactions FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], (err, row) => {
+      let rx = {};
+      if (!err && row) {
+        try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch {}
+      } else {
+        // Fallback to in-memory for brand-new messages not yet persisted
+        const inMem = room.groupMessages.find(m => String(m.id) === matchId || String(m.timestamp) === matchId || (tsFromId && String(m.timestamp) === String(tsFromId)));
+        if (inMem) {
+          for (const [em, val] of Object.entries(inMem.reactions || {})) {
+            const arr = val instanceof Set ? [...val] : (Array.isArray(val) ? val : []);
+            if (arr.length > 0) rx[em] = arr;
+          }
+        }
+      }
+
+      // Check if user already had this emoji BEFORE removing them everywhere
+      const hadThisEmoji = (Array.isArray(rx[emoji]) ? rx[emoji] : []).includes(username);
+
+      // Remove user from ALL emojis (single-reaction policy)
+      for (const em of Object.keys(rx)) {
+        rx[em] = (Array.isArray(rx[em]) ? rx[em] : []).filter(u => u !== username);
+        if (rx[em].length === 0) delete rx[em];
+      }
+
+      // Toggle: add only if they did not already have it
+      if (!hadThisEmoji) {
+        if (!rx[emoji]) rx[emoji] = [];
+        rx[emoji].push(username);
+      }
+
+      // Update in-memory cache
+      const inMemMsg = room.groupMessages.find(m => String(m.id) === matchId || String(m.timestamp) === matchId || (tsFromId && String(m.timestamp) === String(tsFromId)));
+      if (inMemMsg) inMemMsg.reactions = rx;
+
+      // Persist
+      db.run(`UPDATE messages SET reactions = ? WHERE id = ? OR timestamp = ? OR timestamp = ?`, [JSON.stringify(rx), matchId, matchId, tsFromId]);
+
+      // Broadcast with string messageId for consistent type comparison on clients
+      const reactionPayload = { roomId, messageId: String(messageId), timestampId: tsFromId, reactions: rx, senderUsername: username };
+      io.in(roomId).emit('chat:reaction', reactionPayload);
+      
+      // BROAD BROADCAST: Also broadcast globally so widgets in other contexts update immediately
+      io.emit('chat:reaction', reactionPayload);
+    });
+  });
+
+
+  // ─── Emoji reaction (Private) ───
+  socket.on('chat:private_reaction', ({ targetName: rawTargetName, messageId, emoji }) => {
+    const targetName = rawTargetName; // Target is the person we reacted to
+    const username = socket.username;
+    if (!username || !targetName) return;
+
+    // Robust ID matching: extract the 13-digit Unix timestamp reliably from any format ID
+    const matchId = String(messageId);
+    let tsFromId = null;
+    const tsMatch = matchId.match(/\b(\d{13})\b/);
+    if (tsMatch) tsFromId = tsMatch[1];
+
+    // Save to DB with single-reaction enforcement
+    db.get(`SELECT reactions FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], (err, row) => {
+      if (err || !row) return;
+      let rx = {};
+      try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch{}
+
+      const hadThisEmoji = (rx[emoji] || []).includes(username);
+      for (const em of Object.keys(rx)) {
+        rx[em] = (rx[em] || []).filter(u => u !== username);
+        if (rx[em].length === 0) delete rx[em];
+      }
+      if (!hadThisEmoji) {
+        if (!rx[emoji]) rx[emoji] = [];
+        rx[emoji].push(username);
+      }
+
+      db.run(`UPDATE messages SET reactions = ? WHERE id = ? OR timestamp = ? OR timestamp = ?`, [JSON.stringify(rx), matchId, matchId, tsFromId]);
+
+      // Emit full reactions object so clients stay in sync
+      const reactionPayload = { messageId: String(messageId), timestampId: tsFromId, reactions: rx, senderName: username, emoji, targetName };
+      emitToUser(targetName, 'chat:private_reaction', reactionPayload);
+      emitToUser(username, 'chat:private_reaction', reactionPayload);
+    });
+  });
+
+  // ─── Private / DM ───
+  socket.on('private_message', (data) => {
+    const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, tempId } = data;
+    if (!socket.username || !targetName) return;
+    
+    const timestamp = Date.now();
+    const payload = { 
+      id: msgId || `sock-${timestamp}-${Math.floor(Math.random()*1000)}`, 
+      senderId: socket.id, 
+      senderName: socket.username, 
+      targetName, 
+      message, 
+      senderMessage: senderMessage || null,
+      nonce, 
+      ephemeralPublicKey, 
+      replyTo, 
+      timestamp, 
+      mediaUrl, 
+      mediaType,
+      tempId: tempId || null,
+      type: 'private'
+    };
+    const users = [socket.username, targetName].sort();
+    const dmRoomId = 'dm-' + users.join('-');
+
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null], (err) => {
+        if (err) console.error('Error saving private message:', err);
+      });
+      
+    broadcastMessage(null, payload, socket.id, socket.username);
+  });
+
+  // Request sync
+  socket.on('request_sync', (rawRoomId) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    
+    // SECURITY FIX: Only allow sync if the user has fully joined the room (passed lock checks)
+    const isMember = room.users.some(u => u.socketId === socket.id);
+    if (!isMember) return;
+    
+    const state = { ...room, roomName: room.roomName };
+    if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
+    socket.emit('room_state', state);
+  });
+
+  // â”€â”€ Clear DM â”€â”€
+  socket.on('clear_dm', ({ targetUsername, clearForBoth }) => {
+    if (!targetUsername) return;
+    if (clearForBoth) {
+      // Delete messages for both parties from DB
+      db.run(`DELETE FROM messages WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+        [socket.username, targetUsername, targetUsername, socket.username], (err) => {
+          if (!err) {
+            socket.emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: true });
+            for (const [rid, r] of rooms.entries()) {
+              const targetUser = r.users.find(u => u.username === targetUsername);
+              if (targetUser) io.to(targetUser.socketId).emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: true });
+            }
+          }
+        });
+    } else {
+      socket.emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: false });
+      db.run(
+        `UPDATE messages SET hiddenFor = IFNULL(hiddenFor, '') || ? WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+        [`,"${socket.username}"`, socket.username, targetUsername, targetUsername, socket.username],
+        (err) => { if (err) console.error('Error marking DM as hidden:', err); }
+      );
+    }
+  });
+
+  // â”€â”€ Request DM History â”€â”€
+  socket.on('request_dm_history', () => {
+    const username = socket.username;
+    if (!username) return;
+    db.all(`SELECT * FROM messages WHERE type = 'private' AND (senderName = ? OR targetName = ?) ORDER BY timestamp ASC`,
+      [username, username], (err, dmRows) => {
+        if (err) return;
+        const dmHistory = {};
+        if (dmRows && dmRows.length > 0) {
+          dmRows.forEach(row => {
+            if (row.hiddenFor && row.hiddenFor.includes(`"${username}"`)) return;
+            const isMe = row.senderName === username;
+            const otherName = isMe ? row.targetName : row.senderName;
+            if (!dmHistory[otherName]) dmHistory[otherName] = [];
+            dmHistory[otherName].push({
+              id: row.id.toString(), isMe, senderId: row.senderId, senderName: row.senderName,
+              targetId: row.targetId, targetName: row.targetName, message: row.message,
+              senderMessage: row.senderMessage || null,
+              nonce: row.nonce, ephemeralPublicKey: row.ephemeralPublicKey, timestamp: row.timestamp,
+              mediaUrl: row.mediaUrl || null, mediaType: row.mediaType || null,
+              reactions: row.reactions ? JSON.parse(row.reactions) : {}, replyTo: row.replyTo ? JSON.parse(row.replyTo) : null
+            });
+          });
+        }
+        socket.emit('chat_history_dm', dmHistory);
+      });
+  });
+
+  // â”€â”€ Room rename â”€â”€
+  socket.on('mod_rename_room', ({ roomId, newName }) => {
+    const room = rooms.get(roomId);
+    if (!room || room.hostId !== socket.id) return;
+    if (!newName || !newName.trim()) return;
+    room.roomName = newName.trim();
+    // Persist the new name to DB so it survives server restarts and page refreshes
+    db.run(`INSERT OR REPLACE INTO room_names (roomId, roomName) VALUES (?, ?)`, [roomId, room.roomName]);
+    // Also update the name in pinned_rooms for all users who have it pinned
+    db.run(`UPDATE pinned_rooms SET roomName = ? WHERE roomId = ?`, [room.roomName, roomId]);
+    io.in(roomId).emit('room_renamed', room.roomName);
+  });
+
+  // â”€â”€ Pinned rooms are handled via REST /api/profile/pinned-rooms instead of WebSockets â”€â”€
+
+  // ─── Media control ───
+  socket.on('change_media', ({ roomId: rawRoomId, mediaUrl }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!rooms.has(roomId)) return;
+    if (isNSFWUrl(mediaUrl)) {
+      socket.emit('error_notification', '18+ (NSFW) content is not allowed here.');
+      return;
+    }
+
+    const room = rooms.get(roomId);
+    
+    // Check Permissions
+    const allowMedia = room.permissions?.changeMedia || 'all';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket)) {
+      socket.emit('error_notification', 'Only administrators can change media.');
+      return;
+    }
+
+    // "Last Action Wins" Priority: 
+    // If a screenshare is currently active, stop it when the room shifts focus to a new media URL.
+    if (room.screenshareHostId) {
+      room.screenshareHostId = null;
+      room.activeExternalApp = null;
+      io.in(roomId).emit('webrtc_screenshare_stopped');
+    }
+
+    room.currentMedia = mediaUrl; room.currentTime = 0; room.isPlaying = false; room.timestampUpdatedAt = Date.now();
+    io.in(roomId).emit('media_changed', mediaUrl);
+    io.in(roomId).emit('room_state', getSerializableRoom(room));
+  });
+  socket.on('play', ({ roomId: rawRoomId, currentTime }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    
+    // Check Permissions
+    const allowMedia = room.permissions?.changeMedia || 'all';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+
+    room.isPlaying = true; room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
+    socket.to(roomId).emit('action_play', currentTime);
+  });
+  socket.on('pause', ({ roomId: rawRoomId, currentTime }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    room.isPlaying = false; room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
+    socket.to(roomId).emit('action_pause', currentTime);
+  });
+  socket.on('seek', ({ roomId: rawRoomId, currentTime }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
+    socket.to(roomId).emit('action_seek', currentTime);
+  });
+
+  // ─── WebRTC Screenshare ───
+  socket.on('webrtc_start_screenshare', (data) => { 
+    // data can be a string (roomId) or an object { roomId, app }
+    const roomId = (typeof data === 'string' ? data : data.roomId)?.toLowerCase();
+    const app = typeof data === 'object' ? data.app : null;
+    
+    if (rooms.has(roomId)) {
+      const room = rooms.get(roomId);
+      room.screenshareHostId = socket.id; 
+      room.activeExternalApp = app;
+      // Auto-pause room media when screenshare starts to ensure process termination
+      room.isPlaying = false;
+      room.timestampUpdatedAt = Date.now();
+    }
+    const state = getSerializableRoom(rooms.get(roomId));
+    io.in(roomId).emit('room_state', state);
+    socket.to(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app }); 
+  });
+  socket.on('webrtc_stop_screenshare', (rawRoomId) => { 
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (rooms.has(roomId)) {
+      const room = rooms.get(roomId);
+      room.screenshareHostId = null; 
+      room.activeExternalApp = null;
+    }
+    const state = getSerializableRoom(rooms.get(roomId));
+    io.in(roomId).emit('room_state', state);
+    socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id); 
+  });
+  socket.on('webrtc_join_request', ({ targetSocketId }) => { io.to(targetSocketId).emit('webrtc_viewer_joined', socket.id); });
+  socket.on('webrtc_offer', ({ targetSocketId, offer }) => { io.to(targetSocketId).emit('webrtc_offer', { senderSocketId: socket.id, offer }); });
+  socket.on('webrtc_answer', ({ targetSocketId, answer }) => { io.to(targetSocketId).emit('webrtc_answer', { senderSocketId: socket.id, answer }); });
+  socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => { io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate }); });
+
+  // â”€â”€ Camera/Mic WebRTC (peer video communication) â”€â”€
+  socket.on('cam_started', ({ roomId }) => {
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    
+    // Check Permissions
+    const allowCam = room.permissions?.cam || 'all';
+    if (allowCam === 'host' && !isUserAdmin(room, socket)) {
+      socket.emit('error_notification', 'Only administrators can use the camera.');
+      return;
+    }
+
+    socket.to(roomId).emit('cam_started', { socketId: socket.id, username: socket.username });
+  });
+  socket.on('webrtc_cam_ping', ({ roomId }) => {
+    socket.to(roomId).emit('webrtc_cam_ping', { requesterId: socket.id });
+  });
+  socket.on('webrtc_cam_pong', ({ targetSocketId }) => {
+    io.to(targetSocketId).emit('cam_started', { socketId: socket.id, username: socket.username });
+  });
+  socket.on('cam_stopped', ({ roomId }) => {
+    socket.to(roomId).emit('cam_stopped', { socketId: socket.id });
+  });
+  socket.on('cam_offer', ({ targetSocketId, offer }) => {
+    io.to(targetSocketId).emit('cam_offer', { senderSocketId: socket.id, senderName: socket.username, offer });
+  });
+  socket.on('cam_answer', ({ targetSocketId, answer }) => {
+    io.to(targetSocketId).emit('cam_answer', { senderSocketId: socket.id, answer });
+  });
+  socket.on('cam_ice', ({ targetSocketId, candidate }) => {
+    io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
+  });
+
+  socket.on('self_mute', ({ roomId, isMuted }) => {
+    if (rooms.has(roomId)) {
+      const room = rooms.get(roomId);
+      
+      // Check Permissions if unmuting
+      if (!isMuted) {
+        const allowMic = room.permissions?.mic || 'all';
+        if (allowMic === 'host' && !isUserAdmin(room, socket)) {
+          socket.emit('error_notification', 'Only administrators can use the microphone.');
+          return;
+        }
+      }
+
+      const u = room.users.find(usr => usr.socketId === socket.id);
+      if (u) {
+        u.isMuted = isMuted;
+        io.to(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+      }
+    }
+  });
+  socket.on('cam_ice', ({ targetSocketId, candidate }) => {
+    io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
+  });
+
+  // â”€â”€ Toggle Public Status â”€â”€
+  socket.on('toggle_public', (data) => {
+    if (!socket.roomId) return;
+    const room = rooms.get(socket.roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    room.isPublic = !!data.isPublic;
+    io.to(socket.roomId).emit('room_public_status', { isPublic: room.isPublic });
+    // Persist public status to DB
+    db.run(
+      'INSERT INTO room_names (roomId, roomName, isPublic, hostUsername) VALUES (?, ?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET isPublic = excluded.isPublic',
+      [socket.roomId, room.roomName || 'Room Chat', room.isPublic ? 1 : 0, socket.username || null]
+    );
+  });
+
+  // â”€â”€ Connection Request (P2P Mesh) â”€â”€
+  socket.on('webrtc_connection_request', ({ targetSocketId, signal }) => {
+    io.to(targetSocketId).emit('webrtc_connection_request', { senderSocketId: socket.id, signal });
+  });
+
+  // â”€â”€ Connection Answer (P2P Mesh) â”€â”€
+  socket.on('webrtc_connection_answer', ({ targetSocketId, signal }) => {
+    io.to(targetSocketId).emit('webrtc_connection_answer', { senderSocketId: socket.id, signal });
+  });
+
+  // â”€â”€ ICE Candidate (P2P Mesh) â”€â”€
+  socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => {
+    io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate });
+  });
+
+  // â”€â”€ Screenshare Start â”€â”€
+  socket.on('webrtc_screenshare_start', (roomId) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.screenshareHostId = socket.id;
+    io.in(roomId).emit('webrtc_screenshare_started', socket.id);
+  });
+
+  // â”€â”€ Screenshare Stop â”€â”€
+  socket.on('webrtc_screenshare_stop', (roomId) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    if (room.screenshareHostId === socket.id) {
+      room.screenshareHostId = null;
+      io.in(roomId).emit('webrtc_screenshare_stopped');
+    }
+  });
+
+  // ─── Moderation (host only) ───
+  socket.on('mod_kick', ({ roomId: rawRoomId, targetSocketId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    io.to(targetSocketId).emit('kicked_out', { reason: 'kicked' });
+    room.users = room.users.filter(u => u.socketId !== targetSocketId);
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+  });
+  socket.on('mod_ban', ({ roomId: rawRoomId, targetSocketId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room) {
+      socket.emit('error_notification', 'Room not found.');
+      return;
+    }
+    if (!isUserAdmin(room, socket)) {
+      socket.emit('error_notification', 'Only administrators can ban users.');
+      return;
+    }
+    const targetUser = room.users.find(u => u.socketId === targetSocketId);
+    if (targetUser) {
+      room.bannedUsers.add(targetUser.username);
+      db.run('INSERT OR IGNORE INTO room_bans (roomId, username) VALUES (?, ?)', [roomId, targetUser.username], (err) => {
+         if (err) console.error('[mod_ban] DB Error:', err.message);
+      });
+      io.to(targetSocketId).emit('kicked_out', { reason: 'banned' });
+      room.users = room.users.filter(u => u.socketId !== targetSocketId);
+      io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+      io.in(roomId).emit('room_state', getSerializableRoom(room));
+      io.in(roomId).emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+    } else {
+      socket.emit('error_notification', 'Target user not found.');
+    }
+  });
+  socket.on('mod_mute', ({ roomId: rawRoomId, targetSocketId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    const targetUser = room.users.find(u => u.socketId === targetSocketId);
+    if (!targetUser) return;
+    if (room.mutedUsers.has(targetUser.username)) { room.mutedUsers.delete(targetUser.username); io.to(targetSocketId).emit('you_are_unmuted'); }
+    else { room.mutedUsers.add(targetUser.username); io.to(targetSocketId).emit('you_are_muted'); }
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+  });
+
+  socket.on('approve_join', ({ roomId, targetSocketId }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    const pending = room.pendingJoins.get(targetSocketId);
+    if (pending) {
+      console.log(`[Security] ${socket.username} approved join for ${pending.username}`);
+      if (!room.approvedSockets) room.approvedSockets = new Set();
+      room.approvedSockets.add(targetSocketId);
+      
+      // Execute the final join immediately on the backend (this adds the user to the room)
+      executeFinalJoin(pending.socket, room, roomId, pending.username);
+      
+      // join_approved just signals the waiting screen to disappear - frontend should NOT re-emit join_room
+      io.to(targetSocketId).emit('join_approved');
+      // Tell all hosts/admins to dismiss the notification (include username for toast ID matching)
+      io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
+      room.pendingJoins.delete(targetSocketId);
+    }
+  });
+
+  socket.on('deny_join', ({ roomId, targetSocketId }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    const pending = room.pendingJoins.get(targetSocketId);
+    if (pending) {
+      console.log(`[Security] ${socket.username} denied join for ${pending.username}`);
+      io.to(targetSocketId).emit('join_denied');
+      // Tell all hosts/admins to dismiss the notification (include username for toast ID matching)
+      io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
+      room.pendingJoins.delete(targetSocketId);
+    }
+  });
+  
+  socket.on('mod_rename_room', ({ roomId, newName }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    const cleanName = newName.trim();
+    if (!cleanName) return;
+    room.roomName = cleanName;
+    db.run('UPDATE room_names SET roomName = ? WHERE roomId = ?', [cleanName, roomId]);
+    io.in(roomId).emit('room_renamed', cleanName);
+    
+    // Global notification for user's other sessions
+    const mySockets = connectedSockets.get(socket.username);
+    if (mySockets) {
+      mySockets.forEach(sid => io.to(sid).emit('room_renamed_global', { roomId, newName: cleanName }));
+    }
+  });
+
+  socket.on('update_room_settings', ({ roomId, newName, permissions, settings }) => {
+    const room = rooms.get(roomId);
+    if (!room) {
+      console.log(`[Settings] Room ${roomId} not found during update`);
+      return;
+    }
+    
+    // Check if the current user is an admin
+    const isAdmin = isUserAdmin(room, socket);
+    
+    console.log(`[Settings] Room ${roomId}: Current hostId=${room.hostId}, DB host=${room.hostUsername}, Requester=${socket.username}, isAdmin=${isAdmin}`);
+
+    if (!isAdmin) {
+      console.log(`[Settings] Unauthorized attempt by ${socket.username}`);
+      return;
+    }
+
+    console.log(`[Settings] Updating room ${roomId} - Name: ${newName}`);
+
+    if (newName) {
+       room.roomName = newName.trim();
+       db.run('UPDATE room_names SET roomName = ? WHERE roomId = ?', [room.roomName, roomId]);
+       io.in(roomId).emit('room_renamed', room.roomName);
+    }
+    
+    if (permissions) {
+       room.permissions = permissions;
+       db.run('UPDATE room_names SET permissions = ? WHERE roomId = ?', [JSON.stringify(permissions), roomId]);
+    }
+    
+    if (settings) {
+       room.settings = settings;
+       db.run('UPDATE room_names SET settings = ? WHERE roomId = ?', [JSON.stringify(settings), roomId]);
+       
+       // Retroactively enforce Members Only if just enabled
+       if (settings.onlyLoggedIn) {
+         let listChanged = false;
+         room.users.forEach(u => {
+           const isGuest = u.username === 'Anonymous' || (u.username && u.username.toLowerCase().startsWith('guest_'));
+           if (isGuest && u.socketId !== room.hostId) {
+             io.to(u.socketId).emit('join_rejected', { reason: 'members_only' });
+             const s = io.sockets.sockets.get(u.socketId);
+             if (s) s.leave(roomId);
+             listChanged = true;
+           }
+         });
+         
+         if (listChanged) {
+           room.users = room.users.filter(u => {
+             const isGuest = u.username === 'Anonymous' || (u.username && u.username.toLowerCase().startsWith('guest_'));
+             return !(isGuest && u.socketId !== room.hostId);
+           });
+           io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+         }
+       }
+    }
+
+    io.in(roomId).emit('room_settings_updated', { roomName: room.roomName, permissions: room.permissions, settings: room.settings });
+  });
+
+
+
+  socket.on('mod_unban', ({ roomId, username }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+    room.bannedUsers.delete(username);
+    db.run('DELETE FROM room_bans WHERE roomId = ? AND username = ?', [roomId, username], (err) => {
+      if (err) console.error('[mod_unban] DB Error:', err.message);
+    });
+    io.in(roomId).emit('room_state', getSerializableRoom(room));
+    // Emit to the host's socket specifically so the settings modal updates instantly
+    socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+    io.in(roomId).emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+  });
+
+  socket.on('mod_fetch_bans', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) {
+       socket.emit('error_notification', 'Sync failed: You are not an administrator.');
+       return;
+    }
+    
+    db.all('SELECT username FROM room_bans WHERE roomId = ?', [roomId], (err, rows) => {
+      if (!err && rows) {
+        const bannedList = rows.map(r => r.username);
+        // Merge DB bans into in-memory set
+        bannedList.forEach(u => room.bannedUsers.add(u));
+        socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+      } else {
+        socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+      }
+    });
+  });
+
+  socket.on('delete_room', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    
+    console.log(`[DELETE ROOM] Request received for roomId: ${roomId} from user: ${socket.username}`);
+
+    // Authorization check: User must be host
+    db.get('SELECT hostUsername FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
+        if (err) {
+          console.error(`[DELETE ROOM] Database error during host check for ${roomId}:`, err.message);
+          return;
+        }
+        
+        const hostUsername = (room && room.hostUsername) || (row && row.hostUsername);
+        
+        if (!hostUsername) {
+          console.warn(`[DELETE ROOM] No host found for room ${roomId}. Proceeding with cleanup anyway.`);
+        } else if (hostUsername.toLowerCase() !== socket.username.toLowerCase()) {
+          console.warn(`[DELETE ROOM] Unauthorized delete attempt for ${roomId} by ${socket.username}. Host is ${hostUsername}.`);
+          return;
+        }
+
+        console.log(`[DELETE ROOM] Authorization successful for ${roomId}. Starting sequential cleanup...`);
+
+        // Use serialize to ensure deletions happen in order and can be logged accurately
+        db.serialize(() => {
+          // 1. Notify and kick all users with a specific reason
+          io.in(roomId).emit('kicked_out', { reason: 'room_deleted' });
+          console.log(`[DELETE ROOM] Emitted kicked_out to room ${roomId}`);
+          
+          // 2. Cleanup memory
+          if (rooms.has(roomId)) {
+            rooms.delete(roomId);
+            console.log(`[DELETE ROOM] Removed ${roomId} from memory`);
+          }
+
+          // 3. Cleanup DB - Room Metadata
+          db.run('DELETE FROM room_names WHERE roomId = ?', [roomId], function(err) {
+            if (err) console.error(`[DELETE ROOM] Error deleting from room_names:`, err.message);
+            else console.log(`[DELETE ROOM] Deleted ${roomId} from room_names (${this.changes} rows)`);
+          });
+
+          // 4. Cleanup DB - Messages
+          db.run('DELETE FROM messages WHERE roomId = ?', [roomId], function(err) {
+            if (err) console.error(`[DELETE ROOM] Error deleting from messages:`, err.message);
+            else console.log(`[DELETE ROOM] Deleted messages for ${roomId} (${this.changes} rows)`);
+          });
+
+          // 5. Cleanup DB - Future proofing (in case table exists or is added)
+          db.run('DELETE FROM pinned_rooms WHERE roomId = ?', [roomId], function(err) {
+            // Silently ignore if table doesn't exist
+          });
+
+          // 6. Cleanup DB - Bans
+          db.run('DELETE FROM room_bans WHERE roomId = ?', [roomId], function(err) {
+            if (err) console.error(`[DELETE ROOM] Error deleting from room_bans:`, err.message);
+            else console.log(`[DELETE ROOM] Deleted bans for ${roomId} (${this.changes} rows)`);
+          });
+
+          // 7. Cleanup host's own pinnedRooms in users table
+          if (hostUsername) {
+            db.get('SELECT pinnedRooms FROM users WHERE username = ?', [hostUsername], (err, userRow) => {
+              if (!err && userRow) {
+                try {
+                  const pinned = JSON.parse(userRow.pinnedRooms || '[]');
+                  const filtered = pinned.filter(id => id !== roomId);
+                  if (pinned.length !== filtered.length) {
+                    db.run('UPDATE users SET pinnedRooms = ? WHERE username = ?', [JSON.stringify(filtered), hostUsername], function(err) {
+                      if (err) console.error(`[DELETE ROOM] Error updating host pinnedRooms:`, err.message);
+                      else console.log(`[DELETE ROOM] Updated host ${hostUsername} pinned list`);
+                    });
+                  }
+                } catch(e) {
+                  console.error(`[DELETE ROOM] Error parsing pinnedRooms for ${hostUsername}:`, e.message);
+                }
+              }
+            });
+          }
+        });
+    });
+  });
+
+
+
+  // ─── Disconnect ───
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+    clearTimeout(typingTimers[socket.id]);
+
+    // ─── Clean up pending join requests ───
+    // If this socket was waiting for approval, notify all room admins to dismiss the toast
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.pendingJoins && room.pendingJoins.has(socket.id)) {
+        const pending = room.pendingJoins.get(socket.id);
+        console.log(`[Security] Pending joiner ${pending.username} (${socket.id}) disconnected - cleaning up`);
+        room.pendingJoins.delete(socket.id);
+        // Notify all admins in the room to dismiss the join request toast
+        room.users.forEach(u => {
+          const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
+          const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
+          if (uIsHost || uIsAutoAdmin) {
+            io.to(u.socketId).emit('join_request_handled', { socketId: socket.id, username: pending.username });
+          }
+        });
+      }
+    }
+
+    if (socket.roomId) {
+      const room = rooms.get(socket.roomId);
+      if (room) {
+        room.users = room.users.filter(u => u.socketId !== socket.id);
+        delete room.publicKeys[socket.id];
+
+        if (room.hostId === socket.id && room.users.length > 0) {
+          // Find the first non-guest user to transfer host privileges
+          const nextHost = room.users.find(u => (u.username && !u.username.toLowerCase().startsWith('guest_') && u.username !== 'Anonymous'));
+          
+          if (nextHost) {
+            room.hostId = nextHost.socketId;
+            const newHostName = nextHost.username;
+            io.to(room.hostId).emit('you_are_now_host');
+            io.in(socket.roomId).emit('host_changed', { newHostId: room.hostId, newHostName });
+          } else {
+            // Only guests remain, or no users. No host is assigned.
+            room.hostId = null;
+            io.in(socket.roomId).emit('host_changed', { newHostId: null, newHostName: null });
+          }
+        } else if (room.users.length === 0) {
+          // Room is completely empty, clear state
+          room.currentMedia = null;
+          room.currentTime = 0;
+          room.isPlaying = false;
+          room.hostId = null;
+        }
+        io.in(socket.roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+        socket.to(socket.roomId).emit('user_left', { username: socket.username, count: room.users.length });
+      }
+    }
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.screenshareHostId === socket.id) { room.screenshareHostId = null; socket.to(roomId).emit('webrtc_screenshare_stopped'); }
+    }
+  });
+});
+
+// Global Express Error Handler
+app.use((err, req, res, next) => {
+  console.error('[Express Error Catch]:', err.stack || err);
+  res.status(500).json({ error: 'Internal Server Error. Please contact support.' });
+});
+
+const PORT = 3001;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
+// Keep server alive on unhandled errors instead of crashing silently
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception (server kept alive):', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection (server kept alive):', reason);
+});
+
