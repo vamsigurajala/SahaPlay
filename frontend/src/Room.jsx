@@ -948,6 +948,11 @@ const Room = () => {
 
       // ALWAYS show the join request toast so the host can approve/deny immediately
       const toastId = `join-req-${requesterName}`;
+
+      // If we already have 2 or more active join toasts, make the new ones temporary
+      // so they don't clutter the screen. Host can still approve from the users list.
+      const toastDuration = activeJoinToastIds.current.size >= 2 ? 10000 : Infinity;
+
       activeJoinToastIds.current.add(toastId);
       toast.dismiss(toastId);
       setTimeout(() => {
@@ -1039,8 +1044,15 @@ const Room = () => {
             </div>
             );
           },
-          { id: toastId, position: 'top-center', duration: Infinity }
+          { id: toastId, position: 'top-center', duration: toastDuration }
         );
+
+        // If it's a temporary toast, ensure it's removed from the Set after it expires
+        if (toastDuration !== Infinity) {
+          setTimeout(() => {
+            activeJoinToastIds.current.delete(toastId);
+          }, toastDuration + 1000); // 1s buffer for exit animations
+        }
       }, 50);
     });
 
