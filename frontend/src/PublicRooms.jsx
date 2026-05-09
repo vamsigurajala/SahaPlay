@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, Search, MessageSquare, ArrowLeft, User, Settings, Filter, LogOut, Pin, Star, Hash, Users, HelpCircle, Bell, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 
-const API = 'http://127.0.0.1:3001';
+const API = 'http://localhost:3001';
 
 
 const catMap = {
@@ -19,6 +19,7 @@ const catMap = {
 
 const PublicRooms = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const [publicRooms, setPublicRooms] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,8 +34,15 @@ const PublicRooms = () => {
   const [recentChats, setRecentChats] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);
-  const [unreadCounts, setUnreadCounts] = useState({});
-  const [totalUnread, setTotalUnread] = useState(0);
+  const [unreadCounts, setUnreadCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
+  });
+  const [totalUnread, setTotalUnread] = useState(() => {
+    try {
+      const counts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      return Object.values(counts).reduce((a, b) => a + b, 0);
+    } catch { return 0; }
+  });
   const navIconsRef = React.useRef(null);
   const chatWidgetRef = React.useRef(null);
 
@@ -89,6 +97,17 @@ const PublicRooms = () => {
 
   const handleNewMessage = useCallback((partner, msg) => {
     const chatKey = partner;
+    
+    // Check if muted
+    const myUsername = localStorage.getItem('watch_username') || '';
+    let isMuted = false;
+    try {
+      const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
+      if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
+    } catch {}
+    
+    if (isMuted) return;
+
     const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
     localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
     localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
@@ -121,7 +140,11 @@ const PublicRooms = () => {
     };
     fetchRequests();
     const inv = setInterval(fetchRequests, 3000);
-    return () => clearInterval(inv);
+    window.addEventListener('follow_status_updated', fetchRequests);
+    return () => {
+      clearInterval(inv);
+      window.removeEventListener('follow_status_updated', fetchRequests);
+    };
   }, [token]);
 
   const handleAllowRequest = async (requestingUser, e) => {
@@ -138,12 +161,23 @@ const PublicRooms = () => {
 
   const handleFollowBack = async (requestingUser, e) => {
     e.stopPropagation();
+    // Optimistically update UI immediately so button changes to "Request Sent"
+    setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: 'pending' } : u));
     try {
-      await fetch(`${API}/api/follow/${requestingUser}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      toast.success(`Follow request sent back to ${requestingUser}!`);
-      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, status: 'accepted', myFollowStatus: 'pending' } : u));
-    } catch {}
+      const r = await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const d = await r.json();
+      if (d.error) {
+        toast.error(d.error);
+        // Revert optimistic update on error
+        setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
+      } else {
+        toast.success(`Follow request sent to ${requestingUser}!`);
+        window.dispatchEvent(new Event('follow_status_updated'));
+      }
+    } catch {
+      // Revert on network error
+      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
+    }
   };
 
 
@@ -237,12 +271,20 @@ const PublicRooms = () => {
           height: 130px;
           position: relative;
           overflow: hidden;
+          background: linear-gradient(135deg, #1e1e2e 0%, #111119 100%);
+        }
+        html[data-theme='light'] .img-layer {
+          background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
         }
         .pinned-img {
           width: 100%;
           height: 100%;
           object-fit: cover;
-          transition: transform 0.4s ease;
+          transition: transform 0.4s ease, opacity 0.4s ease;
+          opacity: 0;
+        }
+        .pinned-img.loaded {
+          opacity: 1;
         }
         .pinned-card:hover .pinned-img {
           transform: scale(1.08);
@@ -278,8 +320,27 @@ const PublicRooms = () => {
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-          transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        .nav-icon-btn { position: relative; width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .nav-icon-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; }
+        .nav-icon-btn.active { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); color: #818cf8; }
+        
+        .cat-tab {
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #a0aab2;
+          padding: 8px 16px;
+          border-radius: 12px;
+          transition: all 0.2s;
+        }
+        .cat-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .cat-tab.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
+        
+        html[data-theme='light'] .cat-tab { background: #fff; border-color: rgba(0,0,0,0.08); color: #64748b; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        html[data-theme='light'] .cat-tab:hover { background: #f8fafc; color: #1e293b; border-color: rgba(0,0,0,0.15); }
+        html[data-theme='light'] .cat-tab.active { background: #6366f1; border-color: #6366f1; color: #fff; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
+
         .pinned-card:hover .join-btn {
           transform: translateY(-2px);
         }
@@ -331,26 +392,58 @@ const PublicRooms = () => {
           transition: fill 0.3s ease;
           fill: none;
         }
-        .private-btn:hover .lock-icon {
+         .private-btn:hover .lock-icon {
           fill: #ffffff;
         }
+
+        /* ── Light Mode Overrides ── */
+        html[data-theme='light'] body { background: #f7fafc !important; color: #111 !important; }
+        html[data-theme='light'] nav { background: #fff !important; border-bottom: 1px solid rgba(0,0,0,0.08) !important; }
+        
+        html[data-theme='light'] .section-heading { color: #000 !important; }
+        html[data-theme='light'] .section-desc { color: #4a5568 !important; }
+
+        html[data-theme='light'] .cat-badge { background: #fff; color: #111; border-color: rgba(0,0,0,0.1); }
+        
+        html[data-theme='light'] .private-btn {
+          background: #fff !important;
+          border-color: rgba(0,0,0,0.1) !important;
+          color: #111 !important;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        html[data-theme='light'] .private-btn:hover {
+          border-color: #ef4444 !important;
+          color: #ef4444 !important;
+        }
+        html[data-theme='light'] .nav-icon-btn.active { color: #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+        
+        html[data-theme='light'] .pinned-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(99,102,241,0.3); }
+        html[data-theme='light'] .footer-layer { background: #fff !important; border-top: 1px solid rgba(0,0,0,0.04) !important; }
+        html[data-theme='light'] .join-btn { background: linear-gradient(135deg, #8b5cf6, #d946ef); color: #fff !important; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); }
+        html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 6px 15px rgba(139, 92, 246, 0.4); }
+        html[data-theme='light'] .pinned-card h3 { color: #000 !important; }
+        html[data-theme='light'] .profile-pill { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #111 !important; }
+
       `}</style>
 
       {/* Navbar */}
       <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
-        {/* Left: Back */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
-          <button className="back-btn" onClick={() => navigate('/')} style={{ margin: 0 }}>
-            <ArrowLeft size={16} /> {t('backToHome', 'Back to Home')}
-          </button>
+        {/* Left: Logo */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)', cursor: 'default' }}>
+            <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
+          </div>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff', cursor: 'default' }} className="section-heading">WatchTogether</h1>
         </div>
 
         {/* Center: Nav Links */}
-        <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-          <button onClick={() => navigate('/public')} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }}>Explore</button>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>How it Works</button>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>Features</button>
-          <button onClick={() => toast.success('Help center coming soon!')} style={{ background: 'none', border: 'none', color: '#888', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = '#888'}>Support</button>
+        <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+          <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>Home</button>
+          <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>Explore</button>
+          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>How it Works</button>
+          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>Features</button>
+          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => toast.success('Help center coming soon!')}>Support</button>
         </div>
 
         {/* Right: Actions */}
@@ -363,13 +456,13 @@ const PublicRooms = () => {
               <div style={{ position: 'relative' }}>
                 <button 
                   title="Search"
-                  onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); }}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showSearch ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}
+                  onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
+                  className={`nav-icon-btn${showSearch ? ' active' : ''}`}
                 >
                   <Search size={18} />
                 </button>
                 {showSearch && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+                  <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
                     <input 
                       autoFocus
                       placeholder="Search users..."
@@ -403,12 +496,12 @@ const PublicRooms = () => {
               <div style={{ position: 'relative' }}>
                 <button 
                   title="Chats"
-                  onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); }}
-                  style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showRecentChats ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}
+                  onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+                  className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
                 >
                   <MessageSquare size={18} />
                   {totalUnread > 0 && (
-                    <div style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {totalUnread > 9 ? '9+' : totalUnread}
                     </div>
                   )}
@@ -417,16 +510,16 @@ const PublicRooms = () => {
 
               {/* Notifications / Follow Requests */}
               <div style={{ position: 'relative' }}>
-                <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showNotifications ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}>
+                <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                   <Bell size={18} />
                   {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                    <div style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {followRequests.filter(r => r.status === 'pending').length}
                     </div>
                   )}
                 </button>
                 {showNotifications && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+                  <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
                     <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                       {followRequests.length > 0 ? (
@@ -480,24 +573,26 @@ const PublicRooms = () => {
               onMouseLeave={() => setShowUserMenu(false)}
             >
               <div
-                onMouseEnter={() => setShowUserMenu(true)}
+                onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+                className="profile-pill"
                 style={{ 
-                  width: 40, height: 40, borderRadius: '50%', 
-                  background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', 
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                  cursor: 'pointer', transition: 'all 0.2s', overflow: 'hidden' 
+                  padding: '4px 12px 4px 4px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', 
+                  borderRadius: 24, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'all 0.2s', color: '#fff' 
                 }}
               >
-                {profile?.avatarPath ? (
-                  <img src={`${API}${profile.avatarPath}`} alt="profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User size={20} style={{ color: '#6366f1' }} />
-                )}
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {profile?.avatarPath ? (
+                    <img src={`${API}${profile.avatarPath}`} alt="profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <User size={16} style={{ color: '#6366f1' }} />
+                  )}
+                </div>
+                <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
               </div>
               {showUserMenu && (
                 <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
-                  <div style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                    <button onClick={() => { setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                  <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -506,7 +601,7 @@ const PublicRooms = () => {
                       </div>
                       {t('account', 'Account')}
                     </button>
-                    <button onClick={() => { setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -515,7 +610,7 @@ const PublicRooms = () => {
                       </div>
                       {t('app', 'App')}
                     </button>
-                    <button onClick={() => { setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -524,8 +619,8 @@ const PublicRooms = () => {
                       </div>
                       {t('contactSupport', 'Contact Support')}
                     </button>
-                    <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
-                    <button onClick={() => { setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    <div className="profile-divider" />
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -543,30 +638,24 @@ const PublicRooms = () => {
         </div>
       </nav>
 
-      <section style={{ maxWidth: '1000px', margin: '40px auto 80px', padding: '0 40px' }}>
-
-        <h2 style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 10px', color: '#fff' }}>{t('joinPublicRooms', 'Public Rooms')}</h2>
-        <p style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>{t('explorePublic', 'Discover and join public watch parties around the world.')}</p>
+      <section style={{ width: '100%', padding: '40px 0 80px' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 40px' }}>
+          <h2 className="section-heading" style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 10px', color: '#fff' }}>{t('joinPublicRooms', 'Public Rooms')}</h2>
+          <p className="section-desc" style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>{t('explorePublic', 'Discover and join public watch parties around the world.')}</p>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '40px', overflowX: 'auto', paddingBottom: '10px' }}>
           {Object.entries(catMap).map(([id, label]) => (
             <button
               key={id}
+              className={`cat-tab ${selectedCategory === id ? 'active' : ''}`}
               onClick={() => { setSelectedCategory(id); setCurrentPage(1); }}
               style={{
-                background: selectedCategory === id ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)',
-                border: `1px solid ${selectedCategory === id ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
-                color: selectedCategory === id ? '#a5b4fc' : '#a0aab2',
-                padding: '8px 16px',
-                borderRadius: '12px',
                 fontSize: '14px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 whiteSpace: 'nowrap'
               }}
-              onMouseEnter={e => { if (selectedCategory !== id) { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; } }}
-              onMouseLeave={e => { if (selectedCategory !== id) { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#a0aab2'; } }}
             >
               {label}
             </button>
@@ -586,7 +675,12 @@ const PublicRooms = () => {
               {filteredRooms.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(room => (
                 <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">
-                    <img src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} alt="Room Cover" className="pinned-img"/>
+                    <img 
+                      src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} 
+                      alt="Room Cover" 
+                      className="pinned-img"
+                      onLoad={(e) => e.target.classList.add('loaded')}
+                    />
                     <div className="cat-badge">{catMap[room.category] || '✨ Other'}</div>
                     {loggedInUsername && room.hostUsername && (String(loggedInUsername).toLowerCase() === String(room.hostUsername).toLowerCase()) && (
                       <button className="private-btn" onClick={(e) => handleMakePrivate(e, room.id)} title={t('makePrivate', 'Make Private')}>
@@ -631,6 +725,7 @@ const PublicRooms = () => {
           </>
         );
         })()}
+        </div>
       </section>
       <GlobalChatWidget 
         ref={chatWidgetRef} 
@@ -645,3 +740,8 @@ const PublicRooms = () => {
 };
 
 export default PublicRooms;
+
+
+
+
+

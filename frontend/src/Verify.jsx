@@ -16,7 +16,7 @@ const Verify = () => {
 
     const verifyEmail = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/verify?token=${token}`);
+        const response = await fetch(`http://127.0.0.1:3001/api/verify?token=${token}`);
         const data = await response.json();
         
         if (response.ok) {
@@ -53,3 +53,8 @@ const Verify = () => {
 };
 
 export default Verify;
+
+
+
+
+

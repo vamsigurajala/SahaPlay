@@ -1,20 +1,38 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-import { FaLinkedinIn, FaTelegramPlane } from 'react-icons/fa';
+import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, FaRedditAlien, FaDiscord, FaFacebookF, FaPinterestP, FaTwitch } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
 
-const API = 'http://127.0.0.1:3001';
+const API = 'http://localhost:3001';
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t } = useTranslation();
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const token = localStorage.getItem('watch_token');
   const myUsername = localStorage.getItem('watch_username');
   const isOwnProfile = !viewingUsername || viewingUsername.toLowerCase() === myUsername?.toLowerCase();
+
+  const handleLogout = () => {
+    localStorage.removeItem('watch_token');
+    localStorage.removeItem('watch_username');
+    navigate('/login');
+  };
+
+  const copyProfileLink = () => {
+    if (copied) return;
+    navigator.clipboard.writeText(`${window.location.origin}/profile/${otherProfile?.username}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success('Link copied!');
+  };
 
   const fileInputRef = useRef(null);
   const [openSection, setOpenSection] = useState(null);
@@ -34,8 +52,14 @@ const Profile = () => {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
-  // Other user profile state
-  const [otherProfile, setOtherProfile] = useState(null);
+  // Other user profile state - initialize from cache for instant display
+  const [otherProfile, setOtherProfile] = useState(() => {
+    if (!viewingUsername) return null;
+    try {
+      const cached = localStorage.getItem(`profile_cache_${viewingUsername.toLowerCase()}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
   const [followLoading, setFollowLoading] = useState(false);
   const [userNotFound, setUserNotFound] = useState(false);
 
@@ -51,14 +75,22 @@ const Profile = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showRecentChats, setShowRecentChats] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCounts, setUnreadCounts] = useState({});
-  const [totalUnread, setTotalUnread] = useState(0);
+  const [unreadCounts, setUnreadCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
+  });
+  const [totalUnread, setTotalUnread] = useState(() => {
+    try {
+      const counts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      return Object.values(counts).reduce((a, b) => a + b, 0);
+    } catch { return 0; }
+  });
   const [followRequests, setFollowRequests] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [loadingBlocked, setLoadingBlocked] = useState(false);
 
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [flagUrl, setFlagUrl] = useState('');
 
   // Fetch flag from restcountries if otherProfile has a country
@@ -78,18 +110,45 @@ const Profile = () => {
   const [followModalTab, setFollowModalTab] = useState('followers'); // 'followers' | 'following'
   const [followListData, setFollowListData] = useState({ followers: [], following: [] });
   const [followListLoading, setFollowListLoading] = useState(false);
+  const [followCache, setFollowCache] = useState({});
 
-  const openFollowModal = useCallback(async (tab, targetUsername) => {
+  useEffect(() => {
+    const target = isOwnProfile ? myUsername : viewingUsername;
+    if (target && token) {
+      fetch(`${API}/api/follow/${target}/list`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          const newData = { followers: data.followers || [], following: data.following || [] };
+          setFollowListData(newData);
+          setFollowCache(prev => ({ ...prev, [target]: newData }));
+        }).catch(() => {});
+    }
+  }, [isOwnProfile, myUsername, viewingUsername, token]);
+
+  const openFollowModal = useCallback((tab, targetUsername) => {
     setFollowModalTab(tab);
     setShowFollowModal(true);
-    setFollowListLoading(true);
-    try {
-      const res = await fetch(`${API}/api/follow/${targetUsername}/list`, { headers: { 'Authorization': `Bearer ${token}` } });
-      const data = await res.json();
-      setFollowListData({ followers: data.followers || [], following: data.following || [] });
-    } catch { setFollowListData({ followers: [], following: [] }); }
-    setFollowListLoading(false);
-  }, [token]);
+    
+    if (followCache[targetUsername]) {
+      setFollowListData(followCache[targetUsername]);
+      setFollowListLoading(false);
+    } else {
+      setFollowListLoading(true);
+    }
+    
+    fetch(`${API}/api/follow/${targetUsername}/list`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => {
+        const newData = { followers: data.followers || [], following: data.following || [] };
+        setFollowListData(newData);
+        setFollowCache(prev => ({ ...prev, [targetUsername]: newData }));
+        setFollowListLoading(false);
+      })
+      .catch(() => {
+        if (!followCache[targetUsername]) setFollowListData({ followers: [], following: [] });
+        setFollowListLoading(false);
+      });
+  }, [token, followCache]);
 
   const ReactIsAwesome = React; // just dummy not to conflict
   const navIconsRef = ReactIsAwesome.useRef(null);
@@ -115,9 +174,18 @@ const Profile = () => {
           .then(r => r.json()).then(d => { if(Array.isArray(d)) setFollowRequests(d); }).catch(() => {});
       }
     };
-    fetchRequests();
-    const interval = setInterval(fetchRequests, 3000);
-    return () => clearInterval(interval);
+    const handleUpdate = () => {
+      fetchRequests();
+      if (typeof fetchProfile === 'function') fetchProfile();
+      if (typeof fetchOtherProfile === 'function') fetchOtherProfile();
+    };
+    handleUpdate();
+    const interval = setInterval(handleUpdate, 3000);
+    window.addEventListener('follow_status_updated', handleUpdate);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('follow_status_updated', handleUpdate);
+    };
   }, [token]);
 
   // ── Unread message tracking ──
@@ -158,10 +226,20 @@ const Profile = () => {
 
   const handleNewMessage = useCallback((partner, msg) => {
     const chatKey = partner;
+    
+    // Check if muted before updating counts (consistent with other views)
+    const myUsername = localStorage.getItem('watch_username') || '';
+    let isMuted = false;
+    try {
+      const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
+      if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
+    } catch {}
+    
+    if (isMuted) return;
+
     const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
     localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
     localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-
     setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
     setTotalUnread(prev => prev + 1);
   }, []);
@@ -200,16 +278,23 @@ const Profile = () => {
 
   const handleFollowBack = async (requestingUser, e) => {
     e.stopPropagation();
+    // Optimistically update UI immediately so button changes to "Request Sent"
+    setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: 'pending' } : u));
     try {
-      // Allow first (safe if already allowed)
-      await fetch(`${API}/api/follow/${requestingUser}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      // Then request back
-      await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      toast.success(`Follow request sent back to ${requestingUser}!`);
-      if (isOwnProfile && profile) setProfile(p => ({ ...p, followersCount: (p.followersCount || 0) + 1 }));
-      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, status: 'accepted', myFollowStatus: 'pending' } : u));
-      if (isOwnProfile) fetchProfile();
-    } catch {}
+      const r = await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const d = await r.json();
+      if (d.error) {
+        toast.error(d.error);
+        // Revert optimistic update on error
+        setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
+      } else {
+        toast.success(`Follow request sent to ${requestingUser}!`);
+        window.dispatchEvent(new Event('follow_status_updated'));
+      }
+    } catch {
+      // Revert on network error
+      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
+    }
   };
 
   // Image crop state
@@ -221,6 +306,16 @@ const Profile = () => {
   const imgRef = useRef(null);
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
+
+  // Lock body scroll when modals are open
+  useEffect(() => {
+    if (showFollowModal || showCropModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showFollowModal, showCropModal]);
 
   const fetchProfile = useCallback(() => {
     if (!token) return;
@@ -257,6 +352,8 @@ const Profile = () => {
         if (!data) return;
         if (data.error) { setUserNotFound(true); return; }
         setOtherProfile(data);
+        // Cache for instant load next time
+        try { localStorage.setItem(`profile_cache_${viewingUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
       })
       .catch(() => toast.error('Network error loading profile'));
   }, [viewingUsername, token]);
@@ -321,7 +418,12 @@ const Profile = () => {
     if (!currentPassword) errs.currentPassword = 'Current password is required';
     const pwValidation = validateNewPassword(newPassword);
     Object.assign(errs, pwValidation);
-    if (newPassword && !errs.newPassword && newPassword !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
+    if (newPassword && !errs.newPassword && newPassword === currentPassword) {
+      errs.newPassword = 'New password should be different than current one';
+    }
+    if (newPassword && !errs.newPassword && newPassword !== confirmPassword) {
+      errs.confirmPassword = 'Passwords do not match';
+    }
     if (!confirmPassword && !errs.confirmPassword) errs.confirmPassword = 'Please confirm your new password';
     setPwErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -446,7 +548,7 @@ const Profile = () => {
 
   return (
     <div style={{ minHeight: '100vh', overflowX: 'hidden' }}>
-      <Toaster position="top-center" />
+      <Toaster position="top-center" containerStyle={{ zIndex: 100001 }} />
       <style>{`
         .profile-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 24px 28px; margin-bottom: 24px; transition: all 0.2s; }
         .profile-card:hover { border-color: rgba(255,255,255,0.15); }
@@ -457,49 +559,203 @@ const Profile = () => {
         .profile-input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; font-size: 15px; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
         .profile-input:focus { border-color: rgba(99,102,241,0.5); }
         .profile-input:disabled { opacity: 0.5; cursor: not-allowed; }
-        .back-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 8px 16px; border-radius: 12px; display: inline-flex; alignItems: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; }
-        .back-btn:hover { background: rgba(255,255,255,0.1); color: #fff; transform: translateX(-4px); }
+        .back-btn { 
+          display: flex; 
+          align-items: center; 
+          gap: 10px; 
+          background: rgba(255,255,255,0.05); 
+          border: 1px solid rgba(255,255,255,0.1); 
+          color: #fff; 
+          padding: 10px 20px; 
+          border-radius: 16px; 
+          cursor: pointer; 
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); 
+          font-size: 14px; 
+          font-weight: 700; 
+          backdrop-filter: blur(12px); 
+        }
+        .back-btn:hover { 
+          background: rgba(255,255,255,0.1); 
+          border-color: rgba(255,255,255,0.2); 
+        }
+        .nav-icon-btn { 
+          position: relative; 
+          background: rgba(255,255,255,0.05); 
+          border: none; 
+          padding: 8px;
+          border-radius: 50%; 
+          color: #94a3b8; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          cursor: pointer; 
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .nav-icon-btn:hover { 
+          background: rgba(255,255,255,0.1); 
+          border-color: rgba(255,255,255,0.2); 
+          color: #fff; 
+        }
+        .nav-icon-btn.active { 
+          background: rgba(99,102,241,0.12); 
+          color: #818cf8; 
+          border-radius: 12px;
+        }
+        .profile-pill {
+          display: flex; 
+          align-items: center; 
+          gap: 10px; 
+          background: rgba(255,255,255,0.05); 
+          border: 1px solid rgba(255,255,255,0.1); 
+          border-radius: 16px; 
+          padding: 8px 18px; 
+          font-size: 14px; 
+          color: #eee; 
+          cursor: pointer; 
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+        }
+        .profile-pill:hover { 
+          background: rgba(255,255,255,0.1) !important; 
+          border-color: rgba(255,255,255,0.2) !important; 
+        }
         @keyframes slideInRight { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
         .save-btn { background: linear-gradient(135deg, #6366f1, #a855f7); border: none; color: #fff; padding: 10px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform 0.2s, opacity 0.2s; }
-        .save-btn:hover { transform: translateY(-1px); }
+        .save-btn:hover { opacity: 0.8; }
         .save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .field-label { font-size: 13px; color: #888; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
         .pw-wrapper { position: relative; }
         .pw-toggle { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #888; cursor: pointer; }
         .stat-box { text-align: center; }
         .stat-num { font-size: 22px; font-weight: 800; color: #fff; }
-        .stat-lbl { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+         .stat-lbl { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+        /* ── Light Mode Overrides ── */
+        html[data-theme='light'] body { background: #f7fafc !important; color: #111 !important; }
+        html[data-theme='light'] nav { background: #fff !important; border-bottom: 1px solid rgba(0,0,0,0.08) !important; }
+        
+        html[data-theme='light'] .section-heading { color: #000 !important; }
+        html[data-theme='light'] .section-desc { color: #4a5568 !important; }
+        
+        html[data-theme='light'] .section-heading { color: #000 !important; }
+        html[data-theme='light'] .section-desc { color: #4a5568 !important; }
+
+        html[data-theme='light'] .profile-card { background: #ffffff !important; border-color: rgba(0,0,0,0.08) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+        html[data-theme='light'] .profile-card:hover { border-color: rgba(99,102,241,0.3) !important; }
+        html[data-theme='light'] .acc-header h3 { color: #111 !important; }
+        html[data-theme='light'] .field-label { color: #64748b !important; }
+        html[data-theme='light'] .profile-input { background: #f8fafc !important; border-color: rgba(0,0,0,0.08) !important; color: #111 !important; }
+        html[data-theme='light'] .profile-input:focus { border-color: #6366f1 !important; background: #fff !important; }
+
+        html[data-theme='light'] h2, html[data-theme='light'] h3 { color: #000 !important; }
+        html[data-theme='light'] .stat-num { color: #111 !important; }
+        html[data-theme='light'] .stat-lbl { color: #64748b !important; }
+        html[data-theme='light'] .save-btn { color: #ffffff !important; }
+        html[data-theme='light'] .profile-input::placeholder { color: #64748b !important; }
+        html[data-theme='light'] .profile-input { color: #1e293b !important; }
+        
+        .delete-btn { background: rgba(239,68,68,0.15); border: none; color: #ef4444; padding: 10px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: transform 0.2s, background 0.2s; }
+        .delete-btn:hover { background: rgba(239,68,68,0.25); }
+        html[data-theme='light'] .delete-btn { background: #fee2e2 !important; color: #ef4444 !important; }
+        html[data-theme='light'] .delete-btn:hover { background: #fecaca !important; }
+        html[data-theme='light'] .danger-desc { color: #475569 !important; }
+        
+        /* Crop Modal */
+        .crop-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; display: flex; align-items: center; justify-content: center; }
+        .crop-modal-content { background: #1a1a2e; border-radius: 24px; padding: 32px; border: 1px solid rgba(255,255,255,0.08); max-width: 360px; width: 90vw; text-align: center; }
+        .crop-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+        .crop-btn:hover { background: rgba(255,255,255,0.1); }
+        
+        html[data-theme='light'] .crop-modal-overlay { background: rgba(255,255,255,0.4) !important; }
+        html[data-theme='light'] .crop-modal-content { background: rgba(255,255,255,0.85) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; border: 1px solid rgba(0,0,0,0.1) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.1) !important; }
+        html[data-theme='light'] .crop-title { color: #111 !important; }
+        html[data-theme='light'] .crop-btn { background: #f1f5f9 !important; border-color: #e2e8f0 !important; color: #334155 !important; }
+        html[data-theme='light'] .crop-btn:hover { background: #e2e8f0 !important; }
+        html[data-theme='light'] .crop-zoom-label { color: #64748b !important; }
+        
+        /* Followers / Following Modal */
+        .follow-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .follow-modal-content { background: #111217; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 380px; max-height: 72vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,0.9); animation: slideDown 0.25s cubic-bezier(0.16,1,0.3,1); }
+        .follow-modal-close { position: absolute; top: -2px; right: -48px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1; transition: background 0.2s; }
+        .follow-modal-close:hover { background: rgba(255,255,255,0.22); }
+        .follow-tab-btn { flex: 1; padding-bottom: 14px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 700; color: #555; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .follow-tab-btn.active { color: #fff; border-bottom: 2px solid #a855f7; }
+        .follow-user-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s; }
+        .follow-user-item:hover { background: rgba(255,255,255,0.05); }
+        .follow-user-name { color: #fff; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        html[data-theme='light'] .follow-modal-overlay { background: rgba(255,255,255,0.7) !important; }
+        html[data-theme='light'] .follow-modal-content { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.1) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.1) !important; }
+        html[data-theme='light'] .follow-modal-close { background: #f1f5f9 !important; border: 1px solid #e2e8f0 !important; color: #475569 !important; }
+        html[data-theme='light'] .follow-modal-close:hover { background: #e2e8f0 !important; color: #0f172a !important; }
+        html[data-theme='light'] .follow-tab-btn { color: #64748b !important; }
+        html[data-theme='light'] .follow-tab-btn.active { color: #111 !important; border-bottom: 2px solid #a855f7 !important; }
+        html[data-theme='light'] .follow-user-item:hover { background: rgba(0,0,0,0.05) !important; }
+        html[data-theme='light'] .follow-user-name { color: #111 !important; }
+        
+        /* Edit & Action Buttons */
+        .profile-edit-btn { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px 18px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 700; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .profile-edit-btn svg { color: #fff; transition: color 0.25s; }
+        .profile-edit-btn:hover { background: #6366f1 !important; border-color: #4f46e5 !important; color: #ffffff !important; box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+        .profile-edit-btn:hover svg { color: #ffffff !important; }
+        
+        html[data-theme='light'] .profile-edit-btn { background: #f1f5f9; border-color: #e2e8f0; color: #000 !important; }
+        html[data-theme='light'] .profile-edit-btn svg { color: #000 !important; }
+        html[data-theme='light'] .profile-edit-btn:hover { background: #6366f1 !important; border-color: #4f46e5 !important; color: #ffffff !important; }
+        html[data-theme='light'] .profile-edit-btn:hover svg { color: #ffffff !important; }
+        
+        .profile-save-box { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #a855f7); border: none; color: #ffffff !important; cursor: pointer; transition: all 0.2s; }
+        .profile-save-box svg { color: #ffffff !important; }
+        .profile-save-box:hover { box-shadow: 0 4px 12px rgba(99,102,241,0.3); }
+        
+        .profile-cancel-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #aaa; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+        .profile-cancel-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        
+        html[data-theme='light'] .profile-cancel-btn { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.12) !important; color: #64748b !important; }
+        html[data-theme='light'] .profile-cancel-btn:hover { background: #f1f5f9 !important; color: #ef4444 !important; border-color: #ef4444 !important; }
       `}</style>
 
       {/* Navbar */}
-      <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div>
-          <button className="back-btn" onClick={() => navigate(-1)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', padding: '8px 16px', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 600, transition: 'all 0.2s', animation: 'slideInRight 0.3s ease-out' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#ccc'; }}>
-            <ArrowLeft size={16} /> Back
+      <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
+        {/* Left: Back Button */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+          <button className="back-btn" onClick={() => navigate('/')}>
+            <ArrowLeft size={18} />
+            <span>{t('back', 'Back')}</span>
           </button>
         </div>
 
-        <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'center' }}>
+        {/* Center: Empty (identity moved to right) */}
+        <div style={{ flex: 1 }}></div>
+
+        {/* Right: Actions */}
+        <div ref={navIconsRef} style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
           {/* Search */}
           <div style={{ position: 'relative' }}>
-            <button title="Search" onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showSearch ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}>
+            <button 
+              className={`nav-icon-btn${showSearch ? ' active' : ''}`}
+              title="Search"
+              onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
+            >
               <Search size={18} />
             </button>
             {showSearch && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                <input autoFocus placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8, boxSizing: 'border-box' }} />
+              <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+                <input 
+                  autoFocus
+                  placeholder="Search users..."
+                  className="nav-input"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8 }}
+                />
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                   {searchResults.length > 0 ? (
                     searchResults.map(u => (
-                      <div key={u.username} onClick={() => { setShowSearch(false); setSearchQuery(''); navigate(`/profile/${u.username}`); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={16} color="#fff" />}
+                      <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -507,36 +763,42 @@ const Profile = () => {
                         </div>
                       </div>
                     ))
-                  ) : (searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>No users found</div> : null)}
+                  ) : (
+                    searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Recent Chats */}
+          {/* Global Chat */}
           <div style={{ position: 'relative' }}>
-            <button title="Chats" onClick={() => { setShowRecentChats(!showRecentChats); setShowSearch(false); setShowNotifications(false); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showRecentChats ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}>
+            <button 
+              className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
+              title="Chats"
+              onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+            >
               <MessageSquare size={18} />
               {totalUnread > 0 && (
-                <div style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalUnread > 9 ? '9+' : totalUnread}
                 </div>
               )}
             </button>
           </div>
 
-          {/* Notifications / Follow Requests */}
+          {/* Notifications */}
           <div style={{ position: 'relative' }}>
-            <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: showNotifications ? '#6366f1' : '#888', padding: '8px', borderRadius: '50%', cursor: 'pointer', transition: 'all 0.2s', display: 'flex' }}>
+            <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowRecentChats(false); setShowSearch(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
               <Bell size={18} />
               {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                <div style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {followRequests.filter(r => r.status === 'pending').length}
                 </div>
               )}
             </button>
             {showNotifications && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+              <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
                 <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                   {followRequests.length > 0 ? (
@@ -550,30 +812,28 @@ const Profile = () => {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                          
                           <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
                             {u.status === 'pending' ? `@${u.username} wants to follow you` : `@${u.username} started following you`}
                           </div>
-                          
-                            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                              {u.status === 'pending' ? (
-                                <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
-                              ) : (
-                                <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
-                              )}
-                              
-                              {u.myFollowStatus === 'accepted' ? (
-                                <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
-                              ) : (
-                                <button onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (u.myFollowStatus === 'pending') return;
-                                  handleFollowBack(u.username, e);
-                                }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                  {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
-                                </button>
-                              )}
-                            </div>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            {u.status === 'pending' ? (
+                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
+                            ) : (
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
+                            )}
+                            
+                            {u.myFollowStatus === 'accepted' ? (
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
+                            ) : (
+                              <button onClick={(e) => {
+                                e.stopPropagation();
+                                if (u.myFollowStatus === 'pending') return;
+                                handleFollowBack(u.username, e);
+                              }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -585,33 +845,59 @@ const Profile = () => {
             )}
           </div>
 
-          {/* Profile icon */}
+          {/* User Menu */}
           <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }} onMouseLeave={() => setShowUserMenu(false)}>
-            <div onMouseEnter={() => setShowUserMenu(true)} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}>
-              {avatarUrl ? <img src={avatarUrl} alt="profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={20} style={{ color: '#6366f1' }} />}
+            <div className="profile-pill"
+              onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
+            >
+              <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {profile?.avatarPath ? (
+                  <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <UserIcon size={14} style={{ color: '#6366f1' }} />
+                )}
+              </div>
+              <span style={{ fontWeight: 600 }}>{myUsername}</span>
             </div>
             {showUserMenu && (
               <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
-                <div style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                  <button onClick={() => { setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserIcon size={16} color="#6366f1" /></div>
+                <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
+                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <UserIcon size={16} color="#6366f1" />
+                    </div>
                     {t('account', 'Account')}
                   </button>
-                  <button onClick={() => { setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Settings size={16} color="#10b981" /></div>
+                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Settings size={16} color="#10b981" />
+                    </div>
                     {t('app', 'App')}
                   </button>
-                  <button onClick={() => { setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><HelpCircle size={16} color="#f59e0b" /></div>
+                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <HelpCircle size={16} color="#f59e0b" />
+                    </div>
                     {t('contactSupport', 'Contact Support')}
                   </button>
-                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
-                  <button onClick={() => { setShowUserMenu(false); localStorage.removeItem('watch_token'); localStorage.removeItem('watch_username'); navigate('/login'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LogOut size={16} color="#f87171" /></div>
+                  <div className="profile-divider" />
+                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <LogOut size={16} color="#f87171" />
+                    </div>
                     {t('logOut', 'Log Out')}
                   </button>
                 </div>
@@ -639,6 +925,14 @@ const Profile = () => {
                 <button onClick={async () => {
                   await fetch(`${API}/api/block/${otherProfile.username}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                   toast.success('User unblocked!');
+                  // Update local storage so widgets reflect immediately
+                  try {
+                    const myU = localStorage.getItem('watch_username');
+                    const localBlocks = JSON.parse(localStorage.getItem(`blocked_chats_${myU}`) || '[]');
+                    const nextBlocks = localBlocks.filter(k => k.toLowerCase() !== otherProfile.username.toLowerCase());
+                    localStorage.setItem(`blocked_chats_${myU}`, JSON.stringify(nextBlocks));
+                    window.dispatchEvent(new Event('blocked_chats_updated'));
+                  } catch (e) {}
                   fetchOtherProfile();
                 }} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Unblock User</button>
               </div>
@@ -671,26 +965,45 @@ const Profile = () => {
                     {showOptionsDropdown && (
                       <div onClick={() => setShowOptionsDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
                     )}
-                    <button onClick={() => setShowOptionsDropdown(!showOptionsDropdown)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 8, display: 'flex', borderRadius: '50%', position: 'relative', zIndex: 91 }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <button className="options-three-dot-btn" onClick={() => {
+                      setShowOptionsDropdown(!showOptionsDropdown);
+                      setShowRecentChats(false);
+                      setShowNotifications(false);
+                      setShowSearch(false);
+                      setShowUserMenu(false);
+                    }} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 8, display: 'flex', borderRadius: '50%', position: 'relative', zIndex: 91 }} onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <MoreVertical size={20} />
                     </button>
                     {showOptionsDropdown && (
-                      <div style={{ position: 'absolute', top: '100%', right: 0, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 8, minWidth: 200, boxShadow: '0 10px 40px rgba(0,0,0,0.8)', zIndex: 100 }}>
+                      <div className="options-dropdown" style={{ position: 'absolute', top: '100%', right: 0, background: isLight ? '#fff' : '#111', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 8, minWidth: 200, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)', zIndex: 100 }}>
                         {otherProfile.country && (
-                          <div style={{ padding: '10px 12px', color: '#bbb', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
+                          <div className="options-dropdown-country" style={{ padding: '10px 12px', color: isLight ? '#64748b' : '#bbb', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
                             {flagUrl ? <img src={flagUrl} alt="flag" style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2 }} /> : <Flag size={14} color="#a855f7" />} Country: {otherProfile.country}
                           </div>
                         )}
                         <button onClick={() => {
                           setShowOptionsDropdown(false);
                           setShowShareModal(true);
-                        }} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: '#fff', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          setShowRecentChats(false);
+                          setShowNotifications(false);
+                          setShowSearch(false);
+                        }} className="options-dropdown-btn" style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#fff', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <Share2 size={14} /> Share Profile URL
                         </button>
                         <button onClick={async () => {
                           const r = await fetch(`${API}/api/block/${otherProfile.username}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
                           if (r.ok) {
                             toast.success(`You have blocked ${otherProfile.username}`);
+                            // Update local storage so widgets reflect immediately
+                            try {
+                              const myU = localStorage.getItem('watch_username');
+                              const localBlocks = JSON.parse(localStorage.getItem(`blocked_chats_${myU}`) || '[]');
+                              if (!localBlocks.includes(otherProfile.username)) {
+                                localBlocks.push(otherProfile.username);
+                                localStorage.setItem(`blocked_chats_${myU}`, JSON.stringify(localBlocks));
+                                window.dispatchEvent(new Event('blocked_chats_updated'));
+                              }
+                            } catch (e) {}
                             setShowOptionsDropdown(false);
                             fetchOtherProfile();
                           }
@@ -704,9 +1017,9 @@ const Profile = () => {
 
                 {/* Info block */}
                 <div style={{ marginBottom: 20 }}>
-                  <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: '#fff' }}>{otherProfile.displayName || otherProfile.username}</h2>
+                  <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#1e293b' : '#fff' }}>{otherProfile.displayName || otherProfile.username}</h2>
                   <div style={{ color: '#6b7280', fontSize: 14, marginBottom: 12 }}>@{otherProfile.username}</div>
-                  {otherProfile.bio && <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0' }}>{otherProfile.bio}</p>}
+                  {otherProfile.bio && <p className="profile-bio-text" style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0' }}>{otherProfile.bio}</p>}
                 </div>
 
                 {/* Divider */}
@@ -784,7 +1097,29 @@ const Profile = () => {
               <button onClick={() => navigate('/')} style={{ marginTop: 20, padding: '10px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Go Home</button>
             </div>
           ) : (
-            <div style={{ color: '#fff', textAlign: 'center', padding: 80 }}>Loading profile...</div>
+            <div style={{ padding: '40px 20px' }}>
+              {/* Skeleton loader — shows instantly while fresh data loads */}
+              <style>{`
+                @keyframes shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
+                .sk { border-radius: 8px; animation: shimmer 1.4s ease infinite; background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.05) 75%); background-size: 600px 100%; }
+                html[data-theme='light'] .sk { background: linear-gradient(90deg, #e8eaed 25%, #f4f5f7 50%, #e8eaed 75%); background-size: 600px 100%; }
+              `}</style>
+              <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginBottom: 28 }}>
+                <div className="sk" style={{ width: 100, height: 100, borderRadius: '50%', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div className="sk" style={{ height: 24, width: '55%', marginBottom: 10 }} />
+                  <div className="sk" style={{ height: 14, width: '30%', marginBottom: 10 }} />
+                  <div className="sk" style={{ height: 14, width: '80%' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+                <div className="sk" style={{ height: 40, flex: 1, borderRadius: 12 }} />
+                <div className="sk" style={{ height: 40, flex: 1, borderRadius: 12 }} />
+              </div>
+              <div className="sk" style={{ height: 14, width: '90%', marginBottom: 10 }} />
+              <div className="sk" style={{ height: 14, width: '70%', marginBottom: 10 }} />
+              <div className="sk" style={{ height: 14, width: '80%' }} />
+            </div>
           )}
         </section>
       )}
@@ -839,11 +1174,11 @@ const Profile = () => {
                   <input className="profile-input" value={displayName} onChange={e => setDisplayName(e.target.value)} disabled={!editingName} style={{ flex: 1 }} />
                   {editingName ? (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="save-btn" onClick={handleSaveProfile}><Check size={16} /></button>
-                      <button onClick={() => { setEditingName(false); setDisplayName(profile.displayName || profile.username); }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', padding: '10px', borderRadius: 12, cursor: 'pointer' }}><X size={16} /></button>
+                      <button className="profile-save-box" onClick={handleSaveProfile} title="Save Changes"><Check size={18} /></button>
+                      <button className="profile-cancel-btn" onClick={() => { setEditingName(false); setDisplayName(profile.displayName || profile.username); }} title="Cancel"><X size={18} /></button>
                     </div>
                   ) : (
-                    <button onClick={() => setEditingName(true)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', padding: '10px 16px', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button className="profile-edit-btn" onClick={() => setEditingName(true)}>
                       <Edit2 size={14} /> {t('edit', 'Edit')}
                     </button>
                   )}
@@ -865,18 +1200,18 @@ const Profile = () => {
                   <textarea className="profile-input" value={bio} onChange={e => { if (e.target.value.length <= 180) setBio(e.target.value); }} disabled={!editingBio}
                     placeholder="Write a short bio..."
                     maxLength={180}
-                    rows={3}
-                    style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 }} />
+                    rows={4}
+                    style={{ resize: 'none', height: '110px', overflowY: 'auto', fontFamily: 'inherit', lineHeight: 1.6 }} />
                   <div style={{ textAlign: 'right', fontSize: 12, color: bio.length >= 170 ? '#ef4444' : bio.length >= 140 ? '#f59e0b' : '#555', fontWeight: 500, marginTop: -4 }}>
                     {180 - bio.length} / 180 characters remaining
                   </div>
                   {editingBio ? (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="save-btn" onClick={handleSaveProfile}><Check size={16} style={{ marginRight: 4 }} /> Save</button>
-                      <button onClick={() => { setEditingBio(false); setBio(profile.bio || ''); }} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', padding: '10px 16px', borderRadius: 12, cursor: 'pointer' }}>Cancel</button>
+                      <button className="profile-save-box" onClick={handleSaveProfile} title="Save Bio"><Check size={18} /></button>
+                      <button className="profile-cancel-btn" onClick={() => { setEditingBio(false); setBio(profile.bio || ''); }} title="Cancel"><X size={18} /></button>
                     </div>
                   ) : (
-                    <button onClick={() => setEditingBio(true)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', padding: '10px 16px', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}>
+                    <button className="profile-edit-btn" onClick={() => setEditingBio(true)} style={{ alignSelf: 'flex-start' }}>
                       <Edit2 size={14} /> {t('edit', 'Edit')}
                     </button>
                   )}
@@ -971,6 +1306,15 @@ const Profile = () => {
                           const res = await fetch(`${API}/api/block/${u.username}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
                           if (res.ok) {
                             toast.success(`Unblocked ${u.username}`);
+                            
+                            // Update local storage so widgets reflect immediately
+                            try {
+                              const localBlocks = JSON.parse(localStorage.getItem(`blocked_chats_${profile.username}`) || '[]');
+                              const nextBlocks = localBlocks.filter(k => k !== u.username);
+                              localStorage.setItem(`blocked_chats_${profile.username}`, JSON.stringify(nextBlocks));
+                              window.dispatchEvent(new Event('blocked_chats_updated'));
+                            } catch (e) {}
+
                             fetchBlockedUsers();
                             if (isOwnProfile) fetchProfile(); // Update follower/following counts if changed
                           } else {
@@ -1000,8 +1344,8 @@ const Profile = () => {
             {openSection === 'deleteAccount' && (
               <div className="acc-body">
                 <div className="field-label" style={{ color: '#ef4444' }}>Danger Zone</div>
-                <p style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>Once you delete your account, there is no going back. Please be certain.</p>
-                <button className="save-btn" onClick={() => { setShowDeleteModal(true); setDeleteChecked(false); setShowDeleteError(false); }} style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                <p className="danger-desc" style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>Once you delete your account, there is no going back. Please be certain.</p>
+                <button className="delete-btn" onClick={() => { setShowDeleteModal(true); setDeleteChecked(false); setShowDeleteError(false); }}>
                   Delete My Account
                 </button>
               </div>
@@ -1034,20 +1378,20 @@ const Profile = () => {
 
       {/* Crop Modal */}
       {showCropModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#1a1a2e', borderRadius: 24, padding: 32, border: '1px solid rgba(255,255,255,0.08)', maxWidth: 360, width: '90vw', textAlign: 'center' }}>
-            <h3 style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Crop your photo</h3>
+        <div className="crop-modal-overlay">
+          <div className="crop-modal-content">
+            <h3 className="crop-title" style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Crop your photo</h3>
             <div style={{ position: 'relative', width: 240, height: 240, margin: '0 auto', borderRadius: '50%', overflow: 'hidden', cursor: 'grab', background: '#000' }}
               onMouseDown={handleCropMouseDown} onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
               <canvas ref={cropCanvasRef} width={240} height={240} style={{ width: '100%', height: '100%' }} />
             </div>
             <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
-              <span style={{ fontSize: 12, color: '#888' }}>Zoom</span>
+              <span className="crop-zoom-label" style={{ fontSize: 12, color: '#888' }}>Zoom</span>
               <input type="range" min="0.5" max="3" step="0.05" value={cropZoom} onChange={e => setCropZoom(parseFloat(e.target.value))} style={{ flex: 1, maxWidth: 180, accentColor: '#6366f1' }} />
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
-              <button onClick={() => fileInputRef.current.click()} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', padding: '10px 20px', borderRadius: 12, cursor: 'pointer', fontSize: 14 }}>Reselect</button>
-              <button onClick={() => setShowCropModal(false)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#ccc', padding: '10px 20px', borderRadius: 12, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button className="crop-btn" onClick={() => fileInputRef.current.click()}>Reselect</button>
+              <button className="crop-btn" onClick={() => setShowCropModal(false)}>Cancel</button>
               <button className="save-btn" onClick={handleCropConfirm}><Check size={16} style={{ marginRight: 4 }} /> Save</button>
             </div>
           </div>
@@ -1055,64 +1399,66 @@ const Profile = () => {
       )}
       {/* Share Modal */}
       {showShareModal && (
-        <div onClick={() => setShowShareModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9990 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', padding: 32, borderRadius: 24, width: '90%', maxWidth: 480, animation: 'slideUp 0.3s ease-out', position: 'relative' }}>
-            
-            <button onClick={() => setShowShareModal(false)} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: '#2a2a3e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', transition: 'background 0.2s, transform 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background='#3a3a4e'; e.currentTarget.style.transform='scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background='#2a2a3e'; e.currentTarget.style.transform='scale(1)' }}>
+        <div className="share-modal-overlay" onClick={() => setShowShareModal(false)} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+            <button className="share-modal-close" onClick={() => setShowShareModal(false)} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: isLight ? '#fff' : '#2a2a3e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 4px 12px rgba(0,0,0,0.5)', transition: 'background 0.2s, transform 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f8fafc' : '#3a3a4e'; e.currentTarget.style.transform='scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : '#2a2a3e'; e.currentTarget.style.transform='scale(1)' }}>
               <X size={20} />
             </button>
-
-            <h3 style={{ margin: '0 0 24px', color: '#fff', fontSize: 20, fontWeight: 800, textAlign: 'center' }}>Share Profile</h3>
-            
-            <div style={{ display: 'flex', gap: 10, background: 'rgba(255,255,255,0.04)', padding: '12px 14px', borderRadius: 16, marginBottom: 32, border: '1px solid rgba(255,255,255,0.08)' }}>
-              <input type="text" readOnly value={`${window.location.origin}/profile/${otherProfile?.username}`} style={{ background: 'transparent', border: 'none', color: '#ccc', width: '100%', outline: 'none', fontSize: 13, fontWeight: 500 }} />
-              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/profile/${otherProfile?.username}`); toast.success('Copied!'); }} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '8px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}>Copy</button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, max-content)', gap: '20px 16px', justifyContent: 'center' }}>
-              {[
-                { label: 'WhatsApp', color: '#25D366', icon: 'whatsapp/white', url: `https://api.whatsapp.com/send?text=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'Instagram', color: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', icon: 'instagram/white', url: 'https://instagram.com/' },
-                { label: 'Snapchat', color: '#FFFC00', icon: 'snapchat/black', url: 'https://snapchat.com/' },
-                { label: 'Reddit', color: '#FF4500', icon: 'reddit/white', url: `https://reddit.com/submit?url=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'Discord', color: '#5865F2', icon: 'discord/white', url: `https://discord.com/channels/@me` },
-                { label: 'Telegram', color: '#2AABEE', Icon: FaTelegramPlane, url: `https://t.me/share/url?url=${window.location.origin}/profile/${otherProfile?.username}`, iconSize: 26, iconStyle: { position: 'relative', right: 2 } },
-                { label: 'X', color: '#000000', icon: 'x/white', url: `https://twitter.com/intent/tweet?url=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'Email', color: '#EA4335', icon: 'gmail/white', url: `mailto:?body=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'Facebook', color: '#1877F2', icon: 'facebook/white', url: `https://www.facebook.com/sharer/sharer.php?u=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'LinkedIn', color: '#0A66C2', Icon: FaLinkedinIn, url: `https://www.linkedin.com/shareArticle?mini=true&url=${window.location.origin}/profile/${otherProfile?.username}`, iconSize: 22 },
-                { label: 'Pinterest', color: '#E60023', icon: 'pinterest/white', url: `https://pinterest.com/pin/create/button/?url=${window.location.origin}/profile/${otherProfile?.username}` },
-                { label: 'Twitch', color: '#9146FF', icon: 'twitch/white', url: 'https://twitch.tv/' }
-              ].map(s => (
-                <button key={s.label} onClick={() => window.open(s.url, '_blank')} style={{ width: 48, height: 48, borderRadius: '50%', background: s.color, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }} title={s.label} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                  {s.Icon ? <s.Icon size={s.iconSize} color="#fff" style={s.iconStyle || {}} /> : <img src={`https://cdn.simpleicons.org/${s.icon}`} width="24" alt={s.label} style={s.imgStyle || {}} />}
+            <div className="share-modal-content" onClick={(e) => e.stopPropagation()} style={{ background: isLight ? '#fff' : '#141420', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', padding: 32, borderRadius: 24, width: '90vw', maxWidth: 480, animation: 'slideUp 0.3s ease-out', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.9)' }}>
+              <h3 className="share-modal-title" style={{ margin: '0 0 24px', color: isLight ? '#1e293b' : '#fff', fontSize: 20, fontWeight: 800, textAlign: 'center' }}>Share Profile</h3>
+              
+              <div className="share-modal-url-row" style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+                <span className="share-modal-url-display" style={{ flex: 1, fontSize: 13, color: isLight ? '#475569' : '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                  {`${window.location.origin}/profile/${otherProfile?.username}`}
+                </span>
+                <button className="share-modal-copy-btn" onClick={copyProfileLink} style={{ background: copied ? '#10b981' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform='scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}>
+                  {copied ? 'Copied!' : 'Copy'}
                 </button>
-              ))}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '20px 8px', justifyContent: 'center' }}>
+                {[
+                  { label: 'WhatsApp', color: '#25D366', icon: <FaWhatsapp size={22} />, url: `https://api.whatsapp.com/send?text=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Telegram', color: '#0088cc', icon: <FaTelegramPlane size={22} style={{ marginRight: 2 }} />, url: `https://t.me/share/url?url=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Instagram', color: '#E1306C', icon: <FaInstagram size={22} />, url: 'https://instagram.com/' },
+                  { label: 'Snapchat', color: '#eab308', icon: <FaSnapchatGhost size={22} />, url: 'https://snapchat.com/' },
+                  { label: 'X', color: isLight ? '#000' : '#e5e5e5', icon: <FaXTwitter size={20} />, url: `https://twitter.com/intent/tweet?url=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Email', color: '#EA4335', icon: <SiGmail size={20} />, url: `mailto:?body=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Discord', color: '#5865F2', icon: <FaDiscord size={22} />, url: `https://discord.com/channels/@me` },
+                  { label: 'Reddit', color: '#FF4500', icon: <FaRedditAlien size={22} />, url: `https://reddit.com/submit?url=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Facebook', color: '#1877F2', icon: <FaFacebookF size={22} />, url: `https://www.facebook.com/sharer/sharer.php?u=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'LinkedIn', color: '#0A66C2', icon: <FaLinkedin size={22} />, url: `https://www.linkedin.com/shareArticle?mini=true&url=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Pinterest', color: '#E60023', icon: <FaPinterestP size={22} />, url: `https://pinterest.com/pin/create/button/?url=${window.location.origin}/profile/${otherProfile?.username}` },
+                  { label: 'Twitch', color: '#9146FF', icon: <FaTwitch size={22} />, url: 'https://twitch.tv/' }
+                ].map(s => (
+                  <button key={s.label} onClick={() => window.open(s.url, '_blank')} style={{ background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer', transition: 'transform 0.2s', width: 64 }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                    <div style={{ width: 48, height: 48, borderRadius: 14, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color }}>
+                      {s.icon}
+                    </div>
+                    <span style={{ fontSize: 11, color: isLight ? '#64748b' : '#666', fontWeight: 500, whiteSpace: 'nowrap' }}>{s.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
       {/* ── Followers / Following Modal ── */}
       {showFollowModal && (
-        <div onClick={() => setShowFollowModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 20000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="follow-modal-overlay" onClick={() => setShowFollowModal(false)}>
           {/* X button outside the box */}
           <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowFollowModal(false)}
-              style={{ position: 'absolute', top: -2, right: -48, width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1, transition: 'background 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.22)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}>
+            <button className="follow-modal-close" onClick={() => setShowFollowModal(false)}>
               <X size={16} />
             </button>
-            <div style={{ background: '#111217', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: 380, maxHeight: '72vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.9)', animation: 'slideDown 0.25s cubic-bezier(0.16,1,0.3,1)' }}>
+            <div className="follow-modal-content">
               {/* Tab header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '18px 24px 0' }}>
-                <button onClick={() => setFollowModalTab('followers')}
-                  style={{ flex: 1, paddingBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: followModalTab === 'followers' ? '#fff' : '#555', borderBottom: followModalTab === 'followers' ? '2px solid #a855f7' : '2px solid transparent', transition: 'all 0.2s' }}>
+                <button className={`follow-tab-btn ${followModalTab === 'followers' ? 'active' : ''}`} onClick={() => setFollowModalTab('followers')}>
                   Followers
                 </button>
                 <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)', marginBottom: 14, flexShrink: 0 }} />
-                <button onClick={() => setFollowModalTab('following')}
-                  style={{ flex: 1, paddingBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: followModalTab === 'following' ? '#fff' : '#555', borderBottom: followModalTab === 'following' ? '2px solid #a855f7' : '2px solid transparent', transition: 'all 0.2s' }}>
+                <button className={`follow-tab-btn ${followModalTab === 'following' ? 'active' : ''}`} onClick={() => setFollowModalTab('following')}>
                   Following
                 </button>
               </div>
@@ -1126,15 +1472,12 @@ const Profile = () => {
                   </div>
                 ) : (
                   (followListData[followModalTab] || []).map(u => (
-                    <div key={u.username} onClick={() => { setShowFollowModal(false); navigate(`/profile/${u.username}`); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div key={u.username} className="follow-user-item" onClick={() => { setShowFollowModal(false); navigate(`/profile/${u.username}`); }}>
                       <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(99,102,241,0.3)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {u.avatarPath ? <img src={`${API}${u.avatarPath}`} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#6366f1" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.displayName || u.username}</div>
+                        <div className="follow-user-name">{u.displayName || u.username}</div>
                         <div style={{ color: '#6b7280', fontSize: 12, marginTop: 1 }}>@{u.username}</div>
                       </div>
                     </div>
@@ -1153,3 +1496,8 @@ const Profile = () => {
 };
 
 export default Profile;
+
+
+
+
+

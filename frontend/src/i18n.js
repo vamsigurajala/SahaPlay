@@ -110,6 +110,8 @@ const resources = {
       "msgNotifications": "Message Notifications",
       "friendRequestNotifications": "Friend Request Notifications",
       "leaveNotifications": "Leave Notifications",
+      "joinReqNotifications": "Join Requests",
+      "whenSomeoneAsksJoin": "When someone asks to join your room",
       "roomChat": "Room Chat",
       "invite": "Invite",
       "watching": "watching",

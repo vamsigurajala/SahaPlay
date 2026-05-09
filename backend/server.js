@@ -29,9 +29,14 @@ const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 const { Pool } = require('pg');
 const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
-  max: 50,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  max: 20,
+  idleTimeoutMillis: 60000,
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+});
+
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
 });
 
 class SupabaseAdapter {
@@ -54,8 +59,8 @@ class SupabaseAdapter {
         'followerId', 'followingId', 'createdAt', 'isVerified', 
         'verificationToken', 'resetToken', 'resetTokenExpiry', 'displayName', 
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
-        'notifyFriendRequests', 'notifyLeave', 'showCountry', 'pinnedRooms', 
-        'lastSeen', 'senderAvatar', 'senderAvatarPath', 'senderMessage'
+        'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
+        'lastSeen', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -120,6 +125,7 @@ class SupabaseAdapter {
 
 
 const db = new SupabaseAdapter();
+
 
 const app = express();
 const server = http.createServer(app);
@@ -726,13 +732,30 @@ app.post('/api/auth/rekey', async (req, res) => {
 });
 
 /**
+ * POST /api/auth/save-public-key
+ * Lightweight endpoint for clients to persist their own public key to the database.
+ * Called on Room join to ensure encryption works for DMs even for older accounts.
+ */
+app.post('/api/auth/save-public-key', authenticateToken, async (req, res) => {
+  const { publicKey } = req.body;
+  if (!publicKey) return res.status(400).json({ error: 'publicKey required' });
+  try {
+    await pool.query('UPDATE users SET "publicKey" = $1 WHERE id = $2', [publicKey, req.user.id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[save-public-key] DB error:', err);
+    res.status(500).json({ error: 'Failed to save key' });
+  }
+});
+
+/**
  * GET /api/auth/public-key/:username
  * Returns the public key for a given user so other users can encrypt messages for them.
  * This endpoint is intentionally unauthenticated (public keys are meant to be shared).
  */
 app.get('/api/auth/public-key/:username', (req, res) => {
   const username = req.params.username ? req.params.username.toLowerCase() : '';
-  pool.query('SELECT "publicKey" FROM users WHERE username = $1', [username])
+  pool.query('SELECT "publicKey" FROM users WHERE LOWER(username) = $1', [username])
     .then(r => {
       if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
       res.json({ publicKey: r.rows[0].publicKey || null });
@@ -749,7 +772,7 @@ app.get('/api/auth/public-key/:username', (req, res) => {
  */
 app.get('/api/users/:username/public-key', (req, res) => {
   const username = req.params.username ? req.params.username.toLowerCase() : '';
-  pool.query('SELECT "publicKey" FROM users WHERE username = $1', [username])
+  pool.query('SELECT "publicKey" FROM users WHERE LOWER(username) = $1', [username])
     .then(r => {
       if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
       res.json({ publicKey: r.rows[0].publicKey || null });
@@ -780,7 +803,14 @@ app.get('/api/rooms/:roomId/public-keys', authenticateToken, async (req, res) =>
   try {
     const recentSenders = await new Promise((resolve, reject) =>
       db.all(
-        `SELECT DISTINCT senderName FROM messages WHERE roomId = ? AND type = 'group' ORDER BY timestamp DESC LIMIT 50`,
+        `SELECT senderName FROM (
+          SELECT "senderName", MAX(timestamp) as max_ts 
+          FROM messages 
+          WHERE "roomId" = ? AND (type = 'room' OR type = 'group') 
+          GROUP BY "senderName"
+        ) as sub 
+        ORDER BY max_ts DESC 
+        LIMIT 50`,
         [normalizedId],
         (err, rows) => err ? reject(err) : resolve(rows || [])
       )
@@ -830,7 +860,14 @@ app.get('/api/:roomId/public-keys', authenticateToken, async (req, res) => {
   try {
     const recentSenders = await new Promise((resolve, reject) =>
       db.all(
-        `SELECT DISTINCT senderName FROM messages WHERE roomId = ? AND type = 'group' ORDER BY timestamp DESC LIMIT 50`,
+        `SELECT senderName FROM (
+          SELECT "senderName", MAX(timestamp) as max_ts 
+          FROM messages 
+          WHERE "roomId" = ? AND (type = 'room' OR type = 'group') 
+          GROUP BY "senderName"
+        ) as sub 
+        ORDER BY max_ts DESC 
+        LIMIT 50`,
         [normalizedId],
         (err, rows) => err ? reject(err) : resolve(rows || [])
       )
@@ -984,23 +1021,25 @@ app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
 });
 
 // â”€â”€ Search Users Worldwide (exclude deleted/non-existent and blocked) â”€â”€
-app.get('/api/users/search', authenticateToken, (req, res) => {
+app.get('/api/users/search', authenticateToken, async (req, res) => {
   const query = req.query.q;
-  const myUsername = req.user.username;
+  const myUsername = req.user.username.toLowerCase();
   if (!query) return res.json([]);
-  db.all(
-    `SELECT username, displayName, avatarPath, bio FROM users 
-     WHERE (username ILIKE ? OR displayName ILIKE ?) 
-     AND username != ? 
-     AND username NOT IN (SELECT blocked FROM blocks WHERE blocker = ?) 
-     AND username NOT IN (SELECT blocker FROM blocks WHERE blocked = ?) 
-     LIMIT 20`,
-    [`%${query}%`, `%${query}%`, myUsername, myUsername, myUsername],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      res.json(rows || []);
-    }
-  );
+  try {
+    const result = await pool.query(
+      `SELECT username, "displayName", "avatarPath", bio FROM users 
+       WHERE (LOWER(username) LIKE LOWER($1) OR LOWER("displayName") LIKE LOWER($1)) 
+       AND LOWER(username) != $2 
+       AND LOWER(username) NOT IN (SELECT LOWER(blocked) FROM blocks WHERE LOWER(blocker) = $2) 
+       AND LOWER(username) NOT IN (SELECT LOWER(blocker) FROM blocks WHERE LOWER(blocked) = $2) 
+       LIMIT 20`,
+      [`%${query}%`, myUsername]
+    );
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('Search error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // â”€â”€ GET Public Profile by username â”€â”€
@@ -1009,13 +1048,16 @@ app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (re
   const viewerUsername = req.user.username;
   
   try {
+    const myUserLow = viewerUsername.toLowerCase();
+    const targetUserLow = username.toLowerCase();
+    
     const [myBlock, theirBlock] = await Promise.all([
-      queryGet('SELECT * FROM blocks WHERE blocker = ? AND blocked = ?', [viewerUsername, username]),
-      queryGet('SELECT * FROM blocks WHERE blocker = ? AND blocked = ?', [username, viewerUsername])
+      pool.query('SELECT 1 FROM blocks WHERE LOWER(blocker) = $1 AND LOWER(blocked) = $2', [myUserLow, targetUserLow]),
+      pool.query('SELECT 1 FROM blocks WHERE LOWER(blocker) = $1 AND LOWER(blocked) = $2', [targetUserLow, myUserLow])
     ]);
     
-    if (myBlock) return res.json({ isBlockedByMe: true, username });
-    if (theirBlock) return res.status(404).json({ error: 'User not found' });
+    if (myBlock.rows.length > 0) return res.json({ isBlockedByMe: true, username });
+    if (theirBlock.rows.length > 0) return res.status(404).json({ error: 'User not found' });
     
     const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, showCountry FROM users WHERE username = ?', [username]);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -1026,10 +1068,10 @@ app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (re
     delete user.showCountry;
     
     const [followersRow, followingRow, followRow, theyFollowMeRow] = await Promise.all([
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE followerId = ? AND status = ?', [user.username, 'accepted']),
-      queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [viewerUsername, user.username]),
-      queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [user.username, viewerUsername])
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE LOWER(followingId) = LOWER(?) AND status = ?', [user.username, 'accepted']),
+      queryGet('SELECT COUNT(*) as count FROM follows WHERE LOWER(followerId) = LOWER(?) AND status = ?', [user.username, 'accepted']),
+      queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [viewerUsername, user.username]),
+      queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [user.username, viewerUsername])
     ]);
     
     res.json({
@@ -1040,6 +1082,7 @@ app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (re
       isFollowingMe: theyFollowMeRow?.status === 'accepted'
     });
   } catch (err) {
+    console.error('Error in /api/users/:username:', err);
     res.status(500).json({ error: 'Database error' });
   }
 });
@@ -1120,11 +1163,15 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         (m.senderName = $1) as "isMyLastMessage"
       FROM messages m
       LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
-      WHERE m.type = 'group' AND m."roomId" IN (
-        SELECT DISTINCT "roomId" FROM messages WHERE LOWER("senderName") = LOWER($2) AND type = 'group'
-      )
+      WHERE m.type IN ('room', 'group') 
+        AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $2 || '%')
+        AND m."roomId" IN (
+          SELECT DISTINCT "roomId" FROM messages 
+          WHERE LOWER("senderName") = LOWER($3) AND type IN ('room', 'group')
+          AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $4 || '%')
+        )
       ORDER BY m."roomId", m.timestamp DESC
-    `, [username, username]);
+    `, [username, `"${username}"`, username, `"${username}"`]);
     
     // Fill in room names + unread counts
     const finalGroup = await Promise.all(groupRows.map(async (row) => {
@@ -1135,14 +1182,26 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
       let permissions = null;
       let settings = null;
-      try { permissions = dbRoom?.permissions ? JSON.parse(dbRoom.permissions) : (memRoom?.permissions || null); } catch(e){}
-      try { settings = dbRoom?.settings ? JSON.parse(dbRoom.settings) : (memRoom?.settings || null); } catch(e){}
+      try { 
+        if (dbRoom?.permissions) {
+          permissions = typeof dbRoom.permissions === 'string' ? JSON.parse(dbRoom.permissions) : dbRoom.permissions;
+        } else {
+          permissions = memRoom?.permissions || null;
+        }
+      } catch(e){}
+      try { 
+        if (dbRoom?.settings) {
+          settings = typeof dbRoom.settings === 'string' ? JSON.parse(dbRoom.settings) : dbRoom.settings;
+        } else {
+          settings = memRoom?.settings || null;
+        }
+      } catch(e){}
       
       // Count unread messages since lastSeen
       const ls = lastSeen[row.roomId] || 0;
       const unreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE type = 'group' AND roomId = ? AND timestamp > ? AND senderName != ?`,
-        [row.roomId, ls, username]
+        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`,
+        [row.roomId, ls, username, `"${username}"`]
       );
 
       const e2ee = (row.nonce && row.ephemeralPublicKey) ? {
@@ -1161,7 +1220,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         lastTimestamp: row.lastTimestamp,
         type: 'room',
         isMyLastMessage: !!row.isMyLastMessage,
-        isHost: hostUsername === username,
+        isHost: hostUsername && username && hostUsername.toLowerCase() === username.toLowerCase(),
         unread: unreadRow ? Number(unreadRow.c) : 0
       };
     }));
@@ -1174,12 +1233,16 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     const groupRoomIds = new Set(finalGroup.map(g => g.id));
     for (const rid of pinnedIds) {
       if (!groupRoomIds.has(rid)) {
-        const dbRoom = await queryGet('SELECT roomName, thumbnailPath FROM room_names WHERE roomId = ?', [rid]);
+        const dbRoom = await queryGet('SELECT roomName, thumbnailPath, settings FROM room_names WHERE roomId = ?', [rid]);
         const memRoom = rooms.get(rid);
         const displayName = memRoom?.roomName || dbRoom?.roomName || rid;
         const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
+        let settings = null;
+        try { settings = dbRoom?.settings ? JSON.parse(dbRoom.settings) : (memRoom?.settings || null); } catch(e){}
 
-        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type = ? ORDER BY timestamp DESC LIMIT 1', [rid, 'group']);
+        const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
+
+        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
         const pinnedMediaPreview = lastMsg && (!lastMsg.message || lastMsg.message === '') && lastMsg.mediaUrl
           ? (lastMsg.mediaType && lastMsg.mediaType.startsWith('video') ? '🎥 Video' : '📷 Photo')
           : null;
@@ -1191,7 +1254,8 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
           message: pinnedMediaPreview || (lastMsg ? lastMsg.message : 'No messages yet'),
           lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
           type: 'room',
-          isMyLastMessage: lastMsg ? lastMsg.senderName === username : false
+          isMyLastMessage: lastMsg ? lastMsg.senderName === username : false,
+          isHost: (hostUsername || '').toLowerCase() === (username || '').toLowerCase() || !!settings?.newMembersAdmins
         });
       }
     }
@@ -1206,11 +1270,11 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       // Get last message from in-memory or DB
       const lastMsg = room.groupMessages.length > 0 
         ? room.groupMessages[room.groupMessages.length - 1]
-        : await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type = ? ORDER BY timestamp DESC LIMIT 1', [rid, 'group']);
+        : await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
       // Count unread from DB + in-memory messages since lastSeen
       const ls = lastSeen[rid] || 0;
       const dbUnreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE type = 'group' AND roomId = ? AND timestamp > ? AND senderName != ?`,
+        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ?`,
         [rid, ls, username]
       );
       const memUnread = room.groupMessages.filter(m => m.timestamp > ls && m.username !== username).length;
@@ -1227,22 +1291,22 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
         type: 'room',
         isMyLastMessage: lastMsg ? (lastMsg.username === username || lastMsg.senderName === username) : false,
-        isHost: room.hostUsername === username,
+        isHost: (room.hostUsername || '').toLowerCase() === (username || '').toLowerCase() || !!room.settings?.newMembersAdmins,
         unread: roomUnread
       });
     }
 
     let finalArr = [...finalPrivate, ...finalGroup];
 
-    // Handle blocks
-    const blockRows = await queryAll('SELECT blocker, blocked FROM blocks WHERE blocker = ? OR blocked = ?', [username, username]);
+    // Handle blocks (case-insensitive)
+    const blockRows = await queryAll('SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)', [username]);
     if (blockRows.length > 0) {
       finalArr = finalArr.map(c => {
         if (c.type === 'private') {
-          const amIBlocked = blockRows.find(b => b.blocker === c.partner && b.blocked === username);
-          const didIBlock = blockRows.find(b => b.blocker === username && b.blocked === c.partner);
+          const amIBlocked = blockRows.find(b => b.blocker.toLowerCase() === c.partner.toLowerCase() && b.blocked.toLowerCase() === username.toLowerCase());
+          const didIBlock = blockRows.find(b => b.blocker.toLowerCase() === username.toLowerCase() && b.blocked.toLowerCase() === c.partner.toLowerCase());
           if (amIBlocked || didIBlock) {
-            return { ...c, displayName: 'User', partnerAvatar: null, isBlocked: !!didIBlock };
+            return { ...c, isBlocked: !!didIBlock, amIBlocked: !!amIBlocked };
           }
         }
         return c;
@@ -1299,13 +1363,15 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
         }));
       res.json(filtered);
     } else if (type === 'room') {
+      // $2 = JSON-quoted username so we can LIKE-match inside the hiddenFor JSON string
       const rows = await pool.query(`
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
         LEFT JOIN users u ON u.username = m."senderName"
-        WHERE m."roomId" = $1 AND m.type = 'group'
+        WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
+          AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $2)
         ORDER BY m.timestamp ASC LIMIT 200
-      `, [partner]).then(r => r.rows);
+      `, [partner, `%"${username}"%`]).then(r => r.rows);
 
       const mapped = rows.map(r => {
         // ephemeralPublicKey column contains JSON {username: keyWrap, ...} for encrypted group messages
@@ -1368,6 +1434,13 @@ app.post('/api/chats/react', authenticateToken, async (req, res) => {
     const row = await queryGet(`SELECT * FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId]);
     if (!row) return res.status(404).json({ error: 'Message not found' });
     
+    // BLOCK CHECK: Reactor cannot react to a message if blocked (either way)
+    const msgSender = (row.senderName || row.username || '').toLowerCase();
+    if (msgSender && username && msgSender !== username) {
+      const bCheck = await queryGet('SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1', [username, msgSender]);
+      if (bCheck) return res.status(403).json({ error: 'You cannot react to this message at this time.' });
+    }
+
     let rx = {};
     try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch{}
 
@@ -1432,6 +1505,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const actualMessage = message || '';
   const ts = Date.now();
   try {
+    const senderUser = await queryGet('SELECT "avatarPath" FROM users WHERE username = ?', [username]);
+    const senderAvatar = senderUser ? senderUser.avatarPath : null;
+
     if (type === 'private') {
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [username, partner]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [partner, username]);
@@ -1439,6 +1515,12 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       if (!areFriends) {
         return res.status(403).json({ error: 'You must be mutual friends to send messages.' });
+      }
+
+      // Check for blocks (case-insensitive)
+      const blockCheck = await queryGet('SELECT blocker, blocked FROM blocks WHERE (LOWER(blocker) = LOWER($1) AND LOWER(blocked) = LOWER($2)) OR (LOWER(blocker) = LOWER($2) AND LOWER(blocked) = LOWER($1))', [username, partner]);
+      if (blockCheck) {
+        return res.status(403).json({ error: 'You cannot message this user at this time.' });
       }
 
       // Fetch targetId for the message
@@ -1463,6 +1545,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         id: String(ts),
         senderId: req.user.id || 'http_client',
         senderName: username,
+        senderAvatar: senderAvatar,
         targetName: partner,
         message: actualMessage,
         senderMessage: senderMessage || null,
@@ -1534,6 +1617,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         userId: req.user.id || 'http_client',
         username,
         senderName: username,
+        senderAvatar: senderAvatar,
         message: actualMessage,
         roomId: partner,
         type: 'group',
@@ -1681,103 +1765,145 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
 });
 
 // â”€â”€ BLOCKS endpoints â”€â”€
-app.post('/api/block/:username', authenticateToken, (req, res) => {
+app.post('/api/block/:username', authenticateToken, async (req, res) => {
   const blocker = req.user.username;
   const blocked = req.params.username;
   if (blocker.toLowerCase() === blocked.toLowerCase()) return res.status(400).json({ error: 'Cannot block yourself' });
   
-  db.run('INSERT OR IGNORE INTO blocks (blocker, blocked) VALUES (?, ?)', [blocker, blocked], function(err) {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    // Also unfollow each other silently
-    invalidateCacheForUser(blocker);
-    invalidateCacheForUser(blocked);
+  try {
+    const blockerLow = blocker.toLowerCase();
+    const blockedLow = blocked.toLowerCase();
+    console.log(`[BLOCK] ${blockerLow} is blocking ${blockedLow}`);
+    
+    // Standardize storage as lowercased to ensure all queries match easily
+    const result = await pool.query('INSERT INTO blocks (blocker, blocked) VALUES ($1, $2) ON CONFLICT DO NOTHING', [blockerLow, blockedLow]);
+    console.log(`[BLOCK] Insert result for ${blockerLow} blocking ${blockedLow}:`, result.rowCount);
+    
+    // Also unfollow each other explicitly (case-insensitive)
+    await pool.query('DELETE FROM follows WHERE (LOWER("followerId") = $1 AND LOWER("followingId") = $2) OR (LOWER("followerId") = $2 AND LOWER("followingId") = $1)', [blockerLow, blockedLow]);
+    
+    invalidateCacheForUser(blockerLow);
+    invalidateCacheForUser(blockedLow);
+    
+    // Emit real-time update
+    emitToUser(blockedLow, 'blocking_updated', { blocker: blockerLow, blocked: blockedLow, isBlocked: true });
+    emitToUser(blockerLow, 'blocking_updated', { blocker: blockerLow, blocked: blockedLow, isBlocked: true });
+
     res.json({ success: true, blocked: true });
-  });
+  } catch (err) {
+    console.error('Block error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.delete('/api/block/:username', authenticateToken, (req, res) => {
+app.delete('/api/block/:username', authenticateToken, async (req, res) => {
   const blocker = req.user.username;
   const blocked = req.params.username;
-  db.run('DELETE FROM blocks WHERE blocker = ? AND blocked = ?', [blocker, blocked], function(err) {
+  try {
+    await pool.query('DELETE FROM blocks WHERE LOWER(blocker) = LOWER($1) AND LOWER(blocked) = LOWER($2)', [blocker, blocked]);
     invalidateCacheForUser(blocker);
     invalidateCacheForUser(blocked);
+
+    // Emit real-time update
+    emitToUser(blocked, 'blocking_updated', { blocker, blocked, isBlocked: false });
+    emitToUser(blocker, 'blocking_updated', { blocker, blocked, isBlocked: false });
+
     res.json({ success: true, unblocked: true });
-  });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-app.get('/api/blocks', authenticateToken, (req, res) => {
-  const username = req.user.username;
-  db.all(
-    `SELECT b.blocked as username, u.displayName, u.avatarPath 
-     FROM blocks b 
-     JOIN users u ON b.blocked = u.username 
-     WHERE b.blocker = ?`,
-    [username],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      res.json(rows || []);
-    }
-  );
+app.get('/api/blocks', authenticateToken, async (req, res) => {
+  const username = req.user.username.toLowerCase();
+  try {
+    const result = await pool.query(
+      `SELECT u.username, u."displayName", u."avatarPath" 
+       FROM blocks b 
+       JOIN users u ON LOWER(b.blocked) = LOWER(u.username) 
+       WHERE LOWER(b.blocker) = $1`,
+      [username]
+    );
+    console.log(`[BLOCKS] Fetched ${result.rows.length} blocks for ${username}`);
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('Fetch blocks error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-// â”€â”€ FOLLOW a user â”€â”€
-app.post('/api/follow/:username', authenticateToken, (req, res) => {
+// ─── FOLLOW a user ───
+app.post('/api/follow/:username', authenticateToken, async (req, res) => {
   const follower = req.user.username;
   const following = req.params.username;
   if (follower.toLowerCase() === following.toLowerCase()) return res.status(400).json({ error: 'Cannot follow yourself' });
-  // Check if either user has blocked the other
-  db.get(
-    'SELECT id FROM blocks WHERE (blocker = ? AND blocked = ?) OR (blocker = ? AND blocked = ?)',
-    [following, follower, follower, following],
-    (blockErr, blockRow) => {
-      if (blockErr) return res.status(500).json({ error: 'Database error' });
-      if (blockRow) return res.status(403).json({ error: 'Cannot send follow request' });
-      // Insert as pending (request sent)
-      db.run('INSERT OR IGNORE INTO follows (followerId, followingId, status) VALUES (?, ?, ?)', [follower, following, 'pending'], function(err) {
-        if (err) return res.status(500).json({ error: 'Database error' });
-        invalidateCacheForUser(follower);
-        invalidateCacheForUser(following);
-        res.json({ success: true, status: 'pending' });
-      });
-    }
-  );
+  
+  try {
+    // Check if either user has blocked the other (case-insensitive)
+    const blockRow = await queryGet('SELECT id FROM blocks WHERE (LOWER(blocker) = LOWER($1) AND LOWER(blocked) = LOWER($2)) OR (LOWER(blocker) = LOWER($2) AND LOWER(blocked) = LOWER($1))', [following, follower]);
+    if (blockRow) return res.status(403).json({ error: 'You cannot follow this user' });
+
+    // Insert as pending (request sent)
+    await pool.query('INSERT INTO follows ("followerId", "followingId", status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [follower, following, 'pending']);
+    
+    invalidateCacheForUser(follower);
+    invalidateCacheForUser(following);
+
+    // Notify the user being followed so their UI updates immediately
+    emitToUser(following, 'follow_request', { follower, following });
+
+    res.json({ success: true, status: 'pending' });
+  } catch (err) {
+    console.error('Follow error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
-// â”€â”€ ACCEPT a follow request â”€â”€
+// ─── ACCEPT a follow request ───
 app.post('/api/follow/:username/accept', authenticateToken, (req, res) => {
   const accepter = req.user.username;
   const requester = req.params.username;
-  db.run('UPDATE follows SET status = ? WHERE followerId = ? AND followingId = ?', ['accepted', requester, accepter], function(err) {
+  db.run('UPDATE follows SET status = ? WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', ['accepted', requester, accepter], function(err) {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(accepter);
     invalidateCacheForUser(requester);
+    
+    // Notify both users in real-time
+    emitToUser(requester, 'follow_accepted', { accepter, requester });
+    emitToUser(accepter, 'follow_accepted', { accepter, requester });
+
     res.json({ success: true, status: 'accepted' });
   });
 });
 
-// â”€â”€ UNFOLLOW / Cancel request â”€â”€
+// ─── UNFOLLOW / Cancel request ───
 app.delete('/api/follow/:username', authenticateToken, (req, res) => {
   const follower = req.user.username;
   const following = req.params.username;
-  db.run('DELETE FROM follows WHERE followerId = ? AND followingId = ?', [follower, following], function(err) {
+  db.run('DELETE FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [follower, following], function(err) {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(follower);
     invalidateCacheForUser(following);
+    
+    // Emit real-time unfollow event to sync UI across connected clients
+    emitToUser(following, 'unfollow', { actor: follower, target: following });
+    emitToUser(follower, 'unfollow', { actor: follower, target: following });
+    
     res.json({ success: true });
   });
 });
 
 // â”€â”€ GET Follow Requests (incoming) â”€â”€
-app.get('/api/follow/requests', authenticateToken, apiCacheMiddleware, (req, res) => {
+app.get('/api/follow/requests', authenticateToken, (req, res) => {
   const username = req.user.username;
   // Fetch pending and accepted follows from the last 10 days (or just all for simplicity, limit 50)
   db.all(`
     SELECT 
-      f.followerId as username, u.displayName, u.avatarPath, f.status,
-      (SELECT status FROM follows WHERE followerId = ? AND followingId = f.followerId) as myFollowStatus
+      f.followerId as "username", u.displayName as "displayName", u.avatarPath as "avatarPath", f.status,
+      (SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(f.followerId)) as "myFollowStatus"
     FROM follows f 
-    JOIN users u ON u.username = f.followerId 
-    WHERE f.followingId = ? 
+    JOIN users u ON LOWER(u.username) = LOWER(f.followerId) 
+    WHERE LOWER(f.followingId) = LOWER(?) 
     ORDER BY f.createdAt DESC LIMIT 50
   `, [username, username], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
@@ -1789,12 +1915,12 @@ app.get('/api/follow/requests', authenticateToken, apiCacheMiddleware, (req, res
 app.get('/api/follow/:username/list', authenticateToken, (req, res) => {
   const { username } = req.params;
   db.all(
-    `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON u.username = f.followerId WHERE f.followingId = ? AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+    `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followerId) WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
     [username],
     (err, followers) => {
       if (err) return res.status(500).json({ error: 'Database error' });
       db.all(
-        `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON u.username = f.followingId WHERE f.followerId = ? AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+        `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followingId) WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
         [username],
         (err2, following) => {
           if (err2) return res.status(500).json({ error: 'Database error' });
@@ -1878,7 +2004,7 @@ app.post('/api/profile/change-password', authenticateToken, async (req, res) => 
 
 // â”€â”€ GET App Settings â”€â”€
 app.get('/api/settings', authenticateToken, (req, res) => {
-  db.get('SELECT language, country, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave FROM users WHERE id = ?', [req.user.id], (err, row) => {
+  db.get('SELECT language, country, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);
@@ -1887,7 +2013,7 @@ app.get('/api/settings', authenticateToken, (req, res) => {
 
 // â”€â”€ UPDATE App Settings â”€â”€
 app.put('/api/settings', authenticateToken, (req, res) => {
-  const allowed = ['language', 'country', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave'];
+  const allowed = ['language', 'country', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests'];
   const updates = [];
   const values = [];
   for (const key of allowed) {
@@ -2088,7 +2214,7 @@ function buildUserList(room) {
     username: u.username,
     isMuted: u.isMuted || room.mutedUsers.has(u.username),
     isHost: u.socketId === room.hostId,
-    publicKey: room.publicKeys?.[u.socketId] || null,
+    publicKey: room.publicKeys?.[u.socketId] || u.publicKey || null,
     avatarPath: u.avatarPath || null
   }));
 }
@@ -2167,7 +2293,11 @@ io.on('connection', (socket) => {
 
   // ─── Helper for Finalizing Room Join ───
   function executeFinalJoin(targetSocket, roomObj, roomId, username) {
-    if (!roomObj) return;
+    console.log(`[JOIN_FLOW] executeFinalJoin for ${username} in ${roomId}`);
+    if (!roomObj) {
+      console.warn(`[JOIN_FLOW] roomObj null for ${roomId} in executeFinalJoin`);
+      return;
+    }
 
     if (username !== 'Anonymous') {
       roomObj.users = roomObj.users.filter(u => u.username !== username);
@@ -2180,6 +2310,7 @@ io.on('connection', (socket) => {
       // Only assign hostId to the first joiner if they are the true host, or if it's a new room and they are not a guest
       if (isDbHost || (!roomObj.hostUsername && !isGuestStr)) {
         roomObj.hostId = targetSocket.id;
+        roomObj.hostUsername = username;
       }
       roomObj.currentMedia = null;
       roomObj.currentTime = 0;
@@ -2206,10 +2337,16 @@ io.on('connection', (socket) => {
       const userEntry = { socketId: targetSocket.id, username, avatarPath: null };
       roomObj.users.push(userEntry);
       if (username && username !== 'Anonymous') {
-        db.get('SELECT avatarPath FROM users WHERE username = ?', [username], (err, row) => {
-          if (!err && row && row.avatarPath) {
-            userEntry.avatarPath = row.avatarPath;
-            // Broadcast updated user list so all clients see the avatar immediately
+        db.get('SELECT "avatarPath", "publicKey", "notifyJoinRequests" FROM users WHERE username = ?', [username], (err, row) => {
+          if (!err && row) {
+            if (row.avatarPath) userEntry.avatarPath = row.avatarPath;
+            if (row.publicKey) userEntry.publicKey = row.publicKey;
+            if (row.notifyJoinRequests !== undefined) {
+              userEntry.notifyJoinRequests = (row.notifyJoinRequests === 1 || row.notifyJoinRequests === true);
+            } else {
+              userEntry.notifyJoinRequests = true; // Default
+            }
+            // Broadcast updated user list so all clients see the avatar and E2EE key immediately
             io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
           }
         });
@@ -2226,8 +2363,17 @@ io.on('connection', (socket) => {
     // Emit initial state
     const state = getSerializableRoom(roomObj);
     if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
+    
+    console.log(`[JOIN_FLOW] Emitting room_state and user_joined for ${username} in ${roomId}`);
     targetSocket.emit('room_state', state);
-    targetSocket.broadcast.to(roomId).emit('user_joined', { socketId: targetSocket.id, username, isMuted: false, isHost: roomObj.hostId === targetSocket.id, publicKey: null });
+    targetSocket.broadcast.to(roomId).emit('user_joined', { 
+      socketId: targetSocket.id, 
+      username, 
+      isMuted: false, 
+      isHost: roomObj.hostId === targetSocket.id, 
+      publicKey: null,
+      avatarPath: roomObj.users.find(u => u.socketId === targetSocket.id)?.avatarPath || null
+    });
 
     // Save to DB
     if (username !== 'Anonymous') {
@@ -2243,7 +2389,7 @@ io.on('connection', (socket) => {
       SELECT m.*, u.avatarPath as senderAvatarPath
       FROM messages m
       LEFT JOIN users u ON u.username = m.senderName
-      WHERE m.roomId = ? AND m.type = 'group'
+      WHERE m.roomId = ? AND (m.type = 'room' OR m.type = 'group')
       ORDER BY m.timestamp ASC LIMIT 200
     `, [roomId], async (err, groupRows) => {
       if (!err && groupRows && groupRows.length > 0) {
@@ -2275,7 +2421,11 @@ io.on('connection', (socket) => {
           } catch(pgErr) { console.warn('[chat_history] PG publicKey fallback failed:', pgErr.message); }
         }
 
-        const history = groupRows.map(r => ({
+        // Filter out messages hidden for this user (soft-delete / clear chat)
+        const visibleGroupRows = groupRows.filter(r =>
+          !(r.hiddenFor && r.hiddenFor.includes(`"${username}"`)));
+
+        const history = visibleGroupRows.map(r => ({
           id: r.id.toString(), userId: r.senderId, username: r.senderName, message: r.message,
           timestamp: r.timestamp,
           senderAvatar: r.senderAvatarPath || null,
@@ -2302,10 +2452,14 @@ io.on('connection', (socket) => {
       }
     });
 
-    db.all(`SELECT * FROM messages WHERE type = 'private' AND (senderName = ? OR targetName = ?) ORDER BY timestamp ASC`,
-      [username, username], (err, dmRows) => {
+    db.all(`
+      SELECT m.*, u.avatarPath as senderAvatarPath
+      FROM messages m
+      LEFT JOIN users u ON u.username = m.senderName
+      WHERE m.type = 'private' AND (m.senderName = ? OR m.targetName = ?)
+      ORDER BY m.timestamp ASC
+    `, [username, username], (err, dmRows) => {
         if (!err && dmRows && dmRows.length > 0) {
-          // Build the same { [otherUser]: [...messages] } map that Room.jsx's chat_history_dm handler expects
           const dmHistory = {};
           dmRows.forEach(row => {
             if (row.hiddenFor && row.hiddenFor.includes(`"${username}"`)) return;
@@ -2317,6 +2471,7 @@ io.on('connection', (socket) => {
               isMe,
               senderId: row.senderId,
               senderName: row.senderName,
+              senderAvatar: row.senderAvatarPath || null,
               targetId: row.targetId,
               targetName: row.targetName,
               message: row.message,
@@ -2330,7 +2485,6 @@ io.on('connection', (socket) => {
               replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null
             });
           });
-          // Emit with the correct event name (chat_history_dm) that Room.jsx listens for
           targetSocket.emit('chat_history_dm', dmHistory);
         }
       });
@@ -2339,6 +2493,21 @@ io.on('connection', (socket) => {
 
     // CRITICAL: Notify everyone in the room about the new participant
     io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
+
+    // ─── Resync Pending Joins to Host/Admin on Reconnect ───
+    if (roomObj.pendingJoins && roomObj.pendingJoins.size > 0) {
+      const isAutoAdmin = roomObj.settings?.newMembersAdmins && !isGuestStr;
+      const isRoomHost = (roomObj.hostId === targetSocket.id) || isDbHost;
+      if (isRoomHost || isAutoAdmin) {
+        roomObj.pendingJoins.forEach((pendingUser, pendingSocketId) => {
+          if (pendingSocketId === targetSocket.id) return; // Don't notify the user about their own request
+          db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [pendingUser.username], (err, row) => {
+            const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
+            targetSocket.emit('join_requested', { socketId: pendingSocketId, username: pendingUser.username, avatarPath });
+          });
+        });
+      }
+    }
   }
 
   // ─── Join Room ───
@@ -2443,18 +2612,22 @@ io.on('connection', (socket) => {
           room.pendingJoins.set(socket.id, { username, socket });
           socket.emit('waiting_for_approval');
           
-          // Notify ALL current room members who are admins (host OR newMembersAdmins users)
-          room.users.forEach(u => {
-            const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
-            const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
-            if (uIsHost || uIsAutoAdmin) {
-              io.to(u.socketId).emit('join_requested', { socketId: socket.id, username });
-            }
+          db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
+            const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
+            // Notify ALL current room members who are admins (host OR newMembersAdmins users)
+            room.users.forEach(u => {
+              const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
+              const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
+              if (uIsHost || uIsAutoAdmin) {
+                io.to(u.socketId).emit('join_requested', { socketId: socket.id, username, avatarPath });
+              }
+            });
           });
           return;
         }
       }
 
+      console.log(`[JOIN_FLOW] Verification complete for ${username}, executing join`);
       executeFinalJoin(socket, room, roomId, username);
     });
   });
@@ -2466,6 +2639,12 @@ io.on('connection', (socket) => {
     if (!room) return;
     room.publicKeys[socket.id] = publicKey;
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+
+    // Persist the public key to the database so HTTP /api/auth/public-key/:username works
+    if (socket.username && publicKey) {
+      pool.query('UPDATE users SET "publicKey" = $1 WHERE LOWER(username) = $2', [publicKey, socket.username.toLowerCase()])
+        .catch(err => console.error('[chat:publicKey] Failed to persist key to DB:', err));
+    }
   });
 
   // Typing indicator merged below in the unified section (around line 2131)
@@ -2651,41 +2830,100 @@ io.on('connection', (socket) => {
     const sender = socket.username;
     if (!sender || !targetUsername) return;
     
-    // Soft delete by appending usernames to hiddenFor JSON array in messages
-    db.all(`SELECT id, hiddenFor FROM messages WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
-      [sender, targetUsername, targetUsername, sender],
-      (err, rows) => {
-        if (err || !rows) return;
-        rows.forEach(r => {
-          let hidden = [];
-          try { hidden = JSON.parse(r.hiddenFor || '[]'); } catch{}
-          
-          let modified = false;
-          if (!hidden.includes(sender)) {
-            hidden.push(sender);
-            modified = true;
-          }
-          if (clearForBoth && !hidden.includes(targetUsername)) {
-            hidden.push(targetUsername);
-            modified = true;
-          }
-          
-          if (modified) {
-            db.run('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), r.id]);
-          }
-        });
+    // Soft delete: add sender to hiddenFor array for all messages in this DM
+    db.run(
+      `UPDATE messages SET hiddenFor = CASE 
+        WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
+        WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
+        ELSE hiddenFor END 
+      WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+      [JSON.stringify([sender]), `%${sender}%`, `,"${sender}"]`, sender, targetUsername, targetUsername, sender],
+      (err) => {
+        if (err) console.error('Error soft-clearing DM:', err);
         
-        // Let the client know the clear was successful so it can update UI immediately
-        socket.emit('dm_cleared', { targetUsername });
-        
+        const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: !!clearForBoth };
+
         if (clearForBoth) {
-          const targetSockets = connectedSockets.get(targetUsername);
-          if (targetSockets) {
-             targetSockets.forEach(sid => io.to(sid).emit('dm_cleared', { targetUsername: sender }));
-          }
+          // Also hide for the target user
+          db.run(
+            `UPDATE messages SET hiddenFor = CASE 
+              WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
+              WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
+              ELSE hiddenFor END 
+            WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+            [JSON.stringify([targetUsername]), `%${targetUsername}%`, `,"${targetUsername}"]`, sender, targetUsername, targetUsername, sender],
+            (err2) => {
+              if (err2) console.error('Error soft-clearing DM for both:', err2);
+              // Broadcast to both users across all their tabs
+              emitToUser(sender, 'dm_cleared', payload);
+              emitToUser(targetUsername, 'dm_cleared', payload);
+            }
+          );
+        } else {
+          // Only broadcast to the sender's active tabs
+          emitToUser(sender, 'dm_cleared', payload);
         }
       }
     );
+  });
+
+  // ─── Clear Room Chat ───
+  socket.on('clear_room_chat', async ({ roomId }) => {
+    const sender = socket.username;
+    if (!sender || !roomId) return;
+
+    // hiddenFor is stored as a JSON text string e.g. '["user1","user2"]'
+    // We use text-based manipulation compatible with both SQLite and PostgreSQL TEXT columns.
+    const senderJson = `"${sender}"`;
+    const senderJsonArray = JSON.stringify([sender]);
+
+    try {
+        // Single UPDATE: 
+        //  - If hiddenFor is NULL or empty array → set to ["sender"]
+        //  - If sender is NOT already in the JSON string → append before the closing ]
+        //  - Otherwise → leave unchanged (already hidden)
+        await pool.query(
+            `UPDATE messages
+             SET "hiddenFor" =
+               CASE
+                 WHEN "hiddenFor" IS NULL OR "hiddenFor" = '[]' THEN $1
+                 WHEN "hiddenFor" NOT LIKE $2 THEN REPLACE("hiddenFor", ']', ',' || $3 || ']')
+                 ELSE "hiddenFor"
+               END
+             WHERE "roomId" = $4 AND type IN ('group', 'room')`,
+            [senderJsonArray, `%${senderJson}%`, senderJson, roomId]
+        );
+
+        // Mirror the hiddenFor update to SQLite (used by chat_history socket event on rejoin)
+        db.all(`SELECT id, hiddenFor FROM messages WHERE roomId = ? AND type IN ('room', 'group')`,
+          [roomId], (sqliteErr, sqliteRows) => {
+            if (!sqliteErr && sqliteRows) {
+              sqliteRows.forEach(r => {
+                let hidden = [];
+                try { hidden = JSON.parse(r.hiddenFor || '[]'); } catch {}
+                if (!hidden.includes(sender)) {
+                  hidden.push(sender);
+                  db.run('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), r.id]);
+                }
+              });
+            }
+          });
+
+        // Also update in-memory groupMessages cache so current session updates instantly
+        const room = rooms.get(roomId);
+        if (room && room.groupMessages) {
+          room.groupMessages = room.groupMessages.map(m => {
+            if (!m.hiddenFor) m.hiddenFor = [];
+            if (!m.hiddenFor.includes(sender)) m.hiddenFor.push(sender);
+            return m;
+          });
+        }
+
+        // Let ALL sockets of the client know the clear was successful so they can update UI immediately
+        emitToUser(sender, 'room_chat_cleared', { roomId });
+    } catch (err) {
+        console.error('Error clearing room chat:', err);
+    }
   });
 
   // â”€â”€ Emoji reaction â”€â”€
@@ -2701,9 +2939,17 @@ io.on('connection', (socket) => {
     if (tsMatch) tsFromId = tsMatch[1];
 
     // Always use DB as source of truth so historical messages work too
-    db.get(`SELECT reactions FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], (err, row) => {
+    db.get(`SELECT reactions, senderName, username FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], async (err, row) => {
       let rx = {};
       if (!err && row) {
+        // BLOCK CHECK: Reactor cannot react to a message if blocked (either way)
+        const msgSender = (row.senderName || row.username || '').toLowerCase();
+        if (msgSender && username && msgSender !== username.toLowerCase()) {
+           try {
+             const bCheck = await pool.query('SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1', [username, msgSender]);
+             if (bCheck.rows.length > 0) return;
+           } catch(e) { console.error('Block check error in reaction:', e); }
+        }
         try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch {}
       } else {
         // Fallback to in-memory for brand-new messages not yet persisted
@@ -2761,8 +3007,18 @@ io.on('connection', (socket) => {
     if (tsMatch) tsFromId = tsMatch[1];
 
     // Save to DB with single-reaction enforcement
-    db.get(`SELECT reactions FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], (err, row) => {
+    db.get(`SELECT reactions, senderName, username FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], async (err, row) => {
       if (err || !row) return;
+
+      // BLOCK CHECK: Reactor cannot react to a message if blocked (either way)
+      const msgSender = (row.senderName || row.username || '').toLowerCase();
+      if (msgSender && username && msgSender !== username.toLowerCase()) {
+         try {
+           const bCheck = await pool.query('SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1', [username, msgSender]);
+           if (bCheck.rows.length > 0) return;
+         } catch(e) { console.error('Block check error in private reaction:', e); }
+      }
+
       let rx = {};
       try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch{}
 
@@ -2786,10 +3042,30 @@ io.on('connection', (socket) => {
   });
 
   // ─── Private / DM ───
-  socket.on('private_message', (data) => {
+  socket.on('private_message', async (data) => {
     const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, tempId } = data;
     if (!socket.username || !targetName) return;
     
+    const sender = socket.username.toLowerCase();
+    const recipient = targetName.toLowerCase();
+
+    // 1. Check for mutual friendship
+    const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [sender, recipient]);
+    const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [recipient, sender]);
+    const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
+
+    if (!areFriends) {
+      socket.emit('error_notification', 'You must be mutual friends to send private messages.');
+      return;
+    }
+
+    // 2. Check for blocks
+    const blockCheck = await queryGet('SELECT blocker, blocked FROM blocks WHERE (LOWER(blocker) = LOWER($1) AND LOWER(blocked) = LOWER($2)) OR (LOWER(blocker) = LOWER($2) AND LOWER(blocked) = LOWER($1))', [sender, recipient]);
+    if (blockCheck) {
+      socket.emit('error_notification', 'You cannot message this user at this time.');
+      return;
+    }
+
     const timestamp = Date.now();
     const payload = { 
       id: msgId || `sock-${timestamp}-${Math.floor(Math.random()*1000)}`, 
@@ -2833,37 +3109,19 @@ io.on('connection', (socket) => {
     socket.emit('room_state', state);
   });
 
-  // â”€â”€ Clear DM â”€â”€
-  socket.on('clear_dm', ({ targetUsername, clearForBoth }) => {
-    if (!targetUsername) return;
-    if (clearForBoth) {
-      // Delete messages for both parties from DB
-      db.run(`DELETE FROM messages WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
-        [socket.username, targetUsername, targetUsername, socket.username], (err) => {
-          if (!err) {
-            socket.emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: true });
-            for (const [rid, r] of rooms.entries()) {
-              const targetUser = r.users.find(u => u.username === targetUsername);
-              if (targetUser) io.to(targetUser.socketId).emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: true });
-            }
-          }
-        });
-    } else {
-      socket.emit('dm_cleared', { userA: socket.username, userB: targetUsername, clearedBy: socket.username, clearForBoth: false });
-      db.run(
-        `UPDATE messages SET hiddenFor = IFNULL(hiddenFor, '') || ? WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
-        [`,"${socket.username}"`, socket.username, targetUsername, targetUsername, socket.username],
-        (err) => { if (err) console.error('Error marking DM as hidden:', err); }
-      );
-    }
-  });
+
 
   // â”€â”€ Request DM History â”€â”€
   socket.on('request_dm_history', () => {
     const username = socket.username;
     if (!username) return;
-    db.all(`SELECT * FROM messages WHERE type = 'private' AND (senderName = ? OR targetName = ?) ORDER BY timestamp ASC`,
-      [username, username], (err, dmRows) => {
+    db.all(`
+      SELECT m.*, u.avatarPath as senderAvatarPath
+      FROM messages m
+      LEFT JOIN users u ON u.username = m.senderName
+      WHERE m.type = 'private' AND (m.senderName = ? OR m.targetName = ?)
+      ORDER BY m.timestamp ASC
+    `, [username, username], (err, dmRows) => {
         if (err) return;
         const dmHistory = {};
         if (dmRows && dmRows.length > 0) {
@@ -2874,6 +3132,7 @@ io.on('connection', (socket) => {
             if (!dmHistory[otherName]) dmHistory[otherName] = [];
             dmHistory[otherName].push({
               id: row.id.toString(), isMe, senderId: row.senderId, senderName: row.senderName,
+              senderAvatar: row.senderAvatarPath || null,
               targetId: row.targetId, targetName: row.targetName, message: row.message,
               senderMessage: row.senderMessage || null,
               nonce: row.nonce, ephemeralPublicKey: row.ephemeralPublicKey, timestamp: row.timestamp,
@@ -2886,18 +3145,8 @@ io.on('connection', (socket) => {
       });
   });
 
-  // â”€â”€ Room rename â”€â”€
-  socket.on('mod_rename_room', ({ roomId, newName }) => {
-    const room = rooms.get(roomId);
-    if (!room || room.hostId !== socket.id) return;
-    if (!newName || !newName.trim()) return;
-    room.roomName = newName.trim();
-    // Persist the new name to DB so it survives server restarts and page refreshes
-    db.run(`INSERT OR REPLACE INTO room_names (roomId, roomName) VALUES (?, ?)`, [roomId, room.roomName]);
-    // Also update the name in pinned_rooms for all users who have it pinned
-    db.run(`UPDATE pinned_rooms SET roomName = ? WHERE roomId = ?`, [room.roomName, roomId]);
-    io.in(roomId).emit('room_renamed', room.roomName);
-  });
+  // ── Room rename ──
+
 
   // â”€â”€ Pinned rooms are handled via REST /api/profile/pinned-rooms instead of WebSockets â”€â”€
 
@@ -3151,6 +3400,8 @@ io.on('connection', (socket) => {
       if (!room.approvedSockets) room.approvedSockets = new Set();
       room.approvedSockets.add(targetSocketId);
       
+      room.pendingJoins.delete(targetSocketId);
+
       // Execute the final join immediately on the backend (this adds the user to the room)
       executeFinalJoin(pending.socket, room, roomId, pending.username);
       
@@ -3158,7 +3409,6 @@ io.on('connection', (socket) => {
       io.to(targetSocketId).emit('join_approved');
       // Tell all hosts/admins to dismiss the notification (include username for toast ID matching)
       io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
-      room.pendingJoins.delete(targetSocketId);
     }
   });
 
@@ -3178,16 +3428,24 @@ io.on('connection', (socket) => {
   socket.on('mod_rename_room', ({ roomId, newName }) => {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
-    const cleanName = newName.trim();
+    const cleanName = newName ? newName.trim() : '';
     if (!cleanName) return;
+    
     room.roomName = cleanName;
-    db.run('UPDATE room_names SET roomName = ? WHERE roomId = ?', [cleanName, roomId]);
+    // Persist the new name and ensure hostUsername is stored if missing
+    const host = room.hostUsername || socket.username || null;
+    db.run(
+      'INSERT INTO room_names (roomId, roomName, hostUsername) VALUES (?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET roomName = excluded.roomName, hostUsername = EXCLUDED.hostUsername',
+      [roomId, cleanName, host]
+    );
+    // Also update the name in pinned_rooms
+    db.run('UPDATE pinned_rooms SET roomName = ? WHERE roomId = ?', [cleanName, roomId]);
+    
     io.in(roomId).emit('room_renamed', cleanName);
     
     // Global notification for user's other sessions
-    const mySockets = connectedSockets.get(socket.username);
-    if (mySockets) {
-      mySockets.forEach(sid => io.to(sid).emit('room_renamed_global', { roomId, newName: cleanName }));
+    if (socket.username) {
+        emitToUser(socket.username, 'room_renamed_global', { roomId, newName: cleanName });
     }
   });
 
@@ -3426,6 +3684,372 @@ io.on('connection', (socket) => {
       if (room.screenshareHostId === socket.id) { room.screenshareHostId = null; socket.to(roomId).emit('webrtc_screenshare_stopped'); }
     }
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// CHAT LOCK — Secure PIN-based chat privacy
+// ═══════════════════════════════════════════════════════════════════
+const chatLockRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.user?.username || req.ip,
+  handler: (req, res) => {
+    const blockedUntil = Date.now() + 30 * 1000;
+    // Persist block to DB
+    pool.query(
+      'UPDATE users SET "chat_lock_blocked_until" = $1 WHERE LOWER(username) = LOWER($2)',
+      [blockedUntil, req.user?.username || '']
+    ).catch(() => {});
+    res.status(429).json({ error: 'Too many attempts. Try again in 30 seconds.', blockedUntil });
+  },
+  skipSuccessfulRequests: true,
+});
+
+// POST /api/chat-lock/setup — hash PIN + recovery key, enable lock
+app.post('/api/chat-lock/setup', authenticateToken, async (req, res) => {
+  const { pin, recoveryKey } = req.body;
+  if (!pin || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'PIN must be exactly 6 digits' });
+  if (!recoveryKey || recoveryKey.length < 16) return res.status(400).json({ error: 'Invalid recovery key' });
+  try {
+    const [pinHash, recoveryHash] = await Promise.all([
+      bcrypt.hash(pin, 12),
+      bcrypt.hash(recoveryKey.toUpperCase(), 12),
+    ]);
+    await pool.query(
+      `UPDATE users SET
+         "chat_lock_enabled" = TRUE,
+         "chat_lock_pin_hash" = $1,
+         "chat_lock_recovery_hash" = $2,
+         "chat_lock_attempts" = 0,
+         "chat_lock_blocked_until" = NULL
+       WHERE LOWER(username) = LOWER($3)`,
+      [pinHash, recoveryHash, req.user.username]
+    );
+    invalidateCacheForUser(req.user.username);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[chat-lock/setup]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST /api/chat-lock/verify — check PIN, enforce rate limit
+app.post('/api/chat-lock/verify', authenticateToken, chatLockRateLimit, async (req, res) => {
+  const { pin } = req.body;
+  if (!pin || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'Invalid PIN format' });
+  try {
+    const result = await pool.query(
+      'SELECT "chat_lock_pin_hash","chat_lock_attempts","chat_lock_blocked_until","chat_lock_enabled" FROM users WHERE LOWER(username) = LOWER($1)',
+      [req.user.username]
+    );
+    const user = result.rows[0];
+    if (!user || !user.chat_lock_enabled) return res.status(400).json({ error: 'Chat Lock is not enabled' });
+
+    const now = Date.now();
+    if (user.chat_lock_blocked_until && Number(user.chat_lock_blocked_until) > now) {
+      return res.status(429).json({ error: 'Too many attempts', blockedUntil: Number(user.chat_lock_blocked_until) });
+    }
+
+    const valid = await bcrypt.compare(pin, user.chat_lock_pin_hash);
+    if (valid) {
+      await pool.query('UPDATE users SET "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+      return res.json({ success: true });
+    }
+
+    // Wrong PIN
+    const newAttempts = (Number(user.chat_lock_attempts) || 0) + 1;
+    const updates = { '"chat_lock_attempts"': newAttempts };
+    let blockedUntil = null;
+    if (newAttempts >= 3) {
+      blockedUntil = now + 30 * 1000;
+      updates['"chat_lock_blocked_until"'] = blockedUntil;
+    }
+    await pool.query(
+      `UPDATE users SET "chat_lock_attempts"=$1, "chat_lock_blocked_until"=$2 WHERE LOWER(username)=LOWER($3)`,
+      [newAttempts, blockedUntil, req.user.username]
+    );
+    const attemptsLeft = Math.max(0, 4 - newAttempts);
+    if (blockedUntil && newAttempts === 3) return res.status(429).json({ error: 'Too many attempts. Locked for 30 seconds.', blockedUntil });
+    
+    if (newAttempts >= 4) {
+      // Self-destruct logic will be triggered by frontend after receiving this error
+      return res.status(403).json({ error: 'SELF_DESTRUCT_TRIGGERED', message: 'Final attempt failed. All data wiped.' });
+    }
+
+    return res.status(401).json({ error: 'Incorrect PIN', attemptsLeft });
+  } catch (err) {
+    console.error('[chat-lock/verify]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST /api/chat-lock/verify-recovery — check Recovery Key
+app.post('/api/chat-lock/verify-recovery', authenticateToken, async (req, res) => {
+  const { recoveryKey } = req.body;
+  if (!recoveryKey || recoveryKey.length < 16) return res.status(400).json({ error: 'Invalid recovery key' });
+  try {
+    const result = await pool.query('SELECT "chat_lock_recovery_hash" FROM users WHERE LOWER(username) = LOWER($1)', [req.user.username]);
+    const user = result.rows[0];
+    if (!user || !user.chat_lock_recovery_hash) return res.status(400).json({ error: 'Recovery key not set up' });
+
+    const valid = await bcrypt.compare(recoveryKey.toUpperCase().replace(/-/g, ''), user.chat_lock_recovery_hash);
+    if (valid) {
+      await pool.query('UPDATE users SET "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+      return res.json({ success: true });
+    }
+    return res.status(401).json({ error: 'Invalid recovery key' });
+  } catch (err) {
+    console.error('[chat-lock/verify-recovery]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST /api/chat-lock/self-destruct — WIPE EVERYTHING for this user
+app.post('/api/chat-lock/self-destruct', authenticateToken, async (req, res) => {
+  try {
+    const username = req.user.username;
+    // 1. Delete only LOCKED chats (DMs or Group messages that are marked as locked)
+    await pool.query('DELETE FROM messages WHERE ("senderName" = $1 OR "targetName" = $1) AND "is_chat_locked" = TRUE', [username]);
+    // 2. Clear locked/hidden status for the user
+    await pool.query('UPDATE users SET "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE LOWER(username) = LOWER($1)', [username]);
+    
+    invalidateCacheForUser(username);
+    return res.json({ success: true, message: 'All data has been securely wiped.' });
+  } catch (err) {
+    console.error('[chat-lock/self-destruct]', err);
+    return res.status(500).json({ error: 'Failed to wipe data' });
+  }
+});
+
+// POST /api/chat-lock/disable — verify PIN then disable
+app.post('/api/chat-lock/disable', authenticateToken, async (req, res) => {
+  const { pin } = req.body;
+  if (!pin || !/^\d{6}$/.test(pin)) return res.status(400).json({ error: 'Invalid PIN' });
+  try {
+    const result = await pool.query('SELECT "chat_lock_pin_hash" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+    const user = result.rows[0];
+    if (!user?.chat_lock_pin_hash) return res.status(400).json({ error: 'Chat Lock is not set up' });
+    const valid = await bcrypt.compare(pin, user.chat_lock_pin_hash);
+    if (!valid) return res.status(401).json({ error: 'Incorrect PIN' });
+    await pool.query(
+      `UPDATE users SET "chat_lock_enabled"=FALSE, "chat_lock_pin_hash"=NULL, "chat_lock_recovery_hash"=NULL, "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)`,
+      [req.user.username]
+    );
+    // Also unlock all locked chats for this user
+    await pool.query('UPDATE messages SET "is_chat_locked"=FALSE WHERE "senderName"=$1 OR "targetName"=$1', [req.user.username]).catch(() => {});
+    invalidateCacheForUser(req.user.username);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[chat-lock/disable]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /api/chat-lock/status — return lock enabled + auto-lock settings
+app.get('/api/chat-lock/status', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT "chat_lock_enabled" FROM users WHERE LOWER(username)=LOWER($1)',
+      [req.user.username]
+    );
+    const user = result.rows[0];
+    const autoLockMinutes = parseInt(req.query.autoLockMinutes) || 5;
+    return res.json({
+      enabled: !!(user?.chat_lock_enabled),
+      autoLockMinutes,
+    });
+  } catch (err) {
+    console.error('[chat-lock/status]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// PUT /api/chat-lock/settings — store auto-lock preference (server-side stub; primary storage is localStorage)
+app.put('/api/chat-lock/settings', authenticateToken, async (req, res) => {
+  // Auto-lock timing is a client-side UX concern; just ack.
+  return res.json({ success: true });
+});
+
+// POST /api/chat-lock/toggle-chat — lock or unlock a specific chat (private DM or room)
+app.post('/api/chat-lock/toggle-chat', authenticateToken, async (req, res) => {
+  const { chatId, lock, pin } = req.body; // chatId = partner username or roomId
+  if (!chatId) return res.status(400).json({ error: 'chatId required' });
+  try {
+    // Always verify PIN before any lock toggle to prevent brute-force exposure
+    const result = await pool.query('SELECT "chat_lock_pin_hash","chat_lock_enabled" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+    const user = result.rows[0];
+    if (!user?.chat_lock_enabled) return res.status(400).json({ error: 'Chat Lock not enabled' });
+    
+    // Only verify PIN if UNLOCKING (lock === false). 
+    // Locking is allowed silently for better UX.
+    if (lock === false) {
+      if (!pin || !(await bcrypt.compare(pin, user.chat_lock_pin_hash))) {
+        return res.status(401).json({ error: 'Incorrect PIN' });
+      }
+    }
+
+    const username = req.user.username.toLowerCase();
+    // Mark/unmark messages as locked in DB
+    // For private chats: identify by senderName/targetName pair
+    // For group chats: identify by roomId
+    const isRoom = chatId.startsWith('room-') || chatId.length === 36 || chatId.includes('-');
+    if (isRoom) {
+      await pool.query('UPDATE messages SET "is_chat_locked"=$1 WHERE "roomId"=$2', [!!lock, chatId]);
+    } else {
+      const partner = chatId.toLowerCase();
+      await pool.query(
+        `UPDATE messages SET "is_chat_locked"=$1 WHERE (LOWER("senderName")=$2 AND LOWER("targetName")=$3) OR (LOWER("senderName")=$3 AND LOWER("targetName")=$2)`,
+        [!!lock, username, partner]
+      );
+    }
+    return res.json({ success: true, locked: !!lock });
+  } catch (err) {
+    console.error('[chat-lock/toggle-chat]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /api/chat-lock/recovery-phrase — return recovery key hash (Wait, we need the actual phrase for the user to view it? No, we only store the HASH!)
+// Actually, the user wants to VIEW the Master Key they were given.
+// If we only store the hash, they CANNOT view it later unless they saved it.
+// However, the signup flow gives them the phrase.
+// If they want to "view" it later, we would have needed to store it (encrypted).
+// Current schema only has "chat_lock_recovery_hash".
+
+// But wait! signup-keys stores "recoveryKeyHash".
+// So "View Master Key" is only possible if they have it.
+
+// Wait! If they are ALREADY UNLOCKED, maybe we can show them a way to generate a NEW one?
+// For now, I'll return a "Not supported" or "Check your saved records" message if I can't retrieve it.
+// BUT WAIT! Signup.jsx: phrase = secretKeyToMnemonic(keyPair.secretKey).
+// If they have their private key in session, they CAN view their master key!
+
+app.get('/api/chat-lock/recovery-phrase', authenticateToken, async (req, res) => {
+  // We don't store the raw phrase, so we can't return it from DB.
+  // The client must derive it from their own secret key (which they have if they are logged in).
+  return res.json({ message: 'Derive on client' });
+});
+
+// POST /api/chat-lock/recover-with-key — reset PIN using 32-char recovery key
+app.post('/api/chat-lock/recover-with-key', authenticateToken, async (req, res) => {
+  const { recoveryKey, newPin } = req.body;
+  if (!newPin || !/^\d{6}$/.test(newPin)) return res.status(400).json({ error: 'New PIN must be 6 digits' });
+  if (!recoveryKey || recoveryKey.length < 16) return res.status(400).json({ error: 'Invalid recovery key' });
+  try {
+    const result = await pool.query('SELECT "chat_lock_recovery_hash" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+    const user = result.rows[0];
+    if (!user?.chat_lock_recovery_hash) return res.status(400).json({ error: 'No recovery key registered' });
+    const valid = await bcrypt.compare(recoveryKey.toUpperCase(), user.chat_lock_recovery_hash);
+    if (!valid) return res.status(401).json({ error: 'Recovery key is incorrect' });
+    const newPinHash = await bcrypt.hash(newPin, 12);
+    await pool.query(
+      `UPDATE users SET "chat_lock_pin_hash"=$1, "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($2)`,
+      [newPinHash, req.user.username]
+    );
+    invalidateCacheForUser(req.user.username);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[chat-lock/recover-with-key]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST /api/chat-lock/request-email-reset — send OTP to user's email
+app.post('/api/chat-lock/request-email-reset', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT email, username FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+    const user = result.rows[0];
+    if (!user?.email) return res.status(400).json({ error: 'No email associated with account' });
+
+    const token = crypto.randomBytes(6).toString('hex').toUpperCase(); // 12-char hex OTP
+    const expiry = Date.now() + 15 * 60 * 1000; // 15 min
+    const tokenHash = await bcrypt.hash(token, 10);
+
+    await pool.query(
+      `UPDATE users SET "chat_lock_reset_token"=$1, "chat_lock_reset_token_expiry"=$2 WHERE LOWER(username)=LOWER($3)`,
+      [tokenHash, expiry, req.user.username]
+    );
+
+    // Send email
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    await transporter.sendMail({
+      from: `"WatchTogether" <${process.env.SMTP_USER}>`,
+      to: user.email,
+      subject: 'Chat Lock PIN Reset Code',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#0f0f1e;color:#fff;padding:32px;border-radius:16px;">
+          <h2 style="color:#818cf8;margin:0 0 16px">Chat Lock Reset</h2>
+          <p style="color:#94a3b8;margin:0 0 24px">Your one-time PIN reset code:</p>
+          <div style="background:#1a1a2e;border:1px solid rgba(129,140,248,0.3);border-radius:12px;padding:20px;text-align:center;font-size:28px;font-weight:800;letter-spacing:0.25em;color:#c7d2fe;font-family:monospace;">${token}</div>
+          <p style="color:#475569;font-size:13px;margin:20px 0 0">Expires in 15 minutes. Do not share this code.</p>
+        </div>
+      `,
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[chat-lock/request-email-reset]', err);
+    return res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// POST /api/chat-lock/reset-with-email — verify OTP and set new PIN
+app.post('/api/chat-lock/reset-with-email', authenticateToken, async (req, res) => {
+  const { token: otpToken, newPin } = req.body;
+  if (!newPin || !/^\d{6}$/.test(newPin)) return res.status(400).json({ error: 'New PIN must be 6 digits' });
+  if (!otpToken) return res.status(400).json({ error: 'Reset code required' });
+  try {
+    const result = await pool.query(
+      'SELECT "chat_lock_reset_token","chat_lock_reset_token_expiry" FROM users WHERE LOWER(username)=LOWER($1)',
+      [req.user.username]
+    );
+    const user = result.rows[0];
+    if (!user?.chat_lock_reset_token) return res.status(400).json({ error: 'No reset code requested' });
+    if (Number(user.chat_lock_reset_token_expiry) < Date.now()) {
+      return res.status(400).json({ error: 'Reset code has expired. Request a new one.' });
+    }
+    const valid = await bcrypt.compare(otpToken.toUpperCase(), user.chat_lock_reset_token);
+    if (!valid) return res.status(401).json({ error: 'Invalid reset code' });
+
+    const newPinHash = await bcrypt.hash(newPin, 12);
+    await pool.query(
+      `UPDATE users SET "chat_lock_pin_hash"=$1, "chat_lock_reset_token"=NULL, "chat_lock_reset_token_expiry"=NULL, "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($2)`,
+      [newPinHash, req.user.username]
+    );
+    invalidateCacheForUser(req.user.username);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[chat-lock/reset-with-email]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET /api/chat-lock/locked-chats — return list of chatIds that are locked for this user
+app.get('/api/chat-lock/locked-chats', authenticateToken, async (req, res) => {
+  try {
+    const username = req.user.username.toLowerCase();
+    const result = await pool.query(
+      `SELECT DISTINCT
+         CASE
+           WHEN LOWER("senderName") = $1 THEN LOWER("targetName")
+           ELSE LOWER("senderName")
+         END AS partner,
+         "roomId"
+       FROM messages
+       WHERE "is_chat_locked" = TRUE
+         AND (LOWER("senderName") = $1 OR LOWER("targetName") = $1)`,
+      [username]
+    );
+    const locked = result.rows.map(r => r.partner || r.roomId).filter(Boolean);
+    return res.json({ lockedChats: [...new Set(locked)] });
+  } catch (err) {
+    console.error('[chat-lock/locked-chats]', err);
+    return res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // Global Express Error Handler

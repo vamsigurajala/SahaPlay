@@ -5,13 +5,57 @@ import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import toast from 'react-hot-toast';
 import { 
-  Users, Send, MessageSquare, Reply, Flag, Lock, 
-  X, ChevronLeft, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ChevronDown,
-  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play
+  Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
+  X, ChevronLeft, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
+  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, CheckCheck
 } from 'lucide-react';
+import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import crownImg from '../assets/crown.svg';
+import ChatLockScreen from './ChatLockScreen';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
+
+const MenuStyles = () => (
+  <style>{`
+    @keyframes menuFadeIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .menu-dropdown {
+      animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      transform-origin: top right;
+    }
+    .menu-btn {
+      transition: all 0.2s ease !important;
+    }
+    .menu-btn:hover {
+      background: rgba(99, 102, 241, 0.1) !important;
+    }
+    html[data-theme='light'] .menu-btn:hover {
+      background: rgba(0, 0, 0, 0.05) !important;
+    }
+    .menu-btn-danger {
+      color: inherit !important;
+    }
+    .menu-btn-danger svg {
+      color: inherit !important;
+    }
+    .menu-btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12) !important;
+      color: #ef4444 !important;
+    }
+    .menu-btn-danger:hover svg {
+      color: #ef4444 !important;
+    }
+    html[data-theme='light'] .menu-btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12) !important;
+      color: #dc2626 !important;
+    }
+    html[data-theme='light'] .menu-btn-danger:hover svg {
+      color: #dc2626 !important;
+    }
+  `}</style>
+);
 
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
@@ -124,14 +168,306 @@ function MediaLightbox({ url, type, onClose }) {
 }
 
 export default function RoomChatPanel({ p }) {
+  const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(p.messagesEndRef);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = React.useState(false);
   const [lightbox, setLightbox] = React.useState(null); // { url, type }
   const [activeMessageMenu, setActiveMessageMenu] = React.useState(null);
+  const messageMenuRef = React.useRef(null);
+
   const [hoveredMsgId, setHoveredMsgId] = React.useState(null);
+  const [clearGroupChatModalOpen, setClearGroupChatModalOpen] = React.useState(false);
   const fileInputRef = React.useRef(null);
   const dmFileInputRef = React.useRef(null);
+  const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
+  const [hiddenChats, setHiddenChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`hidden_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  const [showHiddenChats, setShowHiddenChats] = React.useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = React.useState(false);
+  const headerMenuRef = React.useRef(null);
+  const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
+  const hiddenMenuRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      // If clicking outside the active message menu
+      if (activeMessageMenu && messageMenuRef.current && !messageMenuRef.current.contains(e.target)) {
+        setActiveMessageMenu(null);
+      }
+      // If clicking outside the header 3-dots menu
+      if (showHeaderMenu && headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
+        setShowHeaderMenu(false);
+      }
+      if (showHiddenMenu && hiddenMenuRef.current && !hiddenMenuRef.current.contains(e.target)) {
+        setShowHiddenMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeMessageMenu, showHeaderMenu, showHiddenMenu]);
+  const dmTargetRef = React.useRef(p.dmTarget);
+  const [dmRelation, setDmRelation] = React.useState(null);
+  // 'loading' = fetching in progress (show nothing), null = not a private chat, object = resolved
+  const [dmRelationLoading, setDmRelationLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    dmTargetRef.current = p.dmTarget;
+  }, [p.dmTarget]);
+
+  const [blockedChats, setBlockedChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`blocked_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  const [blockingMe, setBlockingMe] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`blocking_me_${myUser}`) || '[]'); } catch { return []; }
+  });
+
+  const autoLockTimersRef = React.useRef({});
+
+  // ── Chat Lock state ──
+  const [lockedChats, setLockedChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`locked_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  const [chatLockEnabled, setChatLockEnabled] = React.useState(() => {
+    // Try to read from localStorage if GlobalChatWidget already fetched it
+    try {
+      const stored = localStorage.getItem(`chat_lock_enabled_${myUser}`);
+      return stored === 'true';
+    } catch { return false; }
+  });
+  const [pendingUnlockChat, setPendingUnlockChat] = React.useState(null); // { key, name, type }
+  const unlockedSessionsRef = React.useRef({});
+
+  // Sync chatLockEnabled from server and listen for locked_chats_updated
+  React.useEffect(() => {
+    const token = localStorage.getItem('watch_token');
+    if (token && p.SOCKET_SERVER_URL) {
+      fetch(`${p.SOCKET_SERVER_URL}/api/chat-lock/status`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.enabled !== undefined) {
+            setChatLockEnabled(!!data.enabled);
+            localStorage.setItem(`chat_lock_enabled_${myUser}`, String(!!data.enabled));
+          }
+        })
+        .catch(() => {});
+    }
+    const syncLocked = () => {
+      try { setLockedChats(JSON.parse(localStorage.getItem(`locked_chats_${myUser}`) || '[]')); } catch {}
+    };
+    window.addEventListener('locked_chats_updated', syncLocked);
+
+    // Sync muted chats
+    const [mutedChatsState, setMutedChatsState_] = [null, null]; // declared below, just sync on event
+    const syncMuted = () => {
+      try { setMutedChats(JSON.parse(localStorage.getItem(`muted_chats_${myUser}`) || '[]')); } catch {}
+    };
+    window.addEventListener('muted_chats_updated', syncMuted);
+
+    return () => {
+      window.removeEventListener('locked_chats_updated', syncLocked);
+      window.removeEventListener('muted_chats_updated', syncMuted);
+    };
+  }, [p.username, p.SOCKET_SERVER_URL]);
+
+  
+  React.useEffect(() => {
+    const syncPinned = () => {
+      try { setPinnedRoomChats(JSON.parse(localStorage.getItem(`pinned_room_chats_${myUser}`) || '[]')); } catch {}
+    };
+    window.addEventListener('pinned_room_chats_updated', syncPinned);
+    return () => window.removeEventListener('pinned_room_chats_updated', syncPinned);
+  }, [myUser]);
+
+  // ── Muted chats ──
+  const [mutedChats, setMutedChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`muted_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  const [pinnedRoomChats, setPinnedRoomChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`pinned_room_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  const [deleteChatConfirm, setDeleteChatConfirm] = React.useState(null); // { key, type, name }
+  const [blockUserConfirm, setBlockUserConfirm] = React.useState(null); // { username }
+
+  React.useEffect(() => {
+    const handleStorage = (e) => {
+      try { 
+        if (!e || e.key === `blocked_chats_${p.username}` || !e.key)
+          setBlockedChats(JSON.parse(localStorage.getItem(`blocked_chats_${p.username}`) || '[]'));
+        if (!e || e.key === `blocking_me_${p.username}` || !e.key)
+          setBlockingMe(JSON.parse(localStorage.getItem(`blocking_me_${p.username}`) || '[]'));
+        if (!e || e.key === `hidden_chats_${myUser}` || !e.key)
+          setHiddenChats(JSON.parse(localStorage.getItem(`hidden_chats_${myUser}`) || '[]'));
+        if (!e || e.key === `muted_chats_${myUser}` || !e.key)
+          setMutedChats(JSON.parse(localStorage.getItem(`muted_chats_${myUser}`) || '[]'));
+        if (!e || e.key === `pinned_room_chats_${myUser}` || !e.key)
+          setPinnedRoomChats(JSON.parse(localStorage.getItem(`pinned_room_chats_${myUser}`) || '[]'));
+      } catch {}
+    };
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('blocked_chats_updated', handleStorage);
+    window.addEventListener('hidden_chats_updated', handleStorage);
+    window.addEventListener('muted_chats_updated', handleStorage);
+    window.addEventListener('pinned_room_chats_updated', handleStorage);
+
+    if (p.socket) {
+      p.socket.on('blocking_updated', ({ blocker, blocked, isBlocked }) => {
+        const myU = (localStorage.getItem('watch_username') || '').toLowerCase();
+        if (blocker.toLowerCase() === myU) {
+          setBlockedChats(prev => {
+            const next = isBlocked ? [...new Set([...prev, blocked])] : prev.filter(u => u.toLowerCase() !== blocked.toLowerCase());
+            localStorage.setItem(`blocked_chats_${p.username}`, JSON.stringify(next));
+            return next;
+          });
+        } else if (blocked.toLowerCase() === myU) {
+          setBlockingMe(prev => {
+            const next = isBlocked ? [...new Set([...prev, blocker])] : prev.filter(u => u.toLowerCase() !== blocker.toLowerCase());
+            localStorage.setItem(`blocking_me_${p.username}`, JSON.stringify(next));
+            return next;
+          });
+        }
+        // Refetch relationship if the active DM target is involved
+        const currentTarget = dmTargetRef.current;
+        if (currentTarget && (blocker.toLowerCase() === currentTarget.toLowerCase() || blocked.toLowerCase() === currentTarget.toLowerCase())) {
+          // Pre-set to "no friendship" immediately if unblocking — prevents input from briefly showing
+          if (!isBlocked) {
+            setDmRelation({ followStatus: null, isFollowingMe: false });
+          }
+          const tok = localStorage.getItem('watch_token');
+          if (tok) {
+            setDmRelationLoading(true);
+            fetch(`${p.SOCKET_SERVER_URL}/api/users/${currentTarget}`, { 
+              headers: { 'Authorization': `Bearer ${tok}` } 
+            })
+              .then(res => res.json())
+              .then(data => {
+                // Server returns flat: { followStatus, isFollowingMe, ... }
+                if (data && !data.error) {
+                  setDmRelation({ followStatus: data.followStatus || null, isFollowingMe: !!data.isFollowingMe });
+                } else {
+                  setDmRelation({ followStatus: null, isFollowingMe: false });
+                }
+              })
+              .catch(() => setDmRelation({ followStatus: null, isFollowingMe: false }))
+              .finally(() => setDmRelationLoading(false));
+          }
+        }
+
+      });
+    }
+
+    const handleFollowStatus = (e) => {
+      const data = e.detail || {};
+      const currentTarget = dmTargetRef.current;
+      if (!currentTarget) return;
+      
+      const actor = data.requester || data.follower;
+      const target = data.accepter || data.following;
+      
+      if ((actor && actor.toLowerCase() === currentTarget.toLowerCase()) || 
+          (target && target.toLowerCase() === currentTarget.toLowerCase())) {
+        const tok = localStorage.getItem('watch_token');
+        if (tok) {
+          setDmRelationLoading(true);
+          fetch(`${p.SOCKET_SERVER_URL}/api/users/${currentTarget}`, { 
+            headers: { 'Authorization': `Bearer ${tok}` } 
+          })
+            .then(res => res.json())
+            .then(d => {
+              if (d && !d.error) {
+                setDmRelation({ followStatus: d.followStatus || null, isFollowingMe: !!d.isFollowingMe });
+              }
+            })
+            .catch(() => setDmRelation({ followStatus: null, isFollowingMe: false }))
+            .finally(() => setDmRelationLoading(false));
+        }
+      }
+    };
+    
+    window.addEventListener('follow_status_updated', handleFollowStatus);
+
+    const handleMutedUpdated = () => {
+      try { setMutedChats(JSON.parse(localStorage.getItem(`muted_chats_${p.username}`) || '[]')); } catch {}
+    };
+    window.addEventListener('muted_chats_updated', handleMutedUpdated);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('blocked_chats_updated', handleStorage);
+      window.removeEventListener('follow_status_updated', handleFollowStatus);
+      window.removeEventListener('muted_chats_updated', handleMutedUpdated);
+      if (p.socket) p.socket.off('blocking_updated');
+    };
+  }, [p.username, p.SOCKET_SERVER_URL, p.socket]);
+
+  const handleBackToList = () => {
+    const autoOnClose = localStorage.getItem('chat_lock_auto_on_close') === 'true';
+    const autoMins = parseInt(localStorage.getItem('chat_lock_auto_minutes') || '5');
+    
+    let chatKey = '';
+    if (p.chatTab === 'group') chatKey = (p.roomId || '').toLowerCase();
+    else if (p.chatTab === 'dm') chatKey = (p.dmTarget || '').toLowerCase();
+
+    if (chatKey && chatLockEnabled && lockedChats.includes(chatKey)) {
+      if (autoOnClose || autoMins === 0) {
+        delete unlockedSessionsRef.current[chatKey];
+        window.dispatchEvent(new Event('locked_chats_updated'));
+      } else if (autoMins > 0) {
+        clearTimeout(autoLockTimersRef.current[chatKey]);
+        autoLockTimersRef.current[chatKey] = setTimeout(() => {
+          delete unlockedSessionsRef.current[chatKey];
+          window.dispatchEvent(new Event('locked_chats_updated'));
+        }, autoMins * 60 * 1000);
+      }
+    }
+
+    p.setChatTab('list');
+    p.chatTabRef.current = 'list';
+    p.setDmTarget(null);
+    if(p.dmTargetRef) p.dmTargetRef.current = null;
+  };
+
+  // Fetch block/relation status when DM target changes to ensure sync
+  React.useEffect(() => {
+    if (p.dmTarget && p.username) {
+      const tok = localStorage.getItem('watch_token');
+      if (!tok) return;
+      setDmRelationLoading(true);
+      setDmRelation(null);
+      // Use absolute URL to avoid nested route fetch issues (Room is at /room/:id)
+      fetch(`${p.SOCKET_SERVER_URL}/api/users/${p.dmTarget}`, { 
+        headers: { 'Authorization': `Bearer ${tok}` } 
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (!data || data.error) {
+            // If user not found (e.g. blocked by them), restrict but allow room logic to handle
+            setDmRelation({ followStatus: null, isFollowingMe: false });
+            return;
+          }
+          // Server returns flat: { followStatus, isFollowingMe, ... }
+          setDmRelation({ 
+            followStatus: data.followStatus || null, 
+            isFollowingMe: !!data.isFollowingMe 
+          });
+          // Also sync block states
+          if (data.isBlockedByMe) {
+            setBlockedChats(prev => prev.includes(p.dmTarget) ? prev : [...prev, p.dmTarget]);
+          } else {
+            setBlockedChats(prev => prev.filter(u => u.toLowerCase() !== p.dmTarget.toLowerCase()));
+          }
+        })
+        .catch(err => {
+          console.error('[RoomChatPanel] Failed to fetch relation:', err);
+          // On network error, default to restricted state to prevent unauthorized message attempts
+          setDmRelation({ followStatus: null, isFollowingMe: false }); 
+        })
+        .finally(() => setDmRelationLoading(false));
+    } else {
+      setDmRelation(null);
+    }
+  }, [p.dmTarget, p.username, p.SOCKET_SERVER_URL]);
 
   const handleFileSelect = async (e, type) => {
     const file = e.target.files[0];
@@ -174,6 +510,139 @@ export default function RoomChatPanel({ p }) {
     }
   };
 
+  const toggleMuteChat = (chatKey) => {
+    const key = (chatKey || '').toLowerCase();
+    const next = mutedChats.includes(key) ? mutedChats.filter(k => k !== key) : [...mutedChats, key];
+    setMutedChats(next);
+    localStorage.setItem(`muted_chats_${myUser}`, JSON.stringify(next));
+    window.dispatchEvent(new Event('muted_chats_updated'));
+    toast.success(mutedChats.includes(key) ? 'Notifications unmuted' : 'Notifications muted');
+  };
+
+  const togglePinRoomChat = (chatKey) => {
+    const key = (chatKey || '').toLowerCase();
+    const next = pinnedRoomChats.includes(key) ? pinnedRoomChats.filter(k => k !== key) : [...pinnedRoomChats, key];
+    setPinnedRoomChats(next);
+    localStorage.setItem(`pinned_room_chats_${myUser}`, JSON.stringify(next));
+    window.dispatchEvent(new Event('pinned_room_chats_updated'));
+    toast.success(pinnedRoomChats.includes(key) ? 'Chat unpinned' : 'Chat pinned');
+  };
+
+  const toggleHideChat = (chatKey) => {
+    setHiddenChats(prev => {
+      const isHidden = prev.includes(chatKey);
+      const next = isHidden ? prev.filter(k => k !== chatKey) : [...prev, chatKey];
+      localStorage.setItem(`hidden_chats_${myUser}`, JSON.stringify(next));
+      window.dispatchEvent(new Event('hidden_chats_updated'));
+      toast.success(isHidden ? 'Chat unhidden' : 'Chat hidden');
+      return next;
+    });
+    p.setShowDmMenu(null);
+  };
+
+  const markAllAsRead = () => {
+    // Collect all unread chat keys (DMs and Room Group)
+    const dmKeys = Object.keys(p.dmUnread).filter(k => p.dmUnread[k] > 0);
+    const keysToMark = [...dmKeys];
+    if (p.groupUnread > 0) keysToMark.push(p.roomId);
+    
+    if (keysToMark.length === 0) {
+      toast.success('All messages are read');
+      setShowHeaderMenu(false);
+      return;
+    }
+
+    keysToMark.forEach(key => {
+      if (typeof p.onMarkRead === 'function') {
+        p.onMarkRead(key);
+      }
+      if (p.socket) {
+        p.socket.emit('chat:mark_read', { chatId: key });
+      }
+    });
+
+    toast.success('All marked as read');
+    setShowHeaderMenu(false);
+  };
+
+  const unhideAllChats = () => {
+    localStorage.setItem(`hidden_chats_${myUser}`, JSON.stringify([]));
+    setHiddenChats([]);
+    window.dispatchEvent(new Event('hidden_chats_updated'));
+    // Force a re-sync for other listeners
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('conversations_updated'));
+    toast.success('All chats unhidden');
+    setShowHiddenMenu(false);
+    setShowHiddenChats(false);
+  };
+
+  const toggleBlockUser = async (target) => {
+    const partnerLow = (target || '').toLowerCase();
+    const isCurrentlyBlocked = blockedChats.some(k => k.toLowerCase() === partnerLow);
+    const token = localStorage.getItem('watch_token');
+
+    // Optimistic UI update
+    const next = isCurrentlyBlocked ? blockedChats.filter(k => k.toLowerCase() !== partnerLow) : [...blockedChats, partnerLow];
+    setBlockedChats(next);
+    localStorage.setItem(`blocked_chats_${myUser}`, JSON.stringify(next));
+    window.dispatchEvent(new Event('blocked_chats_updated'));
+
+    toast.success(isCurrentlyBlocked ? 'User unblocked' : 'User blocked');
+
+    if (token) {
+      try {
+        await fetch(`${p.SOCKET_SERVER_URL}/api/block/${partnerLow}`, {
+          method: isCurrentlyBlocked ? 'DELETE' : 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error('Block error:', err);
+      }
+    }
+  };
+
+  const handleDeleteChat = (chatKey, type) => {
+    const key = (chatKey || '').toLowerCase();
+    
+    // 1. Remove from watch_recent_chats
+    try {
+      const recent = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+      const nextRecent = recent.filter(c => (c.id || c.partner || '').toLowerCase() !== key);
+      localStorage.setItem('watch_recent_chats', JSON.stringify(nextRecent));
+    } catch {}
+
+    // 2. Emit socket event
+    if (p.socket) {
+      if (type === 'room') {
+        p.socket.emit('clear_room_chat', { roomId: chatKey });
+      } else {
+        p.socket.emit('clear_dm', { targetUsername: chatKey, clearForBoth: false });
+      }
+    }
+
+    // 3. Remove from local pinned/muted/locked
+    setPinnedRoomChats(prev => prev.filter(k => k !== key));
+    localStorage.setItem(`pinned_room_chats_${myUser}`, JSON.stringify(pinnedRoomChats.filter(k => k !== key)));
+    
+    // 4. If active, go back
+    if (p.chatTab !== 'list') {
+      handleBackToList();
+    }
+
+    // 5. Notify Room.jsx if it can remove from dmThreads
+    if (type === 'dm' && p.setDmThreads) {
+      p.setDmThreads(prev => {
+        const next = { ...prev };
+        delete next[chatKey];
+        return next;
+      });
+    }
+
+    window.dispatchEvent(new Event('conversations_updated'));
+    toast.success('Chat deleted');
+  };
+
   const renderMedia = (url, type) => {
     if (!url) return null;
     const isImg = type?.startsWith('image/');
@@ -209,69 +678,237 @@ export default function RoomChatPanel({ p }) {
     );
   };
 
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
   return (
     <>
+      <MenuStyles />
       {lightbox && <MediaLightbox url={lightbox.url} type={lightbox.type} onClose={() => setLightbox(null)} />}
-      <div id="room-chat-panel" style={{width:340,display:'flex',flexDirection:'column',background:'#111',borderRadius:16,border:'1px solid rgba(255,255,255,0.07)',overflow:'hidden',flexShrink:0}}>
+      {pendingUnlockChat && (
+        <ChatLockScreen
+          chatKey={pendingUnlockChat.key}
+          chatName={pendingUnlockChat.name}
+          action="unlock"
+          onClose={() => setPendingUnlockChat(null)}
+          onUnlock={() => {
+            unlockedSessionsRef.current[pendingUnlockChat.key] = Date.now();
+            const chat = pendingUnlockChat;
+            setPendingUnlockChat(null);
+            // Open the chat after unlock
+            if (chat.type === 'group') {
+              p.setChatTab('group'); p.chatTabRef.current = 'group'; p.setGroupUnread(0);
+              if (p.onMarkRead) p.onMarkRead(p.roomId);
+            } else {
+              p.openDM(chat.name);
+            }
+          }}
+        />
+      )}
+      <div id="room-chat-panel" style={{width:340,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {p.chatTab === 'list' ? (
         /* ===== CHAT LIST VIEW ===== */
         <>
-          <div style={{padding:'12px 14px',borderBottom:'1px solid rgba(255,255,255,0.07)',fontWeight:700,fontSize:14,color:'#ddd',letterSpacing:'0.2px'}}>
-            Chats
+          <div style={{padding:'12px 14px',borderBottom:'1px solid var(--room-border)',fontWeight:700,fontSize:14,color: isLight ? '#1e293b' : '#ddd',letterSpacing:'0.2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+            <span>{showHiddenChats ? 'Hidden Chats' : 'Chats'}</span>
+            <div ref={headerMenuRef} style={{position:'relative', display:'flex', alignItems:'center'}}>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setShowHeaderMenu(!showHeaderMenu); }} 
+                style={{background:'none', border:'none', color: isLight ? '#475569' : '#aaa', cursor:'pointer', padding:4, display:'flex'}}
+              >
+                <MoreVertical size={18} />
+              </button>
+              {showHeaderMenu && (
+                <div className="menu-dropdown" style={{position:'absolute', right:0, top:'100%', marginTop:8, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:1000, minWidth:180, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 10px 30px rgba(0,0,0,0.6)'}} onMouseLeave={() => setShowHeaderMenu(false)}>
+                  <button 
+                    onClick={() => { setShowHiddenChats(!showHiddenChats); setShowHeaderMenu(false); }}
+                    style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', fontSize:13, cursor:'pointer', textAlign:'left', borderRadius:8}} 
+                    className="menu-btn"
+                  >
+                    {showHiddenChats ? <MessageSquare size={16} /> : <Lock size={16} />}
+                    {showHiddenChats ? 'Show All Chats' : 'Hidden Chats'}
+                  </button>
+                  <button 
+                    onClick={markAllAsRead}
+                    style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', fontSize:13, cursor:'pointer', textAlign:'left', borderRadius:8}} 
+                    className="menu-btn"
+                  >
+                    <CheckCheck size={16} /> Mark all as read
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+          {showHiddenChats && (
+            <div style={{ padding: '10px 14px', background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.08)', borderBottom: '1px solid var(--room-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button 
+                  onClick={() => setShowHiddenChats(false)}
+                  style={{ background: 'none', border: 'none', color: isLight ? '#64748b' : '#888', cursor: 'pointer', padding: '2px 4px', display: 'flex' }}
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: isLight ? '#4f46e5' : '#a5b4fc', fontSize: 12, fontWeight: 700 }}>
+                  <Lock size={14} /> Hidden Folder
+                </div>
+              </div>
+              <div ref={hiddenMenuRef} style={{position:'relative', display:'flex', alignItems:'center'}}>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setShowHiddenMenu(!showHiddenMenu); }}
+                  style={{ background: 'none', border: 'none', color: isLight ? '#4f46e5' : '#888', cursor: 'pointer', padding: 4, display: 'flex' }}
+                >
+                  <MoreVertical size={18} />
+                </button>
+                {showHiddenMenu && (
+                  <div className="menu-dropdown" style={{position:'absolute', right:0, top:'100%', marginTop:8, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:1000, minWidth:180, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 10px 30px rgba(0,0,0,0.6)'}} onMouseLeave={() => setShowHiddenMenu(false)}>
+                    <button 
+                      onClick={unhideAllChats}
+                      style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', fontSize:13, cursor:'pointer', textAlign:'left', borderRadius:8}} 
+                      className="menu-btn"
+                    >
+                      <Eye size={16} /> Unhide all chats
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column'}}>
+            {!showHiddenChats && (
             <button onClick={()=>{
+              const groupKey = (p.roomId || '').toLowerCase();
+              const isGroupLocked = chatLockEnabled && lockedChats.includes(groupKey) && !unlockedSessionsRef.current[groupKey];
+              if (isGroupLocked) {
+                setPendingUnlockChat({ key: groupKey, name: p.roomName || 'Group Chat', type: 'group' });
+                return;
+              }
+              clearTimeout(autoLockTimersRef.current[groupKey]);
               p.setChatTab('group');
               p.chatTabRef.current='group';
               p.setGroupUnread(0);
               // Also clear the global navbar badge for this room
               if (p.onMarkRead) p.onMarkRead(p.roomId);
-            }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid rgba(255,255,255,0.04)',cursor:'pointer',color:'#fff',width:'100%',textAlign:'left',position:'relative'}}>
+            }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
               <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#6366f1,#a855f7)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                 <Users size={18} color="#fff"/>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:700,color:'#fff'}}>{p.roomName}</div>
+                <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
+                <div style={{fontSize:11,color: isLight ? '#475569' : '#555',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                   {(() => {
                     const lastMsg = p.groupMessages.length > 0 ? p.groupMessages[p.groupMessages.length-1] : null;
                     if (!lastMsg) return t('groupConv', 'Group conversation');
-                    return lastMsg.decryptedText || (lastMsg.mediaUrl && !lastMsg.message ? (lastMsg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : (lastMsg.message && looksLikeCiphertext(lastMsg.message) ? '🔒 Encrypted message' : (lastMsg.message?.slice(0,32) || '...')));
+                    const sender = lastMsg.username || lastMsg.senderName;
+                    const preview = lastMsg.decryptedText || (lastMsg.mediaType ? (lastMsg.mediaType.startsWith('video') ? 'Video' : 'Photo') : (lastMsg.message && looksLikeCiphertext(lastMsg.message) ? 'Encrypted message' : (lastMsg.message?.slice(0,32) || '...')));
+                    return sender ? `${sender}: ${preview}` : preview;
                   })()}
+                </div>
               </div>
-              {p.groupUnread > 0 && (
-                <span style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {p.groupUnread > 9 ? '9+' : p.groupUnread}
-                </span>
-              )}
+              {(() => {
+                const groupKey = (p.roomId || '').toLowerCase();
+                const isGroupLocked = chatLockEnabled && lockedChats.includes(groupKey) && !unlockedSessionsRef.current[groupKey];
+                const isGroupMuted = mutedChats.includes(groupKey);
+                return (
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    {isGroupMuted && <BellOff size={14} color={isLight ? "#475569" : "#888"} style={{flexShrink:0}} />}
+                    {isGroupLocked ? (
+                      <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
+                    ) : p.groupUnread > 0 ? (
+                      <span style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        {p.groupUnread > 9 ? '9+' : p.groupUnread}
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </button>
+            )}
 
-            {Array.from(new Set([...p.userList.filter(u=>u.username!==p.username).map(u=>u.username), ...Object.keys(p.dmThreads), ...Array.from(p.knownUsers)])).filter(n=>n!==p.username).map(uname => {
+            {(() => {
+              const allUsernames = Array.from(new Set([
+                ...p.userList.filter(u=>u.username!==p.username).map(u=>u.username), 
+                ...Object.keys(p.dmThreads), 
+                ...Array.from(p.knownUsers)
+              ])).filter(n => n && n !== p.username);
+
+              const sortedUsernames = allUsernames.sort((a, b) => {
+                const isAPinned = pinnedRoomChats.includes(a.toLowerCase());
+                const isBPinned = pinnedRoomChats.includes(b.toLowerCase());
+                if (isAPinned && !isBPinned) return -1;
+                if (!isAPinned && isBPinned) return 1;
+                return 0;
+              });
+
+              const filteredUsernames = sortedUsernames.filter(uname => {
+                const isHidden = hiddenChats.includes(uname.toLowerCase());
+                return showHiddenChats ? isHidden : !isHidden;
+              });
+
+              if (filteredUsernames.length === 0) {
+                return (
+                  <div style={{padding:40, textAlign:'center', color:'#444'}}>
+                    <MessageSquare size={32} opacity={0.2} style={{margin:'0 auto 12px', display:'block'}}/>
+                    <div style={{fontSize:12}}>{showHiddenChats ? 'No hidden chats' : 'No conversations yet'}</div>
+                  </div>
+                );
+              }
+
+              return filteredUsernames.map(uname => {
               const unread = p.dmUnread[uname]||0;
               const thread = p.dmThreads[uname]||[];
               const last = thread[thread.length-1];
               const uObj = p.userList.find(u=>u.username===uname);
               const isOnline = !!uObj;
 
+              const partner = uname.toLowerCase();
+              const isBlockedByThem = blockingMe.some(u => u.toLowerCase() === partner);
+              const isBlocked = isBlockedByThem || blockedChats.some(u => u.toLowerCase() === partner);
+              const displayUname = isBlocked ? 'User' : uname;
+
+              // Find avatar from thread or group history if user is not currently in the room list
+              const threadAvatar = thread.find(m => m.senderName === uname && m.senderAvatar)?.senderAvatar;
+              const groupAvatar = p.groupMessages.find(m => (m.username === uname || m.senderName === uname) && m.senderAvatar)?.senderAvatar;
+              const fallbackAvatar = threadAvatar || groupAvatar || p.knownAvatars?.[uname] || p.knownAvatars?.[uname.toLowerCase()];
+
+              const displayAvatarSrc = isBlocked ? null : (
+                (uObj?.avatarPath ? `${p.SOCKET_SERVER_URL}${uObj.avatarPath}` : null) || 
+                (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null)
+              );
+
+              const chatKey = partner;
+              const isDmLocked = chatLockEnabled && lockedChats.includes(chatKey) && !unlockedSessionsRef.current[chatKey];
+              const isPinned = pinnedRoomChats.includes(chatKey);
+
               return (
-                <button key={uname} onClick={()=>p.openDM(uname)} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid rgba(255,255,255,0.04)',cursor:'pointer',color:'#fff',width:'100%',textAlign:'left',position:'relative'}}>
+                <button key={uname} onClick={()=>{
+                  if (isDmLocked) {
+                    setPendingUnlockChat({ key: chatKey, name: uname, type: 'dm' });
+                    return;
+                  }
+                  clearTimeout(autoLockTimersRef.current[chatKey]);
+                  p.openDM(uname);
+                }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
                   <div style={{position:'relative',flexShrink:0}}>
-                    <Avatar name={uname} size={40} src={uObj?.avatarPath ? `http://127.0.0.1:3001${uObj.avatarPath}` : null}/>
-                    <div style={{position:'absolute',bottom:0,right:0,width:11,height:11,borderRadius:'50%',background:isOnline?'#10b981':'#666',border:'2px solid #111'}}/>
+                    <Avatar name={displayUname} size={40} src={displayAvatarSrc}/>
+                    <div style={{position:'absolute',bottom:0,right:0,width:11,height:11,borderRadius:'50%',background:isOnline?'#10b981':'#666',border: isLight ? '2px solid #fff' : '2px solid #111'}}/>
                   </div>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:700,color:isOnline?'#fff':'#aaa',display:'flex',alignItems:'center',gap:5}}>
-                      {uname}
-                      {uObj?.isHost && <img src={crownImg} alt="host" style={{width:12,height:10}}/>}
+                    <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff',display:'flex',alignItems:'center',gap:5}}>
+                      {displayUname}
+                      {!isBlockedByThem && uObj?.isHost && <img src={crownImg} alt="host" style={{width:12,height:10}}/>}
                     </div>
-                    <div style={{fontSize:11,color:'#555',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    <div style={{fontSize:11,color: isLight ? '#475569' : '#555',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {last ? (() => {
-                        const preview = last.decryptedText || (last.mediaUrl && !last.message ? (last.mediaType?.startsWith('video') ? 'Video' : 'Photo') : (last.message && looksLikeCiphertext(last.message) ? '🔒 Encrypted message' : (last.message?.slice(0,32) || '')));
+                        const preview = last.decryptedText || (last.mediaType ? (last.mediaType.startsWith('video') ? 'Video' : 'Photo') : (last.message && looksLikeCiphertext(last.message) ? 'Encrypted message' : (last.message?.slice(0,32) || '')));
                         return last.isMe ? `You: ${preview}` : preview;
                       })() : 'Start a private chat'}
                     </div>
                   </div>
-                  <div style={{position:'relative',display:'flex',alignItems:'center'}}>
-                    {unread > 0 && (
+                  <div style={{position:'relative',display:'flex',alignItems:'center',gap:4}}>
+                    {isPinned && <Pin size={12} color="#6366f1" />}
+                    {mutedChats.includes(chatKey) && <BellOff size={14} color={isLight ? "#475569" : "#888"} style={{flexShrink:0}} />}
+                    {isDmLocked ? (
+                      <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
+                    ) : unread > 0 && (
                       <span style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {unread > 9 ? '9+' : unread}
                       </span>
@@ -279,7 +916,8 @@ export default function RoomChatPanel({ p }) {
                   </div>
                 </button>
               );
-            })}
+              });
+            })()}
             {Array.from(new Set([...p.userList.filter(u=>u.username!==p.username).map(u=>u.username), ...Object.keys(p.dmThreads)])).length===0 && (
               <div style={{padding:'20px',color:'#444',fontSize:12,textAlign:'center'}}>No other users in room</div>
             )}
@@ -288,29 +926,44 @@ export default function RoomChatPanel({ p }) {
       ) : p.chatTab === 'group' ? (
         /* ===== GROUP CHAT THREAD ===== */
         <>
-          <div style={{padding:'8px 14px',borderBottom:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-            <button onClick={()=>{p.setChatTab('list');p.chatTabRef.current='list';}} style={{width:30,height:30,borderRadius:8,background:'rgba(255,255,255,0.06)',border:'none',color:'#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <div style={{padding:'8px 14px',borderBottom:'1px solid var(--room-border)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+            <button onClick={handleBackToList} style={{width:30,height:30,borderRadius:8,background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
               <ChevronLeft size={16}/>
             </button>
             <div style={{width:32,height:32,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',display:'flex',alignItems:'center',justifyContent:'center'}}>
               <Users size={15} color="#fff"/>
             </div>
             <div>
-              <div style={{fontSize:13,fontWeight:700,color:'#fff'}}>{p.roomName}</div>
-              <div style={{fontSize:10,color:'#555'}}>{p.userCount} members online</div>
+              <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
+              <div style={{fontSize:10,color: isLight ? '#64748b' : '#555'}}>{p.userCount} members online</div>
             </div>
-            <div style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
-              <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(prev=>!prev);}} style={{background:'none',border:'none',color:'#aaa',cursor:'pointer',padding:4}}><MoreVertical size={16}/></div>
+            <div ref={p.groupMenuRef} style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
+              <div 
+                onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(prev=>!prev);}} 
+                style={{background:'none',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',padding:4, transition: 'color 0.2s'}}
+                onMouseEnter={e => e.currentTarget.style.color = isLight ? '#000' : '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = isLight ? '#64748b' : '#aaa'}
+              >
+                <MoreVertical size={16}/>
+              </div>
               {p.showGroupMenu && (
-                <div style={{position:'absolute',right:0,top:'100%',background:'#1a1a2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:4,zIndex:100,minWidth:120,boxShadow:'0 4px 12px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowGroupMenu(false)}>
-                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); if(p.isHost){ p.setRenameInput(p.roomName); p.setRenameModalOpen(true); } else toast.error(t('onlyHostRename', 'Only host can rename room'));}} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'6px 8px',background:'transparent',border:'none',color:'#fff',fontSize:12,cursor:'pointer',textAlign:'left'}} className="menu-btn">
-                    <Edit2 size={12}/> {t('editName', 'Edit Name')}
+                <div className="menu-dropdown" style={{position:'absolute',right:0,top:'100%',background: isLight ? '#fff' : '#1a1a2e',border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,zIndex:100,minWidth:160,boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 10px 30px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowGroupMenu(false)}>
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); if(p.isHost){ p.setRenameInput(p.roomName); p.setRenameModalOpen(true); } else toast.error(t('onlyHostRename', 'Only host can edit this room name'));}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                    <Edit2 size={16}/> {t('editName', 'Edit Name')}
+                  </div>
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); toggleMuteChat(p.roomId);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                    {mutedChats.includes((p.roomId||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.roomId||'').toLowerCase()) ? 'Unmute' : 'Mute'}
+                  </div>
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); setClearGroupChatModalOpen(true);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                    <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                   </div>
                 </div>
               )}
             </div>
           </div>
-          <div onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+          <div 
+onScroll={handleScroll} 
+onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
             {p.groupMessages.length===0 && <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>}
             {p.groupMessages.map((msg,i)=>{
               const isMe = msg.isMe || (msg.username && msg.username === p.username) || (msg.senderName && msg.senderName === p.username);
@@ -320,26 +973,58 @@ export default function RoomChatPanel({ p }) {
                 p.groupDecryptedMediaUrls.current[msg.tempId] ||
                 p.groupDecryptedMediaUrls.current[String(msg.timestamp)]
               )) || (msg.nonce ? null : msg.mediaUrl);
-              const isMediaOnly = !!(msg.mediaType && (!msg.message || !msg.message.trim()) && (!msg.decryptedText || msg.decryptedText === ''));
+              const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
               
               return (
-                <div key={msg.id||i} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                <div key={msg.tempId || msg.id || i} id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                   {msg.replyTo && (
-                    <div style={{background:'rgba(255,255,255,0.05)',borderLeft:'3px solid #6366f1',borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%'}}>
-                      <span style={{color:'#a0aab2',fontWeight:600}}>{msg.replyTo.username}: </span>{(msg.replyTo.message || 'Media').slice(0,60)}
+                    <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid #6366f1',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
+                      <span style={{color: isLight ? '#1e293b' : '#a0aab2',fontWeight:600}}>{(() => { 
+                        const n = msg.replyTo.username || msg.replyTo.senderName; 
+                        const partner = (n||'').toLowerCase();
+                        const isRepBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner); 
+                        return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); 
+                      })()}: </span>{(() => {
+                        const raw = msg.replyTo.message || '';
+                        if (msg.replyTo.mediaType) return msg.replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                        if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
+                        if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Encrypted message';
+                        return raw.slice(0,60) || 'Message';
+                      })()}
                     </div>
                   )}
                   <div style={{display:'flex',alignItems:'center',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'85%'}}>
-                    {!isMe && <span onClick={() => navigate(`/profile/${msg.username}`)} title={`View ${msg.username}'s profile`} style={{cursor:'pointer'}}><Avatar name={msg.username} size={28} src={msg.senderAvatar ? `http://127.0.0.1:3001${msg.senderAvatar}` : null}/></span>}
+                    {!isMe && (() => {
+                      const partner = (msg.username || msg.senderName || '').toLowerCase();
+                      const isSenderBlockedByMe = blockedChats.some(u => u.toLowerCase() === partner);
+                      const amIBlockedBySender = blockingMe.some(u => u.toLowerCase() === partner);
+                      
+                      const displayUsername = amIBlockedBySender ? 'User' : (msg.username || msg.senderName);
+                      const fallbackAvatar = msg.senderAvatar || p.knownAvatars?.[msg.username || msg.senderName];
+                      const displayAvatarSrc = amIBlockedBySender ? null : (fallbackAvatar ? `${p.SOCKET_SERVER_URL}${fallbackAvatar}` : null);
+                      
+                      return <span onClick={() => !amIBlockedBySender && navigate(`/profile/${msg.username}`)} title={amIBlockedBySender ? 'Blocked User' : `View ${msg.username}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc}/></span>;
+                    })()}
                     <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
+                      {!isMe && (
+                        <span
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const sName = msg.senderName || msg.username;
+                            if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
+                          }}
+                          style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
+                          title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
+                        >{blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : (msg.senderName || msg.username)}</span>
+                      )}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}>
                         <div style={{
                           position: 'relative',
-                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : 'rgba(255,255,255,0.06)'),
+                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)')),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
-                          color:'#fff',
+                          color: isMe ? '#fff' : (isLight ? '#1e293b' : '#fff'),
                           maxWidth:'100%',
                           wordBreak:'break-word'
                         }}
@@ -348,8 +1033,8 @@ export default function RoomChatPanel({ p }) {
                           {msg.decryptedText !== null ? (
                             <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
                           ) : (
-                            (msg.message && looksLikeCiphertext(msg.message)) ? (
-                              <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}>🔒 <em>Encrypted message</em></div>
+                            (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message))) ? (
+                              <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                             ) : (
                               msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                             )
@@ -362,19 +1047,19 @@ export default function RoomChatPanel({ p }) {
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
-                                 <div style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:4, zIndex:100, boxShadow:'0 4px 12px rgba(0,0,0,0.5)', minWidth: 140}} onClick={e => e.stopPropagation()}>
+                                 <div className="menu-dropdown" style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:100, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)', minWidth: 160}} onClick={e => e.stopPropagation()}>
                                    {isMe ? (
                                      <>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                         <Trash2 size={12}/> Unsend
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
+                                         <Trash2 size={16}/> Unsend
                                        </button>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#aaa', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                         <Trash2 size={12}/> Delete for me
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#64748b' : '#aaa', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn">
+                                         <Trash2 size={16}/> Delete for me
                                        </button>
                                      </>
                                    ) : (
-                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                       <Trash2 size={12}/> Delete
+                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
+                                       <Trash2 size={16}/> Delete
                                      </button>
                                    )}
                                  </div>
@@ -393,15 +1078,19 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           )}
                         </div>
-                        <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                          <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
-                            <SmilePlus size={16}/>
-                          </button>
-                        </div>
+                        {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
+                          <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
+                              <SmilePlus size={16}/>
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div style={{display:'flex',alignItems:'center',gap:6}}>
                         <span style={{fontSize:10,color:'#444'}}>{formatTime(msg.timestamp)}</span>
-                        <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                        {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
+                          <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                        )}
                         <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.15)',cursor:'pointer',padding:0}}><Flag size={9}/></button>
                       </div>
                     </div>
@@ -417,7 +1106,7 @@ export default function RoomChatPanel({ p }) {
               );
             })}
             {Object.values(p.typingUsers).length>0 && (
-              <div style={{display:'flex',alignItems:'center',gap:8,color:'#666',fontSize:12}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12}}>
                 <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
                 {Object.values(p.typingUsers).join(', ')} {Object.values(p.typingUsers).length===1?'is':'are'} typing...
               </div>
@@ -426,7 +1115,14 @@ export default function RoomChatPanel({ p }) {
           </div>
           {p.groupReplyTo && (
             <div style={{padding:'6px 12px',background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
-              <span><span style={{color:'#6366f1',fontWeight:600}}>{p.groupReplyTo.username || p.groupReplyTo.senderName}: </span>{p.groupReplyTo.message?.slice(0,50)}</span>
+              <span><span style={{color:'#6366f1',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
+                const r = p.groupReplyTo;
+                if (r.mediaType) return r.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                if (r.decryptedText) return r.decryptedText.slice(0,50);
+                const raw = r.message || '';
+                if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return "Encrypted message";
+                return raw.slice(0,50) || 'Message';
+              })()}</span>
               <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
             </div>
           )}
@@ -470,59 +1166,141 @@ export default function RoomChatPanel({ p }) {
                     p.sendGroupChat(e); 
                     p.setShowGroupEmojiPicker(false); 
                   }} style={{display:'flex',gap:8, alignItems:'center'}}>
-                <button type="button" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color:'#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                  <SmilePlus size={20}/>
-                </button>
-                <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':'#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
-                  {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18}/>}
-                </button>
-                <input type="file" ref={fileInputRef} style={{display:'none'}} accept="image/*,video/*" onChange={(e) => handleFileSelect(e, 'group')} />
-                <input ref={p.groupInputRef} value={p.groupChatInput} onChange={e=>{p.handleChatInputChange(e.target.value, 'room'); p.setGroupChatInput(e.target.value);}} onFocus={() => p.setShowGroupEmojiPicker(false)} placeholder={isGuest ? 'Guests cannot chat' : t('msgRoomPlace', 'Message the room...')} disabled={isDisabled} style={{flex:1,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:13,outline:'none'}}/>
-                <button type="submit" disabled={isDisabled||!p.groupChatInput.trim()} style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1}}>
-                  <Send size={15}/>
-                </button>
-              </form>
+                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                      <input type="file" ref={fileInputRef} style={{display:'none'}} accept="image/*,video/*" onChange={(e) => handleFileSelect(e, 'group')} />
+                      <input 
+                        ref={p.groupInputRef} 
+                        value={p.groupChatInput} 
+                        onChange={e=>{p.handleChatInputChange(e.target.value, 'room'); p.setGroupChatInput(e.target.value);}} 
+                        onFocus={() => p.setShowGroupEmojiPicker(false)} 
+                        placeholder={isGuest ? 'Guests cannot chat' : t('msgRoomPlace', 'Message the room...')} 
+                        disabled={isDisabled} 
+                        style={{
+                          flex:1,
+                          background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
+                          border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                          borderRadius:10,
+                          padding:'8px 12px',
+                          paddingRight: (!p.groupChatInput && !isUploading) ? '65px' : '12px',
+                          color: isLight ? '#1e293b' : '#fff',
+                          fontSize:13,
+                          outline:'none',
+                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                        }}
+                      />
+                      
+                      {(!p.groupChatInput && !isUploading) && (
+                        <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.setShowGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                            <SmilePlus size={18}/>
+                          </button>
+                          <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1' : (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                            <Paperclip size={18}/>
+                          </button>
+                        </div>
+                      )}
+                      
+                      {isUploading && (
+                        <div style={{ position: 'absolute', right: 10 }}>
+                          <Loader2 size={16} className="animate-spin" color="#6366f1" />
+                        </div>
+                      )}
+                    </div>
+                    <button type="submit" disabled={isDisabled||!p.groupChatInput.trim()} style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1, flexShrink: 0}}>
+                      <Send size={15}/>
+                    </button>
+                  </form>
               );
             })()}
           </div>
         </>
       ) : (
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ DM Thread Ã¢â€â‚¬Ã¢â€â‚¬ */
+        /* ===== DM Thread ===== */
         <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0}}>
             {p.dmTarget ? (() => {
               const uObj = p.userList.find(u=>u.username===p.dmTarget);
               const isOnline = !!uObj;
               return (
               <>
-                <div style={{padding:'8px 14px',borderBottom:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
-                  <button onClick={()=>{p.setChatTab('list');p.chatTabRef.current='list';p.setDmTarget(null);if(p.dmTargetRef)p.dmTargetRef.current=null;}} style={{width:30,height:30,borderRadius:8,background:'rgba(255,255,255,0.06)',border:'none',color:'#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <div style={{padding:'8px 14px',borderBottom:'1px solid var(--room-border)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+                  <button onClick={handleBackToList} style={{width:30,height:30,borderRadius:8,background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                     <ChevronLeft size={16}/>
                   </button>
-                  <Avatar name={p.dmTarget} size={32} src={p.userList.find(u=>u.username===p.dmTarget)?.avatarPath ? `http://127.0.0.1:3001${p.userList.find(u=>u.username===p.dmTarget)?.avatarPath}` : null}/>
-                  <div>
-                    <div
-                      onClick={() => navigate(`/profile/${p.dmTarget}`)}
-                      title={`View ${p.dmTarget}'s profile`}
-                      style={{fontSize:13,fontWeight:700,color:isOnline?'#fff':'#aaa',display:'flex',alignItems:'center',gap:5,cursor:'pointer'}}
+                  {(() => {
+                    const partner = p.dmTarget.toLowerCase();
+                    const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
+                    const displayUname = isBlocked ? 'User' : p.dmTarget;
+                    const uObj = p.userList.find(u => u.username === p.dmTarget);
+                    
+                    // Check if we have public keys for this user in any cache
+                    const hasTargetKeys = (uObj?.publicKey) || (p.dbPublicKeys?.current?.[partner]) || localStorage.getItem(`wt_pk_${partner}`);
+                    
+                    const threadAvatar = (p.dmThreads[p.dmTarget]||[]).find(m => m.senderName === p.dmTarget && m.senderAvatar)?.senderAvatar;
+                    const groupAvatar = p.groupMessages.find(m => (m.username === p.dmTarget || m.senderName === p.dmTarget) && m.senderAvatar)?.senderAvatar;
+                    const fallbackAvatar = threadAvatar || groupAvatar || p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[p.dmTarget.toLowerCase()];
+
+                    const displayAvatarSrc = isBlocked ? null : (
+                      (uObj?.avatarPath ? `${p.SOCKET_SERVER_URL}${uObj.avatarPath}` : null) || 
+                      (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null)
+                    );
+
+                    return (
+                      <>
+                        <Avatar name={displayUname} size={32} src={displayAvatarSrc}/>
+                        <div>
+                          <div
+                            onClick={() => !isBlocked && navigate(`/profile/${p.dmTarget}`)}
+                            title={isBlocked ? 'Blocked User' : `View ${p.dmTarget}'s profile`}
+                            style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff',display:'flex',alignItems:'center',gap:5,cursor:isBlocked?'default':'pointer'}}
+                          >
+                            {displayUname}
+                          </div>
+                          <div style={{fontSize:10,color:(isOnline && !isBlocked)?(hasTargetKeys ? '#10b981' : (isLight ? '#f59e0b' : '#f59e0b')):(isLight ? '#64748b' : '#666'),display:'flex',alignItems:'center',gap:4}}>
+                            {(isOnline && !isBlocked) ? (
+                              hasTargetKeys ? <><Lock size={9}/>Online / E2E Encrypted</> : <><Lock size={9} style={{color:'#f59e0b'}}/>Online / Keys Missing</>
+                            ) : 'Offline'}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                  <div ref={p.dmMenuRef} style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
+                    <div 
+                      onClick={e=>{e.stopPropagation(); p.setShowDmMenu(p.showDmMenu===p.dmTarget?null:p.dmTarget);}} 
+                      style={{background:'none',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',padding:4, transition: 'color 0.2s'}}
+                      onMouseEnter={e => e.currentTarget.style.color = isLight ? '#000' : '#fff'}
+                      onMouseLeave={e => e.currentTarget.style.color = isLight ? '#64748b' : '#aaa'}
                     >
-                      {p.dmTarget}
+                      <MoreVertical size={16}/>
                     </div>
-                    <div style={{fontSize:10,color:isOnline?'#10b981':'#666',display:'flex',alignItems:'center',gap:4}}>
-                      {isOnline ? <><Lock size={9}/>Online / E2E Encrypted</> : 'Offline'}
-                    </div>
-                  </div>
-                  <div style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
-                    <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(p.showDmMenu===p.dmTarget?null:p.dmTarget);}} style={{background:'none',border:'none',color:'#aaa',cursor:'pointer',padding:4}}><MoreVertical size={16}/></div>
                     {p.showDmMenu === p.dmTarget && (
-                      <div style={{position:'absolute',right:0,top:'100%',background:'#1a1a2e',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:4,zIndex:100,minWidth:120,boxShadow:'0 4px 12px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowDmMenu(null)}>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:6,width:'100%',padding:'6px 8px',background:'transparent',border:'none',color:'#ef4444',fontSize:12,cursor:'pointer',textAlign:'left'}} className="menu-btn">
-                          <Trash2 size={12}/> {t('clearChat', 'Clear Chat')}
+                      <div className="menu-dropdown" style={{position:'absolute',right:0,top:'100%',background: isLight ? '#fff' : '#1a1a2e',border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,zIndex:100,minWidth:180,boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowDmMenu(null)}>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); togglePinRoomChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                          <Pin size={16}/> {pinnedRoomChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unpin Chat' : 'Pin Chat'}
+                        </div>
+                        <div onClick={e=>{e.stopPropagation(); toggleHideChat((p.dmTarget||'').toLowerCase());}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                          <Lock size={16}/> {hiddenChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unhide Chat' : 'Hide Chat'}
+                        </div>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                          {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unmute' : 'Mute'}
+                        </div>
+                        <div style={{ height: '1px', background: isLight ? 'rgba(0, 0, 0, 0.4)' : 'rgba(255, 255, 255, 0.15)', margin: '6px 8px' }} />
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                          <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? 'Unblock' : 'Block'}
+                        </div>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                          <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
+                        </div>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setDeleteChatConfirm({key: p.dmTarget, type: 'dm', name: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                          <Trash2 size={16}/> Delete Chat
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
-                <div onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
+                <div 
+onScroll={handleScroll} 
+onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
                   {(p.dmThreads[p.dmTarget]||[]).length===0 && (
                     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:6}}>
                       <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
@@ -536,32 +1314,45 @@ export default function RoomChatPanel({ p }) {
                       p.dmDecryptedMediaUrls.current[msg.tempId] ||
                       p.dmDecryptedMediaUrls.current[String(msg.timestamp)]
                     )) || (msg.nonce ? null : msg.mediaUrl);
-                    const isMediaOnly = !!(msg.mediaType && (!msg.message || !msg.message.trim()) && (!msg.decryptedText || msg.decryptedText === ''));
+                    const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
 
                     return (
-                      <div key={msg.id||i} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                      <div key={msg.tempId || msg.id || i} id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                         {msg.replyTo && (
-                          <div style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%'}}>
-                            <span style={{color:'#6366f1',fontWeight:600}}>{msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName}: </span>{(msg.replyTo.message || 'Media').slice(0,60)}
+                          <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
+                            <span style={{color:'#6366f1',fontWeight:600}} className="reply-sender">
+                              {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
+                            </span> {(() => {
+                              const raw = msg.replyTo.message || '';
+                              if (msg.replyTo.mediaType) return msg.replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                              if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
+                              if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Encrypted message';
+                              return raw.slice(0,60) || 'Message';
+                            })()}
                           </div>
                         )}
                         <div style={{display:'flex',alignItems:'center',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'85%'}}>
                           {!isMe && (() => {
-                            const uObj = p.userList.find(u => u.username === msg.senderName);
-                            const avatarSrc = msg.senderAvatar
-                              ? `${p.SOCKET_SERVER_URL}${msg.senderAvatar}`
-                              : (uObj?.avatarPath ? `${p.SOCKET_SERVER_URL}${uObj.avatarPath}` : null);
-                            return <Avatar name={msg.senderName} size={28} src={avatarSrc}/>;
+                            const rName = msg.senderName || msg.username;
+                            const partner = (rName || '').toLowerCase();
+                            const isSenderBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
+                            const displayUsername = isSenderBlocked ? 'User' : rName;
+                            const uObj = p.userList.find(u => u.username === rName);
+                            const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
+                            const avatarSrc = isSenderBlocked ? null : (fallbackMsgAvatar
+                              ? (fallbackMsgAvatar.startsWith('http') ? fallbackMsgAvatar : `${p.SOCKET_SERVER_URL}${fallbackMsgAvatar}`)
+                              : null);
+                            return <Avatar name={displayUsername} size={28} src={avatarSrc}/>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}>
                               <div style={{
                                 position: 'relative',
-                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : 'rgba(255,255,255,0.06)'),
+                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)')),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
-                                color:isMe?'#fff':'#ddd',
+                                color: isMe ? '#fff' : (isLight ? '#1e293b' : '#ddd'),
                                 maxWidth:'100%',
                                 wordBreak:'break-word'
                               }}
@@ -570,8 +1361,8 @@ export default function RoomChatPanel({ p }) {
                                 {msg.decryptedText !== null ? (
                                   <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
                                 ) : (
-                                  (msg.message && looksLikeCiphertext(msg.message)) ? (
-                                    <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}>🔒 <em>Encrypted message</em></div>
+                                  (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message))) ? (
+                                    <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                   ) : (
                                     msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                                   )
@@ -580,23 +1371,25 @@ export default function RoomChatPanel({ p }) {
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                    <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                    <button 
+                                      ref={activeMessageMenu === msg.id ? messageMenuRef : null}
+                                      onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
                                     {activeMessageMenu === msg.id && (
-                                 <div style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:4, zIndex:100, boxShadow:'0 4px 12px rgba(0,0,0,0.5)', minWidth: 140}} onClick={e => e.stopPropagation()}>
+                                 <div className="menu-dropdown" style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:100, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)', minWidth: 160}} onClick={e => e.stopPropagation()}>
                                    {isMe ? (
                                      <>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                         <Trash2 size={12}/> Unsend
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
+                                         <Trash2 size={16}/> Unsend
                                        </button>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#aaa', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                         <Trash2 size={12}/> Delete for me
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#64748b' : '#aaa', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn">
+                                         <Trash2 size={16}/> Delete for me
                                        </button>
                                      </>
                                    ) : (
-                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                       <Trash2 size={12}/> Delete
+                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
+                                       <Trash2 size={16}/> Delete
                                      </button>
                                    )}
                                  </div>
@@ -615,67 +1408,162 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                               </div>
-                              <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                                <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
-                                  <SmilePlus size={16}/>
-                                </button>
-                              </div>
+                                {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
+                                  <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
+                                      <SmilePlus size={16}/>
+                                    </button>
+                                  </div>
+                                )}
                             </div>
                             <div style={{display:'flex',alignItems:'center',gap:6}}>
                               <span style={{fontSize:10,color:'#444'}}>{formatTime(msg.timestamp)}</span>
-                              <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                              {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
+                                <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                              )}
                             </div>
                           </div>
                         </div>
                         <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                            <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background:'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1':'rgba(255,255,255,0.1)'}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color:'#ddd'}}>
+                            <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}
                             </button>
                           ))}
                         </div>
                       </div>
-                    );
+                    )
                   })}
-                  {Object.values(p.typingUsers).length > 0 && (
-                    <div style={{display:'flex',alignItems:'center',gap:8,color:'#666',fontSize:12,padding:'2px 0'}}>
-                      <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
-                      {Object.values(p.typingUsers).join(', ')} {Object.values(p.typingUsers).length===1?'is':'are'} typing...
-                    </div>
-                  )}
                   <div ref={p.messagesEndRef}/>
                 </div>
-                <div style={{padding:'10px 12px',borderTop:'1px solid rgba(255,255,255,0.07)',flexShrink:0,position:'relative'}}>
+                <div style={{padding:'10px 12px',borderTop:'1px solid var(--room-border)',flexShrink:0,position:'relative'}}>
                   {p.dmReplyTo && (
-                    <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
-                      <span><span style={{color:'#6366f1',fontWeight:600}}>{p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName}: </span>{(p.dmReplyTo.message || 'Media').slice(0,50)}</span>
-                      <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
+                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(99,102,241,0.04)' : 'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+                      <span><span style={{color:'#6366f1',fontWeight:600}}>
+                        {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
+                      </span> {(() => {
+                        const r = p.dmReplyTo;
+                        if (r.mediaType) return r.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                        if (r.decryptedText) return r.decryptedText.slice(0,50);
+                        return (r.message||'').slice(0,50) + ((r.message||'').length > 50 ? '...' : '');
+                      })()}</span>
+                      <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'#6366f1',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>
                   )}
-                  
-                  {p.showDmEmojiPicker && (
-                    <div style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onClick={(e) => e.stopPropagation()}>
-                      <Picker data={data} onEmojiSelect={(e) => p.setDmChatInput(prev => prev + e.native)} theme="dark" previewPosition="none" searchPosition="none" navPosition="bottom" />
-                    </div>
-                  )}
-                  
+
                   {(() => {
                     const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+                    const didIBlock = blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase());
+                    const amIBlocked = blockingMe.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase());
+
+                    if (didIBlock || amIBlocked) {
+                      return (
+                        <div className="blocked-banner-v2" style={{
+                          background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.03)', 
+                          border: '1px solid var(--room-border)', 
+                          borderRadius: 16, 
+                          padding: '16px 20px', 
+                          textAlign: 'center',
+                          margin: '16px',
+                          marginBottom: 4
+                        }}>
+                          <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                            <Ban size={18} color="#ef4444" />
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#1e293b' : '#fff', marginBottom: 4 }}>
+                            {didIBlock ? 'You blocked this person' : "You can't message this person right now"}
+                          </div>
+                          <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
+                            {didIBlock 
+                              ? 'Unblock them in your account settings to send messages.' 
+                              : 'This user is currently unavailable.'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    // While fetching relation, show a neutral loading state — never show the input prematurely
+                    if (dmRelationLoading) {
+                      return (
+                        <div style={{ padding: '16px 20px', textAlign: 'center', color: '#555', fontSize: 12 }}>
+                          Checking permissions...
+                        </div>
+                      );
+                    }
+
+                    // Friendship required — not mutual followers
+                    const areFriends = dmRelation && dmRelation.followStatus === 'accepted' && dmRelation.isFollowingMe;
+                    if (dmRelation && !areFriends) {
+                      return (
+                        <div className="blocked-banner-v2" style={{
+                          background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.03)', 
+                          border: '1px solid var(--room-border)', 
+                          borderRadius: 16, 
+                          padding: '16px 20px', 
+                          textAlign: 'center',
+                          margin: '16px',
+                          marginBottom: 4
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#1e293b' : '#fff', marginBottom: 4 }}>
+                            Friendship Required
+                          </div>
+                          <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
+                            You need to follow each other to send messages.
+                          </p>
+                          <a href={`/profile/${p.dmTarget}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 12, padding: '6px 12px', background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.1)', color: '#a855f7', borderRadius: 6, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>
+                            View Profile
+                          </a>
+                        </div>
+                      );
+                    }
+
                     return (
                       <form onSubmit={(e) => { 
-                          if (isGuest) { e.preventDefault(); toast.error('Guests cannot chat'); return; }
-                          p.sendDmChat(e); 
-                          p.setShowDmEmojiPicker(false); 
-                        }} style={{display:'flex',gap:8,alignItems:'center'}}>
-                        <button type="button" disabled={isGuest} onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color:isGuest?'#555':'#aaa',cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                          <SmilePlus size={20}/>
-                        </button>
-                        <button type="button" disabled={isUploading || isGuest} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':(isGuest?'#555':'#aaa'),cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                          {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18}/>}
-                        </button>
-                        <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/*" onChange={(e) => handleFileSelect(e, 'dm')} />
-                        <input ref={p.dmInputRef} value={p.dmChatInput} onChange={e=>{p.handleChatInputChange(e.target.value, 'private'); p.setDmChatInput(e.target.value);}} onFocus={() => p.setShowDmEmojiPicker(false)} placeholder={isGuest ? 'Guests cannot chat' : p.userList.some(u => u.username === p.dmTarget) ? "Private message..." : "Offline message..."} disabled={isGuest} style={{flex:1,background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:10,padding:'8px 12px',color:'#fff',fontSize:13,outline:'none'}}/>
-                        <button type="submit" disabled={!p.dmChatInput.trim() || isGuest} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',color:'#fff',cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isGuest)?0.5:1}}>
+                        if (isGuest) { e.preventDefault(); toast.error('Guests cannot chat'); return; }
+                        p.sendDmChat(e); 
+                        p.setShowDmEmojiPicker(false); 
+                      }} style={{display:'flex',gap:8,alignItems:'center'}}>
+                        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                          <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/*" onChange={(e) => handleFileSelect(e, 'dm')} />
+                          <input 
+                            ref={p.dmInputRef} 
+                            value={p.dmChatInput} 
+                            onChange={e=>{p.handleChatInputChange(e.target.value, 'private'); p.setDmChatInput(e.target.value);}} 
+                            onFocus={() => p.setShowDmEmojiPicker(false)} 
+                            placeholder={isGuest ? 'Guests cannot chat' : p.userList.some(u => u.username === p.dmTarget) ? "Private message..." : "Offline message..."} 
+                            disabled={isGuest} 
+                            style={{
+                              flex:1,
+                              background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
+                              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                              borderRadius:10,
+                              padding:'8px 12px',
+                              paddingRight: (!p.dmChatInput && !isUploading) ? '65px' : '12px',
+                              color: isLight ? '#1e293b' : '#fff',
+                              fontSize:13,
+                              outline:'none',
+                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                            }}
+                          />
+                          
+                          {(!p.dmChatInput && !isUploading) && (
+                            <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
+                              <button type="button" disabled={isGuest} onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color:isGuest?'#555': (isLight ? '#64748b' : '#aaa'),cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                <SmilePlus size={18}/>
+                              </button>
+                              <button type="button" disabled={isUploading || isGuest} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':(isGuest?'#555': (isLight ? '#64748b' : '#aaa')),cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                <Paperclip size={18}/>
+                              </button>
+                            </div>
+                          )}
+                          
+                          {isUploading && (
+                            <div style={{ position: 'absolute', right: 10 }}>
+                              <Loader2 size={16} className="animate-spin" color="#6366f1" />
+                            </div>
+                          )}
+                        </div>
+                        <button type="submit" disabled={!p.dmChatInput.trim() || isGuest || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',color:'#fff',cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isGuest||isUploading)?0.5:1, flexShrink: 0}}>
                           <Send size={14}/>
                         </button>
                       </form>
@@ -702,10 +1590,119 @@ export default function RoomChatPanel({ p }) {
           }}/>
         </div>
       )}
+
+      {/* Scroll to Bottom Button */}
+      {showScrollArrow && p.chatTab !== 'list' && (
+        <div 
+          onClick={(e) => { e.stopPropagation(); scrollToBottom(); }}
+          style={{
+            position: 'absolute',
+            bottom: 85,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            borderRadius: '50%',
+            width: 42,
+            height: 42,
+            cursor: 'pointer',
+            zIndex: 9999,
+            boxShadow: '0 0 20px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            border: '2px solid rgba(255,255,255,0.15)',
+            animation: 'msg-enter 0.4s ease forwards'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1.1)'; e.currentTarget.style.boxShadow = '0 0 25px rgba(99, 102, 241, 0.6), 0 6px 15px rgba(0,0,0,0.6)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(0,0,0,0.5)'; }}
+        >
+          <ArrowDown color="white" size={22} />
+        </div>
+      )}
+
     </div>
+    
+      {/* Clear Group Chat Modal */}
+      {clearGroupChatModalOpen && (
+        <div style={{position:'fixed',inset:0,zIndex:99999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center', backdropFilter: 'blur(14px) saturate(180%)', WebkitBackdropFilter: 'blur(14px) saturate(180%)'}} className="room-modals-overlay">
+          <div style={{background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 400, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.5)'}}>
+            <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>Clear Chat</h3>
+            <p style={{color: isLight ? 'rgba(0,0,0,0.6)' : '#aaa',fontSize:15,marginBottom:28,lineHeight:1.6}}>Are you sure you want to clear your chat history with <strong style={{color: isLight ? '#000' : '#fff'}}>{p.roomName}</strong>?</p>
+            <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
+              <button onClick={()=>setClearGroupChatModalOpen(false)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>{ 
+                if (p.clearRoomChat) p.clearRoomChat(); 
+                setClearGroupChatModalOpen(false); 
+              }} 
+                className="danger-red-btn"
+                style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                <span style={{color: '#fff'}}>Clear Chat</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Chat Confirmation Modal */}
+      {deleteChatConfirm && (
+        <div style={{position:'fixed',inset:0,zIndex:99999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center', backdropFilter: 'blur(14px) saturate(180%)', WebkitBackdropFilter: 'blur(14px) saturate(180%)'}} className="room-modals-overlay">
+          <div style={{background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 400, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.5)'}}>
+            <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>Delete Chat</h3>
+            <p style={{color: isLight ? 'rgba(0,0,0,0.6)' : '#aaa',fontSize:15,marginBottom:28,lineHeight:1.6}}>Are you sure you want to delete your conversation with <strong style={{color: isLight ? '#000' : '#fff'}}>{deleteChatConfirm.name}</strong>? This will remove it from your chat list.</p>
+            <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
+              <button onClick={()=>setDeleteChatConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>{ 
+                handleDeleteChat(deleteChatConfirm.key, deleteChatConfirm.type);
+                setDeleteChatConfirm(null); 
+              }} 
+                className="danger-red-btn"
+                style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                <span style={{color: '#fff'}}>Delete Chat</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Block User Confirmation Modal */}
+      {blockUserConfirm && (
+        <div style={{position:'fixed',inset:0,zIndex:99999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center', backdropFilter: 'blur(14px) saturate(180%)', WebkitBackdropFilter: 'blur(14px) saturate(180%)'}} className="room-modals-overlay">
+          <div style={{background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 400, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.5)'}}>
+            <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>
+              {blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock User' : 'Block User'}
+            </h3>
+            <p style={{color: isLight ? 'rgba(0,0,0,0.6)' : '#aaa',fontSize:15,marginBottom:28,lineHeight:1.6}}>
+              {blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) 
+                ? `Are you sure you want to unblock ` 
+                : `Are you sure you want to block `}
+              <strong style={{color: isLight ? '#000' : '#fff'}}>{blockUserConfirm.username}</strong>
+              {blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) 
+                ? `?` 
+                : `? They won't be able to message you.`}
+            </p>
+            <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
+              <button onClick={()=>setBlockUserConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>{ 
+                toggleBlockUser(blockUserConfirm.username);
+                setBlockUserConfirm(null); 
+              }} 
+                className="danger-red-btn"
+                style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
+                <span style={{color: '#fff'}}>{blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock' : 'Block'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+
+
+
+
+
 
 
 

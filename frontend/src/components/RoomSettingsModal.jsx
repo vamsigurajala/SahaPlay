@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/CropImage';
 
-const API = 'http://127.0.0.1:3001';
+const API = 'http://localhost:3001';
 
 const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
   const [avatar, setAvatar] = useState(null);
@@ -28,7 +28,7 @@ const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color, fontSize: 13, fontWeight: 800, overflow: 'hidden' }}>
           {avatar ? <img src={`${API}${avatar}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : uname.slice(0,2).toUpperCase()}
         </div>
-        <span style={{ fontSize: 15, color: '#eee', fontWeight: 600 }}>@{uname}</span>
+        <span style={{ fontSize: 15, color: document.documentElement.getAttribute('data-theme') === 'light' ? '#000' : '#eee', fontWeight: 600 }}>@{uname}</span>
       </div>
        <button
          onClick={() => {
@@ -54,6 +54,7 @@ export default function RoomSettingsModal({
   isHost,
   roomId
 }) {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const [activeTab, setActiveTab] = useState('general');
   const [roomName, setRoomName] = useState(room?.roomName || '');
   const [permissions, setPermissions] = useState(room?.permissions || { changeMedia: 'all', chat: 'all', cam: 'all' });
@@ -177,8 +178,8 @@ export default function RoomSettingsModal({
       onClick={() => setActiveTab(id)}
       style={{
         position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderRadius: 10, border: 'none',
-        background: activeTab === id ? 'rgba(99,102,241,0.15)' : 'transparent',
-        color: activeTab === id ? '#818cf8' : '#888',
+        background: activeTab === id ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.15)') : 'transparent',
+        color: activeTab === id ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#000' : '#888'),
         fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
       }}
     >
@@ -191,30 +192,52 @@ export default function RoomSettingsModal({
     <>
       <div 
         onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(15, 10, 35, 0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      style={{ position: 'absolute', inset: 0, zIndex: 10000, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
     >
       <div 
         onClick={e => e.stopPropagation()}
         className="modal-enter" 
-        style={{ position: 'relative', background: 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 28, width: '100%', maxWidth: 740, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
+        style={{ position: 'relative', background: isLight ? '#fff' : 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 28, width: '100%', maxWidth: 740, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
       >
         
         {/* Absolute Close Button */}
-        <button onClick={onClose} style={{ position: 'absolute', top: -2, right: -58, width: 48, height: 48, borderRadius: '50%', background: 'rgba(30, 27, 46, 0.8)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, backdropFilter: 'blur(10px)', boxShadow: '0 8px 16px rgba(0,0,0,0.5)', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} onMouseEnter={e => { e.currentTarget.style.background='rgba(45, 41, 69, 0.9)'; e.currentTarget.style.transform='scale(1.1) rotate(90deg)'; e.currentTarget.style.borderColor='rgba(168, 85, 247, 0.4)' }} onMouseLeave={e => { e.currentTarget.style.background='rgba(30, 27, 46, 0.8)'; e.currentTarget.style.transform='scale(1) rotate(0deg)'; e.currentTarget.style.borderColor='rgba(255, 255, 255, 0.1)' }}>
+        <button 
+          onClick={onClose} 
+          style={{ 
+            position: 'absolute', top: -2, right: -58, width: 48, height: 48, borderRadius: '50%', 
+            background: isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)', 
+            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.1)', 
+            color: isLight ? '#000' : '#fff', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, 
+            backdropFilter: 'blur(10px)', 
+            boxShadow: isLight ? 'none' : '0 8px 16px rgba(0,0,0,0.5)', 
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+          }} 
+          onMouseEnter={e => { 
+            e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(45, 41, 69, 0.9)'; 
+            e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)'; 
+            e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(168, 85, 247, 0.4)'; 
+          }} 
+          onMouseLeave={e => { 
+            e.currentTarget.style.background = isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)'; 
+            e.currentTarget.style.transform = 'scale(1) rotate(0deg)'; 
+            e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)'; 
+          }}
+        >
           <X size={22} />
         </button>
         
         {/* Header */}
-        <div style={{ padding: '24px 30px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '24px 30px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>Room Settings</h2>
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Manage your room preferences and security</p>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: isLight ? '#000' : '#fff', margin: 0, letterSpacing: '-0.5px' }}>Room Settings</h2>
+            <p style={{ fontSize: 13, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Manage your room preferences and security</p>
           </div>
         </div>
 
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Sidebar */}
-          <div style={{ width: 220, padding: 24, background: 'rgba(21, 10, 46, 0.4)', borderRight: '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <TabButton id="general" label="General" icon={Settings} />
             <TabButton id="media" label="Media Player" icon={Zap} />
             <TabButton id="security" label="Security" icon={Shield} />
@@ -226,11 +249,11 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Room Name */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Name</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Name</label>
                   <input 
                     value={roomName}
                     onChange={e => setRoomName(e.target.value)}
-                    style={{ width: '100%', padding: '16px 20px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 16, color: '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
+                    style={{ width: '100%', padding: '16px 20px', background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 16, color: isLight ? '#000' : '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
                     placeholder="Enter room name..."
                     onFocus={e => { e.target.style.borderColor = '#a855f7'; e.target.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.2)'; e.target.style.background = 'rgba(0,0,0,0.4)'; }}
                     onBlur={e => { e.target.style.borderColor = 'rgba(168, 85, 247, 0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(0,0,0,0.3)'; }}
@@ -240,9 +263,9 @@ export default function RoomSettingsModal({
 
                 {/* Thumbnail */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Thumbnail</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Thumbnail</label>
                   <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-                    <div style={{ width: 160, height: 100, borderRadius: 18, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+                    <div style={{ width: 160, height: 100, borderRadius: 18, background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)' }}>
                       {thumbnail ? (
                         <img src={`${API}${thumbnail}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
@@ -262,10 +285,10 @@ export default function RoomSettingsModal({
                         accept="image/*" 
                         onChange={handleFileSelect} 
                       />
-                      <label htmlFor="thumb-upload" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: 'rgba(255,255,255,0.05)', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <label htmlFor="thumb-upload" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: isLight ? '#fff' : 'rgba(255,255,255,0.05)', borderRadius: 10, color: isLight ? '#334155' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)' }}>
                         <Camera size={16} /> Choose New
                       </label>
-                      <p style={{ fontSize: 12, color: '#555', marginTop: 10, lineHeight: 1.4 }}>Recommended size: 1200x800px. JPG or PNG.</p>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#555', marginTop: 10, lineHeight: 1.4 }}>Recommended size: 1200x800px. JPG or PNG.</p>
                     </div>
                   </div>
                 </div>
@@ -276,47 +299,47 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Custom Name */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 10 }}>Media Player Name</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', marginBottom: 10 }}>Media Player Name</label>
                   <input 
                     value={settings.playerCustomName}
                     onChange={e => setSettings({...settings, playerCustomName: e.target.value})}
-                    style={{ width: '100%', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', outline: 'none' }}
+                    style={{ width: '100%', padding: '12px 14px', background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: isLight ? '#000' : '#fff', outline: 'none' }}
                   />
                 </div>
 
                 {/* Audio Ducking */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', gap: 14 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
                       <Volume2 size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Audio Ducking</h4>
-                      <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Lower media volume when others speak</p>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Audio Ducking</h4>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Lower media volume when others speak</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => setSettings({...settings, audioDucking: !settings.audioDucking})}
-                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
                   >
                     <div style={{ position: 'absolute', top: 3, left: settings.audioDucking ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                   </button>
                 </div>
 
                 {/* Webcam Sync */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', gap: 14 }}>
                     <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
                       <Video size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Webcam Syncing</h4>
-                      <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>Coordinate camera grids across users</p>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Webcam Syncing</h4>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Coordinate camera grids across users</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => setSettings({...settings, webcamSync: !settings.webcamSync})}
-                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.webcamSync ? '#10b981' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.webcamSync ? '#10b981' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
                   >
                     <div style={{ position: 'absolute', top: 3, left: settings.webcamSync ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                   </button>
@@ -328,19 +351,19 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Access Management */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Access Management</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Access Management</label>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {/* Lock Room Toggle */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: isLight ? '#fff' : 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.1)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <Lock size={18} color="#a855f7" />
-                          <span style={{ fontSize: 13, color: '#eee', fontWeight: 700 }}>Lock Room</span>
+                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>Lock Room</span>
                         </div>
                         <button 
                           onClick={() => setSettings({...settings, lockRoom: !settings.lockRoom})}
-                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.lockRoom ? '#a855f7' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.lockRoom ? '#a855f7' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
                         >
                           <div style={{ position: 'absolute', top: 2, left: settings.lockRoom ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                         </button>
@@ -351,15 +374,15 @@ export default function RoomSettingsModal({
                     </div>
 
                     {/* Logged In Only Toggle */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: 'rgba(59, 130, 246, 0.04)', borderRadius: 16, border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: isLight ? '#fff' : 'rgba(59, 130, 246, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(59, 130, 246, 0.1)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <UserCheck size={18} color="#3b82f6" />
-                          <span style={{ fontSize: 13, color: '#eee', fontWeight: 700 }}>Members Only</span>
+                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>Members Only</span>
                         </div>
                         <button 
                           onClick={() => setSettings({...settings, onlyLoggedIn: !settings.onlyLoggedIn})}
-                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.onlyLoggedIn ? '#3b82f6' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.onlyLoggedIn ? '#3b82f6' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
                         >
                           <div style={{ position: 'absolute', top: 2, left: settings.onlyLoggedIn ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                         </button>
@@ -373,29 +396,29 @@ export default function RoomSettingsModal({
 
                 {/* Admin Privileges */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Admin Privileges</label>
-                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '20px 24px', background: 'rgba(16, 185, 129, 0.04)', borderRadius: 16, border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Admin Privileges</label>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '20px 24px', background: isLight ? '#f8fafc' : 'rgba(16, 185, 129, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(16, 185, 129, 0.1)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <Shield size={20} color="#10b981" />
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: 0 }}>Auto-Admin Members</h4>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Auto-Admin Members</h4>
                       </div>
                       <button 
                         onClick={() => setSettings({...settings, newMembersAdmins: !settings.newMembersAdmins})}
-                        style={{ width: 44, height: 24, borderRadius: 12, background: settings.newMembersAdmins ? '#10b981' : '#333', border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
+                        style={{ width: 44, height: 24, borderRadius: 12, background: settings.newMembersAdmins ? '#10b981' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
                       >
                         <div style={{ position: 'absolute', top: 3, left: settings.newMembersAdmins ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                       </button>
                     </div>
                     <div style={{ paddingLeft: 34 }}>
-                      <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Give new members admin permissions by default</p>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: 0 }}>Give new members admin permissions by default</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Permissions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Permissions</label>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>Permissions</label>
                   
                   {[
                     { id: 'chat', label: 'Who can send messages?', icon: Zap },
@@ -404,17 +427,17 @@ export default function RoomSettingsModal({
                   ].map(p => {
                     const val = permissions[p.id] || 'all';
                     return (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', background: 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: '1px solid rgba(168, 85, 247, 0.1)' }}>
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', background: isLight ? '#f8fafc' : 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.1)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                            <p.icon size={16} color="#a855f7" />
-                           <span style={{ fontSize: 13, color: '#eee', fontWeight: 500 }}>{p.label}</span>
+                           <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 500 }}>{p.label}</span>
                         </div>
-                        <div style={{ display: 'flex', background: 'rgba(10, 5, 25, 0.6)', padding: 4, borderRadius: 10 }}>
+                        <div style={{ display: 'flex', background: isLight ? '#e2e8f0' : 'rgba(10, 5, 25, 0.6)', padding: 4, borderRadius: 10 }}>
                           {['all', 'host'].map(v => (
                             <button 
                               key={v}
                               onClick={() => setPermissions({...permissions, [p.id]: v})}
-                              style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'transparent', color: val === v ? '#fff' : '#555', transition: 'all 0.3s' }}
+                              style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'transparent', color: val === v ? (isLight ? '#fefefe' : '#fff') : (isLight ? '#000' : '#555'), transition: 'all 0.3s' }}
                             >
                               {v === 'all' ? 'ALL' : 'HOST ONLY'}
                             </button>
@@ -427,20 +450,20 @@ export default function RoomSettingsModal({
 
                 {/* Chat Filtering */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Messaging Controls</label>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>Messaging Controls</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {[
                       { id: 'allowLinks', label: 'Allow Links', icon: Link2 },
                       { id: 'allowMedia', label: 'Allow Media', icon: ImageIcon },
                     ].map(f => (
-                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.02)', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <f.icon size={14} color="#888" />
-                          <span style={{ fontSize: 12, color: '#bbb' }}>{f.label}</span>
+                          <f.icon size={14} color={isLight ? '#64748b' : '#888'} />
+                          <span style={{ fontSize: 12, color: isLight ? '#334155' : '#bbb' }}>{f.label}</span>
                         </div>
                         <button 
                           onClick={() => setPermissions({...permissions, [f.id]: permissions[f.id] === false ? true : false})}
-                          style={{ width: 32, height: 16, borderRadius: 8, background: permissions[f.id] !== false ? '#6366f1' : '#333', border: 'none', position: 'relative', cursor: 'pointer' }}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: permissions[f.id] !== false ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer' }}
                         >
                           <div style={{ position: 'absolute', top: 2, left: permissions[f.id] !== false ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: '0.2s' }}></div>
                         </button>
@@ -453,7 +476,7 @@ export default function RoomSettingsModal({
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                        <ShieldAlert size={16} color="#ef4444" />
-                        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
+                        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
                            Security Banned Users {bannedUsers.length > 0 ? `(${bannedUsers.length})` : ''}
                         </label>
                        <button 
@@ -463,7 +486,7 @@ export default function RoomSettingsModal({
                          <Zap size={12} /> Sync Now
                        </button>
                     </div>
-                   <div style={{ padding: '24px 28px', background: 'rgba(255,255,255,0.02)', borderRadius: 18, border: '1px solid rgba(255,255,255,0.05)', minHeight: 140 }}>
+                   <div style={{ padding: '24px 28px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 18, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)', minHeight: 140 }}>
                        {bannedUsers.length > 0 ? (
                          bannedUsers.map(uname => (
                            <BannedUserItem 
@@ -494,9 +517,11 @@ export default function RoomSettingsModal({
                       </p>
                       <button 
                         onClick={() => setShowDeleteConfirm(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fffffe !important', fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
                       >
-                        <Trash2 size={18} /> Delete Forever
+                        <Trash2 size={18} color="#fffffe" /> <span style={{ color: '#fffffe' }}>Delete Forever</span>
                       </button>
                     </div>
                   </div>
@@ -506,9 +531,9 @@ export default function RoomSettingsModal({
           </div>
         </div>
 
-        <div style={{ padding: '24px 30px', borderTop: '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: 'rgba(15, 10, 35, 0.2)' }}>
-          <button onClick={onClose} style={{ padding: '14px 28px', background: 'rgba(255, 255, 255, 0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}>Save Changes</button>
+        <div style={{ padding: '24px 30px', borderTop: isLight ? '1px solid #f1f5f9' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: isLight ? '#f8fafc' : 'rgba(15, 10, 35, 0.2)', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}>
+          <button onClick={onClose} style={{ padding: '14px 28px', background: isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: isLight ? '#000' : '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = isLight ? '#94a3b8' : 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)'; }}>Cancel</button>
+          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: isLight ? '#fefefe' : '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!isLight) e.currentTarget.style.boxShadow = '0 10px 25px rgba(99, 102, 241, 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)'; }}>Save Changes</button>
         </div>
       </div>
 
@@ -522,50 +547,58 @@ export default function RoomSettingsModal({
       `}</style>
       {/* Cropper Overlay */}
       {showCropper && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 20000, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: 800, height: 500, background: '#111', borderRadius: 24, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              aspect={3 / 2}
-              onCropChange={setCrop}
-              onCropComplete={onCropComplete}
-              onZoomChange={setZoom}
-            />
-          </div>
-
-          <div style={{ marginTop: 30, width: '100%', maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Zoom Slider */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 15, background: 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 100 }}>
-              <ZoomOut size={18} color="#888" />
-              <input
-                type="range"
-                value={zoom}
-                min={1}
-                max={3}
-                step={0.1}
-                aria-labelledby="Zoom"
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                style={{ flex: 1, accentColor: '#a855f7' }}
+        <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', inset: 0, zIndex: 20000, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="modal-enter" style={{ background: isLight ? '#fff' : '#140c21', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 640, boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8)' }}>
+            <h3 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800, color: isLight ? '#000' : '#fff' }}>Crop Thumbnail</h3>
+            
+            <div style={{ position: 'relative', width: '100%', height: 350, background: '#111', borderRadius: 16, overflow: 'hidden' }}>
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={3 / 2}
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
               />
-              <ZoomIn size={18} color="#888" />
             </div>
 
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button 
-                onClick={() => { setShowCropper(false); setImageSrc(null); }}
-                style={{ flex: 1, padding: '14px', borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleConfirmCrop}
-                disabled={isUploading}
-                style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isUploading ? 0.7 : 1 }}
-              >
-                {isUploading ? 'Uploading...' : <><Save size={18} /> Apply & Save</>}
-              </button>
+            <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Zoom Slider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 15, background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.05)', padding: '12px 20px', borderRadius: 100, border: isLight ? '1px solid #e2e8f0' : 'none' }}>
+                <ZoomOut size={18} color="#888" />
+                <input
+                  type="range"
+                  value={zoom}
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  aria-labelledby="Zoom"
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: '#a855f7' }}
+                />
+                <ZoomIn size={18} color="#888" />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button 
+                  onClick={() => { setShowCropper(false); setImageSrc(null); }}
+                  style={{ flex: 1, padding: '14px', borderRadius: 14, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #e2e8f0' : 'none', color: isLight ? '#000' : '#fff', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'}
+                  onMouseLeave={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmCrop}
+                  disabled={isUploading}
+                  style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: isLight ? '#fefefe' : '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isUploading ? 0.7 : 1, transition: 'transform 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  {isUploading ? 'Uploading...' : <><Save size={18} /> Apply & Save</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -647,4 +680,9 @@ export default function RoomSettingsModal({
     </>
   );
 }
+
+
+
+
+
 

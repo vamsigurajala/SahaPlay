@@ -23,14 +23,16 @@ const SALT_LENGTH = 16;   // bytes
 const IV_LENGTH   = 12;   // bytes for AES-GCM
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
-export function robustDecode(b64) {
-  if (typeof b64 !== 'string') return new Uint8Array(0);
-  // Strip whitespace + handle URL-safe base64
-  const cleaned = b64.trim().replace(/\s/g, '').replace(/-/g, '+').replace(/_/g, '/');
+export function robustDecode(str) {
+  if (typeof str !== 'string') return new Uint8Array(0);
+  // If it's a URL or contains slashes that don't look like base64, or starts with http, it's likely not ciphertext.
+  if (str.startsWith('http') || str.includes('://')) {
+    return new Uint8Array(0); 
+  }
   try {
-    return decodeBase64(cleaned);
+    return decodeBase64(str.trim());
   } catch (e) {
-    console.error("[crypto] decodeBase64 failed for:", b64, e);
+    // Just return empty if it's not valid base64
     return new Uint8Array(0);
   }
 }
@@ -230,7 +232,9 @@ export function decryptGroupMessage(ciphertext, nonce, encryptedKeyB64, senderPu
     const packed     = robustDecode(encryptedKeyB64);
     const keyNonce   = packed.slice(0, nacl.box.nonceLength);
     const encKeyBody = packed.slice(nacl.box.nonceLength);
-    const msgKey     = nacl.box.open(encKeyBody, keyNonce, senderPublicKey, mySecretKey);
+    const senderPkObj = Array.isArray(senderPublicKey) || typeof senderPublicKey !== 'string' ? senderPublicKey : robustDecode(senderPublicKey);
+    const mySkObj     = Array.isArray(mySecretKey) || typeof mySecretKey !== 'string' ? mySecretKey : robustDecode(mySecretKey);
+    const msgKey     = nacl.box.open(encKeyBody, keyNonce, senderPkObj, mySkObj);
     if (!msgKey) return null;
     const plain = nacl.secretbox.open(robustDecode(ciphertext), robustDecode(nonce), msgKey);
     if (!plain) return null;
@@ -342,25 +346,25 @@ const SESSION_KEY_NAME = 'wt_sk';
 const SESSION_PW_NAME  = 'wt_spw';
 
 function getOrCreateSessionPassword() {
-  let pw = sessionStorage.getItem(SESSION_PW_NAME);
+  let pw = localStorage.getItem(SESSION_PW_NAME);
   if (!pw) {
     const arr = crypto.getRandomValues(new Uint8Array(32));
     pw = bufToB64(arr.buffer);
-    sessionStorage.setItem(SESSION_PW_NAME, pw);
+    localStorage.setItem(SESSION_PW_NAME, pw);
   }
   return pw;
 }
 
-/** Saves encrypted private key to sessionStorage (password is random, stored in same session). */
+/** Saves encrypted private key to localStorage (password is random, stored in same session). */
 export async function saveKeyToSession(secretKeyBytes) {
   const pw   = getOrCreateSessionPassword();
   const blob = await encryptPrivateKey(secretKeyBytes, pw);
-  sessionStorage.setItem(SESSION_KEY_NAME, blob);
+  localStorage.setItem(SESSION_KEY_NAME, blob);
 }
 
-/** Loads + decrypts saved key from sessionStorage. Returns null if not found. */
+/** Loads + decrypts saved key from localStorage. Returns null if not found. */
 export async function loadKeyFromSession() {
-  const blob = sessionStorage.getItem(SESSION_KEY_NAME);
+  const blob = localStorage.getItem(SESSION_KEY_NAME);
   if (!blob) return null;
   try {
     const pw = getOrCreateSessionPassword();
@@ -373,6 +377,6 @@ export async function loadKeyFromSession() {
 
 /** Clears the session key (call on logout). */
 export function clearSessionKey() {
-  sessionStorage.removeItem(SESSION_KEY_NAME);
-  sessionStorage.removeItem(SESSION_PW_NAME);
+  localStorage.removeItem(SESSION_KEY_NAME);
+  localStorage.removeItem(SESSION_PW_NAME);
 }

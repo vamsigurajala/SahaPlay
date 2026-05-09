@@ -11,9 +11,12 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import nacl from 'tweetnacl';
-import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey } from '../lib/crypto.js';
+import { encodeBase64 } from 'tweetnacl-util';
+import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey } from '../lib/crypto.js';
 
-const API = 'http://127.0.0.1:3001';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 const CryptoContext = createContext(null);
 
@@ -70,11 +73,40 @@ export function CryptoProvider({ children }) {
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           setKeyPairState(kp);
         } else {
-          // sessionStorage was cleared (tab close / new tab).
-          // Flag that re-auth is needed so the chat UI can show a password prompt.
-          if (localStorage.getItem('watch_token')) {
-            console.warn('[CryptoContext] Session key missing — prompting for password re-auth.');
-            setNeedsReauth(true);
+          // No stored key found — auto-generate one for this user.
+          // This handles users who registered before E2EE was implemented.
+          console.log('[CryptoContext] No stored key found — auto-generating E2EE key pair.');
+          try {
+            const newKP = generateKeyPair();
+            await saveKeyToSession(newKP.secretKey);
+            setKeyPairState(newKP);
+
+            // Try to save publicKey to DB (works after backend restart)
+            const tkn = localStorage.getItem('watch_token');
+            if (tkn) {
+              const pubB64 = encodeBase64(newKP.publicKey);
+              // Try the new lightweight endpoint first, fall back to register-keys
+              fetch(`${API}/api/auth/save-public-key`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+                body: JSON.stringify({ publicKey: pubB64 })
+              }).then(async r => {
+                if (!r.ok) {
+                  // Fallback: try register-keys with auto-encrypted private key
+                  const dummyPw = encodeBase64(nacl.randomBytes(16));
+                  const encPriv = await encryptPrivateKey(newKP.secretKey, dummyPw);
+                  // Store the dummyPw so recovery is still possible
+                  localStorage.setItem('wt_kp_pw', dummyPw);
+                  await fetch(`${API}/api/auth/register-keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+                    body: JSON.stringify({ publicKey: pubB64, encryptedPrivateKey: encPriv })
+                  });
+                }
+              }).catch(err => console.warn('[CryptoContext] Key upload failed (server not ready):', err));
+            }
+          } catch (e) {
+            console.error('[CryptoContext] Failed to auto-generate key pair:', e);
           }
         }
       } catch (e) {
@@ -152,3 +184,8 @@ export function useCrypto() {
   if (!ctx) throw new Error('useCrypto must be used within <CryptoProvider>');
   return ctx;
 }
+
+
+
+
+

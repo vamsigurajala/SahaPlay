@@ -21,10 +21,10 @@ import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-ut
 import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, SmilePlus, Plus, Maximize, Volume1 } from 'lucide-react';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, SmilePlus, Plus, Maximize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane, FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP, FaApple, FaSpotify, FaTiktok } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
-import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv } from 'react-icons/si';
+import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv, SiGmail } from 'react-icons/si';
 import toast, { Toaster } from 'react-hot-toast';
 
 const SOCKET_SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -144,6 +144,23 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// Second-pass resolver: after decrypting history, replaces any ciphertext stored in
+// replyTo.message with the decryptedText of the original message in the same batch.
+function resolveReplyMessages(messages) {
+  return messages.map(m => {
+    if (!m.replyTo) return m;
+    const raw = m.replyTo.message || '';
+    if (raw && !looksLikeCiphertext(raw)) return m; // already a readable preview — keep it
+    const original = messages.find(o => String(o.id) === String(m.replyTo.id));
+    if (!original) return m;
+    const resolved =
+      original.decryptedText ||
+      (original.mediaType ? (original.mediaType.startsWith('video') ? 'Video' : 'Photo') : '') ||
+      (looksLikeCiphertext(original.message || '') ? '' : (original.message || ''));
+    return { ...m, replyTo: { ...m.replyTo, message: resolved } };
+  });
+}
+
 const Room = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -157,12 +174,61 @@ const Room = () => {
   const [userList, setUserList] = useState([]);
   const [hostId, setHostId] = useState(null);
   const [mySocketId, setMySocketId] = useState(null);
-  const [knownUsers, setKnownUsers] = useState(new Set());
+  const [knownUsers, setKnownUsers] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('watch_known_users') || '[]'));
+    } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('watch_known_users', JSON.stringify(Array.from(knownUsers)));
+  }, [knownUsers]);
+  const [knownAvatars, setKnownAvatars] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('watch_known_avatars') || '{}');
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('watch_known_avatars', JSON.stringify(knownAvatars));
+  }, [knownAvatars]);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameInput, setRenameInput] = useState('');
   const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
   const [clearChatTarget, setClearChatTarget] = useState(null);
   const [clearForBoth, setClearForBoth] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showRecentChats, setShowRecentChats] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [followRequests, setFollowRequests] = useState([]);
+  const [unreadCounts, setUnreadCounts] = useState({});
+  const [totalUnread, setTotalUnread] = useState(0);
+  const navIconsRef = useRef(null);
+  const chatWidgetRef = useRef(null);
+  const fetchProfile = useCallback(async () => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    try {
+      const res = await fetch(`${SOCKET_SERVER_URL}/api/profile`, { headers: { 'Authorization': `Bearer ${tkn}` } });
+      const data = await res.json();
+      if (data && !data.error) setProfile(data);
+    } catch { }
+  }, [SOCKET_SERVER_URL]);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('watch_token');
+    localStorage.removeItem('watch_username');
+    window.location.reload();
+  };
+
   const mySocketIdRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
@@ -170,6 +236,8 @@ const Room = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(null);
   const [kickedReason, setKickedReason] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [modMenuTarget, setModMenuTarget] = useState(null);
+  const [modMenuPos, setModMenuPos] = useState({ top: 0, left: 0 });
   const [pinnedRooms, setPinnedRooms] = useState(() => { try { return JSON.parse(localStorage.getItem('pinned_rooms') || '[]'); } catch { return []; } });
   const [roomSettingsModalOpen, setRoomSettingsModalOpen] = useState(false);
   const [room, setRoom] = useState(null);
@@ -194,9 +262,26 @@ const Room = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [copied, setCopied] = useState(false);
-  const lobbyKey = `lobby_waiting_${roomId}`;
   const [isWaitingApproval, setIsWaitingApproval] = useState(() => sessionStorage.getItem(`lobby_waiting_${roomId}`) === 'true');
+  const [isConnecting, setIsConnecting] = useState(!isWaitingApproval);
+  const [loadTimeout, setLoadTimeout] = useState(false);
+  const lobbyKey = `lobby_waiting_${roomId}`;
+
+  useEffect(() => {
+    if (!room && !kickedReason && !roomNotFound && !isWaitingApproval) {
+      const timer = setTimeout(() => {
+        setLoadTimeout(true);
+        setIsConnecting(false); // Stop blocking even if it takes too long
+      }, 15000);
+      return () => clearTimeout(timer);
+    } else {
+      setLoadTimeout(false);
+      setIsConnecting(false);
+    }
+  }, [room, kickedReason, roomNotFound]);
   const [joinRequests, setJoinRequests] = useState([]);
+  const activeJoinToastIds = useRef(new Set());
+
   const [showYtBrowser, setShowYtBrowser] = useState(false);
   const [showTwitchBrowser, setShowTwitchBrowser] = useState(false);
   const [showVimeoBrowser, setShowVimeoBrowser] = useState(false);
@@ -370,6 +455,7 @@ const Room = () => {
   const dmTargetRef = useRef(null);
   const [dmThreads, setDmThreads] = useState({});
   const [dmUnread, setDmUnread] = useState({});
+  const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
   const dmDecryptedMediaUrls = useRef({});
   const [dmMediaUrlVersion, setDmMediaUrlVersion] = useState(0);
@@ -382,10 +468,6 @@ const Room = () => {
     } catch { return 0; }
   });
 
-  const [showRecentChats, setShowRecentChats] = useState(false);
-  const [unreadCounts, setUnreadCounts] = useState({});
-  const [totalUnread, setTotalUnread] = useState(0);
-  const chatWidgetRef = useRef(null);
 
   const chatTabRef = useRef('list');
   const [groupChatInput, setGroupChatInput] = useState('');
@@ -403,11 +485,20 @@ const Room = () => {
   const typingTimer = useRef(null);
   const messagesEndRef = useRef(null);
   const groupMessagesRef = useRef([]);
-  const groupInputRef = useRef(null);
   const dmInputRef = useRef(null);
+  const groupInputRef = useRef(null);
+  const groupMenuRef = useRef(null);
+  const dmMenuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
+      const inNavArea = navIconsRef.current && navIconsRef.current.contains(e.target);
+      const inChatWidget = chatWidgetRef.current && chatWidgetRef.current.contains(e.target);
+      if (!inNavArea && !inChatWidget) {
+        setShowSearch(false);
+        setShowNotifications(false);
+        // Only close showRecentChats if click is outside widget
+      }
       if (showUserPanel && userPanelRef.current && !userPanelRef.current.contains(e.target)) {
         setShowUserPanel(false);
       }
@@ -415,15 +506,30 @@ const Room = () => {
         setShowSettings(false);
       }
       if (showRecentChats && chatWidgetRef.current && !chatWidgetRef.current.contains(e.target)) {
-        const isChatToggleBtn = e.target.closest('[title="Global Chats"]');
-        if (!isChatToggleBtn) {
-          setShowRecentChats(false);
+        if (!inNavArea) setShowRecentChats(false);
+      }
+      // Close room menus if clicking outside
+      if (showGroupMenu && groupMenuRef.current && !groupMenuRef.current.contains(e.target)) {
+        setShowGroupMenu(false);
+      }
+      if (showDmMenu && dmMenuRef.current && !dmMenuRef.current.contains(e.target)) {
+        setShowDmMenu(null);
+      }
+      // Also close reaction pickers
+      if (activeReactionMsg || showAllEmojis) {
+        const isPicker = e.target.closest('.emoji-picker-container') || e.target.closest('.react-btn-container');
+        if (!isPicker) {
+          setActiveReactionMsg(null);
+          setShowAllEmojis(false);
         }
+      }
+      if (modMenuTarget && !e.target.closest('.mod-menu-container')) {
+        setModMenuTarget(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserPanel, showSettings, showRecentChats]);
+  }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget]);
 
   useEffect(() => {
     if (chatTab === 'group') {
@@ -479,17 +585,60 @@ const Room = () => {
     return () => clearInterval(inv);
   }, []);
 
+  // ── Search Logic ──
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const tkn = localStorage.getItem('watch_token');
+        const res = await fetch(`${SOCKET_SERVER_URL}/api/users/search?q=${encodeURIComponent(searchQuery)}`, {
+          headers: { 'Authorization': `Bearer ${tkn}` }
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) setSearchResults(data);
+      } catch { }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // ── Follow Notifications ──
+  useEffect(() => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    const fetchFollows = async () => {
+      try {
+        const res = await fetch(`${SOCKET_SERVER_URL}/api/profile/notifications`, {
+          headers: { 'Authorization': `Bearer ${tkn}` }
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) setFollowRequests(data);
+      } catch { }
+    };
+    fetchFollows();
+    const inv = setInterval(fetchFollows, 10000);
+    return () => clearInterval(inv);
+  }, []);
+
   const handleNewMessage = useCallback((partner, msg) => {
     const chatKey = partner;
     if (showRecentChats && chatWidgetRef.current?.activeChat?.partner === partner) return;
     if (partner === roomId && chatTabRef.current === 'group') return;
 
-    // Play notification sound
+    // Check if muted before playing sound
+    const myUsername = localStorage.getItem('watch_username') || '';
+    let isMuted = false;
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
-      audio.volume = 0.5;
-      audio.play().catch(()=>{});
-    } catch(e){}
+      const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
+      if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
+    } catch {}
+
+    if (!isMuted) {
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(()=>{});
+      } catch(e){}
+    }
 
     const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
     localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
@@ -497,7 +646,6 @@ const Room = () => {
 
     setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
     setTotalUnread(prev => prev + 1);
-
   }, [roomId, showRecentChats]);
 
 
@@ -507,10 +655,22 @@ const Room = () => {
     localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
 
     setUnreadCounts(prev => {
+      const currentUnread = prev[chatId] || 0;
+      if (currentUnread > 0) {
+        setTotalUnread(t => Math.max(0, t - currentUnread));
+      }
       const next = { ...prev };
       delete next[chatId];
       return next;
     });
+
+    try {
+      const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      if (localCounts[chatId]) {
+        delete localCounts[chatId];
+        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+      }
+    } catch(e) {}
 
     if (chatId === roomId) {
       setGroupUnread(0);
@@ -560,7 +720,8 @@ const Room = () => {
     join: true,
     leave: true,
     messages: true,
-    friendRequests: true
+    friendRequests: true,
+    joinRequests: true
   });
 
   useEffect(() => {
@@ -577,7 +738,8 @@ const Room = () => {
               join: data.notifyJoin !== 0 && data.notifyJoin !== false,
               leave: data.notifyLeave !== 0 && data.notifyLeave !== false,
               messages: data.notifyMessages !== 0 && data.notifyMessages !== false,
-              friendRequests: data.notifyFriendRequests !== 0 && data.notifyFriendRequests !== false
+              friendRequests: data.notifyFriendRequests !== 0 && data.notifyFriendRequests !== false,
+              joinRequests: data.notifyJoinRequests !== 0 && data.notifyJoinRequests !== false
             };
           }
         }).catch(err => console.error('notif sync err', err));
@@ -689,6 +851,23 @@ const Room = () => {
       myKeyPair.current = keyPair;
       // Clean up old insecure localStorage key if it exists
       localStorage.removeItem(`e2e_keypair_${username}`);
+
+      const publicKeyB64 = encodeBase64(keyPair.publicKey);
+
+      // ─── Persist public key to DB immediately (handles old accounts + timing race) ───
+      const token = localStorage.getItem('watch_token');
+      if (token) {
+        fetch(`${SOCKET_SERVER_URL}/api/auth/save-public-key`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ publicKey: publicKeyB64 })
+        }).catch(err => console.warn('[E2EE] Failed to persist publicKey to DB:', err));
+      }
+
+      // ─── Re-emit via socket in case socket connected before keyPair was ready ───
+      if (socket && socket.connected && roomId) {
+        socket.emit('chat:publicKey', { roomId: (roomId || '').toLowerCase(), publicKey: publicKeyB64 });
+      }
     }
   }, [keyPair, username]);
   useEffect(() => {
@@ -712,6 +891,8 @@ const Room = () => {
   useEffect(() => {
     if (!roomId || !cryptoReady) return;
     const token = localStorage.getItem('watch_token');
+    
+    console.log(`[SOCKET] Connecting to ${SOCKET_SERVER_URL} for room ${roomId}`);
     const sock = io(SOCKET_SERVER_URL, { 
       auth: { token },
       reconnection: true,
@@ -723,6 +904,7 @@ const Room = () => {
     setSocket(sock);
 
     sock.on('connect', () => {
+      console.log('[SOCKET] Connected to server');
       mySocketIdRef.current = sock.id;
       setMySocketId(sock.id);
       sock.emit('join_room', { roomId: (roomId || '').toLowerCase(), username });
@@ -732,9 +914,13 @@ const Room = () => {
       }
     });
 
+    sock.on('disconnect', (reason) => console.log('[SOCKET] Disconnected:', reason));
+    sock.on('connect_error', err => console.error('[SOCKET] Connection error:', err));
+
     sock.on('waiting_for_approval', () => {
       sessionStorage.setItem(lobbyKey, 'true');
       setIsWaitingApproval(true);
+      setIsConnecting(false);
     });
     sock.on('join_approved', () => {
       sessionStorage.removeItem(lobbyKey);
@@ -744,77 +930,115 @@ const Room = () => {
       sessionStorage.removeItem(lobbyKey);
       setIsWaitingApproval(false);
       setKickedReason('denied');
+      setIsConnecting(false);
     });
     sock.on('join_rejected', ({ reason }) => {
       sessionStorage.removeItem(lobbyKey);
       setIsWaitingApproval(false);
       setKickedReason(reason);
+      setIsConnecting(false);
     });
-    sock.on('join_requested', ({ socketId, username: requesterName }) => {
-      // Deduplicate by username: dismiss any stale toast for same user, then re-show
+    sock.on('join_requested', ({ socketId, username: requesterName, avatarPath }) => {
+      // ALWAYS update state so the request is tracked in the room state
+      setJoinRequests(prev => {
+        const exists = prev.find(r => r.socketId === socketId || r.username === requesterName);
+        if (exists) return prev;
+        return [...prev, { socketId, username: requesterName, avatarPath }];
+      });
+
+      // ALWAYS show the join request toast so the host can approve/deny immediately
       const toastId = `join-req-${requesterName}`;
+      activeJoinToastIds.current.add(toastId);
       toast.dismiss(toastId);
       setTimeout(() => {
         toast.custom(
-          (toastState) => (
+          (toastState) => {
+
+            const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
+            return (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 14,
-              background: 'linear-gradient(135deg, rgba(15, 10, 35, 0.99), rgba(25, 15, 50, 0.99))',
-              border: '1px solid rgba(168, 85, 247, 0.4)',
+              background: isLightMode ? '#ffffff' : 'linear-gradient(135deg, rgba(15, 10, 35, 0.99), rgba(25, 15, 50, 0.99))',
+              border: isLightMode ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.4)',
               borderRadius: 20, padding: '18px 20px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(168,85,247,0.1)',
-              backdropFilter: 'blur(12px)', // Reduced from 40px for integrated graphics
+              boxShadow: isLightMode ? '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' : '0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(168,85,247,0.1)',
+              backdropFilter: 'blur(12px)',
               minWidth: 340, maxWidth: 420,
               animation: toastState.visible ? 'slideInDown 0.35s cubic-bezier(0.21,1.02,0.73,1)' : 'slideOutUp 0.3s ease forwards',
               position: 'relative',
               overflow: 'hidden',
             }}>
               {/* Purple glow accent top bar */}
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)', borderRadius: '20px 20px 0 0' }} />
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)', borderRadius: '20px 20px 0 0' }} />
+              
               {/* Avatar */}
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontWeight: 800, fontSize: 20, flexShrink: 0,
-                boxShadow: '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
-                animation: 'joinPulse 2s infinite',
-              }}>
-                {requesterName ? requesterName[0].toUpperCase() : '?'}
-              </div>
+              {avatarPath ? (
+                <img src={avatarPath.startsWith('http') ? avatarPath : `${SOCKET_SERVER_URL}${avatarPath}`} alt={requesterName} style={{
+                  width: 48, height: 48, borderRadius: '50%', objectFit: 'cover',
+                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(99,102,241,0.2)' : '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
+                  animation: 'joinPulse 2s infinite', flexShrink: 0
+                }} />
+              ) : (
+                <div style={{
+                  width: 48, height: 48, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontWeight: 800, fontSize: 20, flexShrink: 0,
+                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(99,102,241,0.2)' : '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
+                  animation: 'joinPulse 2s infinite',
+                }}>
+                  {requesterName ? requesterName[0].toUpperCase() : '?'}
+                </div>
+              )}
+              
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <p style={{ margin: 0, color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' }}>{requesterName}</p>
-                  <span style={{ fontSize: 10, background: 'rgba(168,85,247,0.2)', color: '#c084fc', borderRadius: 6, padding: '2px 7px', fontWeight: 600, border: '1px solid rgba(168,85,247,0.3)' }}>JOIN REQUEST</span>
+                  <p style={{ margin: 0, color: isLightMode ? '#0f172a' : '#fff', fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' }}>{requesterName}</p>
+                  <span style={{ fontSize: 10, background: isLightMode ? '#f3e8ff' : 'rgba(168,85,247,0.2)', color: isLightMode ? '#9333ea' : '#c084fc', borderRadius: 6, padding: '2px 7px', fontWeight: 600, border: isLightMode ? '1px solid #e9d5ff' : '1px solid rgba(168,85,247,0.3)' }}>JOIN REQUEST</span>
                 </div>
-                <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>wants to join this room</p>
+                <p style={{ margin: '0 0 12px', color: isLightMode ? '#64748b' : 'rgba(255,255,255,0.5)', fontSize: 13 }}>wants to join this room</p>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
-                    className="join-req-deny-btn"
+                    className={isLightMode ? '' : "join-req-deny-btn"}
+                    style={isLightMode ? { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#f1f5f9', color: '#000000', fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s' } : undefined}
+                    onMouseEnter={isLightMode ? e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#000000'; } : undefined}
+                    onMouseLeave={isLightMode ? e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#000000'; } : undefined}
                     onClick={() => {
                       sock.emit('deny_join', { roomId, targetSocketId: socketId });
                       setJoinRequests(prev => prev.filter(r => r.socketId !== socketId));
                       toast.dismiss(toastId);
-                      setTimeout(() => toast(`Denied ${requesterName}'s request`, { icon: '🚫', duration: 2500 }), 320);
+                      activeJoinToastIds.current.delete(toastId);
+                      if (notifSettingsRef.current.app && notifSettingsRef.current.joinRequests) {
+
+                        setTimeout(() => toast(`Denied ${requesterName}'s request`, { icon: '🚫', duration: 2500 }), 320);
+                      }
                     }}
                   >
-                    Deny
+                    <span style={isLightMode ? { color: '#000000' } : undefined}>Deny</span>
                   </button>
                   <button
-                    className="join-req-approve-btn"
+                    className={isLightMode ? '' : "join-req-approve-btn"}
+                    style={isLightMode ? { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#8b5cf6', color: '#fffffe', fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(139,92,246,0.3)' } : undefined}
+                    onMouseEnter={isLightMode ? e => e.currentTarget.style.background = '#7c3aed' : undefined}
+                    onMouseLeave={isLightMode ? e => e.currentTarget.style.background = '#8b5cf6' : undefined}
                     onClick={() => {
                       sock.emit('approve_join', { roomId, targetSocketId: socketId });
                       setJoinRequests(prev => prev.filter(r => r.socketId !== socketId));
                       toast.dismiss(toastId);
-                      setTimeout(() => toast.success(`${requesterName} approved! ✓`, { duration: 2500 }), 320);
+                      activeJoinToastIds.current.delete(toastId);
+                      if (notifSettingsRef.current.app && notifSettingsRef.current.joinRequests) {
+
+                        setTimeout(() => toast.success(`${requesterName} approved! ✓`, { duration: 2500 }), 320);
+                      }
                     }}
                   >
-                    ✓ Approve
+                    <span style={{ color: '#fffffe' }}>✓ Approve</span>
                   </button>
                 </div>
               </div>
             </div>
-          ),
+            );
+          },
           { id: toastId, position: 'top-center', duration: Infinity }
         );
       }, 50);
@@ -822,10 +1046,16 @@ const Room = () => {
 
     sock.on('join_request_handled', ({ socketId, username: handledUsername }) => {
       // Dismiss by username-based ID (new) and legacy socketId-based ID (backwards compat)
-      if (handledUsername) toast.dismiss(`join-req-${handledUsername}`);
+      if (handledUsername) {
+        const tid = `join-req-${handledUsername}`;
+        toast.dismiss(tid);
+        activeJoinToastIds.current.delete(tid);
+      }
       toast.dismiss(`join-req-${socketId}`);
+      activeJoinToastIds.current.delete(`join-req-${socketId}`);
       setJoinRequests(prev => prev.filter(r => r.socketId !== socketId));
     });
+
 
     sock.on('connect_error', err => console.error('Socket error:', err));
 
@@ -839,9 +1069,17 @@ const Room = () => {
       }
     });
 
+    sock.on('room_chat_cleared', ({ roomId: targetRoomId }) => {
+      if (roomId === targetRoomId) {
+        setGroupMessages([]);
+      }
+    });
+
     sock.on('room_state', state => {
+      console.log('[SOCKET] Received room_state');
       sessionStorage.removeItem(lobbyKey);
       setIsWaitingApproval(false);
+      setIsConnecting(false);
       
       // Frontend Security Fail-Safe: Enforce Members Only lock proactively
       const isGuest = localStorage.getItem('watch_is_guest') === 'true';
@@ -967,8 +1205,9 @@ const Room = () => {
         return { ...msg, mediaUrl: displayMediaUrl, isMe: isMine, reactions: fixReactions(msg.reactions) };
       }));
 
-      setGroupMessages(decryptedMsgs);
-      groupMessagesRef.current = decryptedMsgs;
+      const resolvedMsgs = resolveReplyMessages(decryptedMsgs);
+      setGroupMessages(resolvedMsgs);
+      groupMessagesRef.current = resolvedMsgs;
       // Trigger a re-render so async-set objectUrls in groupDecryptedMediaUrls are picked up
       setGroupMediaUrlVersion(v => v + 1);
     });
@@ -977,6 +1216,20 @@ const Room = () => {
       setUserList(users);
       setHostId(hid);
       setKnownUsers(prev => { const n = new Set(prev); users.forEach(u => n.add(u.username)); return n; });
+      setKnownAvatars(prev => {
+        const next = { ...prev };
+        let changed = false;
+        users.forEach(u => {
+          if (u.avatarPath) {
+            const full = u.avatarPath.startsWith('http') ? u.avatarPath : `${SOCKET_SERVER_URL}${u.avatarPath}`;
+            if (next[u.username] !== full) {
+              next[u.username] = full;
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
       if (!mySocketIdRef.current && sock.id) { mySocketIdRef.current = sock.id; setMySocketId(sock.id); }
       users.forEach(u => {
         if (u.publicKey && u.socketId !== sock.id) {
@@ -984,7 +1237,11 @@ const Room = () => {
             const decoded = decodeBase64(u.publicKey);
             peerPublicKeys.current[u.socketId] = decoded;
             // Also store by username so sendGroupChat can always find it (even after socket reconnects)
-            if (u.username) dbPublicKeys.current[u.username.toLowerCase()] = decoded;
+            if (u.username) {
+              dbPublicKeys.current[u.username.toLowerCase()] = decoded;
+              // Persist to localStorage so DMs work even when target is offline next session
+              try { localStorage.setItem(`wt_pk_${u.username.toLowerCase()}`, u.publicKey); } catch {}
+            }
           } catch { }
         }
       });
@@ -994,8 +1251,12 @@ const Room = () => {
       }
     });
 
-    sock.on('user_joined', ({ username: uname }) => {
+    sock.on('user_joined', ({ username: uname, avatarPath }) => {
       setKnownUsers(prev => new Set(prev).add(uname));
+      if (avatarPath) {
+        const full = avatarPath.startsWith('http') ? avatarPath : `${SOCKET_SERVER_URL}${avatarPath}`;
+        setKnownAvatars(prev => ({ ...prev, [uname]: full }));
+      }
       if (notifSettingsRef.current.app && notifSettingsRef.current.join && uname !== usernameRef.current) {
         toast.success(`${uname} joined`);
       }
@@ -1076,8 +1337,9 @@ const Room = () => {
             // PRESERVE the optimistic plaintext instead of overwriting with ciphertext or null.
             const safeDecryptedText = fixed.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
             next[optIdx] = { ...fixed, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl };
-            groupMessagesRef.current = next;
-            return next;
+            const resolved = resolveReplyMessages(next);
+            groupMessagesRef.current = resolved;
+            return resolved;
           }
         }
         // Also dedup by server-assigned ID to prevent any duplicate from double delivery
@@ -1085,12 +1347,21 @@ const Room = () => {
           return prev;
         }
         const n = [...prev, fixed];
-        groupMessagesRef.current = n;
-        return n;
+        const resolved = resolveReplyMessages(n);
+        groupMessagesRef.current = resolved;
+        return resolved;
       });
       
       // Only increment unread if NOT currently viewing the group chat tab AND not own message
-      if (chatTabRef.current !== 'group' && !isMine) {
+      // AND NOT muted
+      let isMutedRoom = false;
+      try {
+        const myUsername = localStorage.getItem('watch_username') || '';
+        const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
+        if (m.some(u => u.toLowerCase() === roomId.toLowerCase())) isMutedRoom = true;
+      } catch {}
+
+      if (chatTabRef.current !== 'group' && !isMine && !isMutedRoom) {
         setGroupUnread(p => {
           const newVal = p + 1;
           // Persist so badge survives room remounts
@@ -1111,8 +1382,34 @@ const Room = () => {
           const isViewingInGCW = gcwActive.view === 'chat' && gcwActive.partner === roomId;
           
           if (!isViewingInGCW) {
-             const previewText = mediaPreview || (fixed.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? '🔒 Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
-             toast(`${roomName || roomId}: ${msg.username || 'User'}: ${previewText}`, { id: `msg-${msg.id}`, icon: '💬', duration: 3500 });
+             const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
+             const previewText = mediaPreview || (fixed.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
+             // ─── Mute Check: skip toast if this room chat is muted ───
+             let isChatMuted = false;
+             try {
+               const mutedList = JSON.parse(localStorage.getItem(`muted_chats_${username}`) || '[]');
+               if (mutedList.includes(roomId)) isChatMuted = true;
+             } catch {}
+             if (!isChatMuted) {
+               // ─── Hidden Check: use privacy-safe preview if this chat is hidden ───
+               let isChatHidden = false;
+               try {
+                 const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${username}`) || '[]');
+                 if (hiddenList.includes(roomId)) isChatHidden = true;
+               } catch {}
+               
+               let unreadCount = 1;
+               try {
+                 const stored = JSON.parse(localStorage.getItem('chat_group_unread') || '{}');
+                 unreadCount = stored[roomId] || 1;
+               } catch {}
+               const msgStr = unreadCount === 1 ? '1 new message' : `${unreadCount} new messages`;
+
+               const toastText = isChatHidden
+                 ? `${roomName || roomId}: ${msg.username || 'User'}: ${msgStr}`
+                 : `${roomName || roomId}: ${msg.username || 'User'}: ${previewText}`;
+               toast(toastText, { id: `msg-${msg.id}`, icon: '💬', duration: 3500 });
+             }
           }
         }
       } else if (chatTabRef.current === 'group' && !isMine) {
@@ -1189,6 +1486,23 @@ const Room = () => {
       });
     });
 
+    sock.on('blocking_updated', ({ type, by }) => {
+      const lowerBy = (by || '').toLowerCase();
+      const isBlocked = type === 'blocked';
+      try {
+        const myUsername = localStorage.getItem('watch_username') || '';
+        const list = JSON.parse(localStorage.getItem(`blocking_me_${myUsername}`) || '[]');
+        let newList;
+        if (isBlocked) {
+          newList = list.includes(lowerBy) ? list : [...list, lowerBy];
+        } else {
+          newList = list.filter(u => u.toLowerCase() !== lowerBy);
+        }
+        localStorage.setItem(`blocking_me_${myUsername}`, JSON.stringify(newList));
+        window.dispatchEvent(new Event('blocked_chats_updated'));
+      } catch {}
+    });
+
     sock.on('chat:typing', (data) => {
       if (data.isTyping === false) return;
       const uname = data.username || data.userA;
@@ -1259,6 +1573,15 @@ const Room = () => {
     sock.on('private_message', msg => {
       const isMine = msg.isMe || (msg.senderName && msg.senderName === username);
       const otherName = isMine ? msg.targetName : msg.senderName;
+      
+      // Block Check
+      if (!isMine) {
+        const myUsername = localStorage.getItem('watch_username') || '';
+        try {
+          const blocked = JSON.parse(localStorage.getItem(`blocked_chats_${myUsername}`) || '[]');
+          if (blocked.some(u => u.toLowerCase() === otherName.toLowerCase())) return;
+        } catch {}
+      }
       let decryptedText = null;
       let decryptedMediaUrl = msg.mediaUrl;
 
@@ -1347,7 +1670,7 @@ const Room = () => {
             const oldMsg = thread[optIdx];
             const safeDecryptedText = newMsg.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
             thread[optIdx] = { ...newMsg, decryptedText: safeDecryptedText };
-            return { ...prev, [otherName]: thread };
+            return { ...prev, [otherName]: resolveReplyMessages(thread) };
           }
         }
 
@@ -1356,12 +1679,17 @@ const Room = () => {
           return prev;
         }
 
-        return { ...prev, [otherName]: [...thread, newMsg] };
+        return { ...prev, [otherName]: resolveReplyMessages([...thread, newMsg]) };
       });
 
       if (chatTabRef.current !== 'dm' || dmTargetRef.current !== otherName) {
         if (!isMine) {
-          setDmUnread(prev => ({ ...prev, [otherName]: (prev[otherName] || 0) + 1 }));
+          const storedCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+          const currentCount = Math.max(storedCounts[otherName] || 0, dmUnreadRef.current[otherName] || 0);
+          const newDmCount = currentCount + 1;
+          dmUnreadRef.current[otherName] = newDmCount;
+          
+          setDmUnread(prev => ({ ...prev, [otherName]: newDmCount }));
           setTotalUnread(p => p + 1);
           if (notifSettingsRef.current.app && notifSettingsRef.current.messages) {
             const gcwActive = chatWidgetRef.current?.getActiveChat?.() || {};
@@ -1369,8 +1697,28 @@ const Room = () => {
 
             if (!isViewingInGCW) {
               const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
-              const previewText = mediaPreview || (newMsg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? '🔒 Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
-              toast(`${msg.senderName}: ${previewText}`, { id: `msg-${msg.id}`, icon: '💬', duration: 3500 });
+              const previewText = mediaPreview || (newMsg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
+              // ─── Mute Check: skip toast if this DM partner is muted ───
+              let isDmMuted = false;
+              try {
+                const mutedList = JSON.parse(localStorage.getItem(`muted_chats_${username}`) || '[]');
+                if (mutedList.includes(otherName)) isDmMuted = true;
+              } catch {}
+              if (!isDmMuted) {
+                // ─── Hidden Check: use privacy-safe preview if this DM is hidden ───
+                let isDmHidden = false;
+                try {
+                  const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${username}`) || '[]');
+                  if (hiddenList.includes(otherName)) isDmHidden = true;
+                } catch {}
+                
+                const msgStr = newDmCount === 1 ? '1 new message' : `${newDmCount} new messages`;
+
+                const toastText = isDmHidden
+                  ? `${msg.senderName}: ${msgStr}`
+                  : `${msg.senderName}: ${previewText}`;
+                toast(toastText, { id: `msg-${msg.id}`, icon: '💬', duration: 3500 });
+              }
             }
           }
         }
@@ -1458,6 +1806,7 @@ const Room = () => {
           }
           return { ...msg, message: msg.message, decryptedText, mediaUrl: decryptedMediaUrl, _encryptedOwn };
         });
+        threads[otherName] = resolveReplyMessages(threads[otherName]);
       }
 
       setDmThreads(prev => {
@@ -1586,9 +1935,13 @@ const Room = () => {
 
     sock.on('kicked_out', ({ reason }) => {
       setKickedReason(reason);
+      setIsConnecting(false);
       if (reason === 'room_deleted') setRoomNotFound(true);
     });
-    sock.on('room_not_found', () => setRoomNotFound(true));
+    sock.on('room_not_found', () => {
+      setRoomNotFound(true);
+      setIsConnecting(false);
+    });
     sock.on('you_are_muted', () => {
       setIsMuted(true);
       if (notifSettingsRef.current.app) toast('Muted by host');
@@ -1644,8 +1997,14 @@ const Room = () => {
         audioContextRef.current.close().catch(e => console.error('Error closing AudioContext:', e));
       }
       analyzersRef.current.clear();
+      
+      // Dismiss all active join request toasts when leaving the room
+      activeJoinToastIds.current.forEach(tid => toast.dismiss(tid));
+      activeJoinToastIds.current.clear();
+
       sock.close();
     };
+
   }, [roomId, username, SOCKET_SERVER_URL, cryptoReady]);
 
   // E2EE: Emit public key when available so others can DM us encrypted
@@ -1914,9 +2273,10 @@ const Room = () => {
       id: tempId,
       username,
       message: msgText,
+      decryptedText: msgText,
       timestamp: ts,
       reactions: {},
-      replyTo: groupReplyTo ? { id: groupReplyTo.id, username: groupReplyTo.username, message: groupReplyTo.message } : null,
+      replyTo: groupReplyTo ? { id: groupReplyTo.id, username: groupReplyTo.username || groupReplyTo.senderName, message: groupReplyTo.mediaType ? (groupReplyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (groupReplyTo.decryptedText || (looksLikeCiphertext(groupReplyTo.message||'') ? '' : (groupReplyTo.message||''))) } : null,
       _isOptimistic: true
     };
     
@@ -1947,6 +2307,11 @@ const Room = () => {
             publicKey: mergedKeys[u.username.toLowerCase()] || null
           }))
           .filter(r => r.publicKey);
+          
+        recipients.push({
+          username: username,
+          publicKey: encodeBase64(myKeyPair.current.publicKey)
+        });
 
         encryptedPayload = encryptGroupMessage(
           msgText,
@@ -1988,11 +2353,13 @@ const Room = () => {
       id: tempId,
       username,
       message: '',
+      decryptedText: type.startsWith('video') ? 'Video' : 'Photo',
       timestamp: ts,
       mediaUrl: optimisticUrl,
       mediaType: type,
+      isMe: true,
       reactions: {},
-      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username, message: replyTo.message } : null,
+      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
       _isOptimistic: true
     };
     
@@ -2043,6 +2410,11 @@ const Room = () => {
             publicKey: mergedKeys[u.username.toLowerCase()] || null
           }))
           .filter(r => r.publicKey);
+          
+        recipients.push({
+          username: username,
+          publicKey: encodeBase64(myKeyPair.current.publicKey)
+        });
 
         // Encrypt the AES key for group recipients
         encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
@@ -2066,6 +2438,11 @@ const Room = () => {
             publicKey: mergedKeys2[u.username.toLowerCase()] || null
           }))
           .filter(r => r.publicKey);
+          
+        recipients.push({
+          username: username,
+          publicKey: encodeBase64(myKeyPair.current.publicKey)
+        });
         encryptedPayload = encryptGroupMessage(url, recipients, myKeyPair.current, username);
         finalUrl = encryptedPayload.ciphertext; // stored encrypted string
         isEncrypted = true;
@@ -2121,10 +2498,11 @@ const Room = () => {
       senderName: username,
       targetName: dmTarget,
       message: plaintext,
+      decryptedText: plaintext,
       timestamp: ts,
       isMe: true,
       reactions: {},
-      replyTo: dmReplyTo ? { id: dmReplyTo.id, username: dmReplyTo.username || dmReplyTo.senderName || dmReplyTo.targetName, message: dmReplyTo.message } : null,
+      replyTo: dmReplyTo ? { id: dmReplyTo.id, username: dmReplyTo.username || dmReplyTo.senderName || dmReplyTo.targetName, message: dmReplyTo.mediaType ? (dmReplyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (dmReplyTo.decryptedText || (looksLikeCiphertext(dmReplyTo.message||'') ? '' : (dmReplyTo.message||''))) } : null,
       _isOptimistic: true
     };
     setDmThreads(prev => {
@@ -2137,50 +2515,118 @@ const Room = () => {
     setDmChatInput('');
 
     try {
-      // ─── E2EE: Fetch target public key via HTTP (works whether or not target is in same room) ───
-      let messagePayload = plaintext;
-      let senderMsgPayload = null;
-      let nonceVal = null;
-      let ephKeyVal = null;
-      let isEncrypted = false;
+      // ─── Phase 1: Sender Key Validation ───
+      if (!myKeyPair.current && keyPair) {
+        console.log('[E2EE] myKeyPair.current was missing, re-hydrated from context.');
+        myKeyPair.current = keyPair;
+      }
 
-      if (myKeyPair.current && token) {
-        try {
-          const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${dmTarget}`);
+      const token = localStorage.getItem('watch_token');
+      if (!myKeyPair.current) {
+        console.error('[E2EE] ABORT: My own keyPair is still missing from CryptoContext.');
+        toast.error('Encryption keys not ready yet. Please refresh.');
+        return;
+      }
+
+      // ─── Phase 2: Recipient Key Discovery ───
+      const targetLower = dmTarget.toLowerCase();
+      let isEncrypted = false;
+      let messagePayload = '';
+      let senderMsgPayload = '';
+      let nonceVal = '';
+      let ephKeyVal = '';
+
+      console.log(`[E2EE] Attempting to encrypt DM for target: ${dmTarget}`);
+
+      try {
+        // 1a: check in-memory cache
+        const cachedKey = dbPublicKeys.current[targetLower];
+        if (cachedKey && cachedKey.length === 32) {
+          console.log('[E2EE] Using in-memory cached key.');
+          const enc = encryptDM(plaintext, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+          messagePayload   = enc.ciphertext;
+          senderMsgPayload = enc.senderCiphertext;
+          nonceVal         = enc.nonce;
+          ephKeyVal        = enc.ephemeralPublicKey;
+          isEncrypted      = true;
+        }
+
+        // 1b: check userList state
+        if (!isEncrypted) {
+          const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
+          if (targetUser?.publicKey) {
+            console.log('[E2EE] Found key in current userList.');
+            const enc = encryptDM(plaintext, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
+            messagePayload   = enc.ciphertext;
+            senderMsgPayload = enc.senderCiphertext;
+            nonceVal         = enc.nonce;
+            ephKeyVal        = enc.ephemeralPublicKey;
+            isEncrypted      = true;
+            try { dbPublicKeys.current[targetLower] = decodeBase64(targetUser.publicKey); } catch {}
+          }
+        }
+
+        // 2: check localStorage
+        if (!isEncrypted) {
+          const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
+          if (localPK) {
+            console.log('[E2EE] Found key in localStorage cache.');
+            const enc = encryptDM(plaintext, localPK, encodeBase64(myKeyPair.current.publicKey));
+            messagePayload   = enc.ciphertext;
+            senderMsgPayload = enc.senderCiphertext;
+            nonceVal         = enc.nonce;
+            ephKeyVal        = enc.ephemeralPublicKey;
+            isEncrypted      = true;
+            try { dbPublicKeys.current[targetLower] = decodeBase64(localPK); } catch {}
+          }
+        }
+
+        // 3: HTTP API lookup
+        if (!isEncrypted) {
+          console.log('[E2EE] Key not found locally, fetching from API...');
+          const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
           if (pkRes.ok) {
             const pkData = await pkRes.json();
             if (pkData.publicKey) {
+              console.log('[E2EE] Found key via API.');
               const enc = encryptDM(plaintext, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
-              messagePayload    = enc.ciphertext;
-              senderMsgPayload  = enc.senderCiphertext;
-              nonceVal          = enc.nonce;
-              ephKeyVal         = enc.ephemeralPublicKey;
-              isEncrypted       = true;
-            }
-          } else {
-            // Fallback: try lowercase username
-            const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${dmTarget.toLowerCase()}`);
-            if (pkRes2.ok) {
-              const pkData2 = await pkRes2.json();
-              if (pkData2.publicKey) {
-                const enc = encryptDM(plaintext, pkData2.publicKey, encodeBase64(myKeyPair.current.publicKey));
-                messagePayload    = enc.ciphertext;
-                senderMsgPayload  = enc.senderCiphertext;
-                nonceVal          = enc.nonce;
-                ephKeyVal         = enc.ephemeralPublicKey;
-                isEncrypted       = true;
-              }
+              messagePayload   = enc.ciphertext;
+              senderMsgPayload = enc.senderCiphertext;
+              nonceVal         = enc.nonce;
+              ephKeyVal        = enc.ephemeralPublicKey;
+              isEncrypted      = true;
+              try { localStorage.setItem(`wt_pk_${targetLower}`, pkData.publicKey); } catch {}
+              try { dbPublicKeys.current[targetLower] = decodeBase64(pkData.publicKey); } catch {}
             }
           }
-        } catch (err) {
-          console.warn('[E2EE] Room DM key fetch failed:', err);
         }
+
+        // 4: Case-insensitive API lookup
+        if (!isEncrypted) {
+          console.log('[E2EE] Fetching from API with lowercase fallback...');
+          const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
+          if (pkRes2.ok) {
+            const pkData2 = await pkRes2.json();
+            if (pkData2.publicKey) {
+              console.log('[E2EE] Found key via lowercase API.');
+              const enc = encryptDM(plaintext, pkData2.publicKey, encodeBase64(myKeyPair.current.publicKey));
+              messagePayload   = enc.ciphertext;
+              senderMsgPayload = enc.senderCiphertext;
+              nonceVal         = enc.nonce;
+              ephKeyVal        = enc.ephemeralPublicKey;
+              isEncrypted      = true;
+              try { localStorage.setItem(`wt_pk_${targetLower}`, pkData2.publicKey); } catch {}
+              try { dbPublicKeys.current[targetLower] = decodeBase64(pkData2.publicKey); } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[E2EE] Encryption pipeline error:', err);
       }
 
       if (!isEncrypted) {
-        // Block send if encryption failed — security requirement
-        console.error('[E2EE] Blocking Room DM — encryption keys unavailable.');
-        toast.error('Could not encrypt message. Please try again.');
+        console.error(`[E2EE] CRITICAL: Could not find any encryption key for user "${dmTarget}". All lookup methods failed.`);
+        toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
         // Rollback optimistic message
         setDmThreads(prev => {
           const next = { ...prev };
@@ -2249,7 +2695,7 @@ const Room = () => {
       timestamp: ts,
       isMe: true,
       reactions: {},
-      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName || replyTo.targetName, message: replyTo.message } : null,
+      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName || replyTo.targetName, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
       _isOptimistic: true
     };
     setDmThreads(prev => {
@@ -2334,7 +2780,7 @@ const Room = () => {
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: isEncrypted,
-          replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName, message: replyTo.message } : null,
+          replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
           tempId
         })
       });
@@ -2628,7 +3074,19 @@ const Room = () => {
 
       try {
         console.log('Requesting getUserMedia... mic:', isMicOnCam);
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const selectedCam = localStorage.getItem('watch_selected_cam');
+        const selectedMic = localStorage.getItem('watch_selected_mic');
+        const constraints = {
+          video: selectedCam ? { deviceId: { exact: selectedCam } } : true,
+          audio: selectedMic ? { deviceId: { exact: selectedMic } } : true
+        };
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (exactErr) {
+          console.warn('Failed with exact device constraints, falling back to defaults', exactErr);
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        }
         console.log('getUserMedia success', stream.getTracks());
 
         // Ensure mic starts in the correct state (OFF by default)
@@ -2670,7 +3128,7 @@ const Room = () => {
   };
   const totalDmUnread = Object.values(dmUnread).reduce((a, b) => a + b, 0);
 
-  const copyRoomLink = () => { navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); toast.success('Link copied!'); };
+  const copyRoomLink = () => { if (copied) return; navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); toast.success('Link copied!'); };
 
   const reportMsg = async (msg) => {
     try { await fetch(`${SOCKET_SERVER_URL}/api/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId, reporterUsername: username, reportedUsername: msg.username, message: msg.message }) }); toast.success('Reported'); } catch { }
@@ -2700,20 +3158,34 @@ const Room = () => {
     );
   }
 
+  // ─── Connection Loading State (Prevents Content Flickering for Banned Users) ───
+  if (isConnecting && !isWaitingApproval) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#05030a', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100000 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="lobby-dot" style={{ margin: '0 8px', display: 'inline-block' }} />
+          <div className="lobby-dot" style={{ margin: '0 8px', display: 'inline-block', animationDelay: '0.2s' }} />
+          <div className="lobby-dot" style={{ margin: '0 8px', display: 'inline-block', animationDelay: '0.4s' }} />
+        </div>
+      </div>
+    );
+  }
+
   // ─── Lobby Waiting Screen (full page, no navbar) ───
   if (isWaitingApproval) {
+    const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <div style={{ maxWidth: 440, width: '90%', padding: '48px 40px', background: 'rgba(255,255,255,0.02)', borderRadius: 40, border: '1px solid rgba(168,85,247,0.15)', boxShadow: '0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.05)', backdropFilter: 'blur(20px)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', inset: 0, background: isLightMode ? '#f8fafc' : 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+        <div style={{ maxWidth: 440, width: '90%', padding: '48px 40px', background: isLightMode ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 40, border: isLightMode ? '1px solid rgba(168,85,247,0.2)' : '1px solid rgba(168,85,247,0.15)', boxShadow: isLightMode ? '0 20px 40px rgba(0,0,0,0.05)' : '0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.05)', backdropFilter: 'blur(20px)', position: 'relative', overflow: 'hidden' }}>
           {/* Top gradient accent */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)', borderRadius: '40px 40px 0 0' }} />
           {/* Icon - steady glow */}
           <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)', boxShadow: '0 0 40px rgba(168,85,247,0.2)' }}>
             <Lock size={44} />
           </div>
-          <h2 style={{ color: '#fff', fontSize: 28, fontWeight: 900, margin: '0 0 10px', letterSpacing: '-0.5px' }}>You're in the Lobby</h2>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15, lineHeight: 1.7, margin: '0 0 10px' }}>This room requires host approval to join.</p>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, lineHeight: 1.6, margin: '0 0 36px' }}>The host has been notified of your request. Please wait while they review it.</p>
+          <h2 style={{ color: isLightMode ? '#1e293b' : '#fff', fontSize: 28, fontWeight: 900, margin: '0 0 10px', letterSpacing: '-0.5px' }}>You're in the Lobby</h2>
+          <p style={{ color: isLightMode ? '#334155' : 'rgba(255,255,255,0.85)', fontSize: 15, lineHeight: 1.7, margin: '0 0 10px' }}>This room requires host approval to join.</p>
+          <p style={{ color: isLightMode ? '#64748b' : 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 1.6, margin: '0 0 36px' }}>The host has been notified of your request. Please wait while they review it.</p>
           {/* Wave dots */}
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 36 }}>
             <div className="lobby-dot" />
@@ -2722,9 +3194,9 @@ const Room = () => {
           </div>
           <button
             onClick={() => { sessionStorage.removeItem(lobbyKey); navigate('/'); }}
-            style={{ width: '100%', padding: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, color: 'rgba(255,255,255,0.7)', fontWeight: 600, cursor: 'pointer', fontSize: 15, transition: 'all 0.2s', letterSpacing: '0.2px' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
+            style={{ width: '100%', padding: '16px', background: isLightMode ? '#f1f5f9' : 'rgba(255,255,255,0.05)', border: isLightMode ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, color: isLightMode ? '#334155' : 'rgba(255,255,255,0.85)', fontWeight: 600, cursor: 'pointer', fontSize: 15, transition: 'all 0.2s', letterSpacing: '0.2px' }}
+            onMouseEnter={e => { e.currentTarget.style.background = isLightMode ? '#e2e8f0' : 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = isLightMode ? '#0f172a' : '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = isLightMode ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = isLightMode ? '#334155' : 'rgba(255,255,255,0.85)'; }}
           >
             Leave Room
           </button>
@@ -2733,21 +3205,7 @@ const Room = () => {
     );
   }
 
-  if (!room && !kickedReason && !roomNotFound) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="cube-loader">
-          <div className="cube-top"></div>
-          <div className="cube-wrapper">
-            <span style={{"--i":0}} className="cube-span"></span>
-            <span style={{"--i":1}} className="cube-span"></span>
-            <span style={{"--i":2}} className="cube-span"></span>
-            <span style={{"--i":3}} className="cube-span"></span>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
   // ─── Kicked / Not Found Modal ───
   if (roomNotFound || kickedReason || forceMembersOnlyLock) {
@@ -2757,20 +3215,20 @@ const Room = () => {
     const isMembersOnly = kickedReason === 'members_only' || forceMembersOnlyLock;
 
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999 }}>
-        <div style={{ textAlign: 'center', padding: 40, background: 'rgba(255,255,255,0.02)', borderRadius: 40, border: '1px solid rgba(255,255,255,0.05)', maxWidth: 460, width: '90%', backdropFilter: 'blur(20px)', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
-          <div style={{ width: 100, height: 100, borderRadius: '30%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 30px', color: '#6366f1', transform: 'rotate(-10deg)', border: '1px solid rgba(99,102,241,0.2)', position: 'relative' }}>
-            {isBanned ? <Ban size={48} /> : (isDenied || isMembersOnly) ? <Lock size={48} /> : (isDeleted || roomNotFound ? <Hash size={48} /> : <LogOut size={48} />)}
-            <div style={{ position: 'absolute', top: -10, right: -10, width: 36, height: 36, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: '4px solid #0f0a23', transform: 'rotate(10deg)' }}>
-              <X size={20} />
+      <div style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(255, 255, 255, 0.95)' : 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }} className="room-modals-overlay">
+        <div style={{ textAlign: 'center', padding: 48, background: isLight ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 48, border: isLight ? '1px solid rgba(99, 102, 241, 0.15)' : '1px solid rgba(255,255,255,0.05)', maxWidth: 500, width: '90%', boxShadow: isLight ? '0 32px 80px rgba(99, 102, 241, 0.08)' : '0 40px 100px rgba(0,0,0,0.8)' }}>
+          <div style={{ width: 120, height: 120, borderRadius: '35%', background: isLight ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 40px', color: '#6366f1', transform: 'rotate(-8deg)', border: isLight ? '1px solid rgba(99, 102, 241, 0.15)' : '1px solid rgba(99,102,241,0.2)', position: 'relative' }}>
+            {isBanned ? <Ban size={56} /> : (isDenied || isMembersOnly) ? <Lock size={56} /> : (isDeleted || roomNotFound ? <Hash size={56} /> : <LogOut size={56} />)}
+            <div style={{ position: 'absolute', top: -8, right: -8, width: 42, height: 42, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fffffe', border: isLight ? '6px solid #ffffff' : '6px solid #0f0a23', transform: 'rotate(8deg)', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)' }}>
+              <X size={24} />
             </div>
           </div>
 
-          <h1 style={{ color: '#fff', fontSize: 32, fontWeight: 900, marginBottom: 16, letterSpacing: '-1px' }}>
-            {isBanned ? 'You are Banned' : isDenied ? 'Access Denied' : isMembersOnly ? 'Members Only' : (isDeleted || roomNotFound ? 'Room Not Found' : 'Disconnected')}
+          <h1 style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 36, fontWeight: 950, marginBottom: 20, letterSpacing: '-1.5px' }}>
+            {isBanned ? 'You are Banned' : isDenied ? 'Access Denied' : isMembersOnly ? 'Members Only' : (isDeleted || roomNotFound ? 'Room Not Found' : 'You were Kicked')}
           </h1>
 
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 16, lineHeight: 1.6, marginBottom: 40 }}>
+          <p style={{ color: isLight ? '#475569' : 'rgba(255,255,255,0.5)', fontSize: 17, lineHeight: 1.7, marginBottom: 48, fontWeight: 500 }}>
             {isBanned ? "The host has restricted your access to this room permanently." :
               (kickedReason === 'denied' ? "The host didn't allow you to join this room." :
                 (isMembersOnly ? "This room allows only signed-in users to join. Please log in to gain access." :
@@ -2781,49 +3239,50 @@ const Room = () => {
 
           <button
             onClick={() => navigate('/')}
-            style={{ width: '100%', padding: '18px 0', borderRadius: 20, border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            style={{ width: '100%', padding: '20px 0', borderRadius: 24, border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fffffe', fontSize: 17, fontWeight: 900, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? '0 8px 25px rgba(99, 102, 241, 0.2)' : '0 8px 25px rgba(99, 102, 241, 0.4)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = isLight ? '0 12px 30px rgba(99, 102, 241, 0.35)' : '0 12px 30px rgba(99, 102, 241, 0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 25px rgba(99, 102, 241, 0.2)' : '0 8px 25px rgba(99, 102, 241, 0.4)'; }}
           >
-            Back to Dashboard
+            <span style={{ color: '#fffffe' }}>Back to Home</span>
           </button>
         </div>
       </div>
     );
   }
 
+
   // ─── RENDER ───
   return (
-    <div style={{ display: 'flex', height: '100vh', flexDirection: 'column', background: '#0a0a0a', fontFamily: "'Outfit',sans-serif", color: '#fff' }}>
+    <div style={{ position: 'relative', display: 'flex', height: '100vh', flexDirection: 'column', background: 'var(--room-main-bg)', fontFamily: "'Outfit',sans-serif", color: 'var(--text-primary)' }}>
       <Toaster
         position="top-center"
         containerStyle={{ zIndex: 99999, top: 8 }}
         toastOptions={{
           duration: 2500,
           style: {
-            background: 'rgba(18, 14, 35, 0.97)',
-            color: '#fff',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: isLight ? '#fff' : 'rgba(18, 14, 35, 0.97)',
+            color: isLight ? '#1e293b' : '#fff',
+            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
             borderRadius: 14,
             fontSize: 14,
             fontWeight: 500,
             fontFamily: "'Outfit', sans-serif",
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.05)' : '0 8px 32px rgba(0,0,0,0.6)',
             backdropFilter: 'blur(20px)',
             padding: '12px 18px',
           },
           success: {
             iconTheme: { primary: '#10b981', secondary: '#fff' },
             style: {
-              background: 'rgba(16, 12, 30, 0.97)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              background: isLight ? '#fff' : 'rgba(16, 12, 30, 0.97)',
+              border: isLight ? '1px solid #10b981' : '1px solid rgba(16, 185, 129, 0.3)',
             }
           },
           error: {
             iconTheme: { primary: '#ef4444', secondary: '#fff' },
             style: {
-              background: 'rgba(16, 12, 30, 0.97)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
+              background: isLight ? '#fff' : 'rgba(16, 12, 30, 0.97)',
+              border: isLight ? '1px solid #ef4444' : '1px solid rgba(239, 68, 68, 0.3)',
             }
           }
         }}
@@ -2845,7 +3304,7 @@ const Room = () => {
         .usr-menu-item:hover{background:rgba(255,255,255,0.07);}
         ::-webkit-scrollbar{width:4px;} ::-webkit-scrollbar-track{background:#111;} ::-webkit-scrollbar-thumb{background:#333;border-radius:2px;}
         .share-btn { transition: transform 0.2s ease, filter 0.2s ease; }
-        .share-btn:hover { transform: translateY(-4px); filter: brightness(1.2); }
+        .share-btn:hover { filter: brightness(1.2); }
         .player-ctrl-btn{background:transparent;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;border-radius:6px;transition:background 0.15s;}
         .player-ctrl-btn:hover{background:rgba(255,255,255,0.15);}
         .player-scrubber{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
@@ -2857,26 +3316,42 @@ const Room = () => {
         .join-req-deny-btn:hover { background: rgba(239,68,68,0.22); border-color: rgba(239,68,68,0.5); }
         .join-req-approve-btn { padding: 7px 16px; background: linear-gradient(135deg, #6366f1, #a855f7); border: none; border-radius: 10px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; }
         .join-req-approve-btn:hover { opacity: 0.9; transform: scale(1.03); }
+        .nav-icon-btn { position: relative; width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
+        .nav-icon-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; }
+        .nav-icon-btn.active { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.4); color: #818cf8; }
+        html[data-theme='light'] .forced-white, .forced-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+
+        /* ── Light Mode Overrides ── */
+        html[data-theme='light'] .nav-icon-btn.active { color: #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+        
+        html[data-theme='light'] .room-header { background: #fff !important; border-bottom-color: rgba(0,0,0,0.08) !important; }
+        html[data-theme='light'] .back-btn-room { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #666 !important; }
+        html[data-theme='light'] .back-btn-room:hover { background: rgba(0,0,0,0.08) !important; color: #111 !important; }
+        
+        html[data-theme='light'] .join-req-approve-btn { background: #6366f1; box-shadow: none; }
+        html[data-theme='light'] .join-req-approve-btn:hover { background: #4f46e5; box-shadow: none; }
       `}</style>
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Share Modal Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showShareModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowShareModal(false)}>
-          <div style={{ background: '#141420', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, maxWidth: 440, width: '90%', position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowShareModal(false)} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: '#2a2a3e', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.5)', transition: 'background 0.2s, transform 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = '#3a3a4e'; e.currentTarget.style.transform = 'scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = '#2a2a3e'; e.currentTarget.style.transform = 'scale(1)' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }} onClick={() => setShowShareModal(false)}>
+          <div style={{ background: isLight ? '#fff' : '#141420', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, maxWidth: 440, width: '90%', position: 'relative', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.9)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowShareModal(false)} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: isLight ? '#fff' : '#2a2a3e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 4px 12px rgba(0,0,0,0.5)', transition: 'background 0.2s, transform 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f8fafc' : '#3a3a4e'; e.currentTarget.style.transform = 'scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : '#2a2a3e'; e.currentTarget.style.transform = 'scale(1)' }}>
               <X size={20} />
             </button>
-            <h2 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800 }}>{t('inviteFriends', 'Invite Friends')}</h2>
-            <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-              <span style={{ flex: 1, fontSize: 13, color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{window.location.href}</span>
-              <button onClick={copyRoomLink} style={{ background: copied ? '#10b981' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, padding: '6px 14px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{copied ? t('copied', 'Copied!') : t('copyBtn', 'Copy')}</button>
+            <h2 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800, color: isLight ? '#1e293b' : '#fff' }}>{t('inviteFriends', 'Invite Friends')}</h2>
+            <div style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <span style={{ flex: 1, fontSize: 13, color: isLight ? '#475569' : '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{window.location.href}</span>
+              <button onClick={copyRoomLink} style={{ background: copied ? '#10b981' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, padding: '6px 14px', color: '#ffffff', WebkitTextFillColor: '#ffffff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>{copied ? t('copied', 'Copied!') : t('copyBtn', 'Copy')}</span>
+              </button>
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
               {[{ icon: <FaWhatsapp size={20} />, label: 'WhatsApp', color: '#25D366', href: `https://api.whatsapp.com/send?text=${encodeURIComponent(window.location.href)}` },
               { icon: <FaTelegramPlane size={20} />, label: 'Telegram', color: '#0088cc', href: `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}` },
               { icon: <FaInstagram size={20} />, label: 'Instagram', color: '#E1306C', href: `https://www.instagram.com/` },
               { icon: <FaSnapchatGhost size={20} />, label: 'Snapchat', color: '#FFFC00', href: `https://www.snapchat.com/` },
-              { icon: <FaXTwitter size={20} />, label: 'X', color: '#e5e5e5', href: `https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}` },
+              { icon: <FaXTwitter size={20} />, label: 'X', color: isLight ? '#000' : '#e5e5e5', href: `https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}` },
               { icon: <SiGmail size={20} />, label: 'Email', color: '#EA4335', href: `mailto:?body=${encodeURIComponent(window.location.href)}` },
               { icon: <FaDiscord size={20} />, label: 'Discord', color: '#5865F2', href: `https://discord.com/channels/@me` },
               { icon: <FaRedditAlien size={20} />, label: 'Reddit', color: '#FF4500', href: `https://reddit.com/submit?url=${encodeURIComponent(window.location.href)}` },
@@ -2885,9 +3360,9 @@ const Room = () => {
               { icon: <FaPinterestP size={20} />, label: 'Pinterest', color: '#E60023', href: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(window.location.href)}` },
               { icon: <FaTwitch size={20} />, label: 'Twitch', color: '#9146FF', href: `https://www.twitch.tv/` }
               ].map(s => (
-                <a key={s.label} className="share-btn" href={s.href} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textDecoration: 'none', color: s.color === '#FFFC00' ? '#e5e5e5' : s.color }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.icon}</div>
-                  <span style={{ fontSize: 11, color: '#666' }}>{s.label}</span>
+                <a key={s.label} className="share-btn" href={s.href} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textDecoration: 'none', color: s.color === '#FFFC00' ? '#eab308' : s.color }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s.icon}</div>
+                  <span style={{ fontSize: 11, color: isLight ? '#64748b' : '#666' }}>{s.label}</span>
                 </a>
               ))}
             </div>
@@ -2895,158 +3370,263 @@ const Room = () => {
         </div>
       )}
 
-      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬ */}
-      <div style={{ height: 52, padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#111', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Back Button */}
-          <button onClick={() => navigate('/')} title="Back to Home" style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* ── Header ── */}
+      <div className="room-header" style={{ height: 64, padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--room-header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--room-border)', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
+        {/* Left: Navigation & Branding */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button className="back-btn-room" onClick={() => navigate('/')} title="Back to Home" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, padding: '8px 14px', color: isLight ? '#475569' : '#888', cursor: 'pointer', transition: 'all 0.2s' }}>
             <ChevronLeft size={18} />
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{t('back', 'Back')}</span>
           </button>
-          <button onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Play size={13} fill="#fff" color="#fff" /></div>
-            <span style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>WatchTogether</span>
-          </button>
-          <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)' }} />
-          <span style={{ fontSize: 13, color: '#888' }}>{t('roomLabel', 'Room:')} <span style={{ color: '#a0aab2', fontWeight: 600 }}>{roomId}</span></span>
+          <div style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'default', padding: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+              <Play size={14} fill="#fff" color="#fff" />
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 18, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>WatchTogether</span>
+          </div>
+          <div style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+          <span style={{ fontSize: 13, color: isLight ? '#64748b' : '#666', fontWeight: 600 }}>{t('roomLabel', 'Room:')} <span style={{ color: isLight ? '#1e293b' : '#aaa' }}>{roomId}</span></span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* Right: Actions & Profile */}
+        <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Watching / Participants Button */}
           <div style={{ position: 'relative' }} ref={userPanelRef}>
-            <button onClick={() => setShowUserPanel(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 20, padding: '5px 14px', fontSize: 13, color: '#10b981', fontWeight: 600, cursor: 'pointer', position: 'relative', zIndex: 50001 }}>
-              <Users size={14} color="#10b981" />
-              {userCount} {t('watching', 'watching')}
+            <button onClick={() => { setShowUserPanel(!showUserPanel); setShowSettings(false); setShowRecentChats(false); }} 
+              style={{ 
+                display: 'flex', alignItems: 'center', gap: 8, 
+                background: isLight ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.15)', 
+                border: isLight ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(16,185,129,0.3)', 
+                borderRadius: 14, padding: '8px 14px', fontSize: 13, color: '#10b981', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
+                boxShadow: isLight ? '0 2px 8px rgba(16,185,129,0.05)' : 'none'
+              }}
+            >
+              <Users size={16} color="#10b981" />
+              {userCount}
+              {isEffectiveHost && joinRequests.length > 0 && (
+                <div style={{ position: 'absolute', top: -5, right: -5, background: '#f59e0b', color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, border: isLight ? '2px solid #fff' : '2px solid #000' }}>
+                  {joinRequests.length}
+                </div>
+              )}
             </button>
             {showUserPanel && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 10, minWidth: 220, zIndex: 50000, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }} onMouseDown={e => e.stopPropagation()}>
-                <div style={{ fontSize: 11, color: '#555', fontWeight: 600, letterSpacing: '0.5px', marginBottom: 8, padding: '0 6px' }}>ROOM MEMBERS ({userCount})</div>
-                {userList.map(u => {
-                  const uIsHost = u.isHost === true;
-                  const uIsMe = u.socketId === socket?.id;
-                  const amHost = isEffectiveHost;
-                  return (
-                    <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      <Avatar name={u.username} isHost={uIsHost} isMuted={u.isMuted} size={34} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ fontSize: 13, color: uIsMe ? '#6366f1' : '#ddd', fontWeight: uIsMe ? 700 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {u.username}{uIsMe ? ' (You)' : ''}
-                          </span>
-                          {uIsHost && <Star size={12} color="#FFD700" fill="#FFD700" style={{ flexShrink: 0 }} />}
-                          {u.isMuted && <MicOff size={11} color="#ef4444" />}
-                        </div>
-                        {uIsHost && <div style={{ fontSize: 10, color: '#FFD700', marginTop: 1 }}>Host</div>}
+              <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, background: isLight ? '#fff' : '#0a0a0f', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(129, 140, 248, 0.2)', borderRadius: 24, padding: '20px 12px', minWidth: 300, zIndex: 50000, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.9)' }} onMouseDown={e => e.stopPropagation()}>
+                <div style={{ fontSize: 11, color: isLight ? '#000' : '#444', fontWeight: 900, letterSpacing: '1.5px', marginBottom: 20, padding: '0 12px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{t('roomMembers', 'Room Members')}</span>
+                  <span style={{ color: '#6366f1' }}>{userCount}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }} className="custom-scrollbar">
+                  {/* — Pending Joins (if host) — */}
+                  {isEffectiveHost && joinRequests.length > 0 && (
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 900, letterSpacing: '1px', marginBottom: 10, padding: '0 12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Plus size={12} /> Pending Joins
                       </div>
-                      {!uIsMe && (
-                        <div style={{ display: 'flex', gap: 2, flexShrink: 0, alignItems: 'center' }}>
-                          <div style={{ position: 'relative' }}>
-                            <button className="usr-btn" title="Private chat" onClick={() => { openDM(u.username); setShowUserPanel(false); }}>
-                              <MessageCircle size={14} />
-                              {(dmUnread[u.socketId] || 0) > 0 && <span style={{ position: 'absolute', top: -3, right: -3, width: 12, height: 12, borderRadius: '50%', background: '#ef4444', fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>{dmUnread[u.socketId]}</span>}
-                            </button>
-                          </div>
-                          {!uIsHost && (
-                            <div style={{ position: 'relative' }}>
-                              <button className="usr-btn" title="More options" onClick={e => { e.stopPropagation(); setUserMenuOpen(userMenuOpen === u.socketId ? null : u.socketId); }}>
-                                <MoreVertical size={14} />
-                              </button>
-                              {userMenuOpen === u.socketId && (
-                                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: 4, zIndex: 99999, minWidth: 130, boxShadow: '0 8px 24px rgba(0,0,0,0.7)' }} onMouseLeave={() => setUserMenuOpen(null)} onClick={e => e.stopPropagation()}>
-                                  {amHost ? (
-                                    <>
-                                      <button className="usr-menu-item" style={{ color: '#fbbf24' }} onClick={() => { socket.emit('mod_mute', { roomId, targetSocketId: u.socketId }); setUserMenuOpen(null); }}>
-                                        {u.isMuted ? <Volume2 size={13} /> : <VolumeX size={13} />}{u.isMuted ? 'Unmute' : 'Mute'}
-                                      </button>
-                                      <button className="usr-menu-item" style={{ color: '#f97316' }} onClick={() => { socket.emit('mod_kick', { roomId, targetSocketId: u.socketId }); setUserMenuOpen(null); }}>
-                                        <LogOut size={13} />Kick
-                                      </button>
-                                      <button className="usr-menu-item" style={{ color: '#ef4444' }} onClick={() => {
-                                        setBanConfirmTarget({ socketId: u.socketId, username: u.username });
-                                        setUserMenuOpen(null);
-                                        setShowUserPanel(false);
-                                      }}>
-                                        <Ban size={13} />{t('ban', 'Ban')}
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <div style={{ padding: '7px 10px', color: '#555', fontSize: 12 }}>No actions</div>
-                                  )}
-                                </div>
-                              )}
+                      {joinRequests.map(req => {
+                        const rawAvatar = req.avatarPath || knownAvatars[req.username];
+                        const avatarSrc = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
+                        return (
+                          <div key={req.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, background: isLight ? 'rgba(245,158,11,0.05)' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', marginBottom: 6 }}>
+                            <Avatar name={req.username} src={avatarSrc} size={34} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span style={{ fontSize: 13, color: isLight ? '#92400e' : '#fbbf24', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                                {req.username}
+                              </span>
                             </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button 
+                                onClick={() => { 
+                                  socket.emit('deny_join', { roomId, targetSocketId: req.socketId }); 
+                                  setJoinRequests(prev => prev.filter(r => r.socketId !== req.socketId));
+                                  const tid = `join-req-${req.username}`;
+                                  toast.dismiss(tid);
+                                  activeJoinToastIds.current.delete(tid);
+                                  if (notifSettingsRef.current.app && notifSettingsRef.current.joinRequests) {
+                                    toast(`Denied ${req.username}`, { icon: '🚫' });
+                                  }
+                                }} 
+
+                                style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                Deny
+                              </button>
+                              <button 
+                                onClick={() => { 
+                                  socket.emit('approve_join', { roomId, targetSocketId: req.socketId }); 
+                                  setJoinRequests(prev => prev.filter(r => r.socketId !== req.socketId));
+                                  const tid = `join-req-${req.username}`;
+                                  toast.dismiss(tid);
+                                  activeJoinToastIds.current.delete(tid);
+                                  if (notifSettingsRef.current.app && notifSettingsRef.current.joinRequests) {
+                                    toast.success(`${req.username} approved!`);
+                                  }
+                                }} 
+                                style={{ background: '#10b981', border: 'none', color: '#fff', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                Approve
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div style={{ height: 1, background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', margin: '16px 12px' }} />
+                    </div>
+                  )}
+
+                  {userList.map(u => {
+                    const uIsHost = u.isHost === true;
+                    const uIsMe = u.socketId === socket?.id;
+                    const rawAvatar = u.avatarPath || knownAvatars[u.username];
+                    const avatarSrc = rawAvatar
+                      ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`)
+                      : null;
+                    return (
+                      <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? 'rgba(99,102,241,0.1)' : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? '1px solid rgba(99,102,241,0.2)' : '1px solid transparent' }} className="usr-row">
+                        <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isMuted={u.isMuted} size={38} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, color: uIsMe ? '#4f46e5' : (isLight ? '#1e293b' : '#eee'), fontWeight: uIsMe ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {u.username}{uIsMe ? ' (You)' : ''}
+                            </span>
+                            {uIsHost && <Star size={12} color="#fbbf24" fill="#fbbf24" />}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {!uIsMe && (
+                            <button className="usr-btn" title="Private chat" onClick={() => { openDM(u.username); setShowUserPanel(false); }} style={{ width: 32, height: 32, borderRadius: 10, background: isLight ? '#fff' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLight ? '#64748b' : '#888' }}>
+                              <MessageCircle size={14} />
+                            </button>
+                          )}
+                          
+                          {/* Moderation Menu (3 dots) */}
+                          {isEffectiveHost && !uIsMe && (
+                            <button 
+                              className={`usr-btn${modMenuTarget === u.socketId ? ' active' : ''}`} 
+                              title="Moderation" 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setModMenuPos({ top: rect.bottom + 8, left: rect.left - 110 });
+                                setModMenuTarget(modMenuTarget === u.socketId ? null : u.socketId); 
+                              }}
+                              style={{ width: 32, height: 32, borderRadius: 10, background: modMenuTarget === u.socketId ? 'rgba(99,102,241,0.2)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'), border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: modMenuTarget === u.socketId ? '#4f46e5' : (isLight ? '#64748b' : '#888') }}
+                            >
+                              <MoreVertical size={14} />
+                            </button>
                           )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Floating Moderation Dropdown (Fixed to avoid clipping) */}
+                {modMenuTarget && (
+                  <div style={{ position: 'fixed', top: modMenuPos.top, left: modMenuPos.left, background: isLight ? '#fff' : '#16161e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.12)', borderRadius: 16, padding: 6, zInternal: 60001, minWidth: 150, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 15px 40px rgba(0,0,0,0.8)', animation: 'slideUp 0.2s ease' }} onMouseDown={e => e.stopPropagation()} className="mod-menu-container">
+                    {(() => {
+                      const targetUser = userList.find(u => u.socketId === modMenuTarget);
+                      if (!targetUser) return null;
+                      return (
+                        <>
+                          <button onClick={() => { socket.emit('mod_mute', { roomId, targetSocketId: modMenuTarget, isMuted: !targetUser.isMuted }); setModMenuTarget(null); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#eee', cursor: 'pointer', borderRadius: 10, fontSize: 13, display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            {targetUser.isMuted ? <Volume2 size={15} color={isLight ? "#059669" : "#10b981"} /> : <MicOff size={15} color={isLight ? "#dc2626" : "#ef4444"} />}
+                            {targetUser.isMuted ? 'Unmute' : 'Mute User'}
+                          </button>
+                          <button onClick={() => { socket.emit('mod_kick', { roomId, targetSocketId: modMenuTarget }); setModMenuTarget(null); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#eee', cursor: 'pointer', borderRadius: 10, fontSize: 13, display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                            <UserMinus size={15} color={isLight ? "#d97706" : "#f59e0b"} /> Kick User
+                          </button>
+                          <button onClick={() => { setBanConfirmTarget(targetUser); setModMenuTarget(null); setShowUserPanel(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', borderTop: isLight ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(255,255,255,0.1)', marginTop: 6, paddingTop: 14, color: isLight ? '#be123c' : '#f87171', cursor: 'pointer', borderRadius: '0 0 10px 10px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isLight ? '#be123c' : '#f87171' }}>
+                            <Ban size={15} color={isLight ? "#be123c" : "#f87171"} /> Ban User
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             )}
           </div>
-          <button onClick={() => {
-            const next = !showRecentChats;
-            setShowRecentChats(next);
-            if (next) setShowSettings(false);
-          }} title="Global Chats" style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            <MessageSquare size={16} />
-            {totalUnread > 0 && <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', fontSize: 9, padding: '2px 4px', borderRadius: 10, fontWeight: 'bold' }}>{totalUnread > 9 ? '9+' : totalUnread}</span>}
+
+          {/* Global Chats */}
+          <div style={{ position: 'relative' }}>
+            <button className={`nav-icon-btn${showRecentChats ? ' active' : ''}`} title="Global Chats" onClick={() => { setShowRecentChats(!showRecentChats); setShowUserPanel(false); setShowSettings(false); }} style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', color: isLight ? '#000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
+              <MessageSquare size={18} strokeWidth={2.5} />
+              {totalUnread > 0 && <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{totalUnread > 9 ? '9+' : totalUnread}</div>}
+            </button>
+          </div>
+
+          {/* Share Button */}
+          <button 
+            className="nav-icon-btn"
+            onClick={() => {
+              setShowShareModal(true);
+              setShowUserPanel(false);
+              setShowSettings(false);
+              setShowRecentChats(false);
+            }} 
+            title="Share Room" 
+            style={{ 
+              width: 38, height: 38, borderRadius: 12, 
+              background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', 
+              color: isLight ? '#000' : '#fff', cursor: 'pointer', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              transition: 'all 0.2s' 
+            }}
+          >
+            <Share2 size={16} strokeWidth={2.5} />
           </button>
-          <button onClick={() => setShowShareModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
-            <Share2 size={14} /> {t('invite', 'Invite')}
-          </button>
-          {/* Settings Icon */}
+
+          {/* Settings Button */}
           <div style={{ position: 'relative' }} ref={settingsRef}>
-            <button onClick={() => {
-              const next = !showSettings;
-              setShowSettings(next);
-              if (next) setShowRecentChats(false);
-            }} title="Room Settings" style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Settings size={16} />
+            <button onClick={() => { setShowSettings(!showSettings); setShowUserPanel(false); setShowRecentChats(false); }} className={`nav-icon-btn${showSettings ? ' active' : ''}`} style={{ width: 38, height: 38, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLight ? '#000' : '#fff' }}>
+              <Settings size={18} strokeWidth={2.5} />
             </button>
             {showSettings && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: '#141414', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 6, minWidth: 190, zIndex: 5000, boxShadow: '0 10px 40px rgba(0,0,0,0.8)' }}>
-                <button className="settings-menu-btn" onClick={() => {
+              <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, background: isLight ? '#fff' : '#141414', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 6, minWidth: 200, zIndex: 5000, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)' }}>
+                <button className="settings-menu-btn" onClick={async () => {
                   const isPinned = pinnedRooms.includes(roomId);
                   const next = isPinned ? pinnedRooms.filter(r => r !== roomId) : [...pinnedRooms, roomId];
                   setPinnedRooms(next);
                   localStorage.setItem('pinned_rooms', JSON.stringify(next));
-                  const tkn = localStorage.getItem('watch_token');
-                  if (tkn) {
-                    fetch(`${SOCKET_SERVER_URL}/api/profile/pinned-rooms`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-                      body: JSON.stringify({ pinnedRooms: next })
-                    }).catch(() => { });
+                  
+                  const token = localStorage.getItem('watch_token');
+                  if (token) {
+                    try {
+                      await fetch(`${SOCKET_SERVER_URL}/api/profile/pinned-rooms`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ pinnedRooms: next })
+                      });
+                    } catch (err) {
+                      console.error('Failed to sync pinned rooms', err);
+                    }
                   }
-                  if (!isPinned && next.length > 6) {
-                    toast.success('Room pinned! Unpin others to see it on home screen.');
-                  } else {
-                    toast.success(isPinned ? 'Room unpinned' : 'Room pinned!');
-                  }
-                  setShowSettings(false);
-                }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 10, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}>
-                  <Pin size={16} color="#888" /> {pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}
-                </button>
 
+                  toast.success(isPinned ? 'Room unpinned' : 'Room pinned!');
+                  setShowSettings(false);
+                }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Pin size={16} color={isLight ? '#4f46e5' : '#888'} /> {pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}
+                </button>
                 <button className="settings-menu-btn" disabled={!isEffectiveHost} onClick={() => {
                   if (!isEffectiveHost) return;
-                  const next = !isPublic;
-                  socket.emit('toggle_public', { isPublic: next });
-                  // Toast and state update handled by room_public_status socket event for all users
+                  socket.emit('toggle_public', { isPublic: !isPublic });
                   setShowSettings(false);
-                }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: isEffectiveHost ? 'pointer' : 'not-allowed', opacity: isEffectiveHost ? 1 : 0.4, borderRadius: 10, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}>
-                  {isPublic ? <Lock size={16} color="#f59e0b" /> : <Globe size={16} color="#10b981" />}
+                }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: isEffectiveHost ? 'pointer' : 'not-allowed', opacity: isEffectiveHost ? 1 : 0.4, borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {isPublic ? <Lock size={16} color={isLight ? '#d97706' : '#f59e0b'} /> : <Globe size={16} color={isLight ? '#059669' : '#10b981'} />}
                   {isPublic ? t('makePrivate', 'Make this private') : t('makePublic', 'Make this public')}
                 </button>
-
                 {isEffectiveHost && (
-                  <button className="settings-menu-btn" onClick={() => { setRoomSettingsModalOpen(true); setShowSettings(false); setShowRecentChats(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 10, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}>
-                    <Settings size={16} color="#818cf8" /> Room Settings
+                  <button className="settings-menu-btn" onClick={() => { setRoomSettingsModalOpen(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Settings2 size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> Room Settings
                   </button>
                 )}
-
-                <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 0' }}></div>
-
-                <button className="settings-menu-btn-danger" onClick={() => { setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 10, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500 }}>
-                  <LogOut size={16} color="#f87171" /> {t('leaveRoom', 'Leave Room')}
+                <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
+                <button className="settings-menu-btn-danger" onClick={() => { setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <LogOut size={16} color={isLight ? '#ef4444' : '#f87171'} /> {t('leaveRoom', 'Leave Room')}
                 </button>
               </div>
             )}
@@ -3154,7 +3734,6 @@ const Room = () => {
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: 12, gap: 12 }}>
-        {/* Video + controls */}
         <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div
             ref={playerWrapRef}
@@ -3162,9 +3741,10 @@ const Room = () => {
             onMouseEnter={resetControlsTimer}
             onMouseLeave={() => setShowControls(false)}
             style={{ 
-              flex: 1, background: '#000', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', 
+              flex: 1, background: isLight ? '#fff' : '#000', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.07)', 
               display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative',
-              willChange: 'transform', transform: 'translateZ(0)'
+              willChange: 'transform', transform: 'translateZ(0)',
+              boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.04)' : 'none'
             }}
           >
             {room?.settings?.playerCustomName && (isScreensharing || isViewer) && !isFullscreen && (
@@ -3655,11 +4235,31 @@ const Room = () => {
                 )}
               </>
             ) : (
-              <div style={{ textAlign: 'center', color: '#444', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <MessageSquare size={48} style={{ marginBottom: 18, opacity: 0.3 }} />
-                <h3 style={{ margin: '0 0 16px', color: '#666' }}>No Media Selected</h3>
-                <button onClick={() => setShowMediaSelector(true)} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 12, padding: '12px 24px', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 8px 24px rgba(99,102,241,0.4)', transition: 'transform 0.2s', transform: 'scale(1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                  <LayoutGrid size={18} /> Browse Media & Apps
+              <div style={{ textAlign: 'center', color: isLight ? '#475569' : '#444', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <Video size={56} style={{ marginBottom: 20, opacity: isLight ? 0.25 : 0.3 }} color={isLight ? '#6366f1' : '#444'} />
+                <h3 style={{ margin: '0 0 16px', color: isLight ? '#1e293b' : '#666', fontWeight: 800 }}>No Media Selected</h3>
+                <button 
+                  onClick={() => setShowMediaSelector(true)} 
+                  style={{ 
+                    background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
+                    border: 'none', 
+                    borderRadius: 14, 
+                    padding: '14px 28px', 
+                    color: '#ffffff', 
+                    fontSize: 15, 
+                    fontWeight: 700, 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 10, 
+                    boxShadow: isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)', 
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
+                  }} 
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 15px 30px rgba(99,102,241,0.4)' : '0 15px 30px rgba(0,0,0,0.6)'; }} 
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)'; }}
+                >
+                  <LayoutGrid size={20} color="#ffffff" /> 
+                  <span className="forced-white">Browse Media & Apps</span>
                 </button>
               </div>
             )}
@@ -3807,14 +4407,18 @@ const Room = () => {
                   onClick={canUseCam ? toggleCamera : () => toast.error(camReason)}
                   title={canUseCam ? (isCamOn ? 'Turn off camera' : 'Turn on camera') : camReason}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 20,
-                    border: `1px solid ${canUseCam ? (isCamOn ? '#6366f1' : 'rgba(255,255,255,0.15)') : 'rgba(255,0,0,0.2)'}`,
-                    background: canUseCam ? (isCamOn ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)') : 'rgba(239,68,68,0.05)',
-                    color: canUseCam ? (isCamOn ? '#a5b4fc' : '#888') : '#ef4444',
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20,
+                    border: `1px solid ${canUseCam ? (isCamOn ? '#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.15)')) : 'rgba(239,68,68,0.2)'}`,
+                    background: canUseCam ? (isCamOn ? 'rgba(99,102,241,0.15)' : (isLight ? '#fff' : 'rgba(255,255,255,0.04)')) : 'rgba(239,68,68,0.05)',
+                    color: canUseCam ? (isCamOn ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#475569' : '#888')) : '#ef4444',
                     cursor: canUseCam ? 'pointer' : 'not-allowed',
-                    fontSize: 12, fontWeight: 600,
-                    opacity: canUseCam ? 1 : 0.5
+                    fontSize: 12, fontWeight: 700,
+                    opacity: canUseCam ? 1 : 0.5,
+                    boxShadow: isLight && !isCamOn && canUseCam ? '0 2px 6px rgba(0,0,0,0.05)' : 'none',
+                    transition: 'all 0.2s'
                   }}
+                  onMouseEnter={e => { if(canUseCam && isLight && !isCamOn) e.currentTarget.style.background = '#f8fafc'; }}
+                  onMouseLeave={e => { if(canUseCam && isLight && !isCamOn) e.currentTarget.style.background = '#fff'; }}
                 >
                   {isCamOn ? <Video size={14} /> : <VideoOff size={14} />}
                   {isCamOn ? 'Cam On' : (canUseCam ? 'Start Cam' : 'Cam Disabled')}
@@ -3850,13 +4454,31 @@ const Room = () => {
             })()}
           </div>
 
-          <div style={{ background: '#111', borderRadius: 16, border: '1px solid rgba(255,255,255,0.07)', padding: '12px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <button onClick={() => openDiscoveryMenu('selector')} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 24px', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.2)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}>
-              <LayoutGrid size={16} /> Choose Media & Apps
+          <div style={{ background: isLight ? 'var(--room-card-bg)' : '#111', borderRadius: 16, border: '1px solid var(--room-border)', padding: '12px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <button 
+              onClick={() => openDiscoveryMenu('selector')} 
+              style={{ 
+                display: 'flex', alignItems: 'center', gap: 10, 
+                background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', 
+                border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: 14, 
+                padding: '12px 28px', 
+                color: isLight ? '#1e293b' : '#fff', 
+                fontSize: 14, 
+                fontWeight: 700, 
+                cursor: 'pointer', 
+                transition: 'all 0.2s', 
+                boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 8px 24px rgba(0,0,0,0.4)' 
+              }} 
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03) translateY(-1px)'; if(isLight) e.currentTarget.style.background = '#f8fafc'; }} 
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; if(isLight) e.currentTarget.style.background = '#ffffff'; }}
+            >
+              <LayoutGrid size={18} color={isLight ? '#1e293b' : '#fff'} /> Choose Media & Apps
             </button>
           </div>
+          
         </div>
-
+        
         {/* — Chat Panel — */}
         <RoomChatPanel p={{
           chatTab, setChatTab, chatTabRef,
@@ -3873,15 +4495,16 @@ const Room = () => {
           showAllEmojis, setShowAllEmojis,
           showGroupEmojiPicker, setShowGroupEmojiPicker,
           showDmEmojiPicker, setShowDmEmojiPicker,
-          showGroupMenu, setShowGroupMenu,
-          showDmMenu, setShowDmMenu,
+          showGroupMenu, setShowGroupMenu, groupMenuRef,
+          showDmMenu, setShowDmMenu, dmMenuRef,
           isMuted, isHost: isEffectiveHost,
           allowLinks: room?.permissions?.allowLinks !== false,
           allowMedia: room?.permissions?.allowMedia !== false,
           chatPerm: room?.permissions?.chat || 'all',
           roomName, userCount, userList,
           username, mySocketId, mySocketIdRef,
-          knownUsers,
+          knownUsers, knownAvatars,
+          keyPair, dbPublicKeys,
           sendGroupChat, sendDmChat,
           sendMediaGroupChat, sendMediaDmChat,
           handleGroupReact, handleDmReact,
@@ -3891,7 +4514,10 @@ const Room = () => {
           setRenameInput, setRenameModalOpen,
           setClearChatTarget, setClearChatModalOpen,
           SOCKET_SERVER_URL, roomId,
-          onMarkRead: handleMarkRead
+          onMarkRead: handleMarkRead,
+          clearRoomChat: () => { if (socket) socket.emit('clear_room_chat', { roomId }); },
+          setDmThreads,
+          socket
         }} />
       </div>
       <RoomModals
@@ -3906,6 +4532,7 @@ const Room = () => {
         clearChatTarget={clearChatTarget}
         clearForBoth={clearForBoth}
         setClearForBoth={setClearForBoth}
+        isLight={isLight}
       />
 
 
@@ -3926,6 +4553,11 @@ const Room = () => {
 };
 
 export default Room;
+
+
+
+
+
 
 
 

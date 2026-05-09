@@ -15,6 +15,11 @@
   --danger: #ff4b4b;
   --danger-bg: rgba(255, 75, 75, 0.1);
   --success: #00e676;
+  --room-header-bg: rgba(10, 10, 15, 0.8);
+  --room-sidebar-bg: #111111;
+  --room-main-bg: #0a0a0a;
+  --room-card-bg: rgba(255, 255, 255, 0.03);
+  --room-border: rgba(255, 255, 255, 0.07);
 }
 
 * {
@@ -208,8 +213,46 @@ h1 {
   transform: scale(1.15);
 }
 
+/* --- Global Navigation --- */
+.nav-link-btn {
+  background: none !important; border: none !important; color: #aaa !important; padding: 8px 16px;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.nav-link-btn:hover { color: #fff !important; background: rgba(255,255,255,0.06) !important; border-radius: 10px; }
+.nav-link-btn.active { background: rgba(99,102,241,0.15) !important; color: #a5b4fc !important; border-radius: 10px; }
+
+.nav-icon-btn {
+  background: rgba(255,255,255,0.05); border: none; padding: 10px;
+  border-radius: 50%; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; color: #888;
+}
+.nav-icon-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+.nav-icon-btn.active { color: #6366f1; background: rgba(99,102,241,0.1); border-radius: 50%; }
+
+/* Light Mode Overrides for Nav Icons */
+html[data-theme='light'] .nav-icon-btn { background: rgba(0,0,0,0.03); color: #888; }
+html[data-theme='light'] .nav-icon-btn:hover { background: rgba(0,0,0,0.06); color: #000; }
+html[data-theme='light'] .nav-icon-btn.active { color: #6366f1; background: rgba(99,102,241,0.1); }
+
+.profile-pill {
+  display: flex; align-items: center; gap: 8px; 
+  background: rgba(255,255,255,0.06) !important; border: 1px solid rgba(255,255,255,0.1) !important; 
+  border-radius: 12px !important; padding: 6px 14px; cursor: pointer; transition: all 0.2s;
+  color: #ddd !important;
+}
+.profile-pill:hover { background: rgba(255,255,255,0.1) !important; border-color: rgba(255,255,255,0.2) !important; }
+.profile-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+  margin: 6px 0;
+}
+html[data-theme='light'] .profile-divider {
+  background: rgba(0,0,0,0.12) !important;
+}
+
 /* --- Light Theme Overrides --- */
-body.light-mode {
+html[data-theme='light'] {
   --bg-color: #f7fafc;
   --bg-gradient-1: #ebf4ff;
   --bg-gradient-2: #e2e8f0;
@@ -220,25 +263,37 @@ body.light-mode {
   --text-secondary: #4a5568;
   --accent: #2b6cb0;
   --accent-gradient: linear-gradient(135deg, #3182ce 0%, #4299e1 100%);
+  --room-header-bg: #ffffff;
+  --room-sidebar-bg: #ffffff;
+  --room-main-bg: #f8fafc;
+  --room-card-bg: #ffffff;
+  --room-border: #e2e8f0;
 }
 
-body.light-mode .input-field {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.2);
+html[data-theme='light'] body {
+  background: #f7fafc !important;
+  color: #1a202c !important;
 }
 
-body.light-mode h1, body.light-mode h2, body.light-mode h3 {
-  background: none;
-  -webkit-text-fill-color: var(--text-primary);
-  color: var(--text-primary);
+html[data-theme='light'] .input-field {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  color: #111 !important;
 }
 
-body.light-mode .glass-panel {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255,255,255,0.7);
+html[data-theme='light'] h1, html[data-theme='light'] h2, html[data-theme='light'] h3 {
+  background: none !important;
+  -webkit-text-fill-color: #1a202c !important;
+  color: #1a202c !important;
 }
 
-body.light-mode .btn-secondary {
-  background: rgba(0, 0, 0, 0.03);
+html[data-theme='light'] .glass-panel {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255,255,255,0.7) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+html[data-theme='light'] .btn-secondary {
+  background: rgba(0, 0, 0, 0.03) !important;
 }
 
 .menu-btn {
@@ -248,6 +303,9 @@ body.light-mode .btn-secondary {
 .menu-btn:hover {
   background: rgba(255, 255, 255, 0.1) !important;
   border-radius: 4px;
+}
+.chat-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
 }
 .settings-menu-btn, .settings-menu-btn-danger {
   transition: all 0.2s ease;
@@ -279,3 +337,11 @@ body.light-mode .btn-secondary {
 .lobby-dot:nth-child(1) { animation-delay: 0s; }
 .lobby-dot:nth-child(2) { animation-delay: 0.2s; }
 .lobby-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─────────────────────────────────────────────────────────────
+   LIGHT MODE: Managed at runtime via a <style id="light-mode-overrides">
+   tag injected by App.jsx when the user selects Light theme.
+   The data-theme="light" attribute is set on <html> by App.jsx.
+   Do NOT add filter-based rules here – the runtime sheet handles all
+   colour overrides for inline-styled React components.
+───────────────────────────────────────────────────────────────── */

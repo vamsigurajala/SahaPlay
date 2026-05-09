@@ -165,3 +165,8 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
     </div>
   );
 }
+
+
+
+
+
