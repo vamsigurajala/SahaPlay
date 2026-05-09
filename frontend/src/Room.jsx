@@ -3405,7 +3405,14 @@ const Room = () => {
         <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Watching / Participants Button */}
           <div style={{ position: 'relative' }} ref={userPanelRef}>
-            <button onClick={() => { setShowUserPanel(!showUserPanel); setShowSettings(false); setShowRecentChats(false); }} 
+            <button onClick={() => { 
+              if (!showUserPanel) {
+                // Dismiss all active join request toasts when opening the user list
+                activeJoinToastIds.current.forEach(id => toast.dismiss(id));
+                activeJoinToastIds.current.clear();
+              }
+              setShowUserPanel(!showUserPanel); setShowSettings(false); setShowRecentChats(false); 
+            }} 
               style={{ 
                 display: 'flex', alignItems: 'center', gap: 8, 
                 background: isLight ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.15)', 
@@ -3432,21 +3439,29 @@ const Room = () => {
                   {/* — Pending Joins (if host) — */}
                   {isEffectiveHost && joinRequests.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 900, letterSpacing: '1px', marginBottom: 10, padding: '0 12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Plus size={12} /> Pending Joins
+                      <div style={{ fontSize: 10, color: '#f59e0b', fontWeight: 900, letterSpacing: '1.2px', marginBottom: 12, padding: '0 4px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 8px #f59e0b' }} />
+                        Pending Joins
                       </div>
                       {joinRequests.map(req => {
                         const rawAvatar = req.avatarPath || knownAvatars[req.username];
                         const avatarSrc = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
                         return (
-                          <div key={req.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, background: isLight ? 'rgba(245,158,11,0.05)' : 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', marginBottom: 6 }}>
-                            <Avatar name={req.username} src={avatarSrc} size={34} />
+                          <div key={req.socketId} style={{ 
+                            display: 'flex', alignItems: 'center', gap: 12, padding: '10px', borderRadius: 16, 
+                            background: isLight ? '#fff' : 'rgba(255,255,255,0.03)', 
+                            border: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.08)', 
+                            marginBottom: 8,
+                            boxShadow: isLight ? '0 2px 10px rgba(0,0,0,0.03)' : '0 4px 20px rgba(0,0,0,0.2)'
+                          }}>
+                            <Avatar name={req.username} src={avatarSrc} size={36} />
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ fontSize: 13, color: isLight ? '#92400e' : '#fbbf24', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                              <span style={{ fontSize: 13, color: isLight ? '#0f172a' : '#fff', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
                                 {req.username}
                               </span>
+                              <span style={{ fontSize: 10, color: isLight ? '#64748b' : '#888', fontWeight: 500 }}>wants to join</span>
                             </div>
-                            <div style={{ display: 'flex', gap: 6 }}>
+                            <div style={{ display: 'flex', gap: 4 }}>
                               <button 
                                 onClick={() => { 
                                   socket.emit('deny_join', { roomId, targetSocketId: req.socketId }); 
@@ -3455,11 +3470,12 @@ const Room = () => {
                                   toast.dismiss(tid);
                                   activeJoinToastIds.current.delete(tid);
                                   if (notifSettingsRef.current.app && notifSettingsRef.current.joinRequests) {
-                                    toast(`Denied ${req.username}`, { icon: '🚫' });
+                                    toast(`Denied ${req.username}`, { icon: '🚫', duration: 2000 });
                                   }
                                 }} 
-
-                                style={{ background: 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                style={{ background: isLight ? '#fff1f2' : 'rgba(239,68,68,0.1)', border: 'none', color: '#ef4444', padding: '6px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = isLight ? '#ffe4e6' : 'rgba(239,68,68,0.2)'}
+                                onMouseLeave={e => e.currentTarget.style.background = isLight ? '#fff1f2' : 'rgba(239,68,68,0.1)'}
                               >
                                 Deny
                               </button>
@@ -3474,7 +3490,9 @@ const Room = () => {
                                     toast.success(`${req.username} approved!`);
                                   }
                                 }} 
-                                style={{ background: '#10b981', border: 'none', color: '#fff', padding: '6px 10px', borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                                style={{ background: '#10b981', border: 'none', color: '#fff', padding: '6px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#059669'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#10b981'}
                               >
                                 Approve
                               </button>
