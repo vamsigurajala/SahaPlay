@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 
 // ─── Isolated camera preview ─────────────────────────────────────────────────
 // Owns its own stream + video ref so parent re-renders never blank the preview.
@@ -88,28 +89,28 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
         const fps = settings.frameRate || 0;
         const aspect = settings.aspectRatio || (h ? w / h : 0);
         
-        let builtInMic = 'None';
+        let builtInMic = t ? t('noneLabel', 'None') : 'None';
         if (settings.groupId && micDevices.length > 0) {
           const mic = micDevices.find(m => m.groupId === settings.groupId);
-          if (mic) builtInMic = mic.label || 'Yes';
+          if (mic) builtInMic = mic.label || (t ? t('yesLabel', 'Yes') : 'Yes');
         }
         
-        let standard = 'Unknown';
+        let standard = t ? t('unknownLabel', 'Unknown') : 'Unknown';
         if (h >= 2160) standard = '4K UHD';
         else if (h >= 1440) standard = 'QHD 1440p';
         else if (h >= 1080) standard = 'FHD 1080p';
         else if (h >= 720) standard = 'HD 720p';
         else if (h >= 480) standard = 'SD 480p';
-        else if (h > 0) standard = 'Low Res';
+        else if (h > 0) standard = t ? t('lowResLabel', 'Low Res') : 'Low Res';
 
         setCamInfo({
-          name: track.label || 'Unknown Camera',
+          name: track.label || (t ? t('unknownCamera', 'Unknown Camera') : 'Unknown Camera'),
           builtInMic,
-          resolution: w && h ? `${w}×${h}` : 'Unknown',
+          resolution: w && h ? `${w}×${h}` : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
           standard: standard,
-          megaPixels: w && h ? ((w * h) / 1000000).toFixed(2) + ' MP' : 'Unknown',
+          megaPixels: w && h ? ((w * h) / 1000000).toFixed(2) + ' MP' : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
           targetFps: fps,
-          aspectRatio: aspect ? aspect.toFixed(2) : 'Unknown',
+          aspectRatio: aspect ? aspect.toFixed(2) : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
           streamType: 'video'
         });
       } catch (err) {
@@ -176,14 +177,14 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
           </div>
           <div style={{ padding: '8px 16px' }}>
             {[
-              { label: 'Webcam Name', value: camInfo.name },
-              { label: 'Built-in Microphone', value: camInfo.builtInMic },
-              { label: 'Webcam Resolution', value: camInfo.resolution },
-              { label: 'Video Standard', value: camInfo.standard },
-              { label: 'Webcam MegaPixels', value: camInfo.megaPixels },
-              { label: 'Frame rate', value: (measuredFps > 0 ? measuredFps : (camInfo.targetFps ? Math.round(camInfo.targetFps) : '--')) + ' FPS' },
-              { label: 'Aspect Ratio', value: camInfo.aspectRatio },
-              { label: 'Stream Type', value: camInfo.streamType }
+              { label: t ? t('webcamNameLabel', 'Webcam Name') : 'Webcam Name', value: camInfo.name },
+              { label: t ? t('builtinMicLabel', 'Built-in Microphone') : 'Built-in Microphone', value: camInfo.builtInMic },
+              { label: t ? t('webcamResolutionLabel', 'Webcam Resolution') : 'Webcam Resolution', value: camInfo.resolution },
+              { label: t ? t('videoStandardLabel', 'Video Standard') : 'Video Standard', value: camInfo.standard },
+              { label: t ? t('webcamMegaPixelsLabel', 'Webcam MegaPixels') : 'Webcam MegaPixels', value: camInfo.megaPixels },
+              { label: t ? t('frameRateLabel', 'Frame rate') : 'Frame rate', value: (measuredFps > 0 ? measuredFps : (camInfo.targetFps ? Math.round(camInfo.targetFps) : '--')) + ' FPS' },
+              { label: t ? t('aspectRatioLabel', 'Aspect Ratio') : 'Aspect Ratio', value: camInfo.aspectRatio },
+              { label: t ? t('streamTypeLabel', 'Stream Type') : 'Stream Type', value: camInfo.streamType }
             ].map((row, idx) => (
               <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: idx < 7 ? (isLight ? '1px dashed #e2e8f0' : '1px dashed rgba(255,255,255,0.05)') : 'none', fontSize: 13 }}>
                 <span style={{ color: isLight ? '#64748b' : '#94a3b8' }}>{row.label}:</span>
@@ -213,6 +214,12 @@ const LANGUAGES = [
   { code: 'it', name: 'Italiano', flag: '🇮🇹' },
   { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
   { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
+  { code: 'bn', name: 'বাংলা', flag: '🇮🇳' },
+  { code: 'mr', name: 'मराठी', flag: '🇮🇳' },
+  { code: 'gu', name: 'ગુજરાતી', flag: '🇮🇳' },
+  { code: 'ml', name: 'മലയാളം', flag: '🇮🇳' },
+  { code: 'kn', name: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'pa', name: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
 ];
 
 const AppSettings = () => {
@@ -260,6 +267,7 @@ const AppSettings = () => {
   const chatWidgetRef = ReactIsAwesome.useRef(null);
 
   useEffect(() => {
+    toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
     const handleClickOutside = (e) => {
       // Don't close if clicking inside the nav icons area OR inside the chat widget itself
       const inNavArea = navIconsRef.current && navIconsRef.current.contains(e.target);
@@ -521,13 +529,13 @@ const AppSettings = () => {
     setLanguage(code);
     setShowLangDropdown(false);
     i18n.changeLanguage(code);
+    localStorage.setItem('watch_language', code);
     saveSetting('language', code);
     toast.success('Language updated!');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('watch_token');
-    localStorage.removeItem('watch_username');
+    clearUserSession();
     window.location.reload();
   };
 
@@ -821,7 +829,7 @@ const AppSettings = () => {
             >
               <MessageSquare size={18} />
               {totalUnread > 0 && (
-                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalUnread > 9 ? '9+' : totalUnread}
                 </div>
               )}
@@ -833,14 +841,14 @@ const AppSettings = () => {
             <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
               <Bell size={18} />
               {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {followRequests.filter(r => r.status === 'pending').length}
                 </div>
               )}
             </button>
             {showNotifications && (
               <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
                 <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                   {followRequests.length > 0 ? (
                     followRequests.map(u => (
@@ -854,24 +862,24 @@ const AppSettings = () => {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
                           <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                            {u.status === 'pending' ? `@${u.username} wants to follow you` : `@${u.username} started following you`}
+                            {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             {u.status === 'pending' ? (
-                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
+                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                             ) : (
-                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                             )}
                             
                             {u.myFollowStatus === 'accepted' ? (
-                              <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
                             ) : (
                               <button onClick={(e) => {
                                 e.stopPropagation();
                                 if (u.myFollowStatus === 'pending') return;
                                 handleFollowBack(u.username, e);
                               }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
+                                {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                               </button>
                             )}
                           </div>
@@ -879,7 +887,7 @@ const AppSettings = () => {
                       </div>
                     ))
                   ) : (
-                    <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>No new notifications</div>
+                    <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
                   )}
                 </div>
               </div>
@@ -983,33 +991,7 @@ const AppSettings = () => {
           )}
         </div>
 
-        {/* Country */}
-        <div className="settings-card">
-          <div className="acc-header" onClick={() => toggleSection('country')}>
-            <h3><MapPin size={18} color="#10b981" /> {t('countryLabel', 'Country Label')}</h3>
-            <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'country' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </div>
-          {openSection === 'country' && (
-            <div className="acc-body">
-              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('countryDesc', 'Your country is auto-detected when you sign up. You can choose to hide it from your profile.')}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                  <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.03)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {flagUrl ? <img src={flagUrl} alt="flag" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <MapPin size={20} color="#10b981" />}
-                  </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{country || 'Not detected'}</div>
-                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{t('autoDetected', 'Auto-detected from your IP at signup')}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: '#888' }}>{showCountry ? t('visible', 'Visible') : t('hidden', 'Hidden')}</span>
-                  <Toggle on={showCountry} onToggle={handleShowCountryToggle} />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+
 
         {/* Appearance */}
         <div className="settings-card">
@@ -1026,12 +1008,12 @@ const AppSettings = () => {
                     {theme === 'light' ? <Eye size={20} color="#0ea5e9" /> : <EyeOff size={20} color="#0ea5e9" />}
                   </div>
                   <div>
-                    <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{theme === 'light' ? 'Light Mode' : 'Dark Mode'}</div>
-                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? 'Bright and clean' : 'Easy on the eyes'}</div>
+                    <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{theme === 'light' ? t('lightMode', 'Light Mode') : t('darkMode', 'Dark Mode')}</div>
+                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? t('lightModeDesc', 'Bright and clean') : t('darkModeDesc', 'Easy on the eyes')}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: '#888' }}>{theme === 'light' ? 'Light' : 'Dark'}</span>
+                  <span style={{ fontSize: 12, color: '#888' }}>{theme === 'light' ? t('lightLabel', 'Light') : t('darkLabel', 'Dark')}</span>
                   <Toggle on={theme === 'light'} onToggle={handleThemeToggle} />
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import { StrictMode } from 'react'
+import { clearUserSession } from './lib/authUtils.js';
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './i18n'
@@ -10,10 +11,13 @@ window.fetch = async (...args) => {
   const response = await originalFetch(...args);
   if (response.status === 401 || response.status === 403) {
     const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-    if (!url.includes('/api/chat-lock/')) {
-      if (localStorage.getItem('watch_token')) {
-        localStorage.removeItem('watch_token');
-        localStorage.removeItem('watch_username');
+    const token = localStorage.getItem('watch_token');
+    
+    // Ignore /api/chat-lock/ and TV guest sessions
+    if (!url.includes('/api/chat-lock/') && token !== 'tv_guest_token' && localStorage.getItem('watch_is_guest') !== 'true') {
+      if (token) {
+        clearUserSession();
+        
         window.location.href = '/login';
       }
     }

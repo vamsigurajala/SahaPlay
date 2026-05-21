@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, User, LogOut, Settings, Hash, Compass, ArrowRight, Star, Plus, Shield, Check, X, AlertCircle, Camera, Search, MessageSquare, Zap, Globe, Pin, Users, HelpCircle, Bell } from 'lucide-react';
@@ -19,7 +20,9 @@ const catMap = {
   other: '✨ Other'
 };
 
-const API = 'http://localhost:3001';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 
 const Home = () => {
@@ -58,6 +61,7 @@ const Home = () => {
   const chatWidgetRef = useRef(null);
 
   useEffect(() => {
+    toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
     const handleClickOutside = (e) => {
       // Don't close if clicking inside the chat widget
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
@@ -307,8 +311,7 @@ const Home = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('watch_token');
-    localStorage.removeItem('watch_username');
+    clearUserSession();
     window.location.reload();
   };
 
@@ -832,11 +835,12 @@ const Home = () => {
         html[data-theme='light'] .cr-copy-btn:hover { background: #e2e8f0; }
         html[data-theme='light'] .cr-close-btn { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
         html[data-theme='light'] .cr-close-btn:hover { background: #e2e8f0; color: #1e293b; }
-        html[data-theme='light'] .create-room-hero-btn { color: #ffffff !important; }
-        html[data-theme='light'] .create-room-hero-btn svg { color: #ffffff !important; fill: #ffffff !important; }
+        html[data-theme='light'] .create-room-hero-btn { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+        html[data-theme='light'] .create-room-hero-btn span { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+        html[data-theme='light'] .create-room-hero-btn svg { color: #ffffff !important; fill: #ffffff !important; stroke: none !important; }
         html[data-theme='light'] .cr-launch-btn { box-shadow: none !important; color: #ffffff !important; }
         html[data-theme='light'] .cr-launch-btn:hover { box-shadow: none !important; }
-        html[data-theme='light'] .cr-launch-btn svg { color: #ffffff !important; fill: #ffffff !important; }
+        html[data-theme='light'] .cr-launch-btn svg { color: #ffffff !important; fill: #ffffff !important; stroke: none !important; }
       `}</style>
 
       {/* Create Room Modal */}
@@ -921,7 +925,7 @@ const Home = () => {
                 >
                   <MessageSquare size={18} />
                   {totalUnread > 0 && (
-                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {totalUnread > 9 ? '9+' : totalUnread}
                     </div>
                   )}
@@ -933,14 +937,14 @@ const Home = () => {
                 <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                   <Bell size={18} />
                   {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {followRequests.filter(r => r.status === 'pending').length}
                     </div>
                   )}
                 </button>
                 {showNotifications && (
                   <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
                     <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                       {followRequests.length > 0 ? (
                         followRequests.map(u => (
@@ -955,25 +959,25 @@ const Home = () => {
                               <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
                           
                               <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                                {u.status === 'pending' ? `@${u.username} wants to follow you` : `@${u.username} started following you`}
+                                {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
                               </div>
                               
                               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                 {u.status === 'pending' ? (
-                                  <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
+                                  <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                                 ) : (
-                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
+                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                                 )}
                                 
                                 {u.myFollowStatus === 'accepted' ? (
-                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
+                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
                                 ) : (
                                   <button onClick={(e) => {
                                     e.stopPropagation();
                                     if (u.myFollowStatus === 'pending') return;
                                     handleFollowBack(u.username, e);
                                   }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                    {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
+                                    {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                                   </button>
                                 )}
                               </div>
@@ -981,7 +985,7 @@ const Home = () => {
                           </div>
                         ))
                       ) : (
-                        <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>No new notifications</div>
+                        <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
                       )}
                     </div>
                   </div>
@@ -1107,7 +1111,7 @@ const Home = () => {
                 onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(168,85,247,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
               >
-                <Play size={18} fill="#fff" style={{ color: '#fff' }} /> {t('createRoom', 'Create Room')}
+                <Play size={18} fill="#fff" strokeWidth={0} style={{ color: '#fff' }} /> <span style={{ color: '#ffffff' }} className="stay-white">{t('createRoom', 'Create Room')}</span>
               </button>
             )}
             <form onSubmit={handleJoin} style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', overflow: 'hidden' }}>
@@ -1256,31 +1260,31 @@ const Home = () => {
 
             {/* Product Column */}
             <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>Product</h4>
+              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('product', 'Product')}</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn" onClick={() => navigate('/public')}>Public Rooms</button>
-                <button className="footer-link-btn" onClick={() => navigate('/login')}>Sign In</button>
-                <button className="footer-link-btn" onClick={() => navigate('/signup')}>Get Started</button>
+                <button className="footer-link-btn" onClick={() => navigate('/public')}>{t('joinPublicRooms', 'Public Rooms')}</button>
+                <button className="footer-link-btn" onClick={() => navigate('/login')}>{t('logIn', 'Sign In')}</button>
+                <button className="footer-link-btn" onClick={() => navigate('/signup')}>{t('signUp', 'Get Started')}</button>
               </div>
             </div>
 
             {/* Resources Column */}
             <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>Resources</h4>
+              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('resources', 'Resources')}</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn">Help Center</button>
-                <button className="footer-link-btn">Release Notes</button>
-                <button className="footer-link-btn">Community</button>
+                <button className="footer-link-btn">{t('helpCenter', 'Help Center')}</button>
+                <button className="footer-link-btn">{t('releaseNotes', 'Release Notes')}</button>
+                <button className="footer-link-btn">{t('community', 'Community')}</button>
               </div>
             </div>
 
             {/* Legal Column */}
             <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>Legal</h4>
+              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('legal', 'Legal')}</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn">Privacy Policy</button>
-                <button className="footer-link-btn">Terms of Use</button>
-                <button className="footer-link-btn">Cookies</button>
+                <button className="footer-link-btn">{t('privacyPolicy', 'Privacy Policy')}</button>
+                <button className="footer-link-btn">{t('termsOfService', 'Terms of Use')}</button>
+                <button className="footer-link-btn">{t('cookies', 'Cookies')}</button>
               </div>
             </div>
           </div>

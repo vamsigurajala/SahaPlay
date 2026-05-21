@@ -198,6 +198,21 @@ h1 {
   background: rgba(255, 255, 255, 0.2);
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar::-webkit-scrollbar-track,
+.no-scrollbar::-webkit-scrollbar-thumb {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+  overflow: -moz-scrollbars-none !important;
+}
+
 /* Animations */
 .animated-fade-in {
   animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -345,3 +360,25 @@ html[data-theme='light'] .btn-secondary {
    Do NOT add filter-based rules here – the runtime sheet handles all
    colour overrides for inline-styled React components.
 ───────────────────────────────────────────────────────────────── */
+
+.cam-name-overlay {
+  pointer-events: none;
+  color: #ffffff !important;
+}
+
+/* Outstanding Camera UI Overlays */
+.cam-ui-overlay {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.cam-container:hover .cam-ui-overlay {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+@keyframes blobFloat {
+  0% { transform: scale(1) translate(0,0); border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+  100% { transform: scale(1.1) translate(2px, -2px); border-radius: 60% 40% 30% 70% / 50% 60% 40% 60%; }
+}
+

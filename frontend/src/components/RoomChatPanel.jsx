@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { 
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
-  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, CheckCheck
+  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, CheckCheck, Star, Shield
 } from 'lucide-react';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import crownImg from '../assets/crown.svg';
@@ -17,6 +17,19 @@ const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
 
 const MenuStyles = () => (
   <style>{`
+    #room-chat-panel {
+      --dropdown-bg: #1f2026;
+      --dropdown-border: rgba(255,255,255,0.08);
+      --dropdown-shadow: 0 8px 32px rgba(0,0,0,0.7);
+      --menu-item-text: #eee;
+    }
+    html[data-theme='light'] #room-chat-panel {
+      --dropdown-bg: #ffffff;
+      --dropdown-border: rgba(0,0,0,0.08);
+      --dropdown-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      --menu-item-text: #0f172a;
+    }
+
     @keyframes menuFadeIn {
       from { opacity: 0; transform: translateY(10px) scale(0.95); }
       to { opacity: 1; transform: translateY(0) scale(1); }
@@ -27,32 +40,118 @@ const MenuStyles = () => (
     }
     .menu-btn {
       transition: all 0.2s ease !important;
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    .menu-btn svg {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+      transition: all 0.2s ease !important;
     }
     .menu-btn:hover {
       background: rgba(99, 102, 241, 0.1) !important;
+      color: #6366f1 !important;
+      -webkit-text-fill-color: #6366f1 !important;
+    }
+    .menu-btn:hover svg {
+      color: #6366f1 !important;
+      -webkit-text-fill-color: #6366f1 !important;
     }
     html[data-theme='light'] .menu-btn:hover {
-      background: rgba(0, 0, 0, 0.05) !important;
+      background: rgba(99, 102, 241, 0.1) !important;
+      color: #4f46e5 !important;
+      -webkit-text-fill-color: #4f46e5 !important;
     }
+    html[data-theme='light'] .menu-btn:hover svg {
+      color: #4f46e5 !important;
+      -webkit-text-fill-color: #4f46e5 !important;
+    }
+    
     .menu-btn-danger {
-      color: inherit !important;
+      color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
     }
     .menu-btn-danger svg {
-      color: inherit !important;
+      color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
     }
     .menu-btn-danger:hover {
       background: rgba(239, 68, 68, 0.12) !important;
       color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
     }
     .menu-btn-danger:hover svg {
       color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
     }
     html[data-theme='light'] .menu-btn-danger:hover {
       background: rgba(239, 68, 68, 0.12) !important;
       color: #dc2626 !important;
+      -webkit-text-fill-color: #dc2626 !important;
     }
     html[data-theme='light'] .menu-btn-danger:hover svg {
       color: #dc2626 !important;
+      -webkit-text-fill-color: #dc2626 !important;
+    }
+
+    /* Specific overrides to prevent stay-white/msg-sent inside the dropdown from turning text white in light mode */
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn svg,
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn svg *,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg * {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+      stroke: var(--menu-item-text) !important;
+    }
+    
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger {
+      color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger svg,
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger svg *,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger svg,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger svg * {
+      color: #ef4444 !important;
+      -webkit-text-fill-color: #ef4444 !important;
+      stroke: #ef4444 !important;
+    }
+
+    /* Hover states for the dropdown items under stay-white/msg-sent in light mode */
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover {
+      background: rgba(99, 102, 241, 0.1) !important;
+      color: #4f46e5 !important;
+      -webkit-text-fill-color: #4f46e5 !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg,
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg *,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg * {
+      color: #4f46e5 !important;
+      -webkit-text-fill-color: #4f46e5 !important;
+      stroke: #4f46e5 !important;
+    }
+
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover {
+      background: rgba(239, 68, 68, 0.12) !important;
+      color: #dc2626 !important;
+      -webkit-text-fill-color: #dc2626 !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg,
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg *,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg * {
+      color: #dc2626 !important;
+      -webkit-text-fill-color: #dc2626 !important;
+      stroke: #dc2626 !important;
     }
   `}</style>
 );
@@ -87,7 +186,7 @@ function renderMessageText(text, isMe) {
       const href = part.startsWith('http') ? part : `https://${part}`;
       return (
         <a key={i} href={href} target="_blank" rel="noopener noreferrer"
-          style={{ color: isMe ? 'rgba(255,255,255,0.9)' : '#818cf8', textDecoration: 'underline', wordBreak: 'break-all', cursor: 'pointer', fontWeight: 500 }}
+          style={{ color: isMe ? 'rgba(255,255,255,0.9)' : (document.documentElement.getAttribute('data-theme')==='light' ? '#4f46e5' : '#818cf8'), textDecoration: 'underline', wordBreak: 'break-all', cursor: 'pointer', fontWeight: 500 }}
           onClick={e => e.stopPropagation()}
         >{part}</a>
       );
@@ -97,21 +196,37 @@ function renderMessageText(text, isMe) {
   });
 }
 
-function Avatar({ name, size=36, isHost=false, isMuted=false, src, style={} }) {
+function Avatar({ name, size=36, isHost=false, isAdmin=false, isMuted=false, src, style={} }) {
   const bg = getAvatarColor(name);
+  
+  let borderColor = 'rgba(255,255,255,0.15)';
+  let shadow = 'none';
+  if (isHost) {
+    borderColor = '#FFD700';
+    shadow = '0 0 8px #FFD70055';
+  } else if (isAdmin) {
+    borderColor = '#3b82f6';
+    shadow = '0 0 8px #3b82f655';
+  }
+
   return (
     <div style={{ position:'relative', display:'inline-flex', flexShrink:0, ...style }}>
       <div style={{ width:size, height:size, borderRadius:'50%', background:bg,
         display:'flex', alignItems:'center', justifyContent:'center',
         fontSize:size*0.35, fontWeight:700, color:'#fff', flexShrink:0,
-        border: isHost ? '2px solid #FFD700' : '2px solid rgba(255,255,255,0.15)',
-        boxShadow: isHost ? '0 0 8px #FFD70055' : 'none',
+        border: `2px solid ${borderColor}`,
+        boxShadow: shadow,
         overflow:'hidden' }}>
         {src ? (
           <img src={src} alt={name} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none'; e.target.nextSibling.style.display='flex';}} />
         ) : null}
         <span style={{display: src ? 'none' : 'flex'}}>{getInitials(name)}</span>
       </div>
+      {isMuted && (
+        <div className="stay-white" style={{ position: 'absolute', bottom: -2, right: -2, width: size * 0.4, height: size * 0.4, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid #16161e', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+          <MicOff size={size * 0.25} color="#fff" />
+        </div>
+      )}
     </div>
   );
 }
@@ -678,7 +793,14 @@ export default function RoomChatPanel({ p }) {
     );
   };
 
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const [isLight, setIsLight] = React.useState(document.documentElement.getAttribute('data-theme') === 'light');
+  React.useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <>
@@ -704,15 +826,23 @@ export default function RoomChatPanel({ p }) {
           }}
         />
       )}
-      <div id="room-chat-panel" style={{width:340,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {p.chatTab === 'list' ? (
         /* ===== CHAT LIST VIEW ===== */
         <>
-          <div style={{padding:'12px 14px',borderBottom:'1px solid var(--room-border)',fontWeight:700,fontSize:14,color: isLight ? '#1e293b' : '#ddd',letterSpacing:'0.2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-            <span>{showHiddenChats ? 'Hidden Chats' : 'Chats'}</span>
+          <div style={{
+            padding:'12px 14px',
+            background: 'var(--room-sidebar-bg)',
+            borderBottom:'1px solid var(--room-border)',
+            fontWeight:700,fontSize:14,color: isLight ? '#1e293b' : '#ddd',
+            letterSpacing:'0.2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            zIndex: 10,
+            position: 'relative'
+          }}>
+            <span>{showHiddenChats ? t('hiddenChatsTitle', 'Hidden Chats') : t('chats', 'Chats')}</span>
             <div ref={headerMenuRef} style={{position:'relative', display:'flex', alignItems:'center'}}>
               <button 
-                onClick={(e) => { e.stopPropagation(); setShowHeaderMenu(!showHeaderMenu); }} 
+                onClick={(e) => { e.stopPropagation(); setShowHeaderMenu(!showHeaderMenu); setActiveMessageMenu(null); }} 
                 style={{background:'none', border:'none', color: isLight ? '#475569' : '#aaa', cursor:'pointer', padding:4, display:'flex'}}
               >
                 <MoreVertical size={18} />
@@ -725,14 +855,14 @@ export default function RoomChatPanel({ p }) {
                     className="menu-btn"
                   >
                     {showHiddenChats ? <MessageSquare size={16} /> : <Lock size={16} />}
-                    {showHiddenChats ? 'Show All Chats' : 'Hidden Chats'}
+                    {showHiddenChats ? t('showAllChats', 'Show All Chats') : t('hiddenChatsTitle', 'Hidden Chats')}
                   </button>
                   <button 
                     onClick={markAllAsRead}
                     style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', fontSize:13, cursor:'pointer', textAlign:'left', borderRadius:8}} 
                     className="menu-btn"
                   >
-                    <CheckCheck size={16} /> Mark all as read
+                    <CheckCheck size={16} /> {t('markAllAsRead', 'Mark all as read')}
                   </button>
                 </div>
               )}
@@ -748,7 +878,7 @@ export default function RoomChatPanel({ p }) {
                   <ChevronLeft size={20} />
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: isLight ? '#4f46e5' : '#a5b4fc', fontSize: 12, fontWeight: 700 }}>
-                  <Lock size={14} /> Hidden Folder
+                  <Lock size={14} /> {t('hiddenFolder', 'Hidden Folder')}
                 </div>
               </div>
               <div ref={hiddenMenuRef} style={{position:'relative', display:'flex', alignItems:'center'}}>
@@ -765,14 +895,14 @@ export default function RoomChatPanel({ p }) {
                       style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', fontSize:13, cursor:'pointer', textAlign:'left', borderRadius:8}} 
                       className="menu-btn"
                     >
-                      <Eye size={16} /> Unhide all chats
+                      <Eye size={16} /> {t('unhideAllChats', 'Unhide all chats')}
                     </button>
                   </div>
                 )}
               </div>
             </div>
           )}
-          <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column'}}>
+          <div className="no-scrollbar" style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column'}}>
             {!showHiddenChats && (
             <button onClick={()=>{
               const groupKey = (p.roomId || '').toLowerCase();
@@ -788,12 +918,16 @@ export default function RoomChatPanel({ p }) {
               // Also clear the global navbar badge for this room
               if (p.onMarkRead) p.onMarkRead(p.roomId);
             }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
-              <div style={{width:40,height:40,borderRadius:12,background:'linear-gradient(135deg,#6366f1,#a855f7)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <Users size={18} color="#fff"/>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                {p.room?.thumbnailPath ? (
+                  <img src={`${p.SOCKET_SERVER_URL}${p.room.thumbnailPath}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Users size={18} color="#fff" />
+                )}
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
-                <div style={{fontSize:11,color: isLight ? '#475569' : '#555',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                <div style={{fontSize:11,color: isLight ? '#475569' : '#a1a1aa',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                   {(() => {
                     const lastMsg = p.groupMessages.length > 0 ? p.groupMessages[p.groupMessages.length-1] : null;
                     if (!lastMsg) return t('groupConv', 'Group conversation');
@@ -813,7 +947,7 @@ export default function RoomChatPanel({ p }) {
                     {isGroupLocked ? (
                       <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
                     ) : p.groupUnread > 0 ? (
-                      <span style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <span className="unread-badge stay-white" style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {p.groupUnread > 9 ? '9+' : p.groupUnread}
                       </span>
                     ) : null}
@@ -896,7 +1030,7 @@ export default function RoomChatPanel({ p }) {
                       {displayUname}
                       {!isBlockedByThem && uObj?.isHost && <img src={crownImg} alt="host" style={{width:12,height:10}}/>}
                     </div>
-                    <div style={{fontSize:11,color: isLight ? '#475569' : '#555',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    <div style={{fontSize:11,color: isLight ? '#475569' : '#a1a1aa',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {last ? (() => {
                         const preview = last.decryptedText || (last.mediaType ? (last.mediaType.startsWith('video') ? 'Video' : 'Photo') : (last.message && looksLikeCiphertext(last.message) ? 'Encrypted message' : (last.message?.slice(0,32) || '')));
                         return last.isMe ? `You: ${preview}` : preview;
@@ -909,7 +1043,7 @@ export default function RoomChatPanel({ p }) {
                     {isDmLocked ? (
                       <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
                     ) : unread > 0 && (
-                      <span style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <span className="unread-badge stay-white" style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {unread > 9 ? '9+' : unread}
                       </span>
                     )}
@@ -926,12 +1060,23 @@ export default function RoomChatPanel({ p }) {
       ) : p.chatTab === 'group' ? (
         /* ===== GROUP CHAT THREAD ===== */
         <>
-          <div style={{padding:'8px 14px',borderBottom:'1px solid var(--room-border)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+          <div style={{
+            padding:'8px 14px',
+            background: 'var(--room-sidebar-bg)',
+            borderBottom:'1px solid var(--room-border)',
+            display:'flex',alignItems:'center',gap:10,flexShrink:0,
+            zIndex: 10,
+            position: 'relative'
+          }}>
             <button onClick={handleBackToList} style={{width:30,height:30,borderRadius:8,background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
               <ChevronLeft size={16}/>
             </button>
-            <div style={{width:32,height:32,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-              <Users size={15} color="#fff"/>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+              {p.room?.thumbnailPath ? (
+                <img src={`${p.SOCKET_SERVER_URL}${p.room.thumbnailPath}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <Users size={15} color="#fff" />
+              )}
             </div>
             <div>
               <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
@@ -947,14 +1092,20 @@ export default function RoomChatPanel({ p }) {
                 <MoreVertical size={16}/>
               </div>
               {p.showGroupMenu && (
-                <div className="menu-dropdown" style={{position:'absolute',right:0,top:'100%',background: isLight ? '#fff' : '#1a1a2e',border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,zIndex:100,minWidth:160,boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 10px 30px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowGroupMenu(false)}>
-                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); if(p.isHost){ p.setRenameInput(p.roomName); p.setRenameModalOpen(true); } else toast.error(t('onlyHostRename', 'Only host can edit this room name'));}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
+                <div className="menu-dropdown" style={{
+                  position:'absolute',right:0,top:'100%',
+                  background: 'var(--dropdown-bg)',
+                  border: '1px solid var(--dropdown-border)',
+                  borderRadius:12,padding:6,zIndex:100,minWidth:160,
+                  boxShadow: 'var(--dropdown-shadow)'
+                }} onMouseLeave={()=>p.setShowGroupMenu(false)}>
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); if(p.isHost){ p.setRenameInput(p.roomName); p.setRenameModalOpen(true); } else toast.error(t('onlyHostRename', 'Only host can edit this room name'));}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                     <Edit2 size={16}/> {t('editName', 'Edit Name')}
                   </div>
-                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); toggleMuteChat(p.roomId);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
-                    {mutedChats.includes((p.roomId||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.roomId||'').toLowerCase()) ? 'Unmute' : 'Mute'}
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); toggleMuteChat(p.roomId);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                    {mutedChats.includes((p.roomId||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.roomId||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                   </div>
-                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); setClearGroupChatModalOpen(true);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); setClearGroupChatModalOpen(true);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                     <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                   </div>
                 </div>
@@ -962,8 +1113,9 @@ export default function RoomChatPanel({ p }) {
             </div>
           </div>
           <div 
-onScroll={handleScroll} 
-onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+            className="no-scrollbar"
+            onScroll={handleScroll} 
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
             {p.groupMessages.length===0 && <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>}
             {p.groupMessages.map((msg,i)=>{
               const isMe = msg.isMe || (msg.username && msg.username === p.username) || (msg.senderName && msg.senderName === p.username);
@@ -995,36 +1147,55 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                   )}
                   <div style={{display:'flex',alignItems:'center',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'85%'}}>
                     {!isMe && (() => {
-                      const partner = (msg.username || msg.senderName || '').toLowerCase();
+                      const partnerName = (msg.username || msg.senderName || '');
+                      const partner = partnerName.toLowerCase();
                       const isSenderBlockedByMe = blockedChats.some(u => u.toLowerCase() === partner);
                       const amIBlockedBySender = blockingMe.some(u => u.toLowerCase() === partner);
                       
-                      const displayUsername = amIBlockedBySender ? 'User' : (msg.username || msg.senderName);
-                      const fallbackAvatar = msg.senderAvatar || p.knownAvatars?.[msg.username || msg.senderName];
-                      const displayAvatarSrc = amIBlockedBySender ? null : (fallbackAvatar ? `${p.SOCKET_SERVER_URL}${fallbackAvatar}` : null);
+                      const displayUsername = amIBlockedBySender ? 'User' : partnerName;
+                      const fallbackAvatar = msg.senderAvatar || p.knownAvatars?.[partnerName];
+                      const displayAvatarSrc = amIBlockedBySender ? null : (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null);
                       
-                      return <span onClick={() => !amIBlockedBySender && navigate(`/profile/${msg.username}`)} title={amIBlockedBySender ? 'Blocked User' : `View ${msg.username}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc}/></span>;
+                      const userObj = p.userList?.find(u => u.username === partnerName);
+                      const uIsHost = userObj?.isHost || (p.room?.hostUsername && partnerName.toLowerCase() === p.room.hostUsername.toLowerCase());
+                      const uIsAdmin = !!(p.room?.settings?.newMembersAdmins && partnerName && partnerName !== 'Anonymous' && !partnerName.toLowerCase().startsWith('guest_') && !uIsHost);
+                      
+                      return <span onClick={() => !amIBlockedBySender && navigate(`/profile/${partnerName}`)} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
                     })()}
                     <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                       {!isMe && (
-                        <span
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            const sName = msg.senderName || msg.username;
-                            if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
-                          }}
-                          style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
-                          title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
-                        >{blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : (msg.senderName || msg.username)}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                const sName = msg.senderName || msg.username;
+                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
+                              }}
+                              style={{ fontSize: 10, color: '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
+                              title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
+                            >
+                              {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : (msg.senderName || msg.username)}
+                            </span>
+                            {(() => {
+                              const sName = msg.senderName || msg.username;
+                              if (!sName || blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) return null;
+                              const userObj = p.userList?.find(u => u.username === sName);
+                              const isH = userObj?.isHost || (p.room?.hostUsername && sName.toLowerCase() === p.room.hostUsername.toLowerCase());
+                              const isA = !!(p.room?.settings?.newMembersAdmins && sName && sName !== 'Anonymous' && !sName.toLowerCase().startsWith('guest_') && !isH);
+                              if (isH) return <Star size={8} color="#fbbf24" fill="#fbbf24" />;
+                              if (isA) return <Shield size={8} color="#3b82f6" fill="#3b82f6" />;
+                              return null;
+                            })()}
+                          </div>
                       )}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}>
-                        <div style={{
+                        <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
-                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)')),
+                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
-                          color: isMe ? '#fff' : (isLight ? '#1e293b' : '#fff'),
+                          color: isMe ? '#fff' : (isLight ? '#000000' : '#fff'),
                           maxWidth:'100%',
                           wordBreak:'break-word'
                         }}
@@ -1043,23 +1214,29 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                           
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
-                                 <div className="menu-dropdown" style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:100, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)', minWidth: 160}} onClick={e => e.stopPropagation()}>
+                                 <div className="menu-dropdown" style={{
+                                   position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, 
+                                   background: 'var(--dropdown-bg)', 
+                                   border: '1px solid var(--dropdown-border)', 
+                                   borderRadius:12, padding:6, zIndex:100, 
+                                   boxShadow: 'var(--dropdown-shadow)', minWidth: 160
+                                 }} onClick={e => e.stopPropagation()}>
                                    {isMe ? (
                                      <>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
-                                         <Trash2 size={16}/> Unsend
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                         <Trash2 size={16}/> {t('unsend', 'Unsend')}
                                        </button>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#64748b' : '#aaa', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn">
-                                         <Trash2 size={16}/> Delete for me
+                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                         <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
                                        </button>
                                      </>
                                    ) : (
-                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
-                                       <Trash2 size={16}/> Delete
+                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                       <Trash2 size={16}/> {t('delete', 'Delete')}
                                      </button>
                                    )}
                                  </div>
@@ -1068,19 +1245,31 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                           )}
                           
                           {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
-                            <div style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
-                              <div style={{background:'rgba(26,26,46,0.95)',backdropFilter:'blur(4px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:30,padding:'6px 8px',display:'flex',alignItems:'center',gap:6,width:'max-content',boxShadow:'0 8px 24px rgba(0,0,0,0.6)'}}>
+                            <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                              <div style={{
+                                background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
+                                backdropFilter:'blur(12px)',
+                                border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                borderRadius:30,
+                                padding:'6px 8px',
+                                display:'flex',
+                                alignItems:'center',
+                                gap:6,
+                                width:'max-content',
+                                boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+                              }}>
                                 {QUICK_EMOJIS.map(em=>(
                                   <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                 ))}
-                                <button onClick={(e)=>{e.stopPropagation(); p.setShowAllEmojis(true);}} style={{background:'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.1)'}><Plus size={16}/></button>
+                                <button onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={16}/></button>
                               </div>
                             </div>
                           )}
+
                         </div>
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
                               <SmilePlus size={16}/>
                             </button>
                           </div>
@@ -1173,7 +1362,7 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                         value={p.groupChatInput} 
                         onChange={e=>{p.handleChatInputChange(e.target.value, 'room'); p.setGroupChatInput(e.target.value);}} 
                         onFocus={() => p.setShowGroupEmojiPicker(false)} 
-                        placeholder={isGuest ? 'Guests cannot chat' : t('msgRoomPlace', 'Message the room...')} 
+                        placeholder={isGuest ? t('guestsCannotChat', 'Guests cannot chat') : t('msgRoomPlace', 'Message the room...')} 
                         disabled={isDisabled} 
                         style={{
                           flex:1,
@@ -1222,7 +1411,14 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
               const isOnline = !!uObj;
               return (
               <>
-                <div style={{padding:'8px 14px',borderBottom:'1px solid var(--room-border)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+                <div style={{
+                  padding:'8px 14px',
+                  background: 'var(--room-sidebar-bg)',
+                  borderBottom:'1px solid var(--room-border)',
+                  display:'flex',alignItems:'center',gap:10,flexShrink:0,
+                  zIndex: 10,
+                  position: 'relative'
+                }}>
                   <button onClick={handleBackToList} style={{width:30,height:30,borderRadius:8,background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                     <ChevronLeft size={16}/>
                   </button>
@@ -1266,7 +1462,7 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                   })()}
                   <div ref={p.dmMenuRef} style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
                     <div 
-                      onClick={e=>{e.stopPropagation(); p.setShowDmMenu(p.showDmMenu===p.dmTarget?null:p.dmTarget);}} 
+                      onClick={e=>{e.stopPropagation(); p.setShowDmMenu(p.showDmMenu===p.dmTarget?null:p.dmTarget); setActiveMessageMenu(null);}} 
                       style={{background:'none',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',padding:4, transition: 'color 0.2s'}}
                       onMouseEnter={e => e.currentTarget.style.color = isLight ? '#000' : '#fff'}
                       onMouseLeave={e => e.currentTarget.style.color = isLight ? '#64748b' : '#aaa'}
@@ -1274,33 +1470,40 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                       <MoreVertical size={16}/>
                     </div>
                     {p.showDmMenu === p.dmTarget && (
-                      <div className="menu-dropdown" style={{position:'absolute',right:0,top:'100%',background: isLight ? '#fff' : '#1a1a2e',border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:12,padding:6,zIndex:100,minWidth:180,boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)'}} onMouseLeave={()=>p.setShowDmMenu(null)}>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); togglePinRoomChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
-                          <Pin size={16}/> {pinnedRoomChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unpin Chat' : 'Pin Chat'}
+                      <div className="menu-dropdown" style={{
+                        position:'absolute',right:0,top:'100%',
+                        background: 'var(--dropdown-bg)',
+                        border: '1px solid var(--dropdown-border)',
+                        borderRadius:12,padding:6,zIndex:100,minWidth:180,
+                        boxShadow: 'var(--dropdown-shadow)'
+                      }} onMouseLeave={()=>p.setShowDmMenu(null)}>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); togglePinRoomChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          <Pin size={16}/> {pinnedRoomChats.includes((p.dmTarget||'').toLowerCase()) ? t('unpinChat', 'Unpin Chat') : t('pinChat', 'Pin Chat')}
                         </div>
-                        <div onClick={e=>{e.stopPropagation(); toggleHideChat((p.dmTarget||'').toLowerCase());}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
-                          <Lock size={16}/> {hiddenChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unhide Chat' : 'Hide Chat'}
+                        <div onClick={e=>{e.stopPropagation(); toggleHideChat((p.dmTarget||'').toLowerCase());}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          <Lock size={16}/> {hiddenChats.includes((p.dmTarget||'').toLowerCase()) ? t('unhideChat', 'Unhide Chat') : t('hideChat', 'Hide Chat')}
                         </div>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn">
-                          {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? 'Unmute' : 'Mute'}
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                         </div>
-                        <div style={{ height: '1px', background: isLight ? 'rgba(0, 0, 0, 0.4)' : 'rgba(255, 255, 255, 0.15)', margin: '6px 8px' }} />
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
-                          <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? 'Unblock' : 'Block'}
+                        <div style={{ height: '1px', background: 'var(--menu-divider)', margin: '6px 8px' }} />
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
+                          <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? t('unblock', 'Unblock') : t('block', 'Block')}
                         </div>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                           <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                         </div>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setDeleteChatConfirm({key: p.dmTarget, type: 'dm', name: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: isLight ? '#1e293b' : '#fff',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="menu-btn menu-btn-danger">
-                          <Trash2 size={16}/> Delete Chat
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setDeleteChatConfirm({key: p.dmTarget, type: 'dm', name: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
+                          <Trash2 size={16}/> {t('deleteChat', 'Delete Chat')}
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
                 <div 
-onScroll={handleScroll} 
-onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
+                  className="no-scrollbar"
+                  onScroll={handleScroll} 
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
                   {(p.dmThreads[p.dmTarget]||[]).length===0 && (
                     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:6}}>
                       <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
@@ -1346,13 +1549,13 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}>
-                              <div style={{
+                              <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
-                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)')),
+                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
-                                color: isMe ? '#fff' : (isLight ? '#1e293b' : '#ddd'),
+                                color: isMe ? '#fff' : (isLight ? '#000000' : '#ddd'),
                                 maxWidth:'100%',
                                 wordBreak:'break-word'
                               }}
@@ -1373,44 +1576,61 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                                   <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
                                     <button 
                                       ref={activeMessageMenu === msg.id ? messageMenuRef : null}
-                                      onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                      onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
                                     {activeMessageMenu === msg.id && (
-                                 <div className="menu-dropdown" style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:6, zIndex:100, boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 4px 12px rgba(0,0,0,0.5)', minWidth: 160}} onClick={e => e.stopPropagation()}>
-                                   {isMe ? (
-                                     <>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
-                                         <Trash2 size={16}/> Unsend
-                                       </button>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#64748b' : '#aaa', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn">
-                                         <Trash2 size={16}/> Delete for me
-                                       </button>
-                                     </>
-                                   ) : (
-                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: isLight ? '#1e293b' : '#fff', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="menu-btn menu-btn-danger">
-                                       <Trash2 size={16}/> Delete
-                                     </button>
-                                   )}
-                                 </div>
-                               )}
+                                      <div className="menu-dropdown" style={{
+                                        position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, 
+                                        background: 'var(--dropdown-bg)', 
+                                        border: '1px solid var(--dropdown-border)', 
+                                        borderRadius:12, padding:6, zIndex:100, 
+                                        boxShadow: 'var(--dropdown-shadow)', minWidth: 160
+                                      }} onClick={e => e.stopPropagation()}>
+                                        {isMe ? (
+                                          <>
+                                            <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                              <Trash2 size={16}/> {t('unsend', 'Unsend')}
+                                            </button>
+                                            <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                              <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                            <Trash2 size={16}/> {t('delete', 'Delete')}
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 
                                 {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
-                                  <div style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
-                                    <div style={{background:'rgba(26,26,46,0.95)',backdropFilter:'blur(4px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:30,padding:'6px 8px',display:'flex',alignItems:'center',gap:6,width:'max-content',boxShadow:'0 8px 24px rgba(0,0,0,0.6)'}}>
+                                  <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                    <div style={{
+                                      background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
+                                      backdropFilter:'blur(12px)',
+                                      border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                      borderRadius:30,
+                                      padding:'6px 8px',
+                                      display:'flex',
+                                      alignItems:'center',
+                                      gap:6,
+                                      width:'max-content',
+                                      boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+                                    }}>
                                       {QUICK_EMOJIS.map(em=>(
                                         <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                       ))}
-                                      <button onClick={(e)=>{e.stopPropagation(); p.setShowAllEmojis(true);}} style={{background:'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.1)'}><Plus size={16}/></button>
+                                      <button onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={16}/></button>
                                     </div>
                                   </div>
                                 )}
                               </div>
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                   <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#aaa',padding:2}}>
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
                                       <SmilePlus size={16}/>
                                     </button>
                                   </div>
@@ -1505,13 +1725,13 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                           marginBottom: 4
                         }}>
                           <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#1e293b' : '#fff', marginBottom: 4 }}>
-                            Friendship Required
+                            {t('friendshipRequired', 'Friendship Required')}
                           </div>
                           <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
-                            You need to follow each other to send messages.
+                            {t('needMutualFollow', 'You need to follow each other to start messaging.')}
                           </p>
-                          <a href={`/profile/${p.dmTarget}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 12, padding: '6px 12px', background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.1)', color: '#a855f7', borderRadius: 6, textDecoration: 'none', fontSize: 12, fontWeight: 600 }}>
-                            View Profile
+                          <a className="stay-white" href={`/profile/${p.dmTarget}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(99,102,241,0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
+                            {t('viewProfile', 'View Profile')}
                           </a>
                         </div>
                       );
@@ -1530,7 +1750,7 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                             value={p.dmChatInput} 
                             onChange={e=>{p.handleChatInputChange(e.target.value, 'private'); p.setDmChatInput(e.target.value);}} 
                             onFocus={() => p.setShowDmEmojiPicker(false)} 
-                            placeholder={isGuest ? 'Guests cannot chat' : p.userList.some(u => u.username === p.dmTarget) ? "Private message..." : "Offline message..."} 
+                            placeholder={isGuest ? t('guestsCannotChat', 'Guests cannot chat') : p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')} 
                             disabled={isGuest} 
                             style={{
                               flex:1,
@@ -1580,14 +1800,23 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
         </div>
       )}
 
-      {/* Global Emoji Picker positioned inside chat container */}
+      {/* Global Emoji Picker positioned fixed in panel */}
       {p.showAllEmojis && p.activeReactionMsg && (
-        <div style={{position:'absolute', bottom: 76, right: 16, zIndex: 99999, boxShadow:'0 8px 32px rgba(0,0,0,0.8)', borderRadius:10, transform: 'scale(0.85)', transformOrigin: 'bottom right'}}>
-          <Picker data={data} theme="dark" previewPosition="none" searchPosition="none" navPosition="bottom" perLine={6} onEmojiSelect={(emojiObj) => { 
-             p.setShowAllEmojis(false);
-             if (p.chatTab === 'group') p.handleGroupReact(p.activeReactionMsg, emojiObj.native);
-             else p.handleDmReact(p.activeReactionMsg, emojiObj.native);
-          }}/>
+        <div className="emoji-picker-container" style={{position:'absolute', bottom: 84, right: 16, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10, transform: 'scale(0.95)', transformOrigin: 'bottom right'}} onClick={e=>e.stopPropagation()}>
+          <Picker 
+            data={data} 
+            theme={isLight ? 'light' : 'dark'} 
+            previewPosition="none" 
+            searchPosition="none" 
+            navPosition="bottom" 
+            perLine={6} 
+            onEmojiSelect={(emojiObj) => { 
+              p.setShowAllEmojis(false);
+              if (p.chatTab === 'group') p.handleGroupReact(p.activeReactionMsg, emojiObj.native);
+              else p.handleDmReact(p.activeReactionMsg, emojiObj.native);
+              p.setActiveReactionMsg(null);
+            }}
+          />
         </div>
       )}
 
@@ -1630,14 +1859,14 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
             <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>Clear Chat</h3>
             <p style={{color: isLight ? 'rgba(0,0,0,0.6)' : '#aaa',fontSize:15,marginBottom:28,lineHeight:1.6}}>Are you sure you want to clear your chat history with <strong style={{color: isLight ? '#000' : '#fff'}}>{p.roomName}</strong>?</p>
             <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
-              <button onClick={()=>setClearGroupChatModalOpen(false)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>setClearGroupChatModalOpen(false)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
               <button onClick={()=>{ 
                 if (p.clearRoomChat) p.clearRoomChat(); 
                 setClearGroupChatModalOpen(false); 
               }} 
-                className="danger-red-btn"
+                className="danger-red-btn stay-white"
                 style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
-                <span style={{color: '#fff'}}>Clear Chat</span>
+                <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
               </button>
             </div>
           </div>
@@ -1651,14 +1880,14 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
             <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>Delete Chat</h3>
             <p style={{color: isLight ? 'rgba(0,0,0,0.6)' : '#aaa',fontSize:15,marginBottom:28,lineHeight:1.6}}>Are you sure you want to delete your conversation with <strong style={{color: isLight ? '#000' : '#fff'}}>{deleteChatConfirm.name}</strong>? This will remove it from your chat list.</p>
             <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
-              <button onClick={()=>setDeleteChatConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>setDeleteChatConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
               <button onClick={()=>{ 
                 handleDeleteChat(deleteChatConfirm.key, deleteChatConfirm.type);
                 setDeleteChatConfirm(null); 
               }} 
-                className="danger-red-btn"
+                className="danger-red-btn stay-white"
                 style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
-                <span style={{color: '#fff'}}>Delete Chat</span>
+                <span className="stay-white" style={{color: '#fff'}}>Delete Chat</span>
               </button>
             </div>
           </div>
@@ -1682,14 +1911,14 @@ onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setS
                 : `? They won't be able to message you.`}
             </p>
             <div style={{display:'flex',gap:12,justifyContent:'flex-end'}}>
-              <button onClick={()=>setBlockUserConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#aaa',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
+              <button onClick={()=>setBlockUserConfirm(null)} style={{padding:'12px 24px',background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',border: isLight ? '1px solid #e2e8f0' : 'none',borderRadius:14,color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:700,fontSize:14, transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>Cancel</button>
               <button onClick={()=>{ 
                 toggleBlockUser(blockUserConfirm.username);
                 setBlockUserConfirm(null); 
               }} 
-                className="danger-red-btn"
+                className="danger-red-btn stay-white"
                 style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
-                <span style={{color: '#fff'}}>{blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock' : 'Block'}</span>
+                <span className="stay-white" style={{color: '#fff'}}>{blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock' : 'Block'}</span>
               </button>
             </div>
           </div>

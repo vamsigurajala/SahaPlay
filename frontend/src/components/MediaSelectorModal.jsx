@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Monitor, Link as LinkIcon, Upload, ChevronRight } from 'lucide-react';
 
 import { FaYoutube, FaTwitch, FaVimeo, FaInstagram, FaApple, FaSpotify, FaTiktok, FaSoundcloud } from 'react-icons/fa';
@@ -36,22 +37,41 @@ const OPTIONS = [
   { id: 'apple', name: 'Apple Music', category: 'Music & Podcasts', bgColor: '#fff', color: '#000', icon: FaApple, type: 'placeholder', url: 'https://music.apple.com', isWide: true, image: '/images/apps/apple.jpg' },
 
   // Social Media
-  { id: 'tiktok', name: 'TikTok', category: 'Social Media', bgColor: '#000', color: '#fff', icon: FaTiktok, type: 'placeholder', url: 'https://tiktok.com', isWide: true, image: '/images/apps/tiktok.jpg' },
-  { id: 'instagram', name: 'Instagram', category: 'Social Media', bgColor: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', icon: FaInstagram, type: 'placeholder', url: 'https://instagram.com', isWide: true, image: '/images/apps/instagram.jpg' },
+  { id: 'tiktok', name: 'TikTok', category: 'Social Media', bgColor: '#000', color: '#fff', brandColor: '#EE1D52', icon: FaTiktok, type: 'placeholder', url: 'https://tiktok.com', isWide: true, image: '/images/apps/tiktok.jpg' },
+  { id: 'instagram', name: 'Instagram', category: 'Social Media', bgColor: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', brandColor: '#E1306C', icon: FaInstagram, type: 'placeholder', url: 'https://instagram.com', isWide: true, image: '/images/apps/instagram.jpg' },
 ];
 
 // Stateful card component — tracks whether background image loaded successfully
-function AppCard({ app, isQuickAction, onClick }) {
+// Stateful card component — tracks whether background image loaded successfully
+function AppCard({ app, isQuickAction, onClick, isLight }) {
+  const { t } = useTranslation();
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = app.icon;
   const hasImage = app.isWide && app.image && !imgFailed;
+
+  // Theme-aware colors for Quick Actions
+  let actionColor = app.color;
+  let actionBg = app.bgColor;
+  
+  if (isQuickAction && isLight) {
+    if (app.id === 'screenshare') {
+      actionColor = '#059669';
+      actionBg = 'rgba(16,185,129,0.08)';
+    } else if (app.id === 'custom') {
+      actionColor = '#4f46e5';
+      actionBg = 'rgba(99,102,241,0.08)';
+    } else if (app.id === 'upload') {
+      actionColor = '#d97706';
+      actionBg = 'rgba(245,158,11,0.08)';
+    }
+  }
 
   return (
     <button
       onClick={onClick}
       style={{
-        background: app.bgColor,
-        border: isQuickAction ? `1px solid ${app.color}40` : '1px solid rgba(255,255,255,0.08)',
+        background: actionBg,
+        border: isQuickAction ? (isLight ? `1px solid ${actionColor}30` : `1px solid ${app.color}40`) : (isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.08)'),
         borderRadius: 12,
         height: isQuickAction ? 100 : 130,
         display: 'flex',
@@ -64,22 +84,22 @@ function AppCard({ app, isQuickAction, onClick }) {
         position: 'relative',
         overflow: 'hidden',
         transition: 'all 0.2s',
-        boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+        boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 8px 16px rgba(0,0,0,0.2)',
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.6)';
+        e.currentTarget.style.boxShadow = isLight ? '0 12px 24px rgba(0,0,0,0.1)' : '0 12px 24px rgba(0,0,0,0.6)';
         if (!isQuickAction) e.currentTarget.style.filter = 'brightness(1.15)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.2)';
+        e.currentTarget.style.boxShadow = isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 8px 16px rgba(0,0,0,0.2)';
         if (!isQuickAction) e.currentTarget.style.filter = 'brightness(1)';
       }}
     >
       {/* Quick action inner glow */}
       {isQuickAction && (
-        <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at center, ${app.color}20 0%, transparent 70%)` }} />
+        <div style={{ position: 'absolute', inset: 0, background: isLight ? `radial-gradient(circle at center, ${actionColor}10 0%, transparent 70%)` : `radial-gradient(circle at center, ${app.color}20 0%, transparent 70%)` }} />
       )}
 
       {/* Background image (for wide app cards) */}
@@ -112,7 +132,7 @@ function AppCard({ app, isQuickAction, onClick }) {
         }}>
           {Icon && (
             <div style={{
-              color: isQuickAction ? app.color : (app.brandColor || app.color || '#fff'),
+              color: isQuickAction ? actionColor : (app.brandColor || app.color || (isLight ? '#1e293b' : '#fff')),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               filter: isQuickAction ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))'
             }}>
@@ -122,12 +142,12 @@ function AppCard({ app, isQuickAction, onClick }) {
           <span style={{
             fontSize: isQuickAction ? 15 : (app.id === 'prime' ? 22 : 26),
             fontWeight: 900,
-            color: isQuickAction ? app.color : (app.color || '#fff'),
+            color: isQuickAction ? actionColor : (app.color || (isLight ? '#1e293b' : '#fff')),
             letterSpacing: isQuickAction ? 0 : '-0.5px',
             textShadow: isQuickAction ? 'none' : '0 1px 4px rgba(0,0,0,0.6)',
             textAlign: 'center',
           }}>
-            {app.name}
+            {app.category === 'Quick Actions' ? t(`app_${app.id}`, app.name) : app.name}
           </span>
         </div>
       )}
@@ -142,13 +162,21 @@ function AppCard({ app, isQuickAction, onClick }) {
   );
 }
 
-export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelectUrl, onUpload, onScreenshare, onSelectPlaceholder }) {
+export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelectUrl, onUpload, onScreenshare, onSelectPlaceholder, isLight }) {
+  const { t } = useTranslation();
   const fileInputRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
 
   const categories = ['Quick Actions', 'Movies & Video', 'Web Games', 'Music & Podcasts', 'Social Media'];
+  const categoryTranslations = {
+    'Quick Actions': t('catQuickActions', 'Quick Actions'),
+    'Movies & Video': t('catMoviesVideo', 'Movies & Video'),
+    'Web Games': t('catWebGames', 'Web Games'),
+    'Music & Podcasts': t('catMusicPodcasts', 'Music & Podcasts'),
+    'Social Media': t('catSocialMedia', 'Social Media')
+  };
   
   const sectionRefs = useRef({});
   categories.forEach(cat => {
@@ -202,11 +230,11 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(180deg, #11111a 0%, #0a0a0f 100%)',
-          border: '1px solid rgba(255,255,255,0.06)', position: 'relative',
+          background: isLight ? '#ffffff' : 'linear-gradient(180deg, #11111a 0%, #0a0a0f 100%)',
+          border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)', position: 'relative',
           borderRadius: 24, width: '100%', maxWidth: 1100, maxHeight: '85vh',
           display: 'flex', flexDirection: 'column', 
-          boxShadow: '0 32px 120px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
+          boxShadow: isLight ? '0 40px 100px rgba(0,0,0,0.1)' : '0 32px 120px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
           fontFamily: "'Outfit',sans-serif"
         }}
       >
@@ -214,23 +242,23 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
           onClick={onClose}
           style={{
             position: 'absolute', top: -2, right: -60, width: 44, height: 44,
-            borderRadius: '50%', background: '#1f1f2e', border: '1px solid rgba(255,255,255,0.1)',
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', zIndex: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            borderRadius: '50%', background: isLight ? '#fff' : '#1f1f2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+            color: isLight ? '#0f172a' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 8px 24px rgba(0,0,0,0.08)' : '0 4px 12px rgba(0,0,0,0.5)',
             transition: 'background 0.2s, transform 0.2s'
           }}
-          onMouseEnter={e => { e.currentTarget.style.background='#2f2f3e'; e.currentTarget.style.transform='scale(1.05)' }}
-          onMouseLeave={e => { e.currentTarget.style.background='#1f1f2e'; e.currentTarget.style.transform='scale(1)' }}
+          onMouseEnter={e => { e.currentTarget.style.background='#ef4444'; e.currentTarget.style.color='#fff'; e.currentTarget.style.transform='scale(1.05)' }}
+          onMouseLeave={e => { e.currentTarget.style.background=isLight ? '#fff' : '#1f1f2e'; e.currentTarget.style.color=isLight ? '#0f172a' : '#fff'; e.currentTarget.style.transform='scale(1)' }}
         >
           <X size={20} />
         </button>
 
         <div style={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 24,
-          padding: '24px 36px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0
+          padding: '24px 36px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.04)', flexShrink: 0
         }}>
           <div>
-            <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>App Directory</h2>
+            <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>{t('appDirectory', 'App Directory')}</h2>
           </div>
           <div style={{ flex: 1 }} />
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', paddingBottom: 4 }}>
@@ -240,16 +268,16 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
                 onClick={() => scrollToSection(cat)}
                 style={{
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
                   borderRadius: 20, padding: '6px 14px',
-                  color: '#ccc', fontSize: 13, fontWeight: 600,
+                  color: isLight ? '#64748b' : '#ccc', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', transition: 'all 0.2s',
                   whiteSpace: 'nowrap'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,0.1)'; e.currentTarget.style.color='#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='#ccc'; }}
+                onMouseEnter={e => { e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'; e.currentTarget.style.color=isLight ? '#0f172a' : '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=isLight ? '#64748b' : '#ccc'; }}
               >
-                {cat}
+                {categoryTranslations[cat] || cat}
               </button>
             ))}
           </div>
@@ -261,9 +289,9 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
             padding: '24px 36px', display: 'flex', gap: 12, alignItems: 'center'
           }}>
             <div style={{
-              flex: 1, display: 'flex', alignItems: 'center', background: '#0a0a0f',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '8px 16px',
-              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+              flex: 1, display: 'flex', alignItems: 'center', background: isLight ? '#fff' : '#0a0a0f',
+              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '8px 16px',
+              boxShadow: isLight ? 'inset 0 1px 3px rgba(0,0,0,0.02)' : 'inset 0 2px 4px rgba(0,0,0,0.5)'
             }}>
               <LinkIcon size={18} color="#6366f1" style={{ marginRight: 12 }} />
               <input 
@@ -271,10 +299,10 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
                 value={customUrl}
                 onChange={e => setCustomUrl(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleUrlSubmit()}
-                placeholder="Paste any YouTube, Twitch, Vimeo, SoundCloud or MP4 URL here..."
+                placeholder={t('urlInputPlaceholder', 'Paste any YouTube, Twitch, Vimeo, SoundCloud or MP4 URL here...')}
                 style={{
                   background: 'transparent', border: 'none', outline: 'none',
-                  color: '#fff', fontSize: 16, flex: 1, fontFamily: 'inherit'
+                  color: isLight ? '#0f172a' : '#fff', fontSize: 16, flex: 1, fontFamily: 'inherit'
                 }}
               />
             </div>
@@ -283,7 +311,7 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
               disabled={!customUrl.trim()}
               style={{
                 background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-                border: 'none', borderRadius: 12, padding: '12px 24px', color: '#fff',
+                border: 'none', borderRadius: 12, padding: '12px 24px', color: '#ffffff', WebkitTextFillColor: '#ffffff',
                 fontSize: 15, fontWeight: 700, cursor: customUrl.trim() ? 'pointer' : 'not-allowed',
                 opacity: customUrl.trim() ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: 8,
                 transition: 'transform 0.2s', boxShadow: '0 4px 12px rgba(99,102,241,0.4)'
@@ -291,7 +319,7 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
               onMouseEnter={e => { if(customUrl.trim()) e.currentTarget.style.transform='scale(1.05)' }}
               onMouseLeave={e => { if(customUrl.trim()) e.currentTarget.style.transform='scale(1)' }}
             >
-              Launch <ChevronRight size={18} />
+              <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>{t('launchBtn', 'Launch')}</span> <ChevronRight size={18} color="#ffffff" />
             </button>
             <button 
               onClick={() => setShowUrlInput(false)}
@@ -300,8 +328,8 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
                 width: 44, height: 44, color: '#aaa', cursor: 'pointer', display: 'flex',
                 alignItems: 'center', justifyContent: 'center'
               }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.1)'}
-              onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.05)'}
+              onMouseEnter={e => { e.currentTarget.style.background='#ef4444'; e.currentTarget.style.color='#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#aaa'; }}
             >
               <X size={20} />
             </button>
@@ -312,8 +340,8 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
           {categories.map(cat => (
             <div key={cat} ref={sectionRefs.current[cat]} style={{ marginBottom: 40, scrollMarginTop: 32 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-                <h3 style={{ margin: 0, fontSize: 20, color: '#fff', fontWeight: 800 }}>{cat}</h3>
-                <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%)' }} />
+                <h3 style={{ margin: 0, fontSize: 20, color: isLight ? '#1e293b' : '#fff', fontWeight: 800 }}>{categoryTranslations[cat] || cat}</h3>
+                <div style={{ flex: 1, height: 1, background: isLight ? 'linear-gradient(90deg, rgba(0,0,0,0.05) 0%, transparent 100%)' : 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%)' }} />
               </div>
               
               <div style={{ 
@@ -326,7 +354,7 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
                 {OPTIONS.filter(o => o.category === cat).map(app => {
                   const isQuickAction = app.type === 'action';
                   return (
-                    <AppCard key={app.id} app={app} isQuickAction={isQuickAction} onClick={() => handleAppClick(app)} />
+                    <AppCard key={app.id} app={app} isQuickAction={isQuickAction} onClick={() => handleAppClick(app)} isLight={isLight} />
                   );
                 })}
               </div>

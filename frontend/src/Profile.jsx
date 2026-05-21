@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban } from 'lucide-react';
@@ -8,7 +9,7 @@ import { FaXTwitter } from 'react-icons/fa6';
 import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -21,8 +22,7 @@ const Profile = () => {
   const isOwnProfile = !viewingUsername || viewingUsername.toLowerCase() === myUsername?.toLowerCase();
 
   const handleLogout = () => {
-    localStorage.removeItem('watch_token');
-    localStorage.removeItem('watch_username');
+    clearUserSession();
     navigate('/login');
   };
 
@@ -155,6 +155,7 @@ const Profile = () => {
   const chatWidgetRef = ReactIsAwesome.useRef(null);
 
   useEffect(() => {
+    toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
     const handleClickOutside = (e) => {
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
@@ -446,8 +447,7 @@ const Profile = () => {
       .then(res => {
         if (res.error) toast.error(res.error);
         else {
-          localStorage.removeItem('watch_token');
-          localStorage.removeItem('watch_username');
+          clearUserSession();
           toast.success('Account permanently deleted');
           setTimeout(() => navigate('/login'), 1000);
         }
@@ -541,10 +541,10 @@ const Profile = () => {
 
   // Follow button state
   const followStatus = otherProfile?.followStatus;
-  const followBtnLabel = followStatus === 'accepted' ? 'Following' : followStatus === 'pending' ? 'Requested' : 'Follow';
+  const followBtnLabel = followStatus === 'accepted' ? t('followingStatus', 'Following') : followStatus === 'pending' ? t('requestSent', 'Requested') : t('follow', 'Follow');
   const followBtnIcon = followStatus === 'accepted' ? <UserCheck size={16} /> : followStatus === 'pending' ? <UserX size={16} /> : <UserPlus size={16} />;
   const followBtnColor = followStatus ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#a855f7)';
-  const followBtnTextColor = followStatus ? '#aaa' : '#fff';
+  const followBtnTextColor = followStatus ? (isLight ? '#444' : '#aaa') : '#fff';
 
   return (
     <div style={{ minHeight: '100vh', overflowX: 'hidden' }}>
@@ -780,7 +780,7 @@ const Profile = () => {
             >
               <MessageSquare size={18} />
               {totalUnread > 0 && (
-                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {totalUnread > 9 ? '9+' : totalUnread}
                 </div>
               )}
@@ -792,14 +792,14 @@ const Profile = () => {
             <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowRecentChats(false); setShowSearch(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
               <Bell size={18} />
               {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {followRequests.filter(r => r.status === 'pending').length}
                 </div>
               )}
             </button>
             {showNotifications && (
               <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
                 <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                   {followRequests.length > 0 ? (
                     followRequests.map(u => (
@@ -813,24 +813,24 @@ const Profile = () => {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
                           <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                            {u.status === 'pending' ? `@${u.username} wants to follow you` : `@${u.username} started following you`}
+                            {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             {u.status === 'pending' ? (
-                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
+                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                             ) : (
-                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                             )}
                             
                             {u.myFollowStatus === 'accepted' ? (
-                              <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
+                              <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
                             ) : (
                               <button onClick={(e) => {
                                 e.stopPropagation();
                                 if (u.myFollowStatus === 'pending') return;
                                 handleFollowBack(u.username, e);
                               }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
+                                {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                               </button>
                             )}
                           </div>
@@ -838,7 +838,7 @@ const Profile = () => {
                       </div>
                     ))
                   ) : (
-                    <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>No new notifications</div>
+                    <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
                   )}
                 </div>
               </div>
@@ -952,11 +952,11 @@ const Profile = () => {
                   <div style={{ display: 'flex', gap: 32 }}>
                     <button onClick={() => openFollowModal('followers', otherProfile.username)} className="stat-box" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                       <div className="stat-num">{otherProfile.followersCount ?? 0}</div>
-                      <div className="stat-lbl">Followers</div>
+                      <div className="stat-lbl">{t('followersTabTitle', 'Followers')}</div>
                     </button>
                     <button onClick={() => openFollowModal('following', otherProfile.username)} className="stat-box" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                       <div className="stat-num">{otherProfile.followingCount ?? 0}</div>
-                      <div className="stat-lbl">Following</div>
+                      <div className="stat-lbl">{t('followingTabTitle', 'Following')}</div>
                     </button>
                   </div>
 
@@ -978,7 +978,7 @@ const Profile = () => {
                       <div className="options-dropdown" style={{ position: 'absolute', top: '100%', right: 0, background: isLight ? '#fff' : '#111', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 8, minWidth: 200, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)', zIndex: 100 }}>
                         {otherProfile.country && (
                           <div className="options-dropdown-country" style={{ padding: '10px 12px', color: isLight ? '#64748b' : '#bbb', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
-                            {flagUrl ? <img src={flagUrl} alt="flag" style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2 }} /> : <Flag size={14} color="#a855f7" />} Country: {otherProfile.country}
+                            {flagUrl ? <img src={flagUrl} alt="flag" style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2 }} /> : <Flag size={14} color="#a855f7" />} {t('country', 'Country')}: {t(otherProfile.country.toLowerCase().replace(/\s+/g, ''), otherProfile.country)}
                           </div>
                         )}
                         <button onClick={() => {
@@ -988,12 +988,12 @@ const Profile = () => {
                           setShowNotifications(false);
                           setShowSearch(false);
                         }} className="options-dropdown-btn" style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#fff', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <Share2 size={14} /> Share Profile URL
+                          <Share2 size={14} /> {t('shareProfileUrl', 'Share Profile URL')}
                         </button>
                         <button onClick={async () => {
                           const r = await fetch(`${API}/api/block/${otherProfile.username}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
                           if (r.ok) {
-                            toast.success(`You have blocked ${otherProfile.username}`);
+                            toast.success(t('blockUserSuccess', 'You have blocked {{username}}', { username: otherProfile.username }));
                             // Update local storage so widgets reflect immediately
                             try {
                               const myU = localStorage.getItem('watch_username');
@@ -1008,7 +1008,7 @@ const Profile = () => {
                             fetchOtherProfile();
                           }
                         }} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: '#ef4444', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <Ban size={14} /> Block User
+                          <Ban size={14} /> {t('blockUser', 'Block User')}
                         </button>
                       </div>
                     )}
@@ -1027,7 +1027,7 @@ const Profile = () => {
 
                 {/* Action Buttons under divider */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  <button onClick={handleFollow} disabled={followLoading}
+                  <button className={!followStatus ? "stay-white" : ""} onClick={handleFollow} disabled={followLoading}
                     style={{ flex: 1, minWidth: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', borderRadius: 12, border: followStatus ? '1px solid rgba(255,255,255,0.15)' : 'none', background: followBtnColor, color: followBtnTextColor, fontWeight: 700, fontSize: 14, cursor: followLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s', opacity: followLoading ? 0.7 : 1 }}>
                     {followBtnIcon} {followLoading ? '...' : followBtnLabel}
                   </button>
@@ -1036,15 +1036,15 @@ const Profile = () => {
                     const iMutuallyFollow = followStatus === 'accepted' && otherProfile.isFollowingMe;
                     return (
                       <button
-                        title={iMutuallyFollow ? `Send a message to ${otherProfile.displayName || otherProfile.username}` : 'You can only message users you mutually follow'}
+                        title={iMutuallyFollow ? t('sendMessageToUser', { username: otherProfile.displayName || otherProfile.username, defaultValue: `Send a message to ${otherProfile.displayName || otherProfile.username}` }) : t('mutualFollowOnlyMsg', 'You can only message users you mutually follow')}
                         onClick={() => {
                           if (!iMutuallyFollow) {
                             if (!otherProfile.isFollowingMe && followStatus !== 'accepted') {
-                              toast.error('You need to follow each other to send messages', { icon: '🔒' });
+                              toast.error(t('needToFollowEachOther', 'You need to follow each other to send messages'), { icon: '🔒' });
                             } else if (!otherProfile.isFollowingMe) {
-                              toast.error(`${otherProfile.displayName || otherProfile.username} is not following you back yet`, { icon: '🔒' });
+                              toast.error(t('userNotFollowingBack', { username: otherProfile.displayName || otherProfile.username, defaultValue: `${otherProfile.displayName || otherProfile.username} is not following you back yet` }), { icon: '🔒' });
                             } else {
-                              toast.error(`You are not following ${otherProfile.displayName || otherProfile.username} yet`, { icon: '🔒' });
+                              toast.error(t('youAreNotFollowingUser', { username: otherProfile.displayName || otherProfile.username, defaultValue: `You are not following ${otherProfile.displayName || otherProfile.username} yet` }), { icon: '🔒' });
                             }
                             return;
                           }
@@ -1069,7 +1069,7 @@ const Profile = () => {
                         onMouseLeave={e => { if (iMutuallyFollow) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
                       >
                         <MessageSquare size={16} />
-                        Message
+                        {t('message', 'Message')}
                         {!iMutuallyFollow && (
                           <span style={{ fontSize: 12, marginLeft: 2 }}>🔒</span>
                         )}
@@ -1081,7 +1081,7 @@ const Profile = () => {
                       style={{ flex: 1, minWidth: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
-                      <Mail size={16} /> Email
+                      <Mail size={16} /> {t('email', 'Email')}
                     </button>
                   )}
                 </div>
@@ -1148,11 +1148,11 @@ const Profile = () => {
                 <div style={{ display: 'flex', gap: 24, flexShrink: 0 }}>
                   <button onClick={() => openFollowModal('followers', profile.username)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{profile.followersCount ?? 0}</div>
-                    <div style={{ fontSize: 10, color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 3 }}>followers</div>
+                    <div style={{ fontSize: 10, color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 3 }}>{t('followersLabel', 'followers')}</div>
                   </button>
                   <button onClick={() => openFollowModal('following', profile.username)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', lineHeight: 1 }}>{profile.followingCount ?? 0}</div>
-                    <div style={{ fontSize: 10, color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 3 }}>following</div>
+                    <div style={{ fontSize: 10, color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 3 }}>{t('followingLabel', 'following')}</div>
                   </button>
                 </div>
               </div>
@@ -1190,20 +1190,20 @@ const Profile = () => {
           {/* Bio */}
           <div className="profile-card">
             <div className="acc-header" onClick={() => toggleSection('bio')}>
-              <h3><Edit2 size={18} color="#a855f7" /> Bio</h3>
+              <h3><Edit2 size={18} color="#a855f7" /> {t('bioTab', 'Bio')}</h3>
               <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'bio' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </div>
             {openSection === 'bio' && (
               <div className="acc-body">
-                <div className="field-label">Tell others about yourself</div>
+                <div className="field-label">{t('tellOthersAboutYourself', 'Tell others about yourself')}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <textarea className="profile-input" value={bio} onChange={e => { if (e.target.value.length <= 180) setBio(e.target.value); }} disabled={!editingBio}
-                    placeholder="Write a short bio..."
+                    placeholder={t('writeAShortBioPlaceholder', 'Write a short bio...')}
                     maxLength={180}
                     rows={4}
                     style={{ resize: 'none', height: '110px', overflowY: 'auto', fontFamily: 'inherit', lineHeight: 1.6 }} />
                   <div style={{ textAlign: 'right', fontSize: 12, color: bio.length >= 170 ? '#ef4444' : bio.length >= 140 ? '#f59e0b' : '#555', fontWeight: 500, marginTop: -4 }}>
-                    {180 - bio.length} / 180 characters remaining
+                    {t('charactersRemaining', '{{count}} / 180 characters remaining', { count: 180 - bio.length })}
                   </div>
                   {editingBio ? (
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -1343,10 +1343,10 @@ const Profile = () => {
             </div>
             {openSection === 'deleteAccount' && (
               <div className="acc-body">
-                <div className="field-label" style={{ color: '#ef4444' }}>Danger Zone</div>
-                <p className="danger-desc" style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>Once you delete your account, there is no going back. Please be certain.</p>
+                <div className="field-label" style={{ color: '#ef4444' }}>{t('dangerZone', 'Danger Zone')}</div>
+                <p className="danger-desc" style={{ color: '#aaa', fontSize: 13, marginBottom: 16 }}>{t('deleteDesc', 'Once you delete your account, there is no going back. Please be certain.')}</p>
                 <button className="delete-btn" onClick={() => { setShowDeleteModal(true); setDeleteChecked(false); setShowDeleteError(false); }}>
-                  Delete My Account
+                  {t('deleteMyAccount', 'Delete My Account')}
                 </button>
               </div>
             )}
@@ -1358,19 +1358,19 @@ const Profile = () => {
       {showDeleteModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#1a1a2e', borderRadius: 24, padding: 32, border: '1px solid rgba(255,255,255,0.08)', maxWidth: 400, width: '90vw' }}>
-            <h3 style={{ color: '#ef4444', fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>Delete Account</h3>
-            <p style={{ color: '#bbb', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>Are you absolutely sure? Everything will be permanently deleted.</p>
+            <h3 style={{ color: '#ef4444', fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{t('deleteAccountConfirmTitle', 'Delete Account')}</h3>
+            <p style={{ color: '#bbb', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{t('deleteAccountConfirmDesc', 'Are you absolutely sure? Everything will be permanently deleted.')}</p>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={deleteChecked} onChange={e => { setDeleteChecked(e.target.checked); if (e.target.checked) setShowDeleteError(false); }} style={{ marginTop: 2 }} />
-              <span style={{ color: '#fff', fontSize: 14 }}>I understand that my account and all associated data will be permanently deleted.</span>
+              <span style={{ color: '#fff', fontSize: 14 }}>{t('deleteAccountCheckboxLabel', 'I understand that my account and all associated data will be permanently deleted.')}</span>
             </label>
             {showDeleteError && !deleteChecked && (
-              <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16, paddingLeft: 28 }}>⚠️ Please select this checkbox to proceed</div>
+              <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16, paddingLeft: 28 }}>⚠️ {t('deleteAccountError', 'Please select this checkbox to proceed')}</div>
             )}
             {!showDeleteError && <div style={{ height: 16 }} />}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#fff', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Delete Permanently</button>
+              <button onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#fff', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
+              <button onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
             </div>
           </div>
         </div>
@@ -1455,20 +1455,20 @@ const Profile = () => {
               {/* Tab header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '18px 24px 0' }}>
                 <button className={`follow-tab-btn ${followModalTab === 'followers' ? 'active' : ''}`} onClick={() => setFollowModalTab('followers')}>
-                  Followers
+                  {t('followersTabTitle', 'Followers')}
                 </button>
                 <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)', marginBottom: 14, flexShrink: 0 }} />
                 <button className={`follow-tab-btn ${followModalTab === 'following' ? 'active' : ''}`} onClick={() => setFollowModalTab('following')}>
-                  Following
+                  {t('followingTabTitle', 'Following')}
                 </button>
               </div>
               {/* User list */}
               <div style={{ overflowY: 'auto', padding: '8px 6px 16px', flex: 1 }}>
                 {followListLoading ? (
-                  <div style={{ textAlign: 'center', color: '#555', padding: 40, fontSize: 14 }}>Loading...</div>
+                  <div style={{ textAlign: 'center', color: '#555', padding: 40, fontSize: 14 }}>{t('loading', 'Loading...')}</div>
                 ) : (followListData[followModalTab] || []).length === 0 ? (
                   <div style={{ textAlign: 'center', color: '#444', padding: 48, fontSize: 14 }}>
-                    {followModalTab === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
+                    {followModalTab === 'followers' ? t('noFollowersYet', 'No followers yet') : t('notFollowingAnyoneYet', 'Not following anyone yet')}
                   </div>
                 ) : (
                   (followListData[followModalTab] || []).map(u => (

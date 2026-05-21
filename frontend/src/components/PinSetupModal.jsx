@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Lock, Eye, EyeOff, Copy, Check, ChevronRight, Shield, Key, X, ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 const PIN_LENGTH = 6;
 
 function SimplePinDisplay({ value, secret, active, error }) {
@@ -50,6 +51,7 @@ function SimplePinDisplay({ value, secret, active, error }) {
 }
 
 export default function PinSetupModal({ onClose, onSuccess, action }) {
+  const { t } = useTranslation();
   const [step, setStep] = useState(1); // 1=Entry, 2=Recovery
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -94,7 +96,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
 
   const handleSave = async () => {
     if (!hasCopied) {
-      toast.error('Please copy your recovery key first');
+      toast.error(t('copyRecoveryKeyFirst', 'Please copy your recovery key first'));
       return;
     }
     setLoading(true);
@@ -105,8 +107,8 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         body: JSON.stringify({ pin, recoveryKey: recoveryKey.replace(/-/g, '') })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Setup failed');
-      toast.success(action === 'reset' ? 'PIN updated successfully!' : 'Chat Lock enabled!');
+      if (!res.ok) throw new Error(data.error || t('setupFailed', 'Setup failed'));
+      toast.success(action === 'reset' ? t('pinUpdatedSuccess', 'PIN updated successfully!') : t('chatLockEnabled', 'Chat Lock enabled!'));
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -159,11 +161,11 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
             {step === 2 ? <Shield size={28} color="#818cf8" /> : <Lock size={28} color="#818cf8" />}
           </div>
           <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.5rem', color: '#fff', letterSpacing: '-0.02em' }}>
-            {step === 1 ? (action === 'reset' ? 'Change Vault PIN' : 'Secure Your Vault') : 'New Master Recovery Key'}
+            {step === 1 ? (action === 'reset' ? t('changeVaultPin', 'Change Vault PIN') : t('secureVault', 'Secure Your Vault')) : t('newRecoveryKey', 'New Master Recovery Key')}
           </h2>
           <p style={{ margin: '8px 0 0', fontSize: '0.9rem', color: '#71717a', fontWeight: 500, lineHeight: 1.5 }}>
-            {step === 1 ? (action === 'reset' ? 'This will update your PIN across all locked chats.' : 'This PIN will be set for every chat you choose to lock.')
-             : 'Keep this new key safe. If you forget your PIN, this will be your only way to recover access. Previous keys will become invalid.'}
+            {step === 1 ? (action === 'reset' ? t('changeVaultPinDesc', 'This will update your PIN across all locked chats.') : t('secureVaultDesc', 'This PIN will be set for every chat you choose to lock.'))
+             : t('newRecoveryKeyDesc', 'Keep this new key safe. If you forget your PIN, this will be your only way to recover access. Previous keys will become invalid.')}
           </p>
         </div>
 
@@ -190,7 +192,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Primary PIN */}
             <div style={{ position: 'relative' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, marginLeft: 4 }}>Set 6-Digit PIN</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, marginLeft: 4 }}>{t('setPin', 'Set 6-Digit PIN')}</div>
               <input 
                 type={showPin ? 'text' : 'password'}
                 maxLength={6}
@@ -224,7 +226,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
 
             {/* Confirm PIN */}
             <div style={{ position: 'relative', opacity: pin.length === 6 ? 1 : 0.5, transition: 'all 0.3s' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, marginLeft: 4 }}>Confirm 6-Digit PIN</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, marginLeft: 4 }}>{t('confirmPin', 'Confirm 6-Digit PIN')}</div>
               <input 
                 ref={confirmInputRef}
                 type={showPin ? 'text' : 'password'}
@@ -252,8 +254,9 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               disabled={pin.length < 6 || confirmPin.length < 6}
               onClick={() => {
                 if (pin === confirmPin) generateKey();
-                else setError('PINs do not match');
+                else setError(t('pinsDoNotMatch', 'PINs do not match'));
               }}
+              className={(pin.length === 6 && confirmPin.length === 6) ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
               style={{
                 marginTop: 12, padding: '16px', borderRadius: 16, border: 'none',
                 background: (pin.length === 6 && confirmPin.length === 6) ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'rgba(255,255,255,0.05)',
@@ -262,7 +265,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 transition: 'all 0.3s'
               }}
             >
-              Set Lock PIN
+              {t('setLockPinBtn', 'Set Lock PIN')}
             </button>
           </div>
         )}
@@ -277,25 +280,25 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Key size={14} color="#818cf8" />
-                  <span style={{ fontSize: 11, color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Recovery Key</span>
+                  <span style={{ fontSize: 11, color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('recoveryKeyLabel', 'Recovery Key')}</span>
                 </div>
                 <button onClick={handleCopy} style={{
                   display: 'flex', alignItems: 'center', gap: 6,
-                  background: copied ? 'rgba(16,185,129,0.1)' : 'rgba(129,140,248,0.1)',
-                  border: `1px solid ${copied ? 'rgba(16,185,129,0.2)' : 'rgba(129,140,248,0.2)'}`,
+                  background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(129,140,248,0.1)',
+                  border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(129,140,248,0.2)'}`,
                   borderRadius: 10, padding: '6px 12px',
-                  color: copied ? '#10b981' : '#818cf8', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                  transition: 'all 0.2s'
+                  color: copied ? '#10b981' : '#4f46e5', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? 'Copied' : 'Copy'}
+                  {copied ? <Check size={14} /> : <Copy size={14} color="#4f46e5" />}
+                  {copied ? t('copiedLabel', 'Copied') : t('copy', 'Copy')}
                 </button>
               </div>
               
               <div style={{
-                fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: 18, fontWeight: 800, color: '#e0e7ff',
+                fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: 18, fontWeight: 800, color: '#ffffff',
                 letterSpacing: '0.15em', textAlign: 'center', padding: '12px 0',
-                background: 'rgba(0,0,0,0.2)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.03)'
+                background: 'rgba(0,0,0,0.3)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)'
               }}>{recoveryKey}</div>
             </div>
 
@@ -305,13 +308,15 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               display: 'flex', gap: 12, alignItems: 'flex-start'
             }}>
               <Shield size={16} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
-              <p style={{ margin: 0, fontSize: 12.5, color: '#fca5a5', lineHeight: 1.6, fontWeight: 500 }}>
-                If you forget both your PIN and this key, all your <strong>chats, media, and data will be permanently deleted</strong> for security.
+              <p style={{ margin: 0, fontSize: 12.5, color: '#ef4444', lineHeight: 1.6, fontWeight: 700 }}>
+                {t('recoveryWarning1', 'If you forget both your PIN and this key, all your')} <strong>{t('recoveryWarning2', 'chats, media, and data will be permanently deleted')}</strong> {t('recoveryWarning3', 'for security.')}
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-              <button onClick={handleSave} disabled={loading || !hasCopied} style={{
+              <button onClick={handleSave} disabled={loading || !hasCopied} 
+                className={hasCopied ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
+                style={{
                 padding: '16px 0', borderRadius: 16, border: 'none',
                 background: !hasCopied ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
                 color: !hasCopied ? '#444' : '#fff', fontSize: '1rem', fontWeight: 800,
@@ -320,8 +325,8 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
               }}>
-                {loading ? 'Activating...' : (hasCopied ? 'Enable Chat Lock' : 'Copy Key to Continue')}
-                {!loading && <ChevronRight size={20} />}
+                {loading ? t('activating', 'Activating...') : (hasCopied ? t('enableChatLock', 'Enable Chat Lock') : t('copyKeyToContinue', 'Copy Key to Continue'))}
+                {!loading && <ChevronRight size={20} color={hasCopied ? "#ffffff" : "inherit"} />}
               </button>
               
               <button 
@@ -335,7 +340,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                 onMouseLeave={e => e.currentTarget.style.color = '#555'}
               >
-                Back to PIN Entry
+                {t('backToPinEntry', 'Back to PIN Entry')}
               </button>
             </div>
           </div>
@@ -346,6 +351,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         @keyframes scaleUp { from { opacity:0; transform: scale(0.95) translateY(10px); } to { opacity:1; transform: scale(1) translateY(0); } }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         .pin-box-filled:hover .delete-overlay { opacity: 1 !important; }
+        .pin-submit-btn.enabled { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
       `}</style>
     </div>
   );

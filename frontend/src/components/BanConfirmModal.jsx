@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, ShieldAlert, UserMinus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function BanConfirmModal({ 
   isOpen, 
@@ -7,6 +8,7 @@ export default function BanConfirmModal({
   onConfirm, 
   username 
 }) {
+  const { t } = useTranslation();
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
   if (!isOpen) return null;
@@ -68,12 +70,12 @@ export default function BanConfirmModal({
 
         {/* Title */}
         <h3 style={{ fontSize: 22, fontWeight: 800, color: isLight ? '#000' : '#fff', margin: '0 0 12px', letterSpacing: '-0.5px' }}>
-          Ban User?
+          {t('banUserTitle', 'Ban User?')}
         </h3>
 
         {/* Description */}
         <p style={{ fontSize: 15, color: isLight ? '#64748b' : '#9ca3af', margin: '0 0 32px', lineHeight: 1.6 }}>
-          Are you sure you want to ban <span style={{ color: isLight ? '#000' : '#fff', fontWeight: 700 }}>@{username}</span>? This will remove them immediately and prevent them from rejoining this room.
+          {t('banUserDesc1', 'Are you sure you want to ban')} <span style={{ color: isLight ? '#000' : '#fff', fontWeight: 700 }}>@{username}</span>{t('banUserDesc2', '? This will remove them immediately and prevent them from rejoining this room.')}
         </p>
 
         {/* Actions */}
@@ -90,7 +92,7 @@ export default function BanConfirmModal({
             onMouseEnter={e => e.currentTarget.style.background = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'}
             onMouseLeave={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'}
           >
-            Cancel
+            {t('cancel', 'Cancel')}
           </button>
           <button 
             onClick={() => {
@@ -116,7 +118,7 @@ export default function BanConfirmModal({
             onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02) translateY(-1px)'; e.currentTarget.style.background = '#ff5555'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.background = '#ef4444'; }}
           >
-            <UserMinus size={18} color="white" /> <span style={{ color: 'white' }}>Ban User</span>
+            <UserMinus size={18} color="white" /> <span style={{ color: 'white' }}>{t('banUserBtn', 'Ban User')}</span>
           </button>
         </div>
       </div>

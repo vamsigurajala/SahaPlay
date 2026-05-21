@@ -12,109 +12,88 @@ import {
 } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
+import nacl from 'tweetnacl';
 
-const API = 'http://localhost:3001';
-
-const inputStyle = {
-  width: '100%',
-  background: '#111',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: '12px',
-  color: '#fff',
-  fontSize: '15px',
-  padding: '12px 16px 12px 44px',
-  outline: 'none',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.2s',
-};
+const API = `http://${window.location.hostname}:3001`;
 
 const Signup = () => {
-  const [username, setUsername]         = useState('');
-  const [email, setEmail]               = useState('');
-  const [password, setPassword]         = useState('');
-  const [errors, setErrors]             = useState({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [globalError, setGlobalError]   = useState('');
-  // Key setup phase
+  const [username, setUsername]             = useState('');
+  const [email, setEmail]                   = useState('');
+  const [password, setPassword]             = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [errors, setErrors]                 = useState({});
+  const [showPassword, setShowPassword]     = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting]     = useState(false);
+  const [globalError, setGlobalError]       = useState('');
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
-  const navigate   = useNavigate();
-  const { t }      = useTranslation();
+  const navigate       = useNavigate();
+  const { t }          = useTranslation();
   const { setKeyPair } = useCrypto();
 
   const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
-    if (!username.trim()) { newErrors.username = 'Username is required'; isValid = false; }
-    else if (username.length < 3) { newErrors.username = 'Username must be at least 3 characters'; isValid = false; }
-    if (!email.trim()) { newErrors.email = 'Email is required'; isValid = false; }
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { newErrors.email = 'Please enter a valid email format'; isValid = false; }
-    if (!password) { newErrors.password = 'Password is required'; isValid = false; }
-    else if (password.length < 8) { newErrors.password = 'Must be at least 8 characters'; isValid = false; }
-    else if (!/[A-Z]/.test(password)) { newErrors.password = 'Must contain at least 1 uppercase letter'; isValid = false; }
-    else if (!/[0-9]/.test(password)) { newErrors.password = 'Must contain at least 1 number'; isValid = false; }
-    else if (!/[^A-Za-z0-9]/.test(password)) { newErrors.password = 'Must contain at least 1 special character (!@#$%…)'; isValid = false; }
-    setErrors(newErrors);
-    return isValid;
+    const e = {};
+    if (!username.trim())          e.username = 'Username is required';
+    else if (username.length < 3)  e.username = 'At least 3 characters';
+    if (!email.trim())             e.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Enter a valid email';
+    if (!password)                 e.password = 'Password is required';
+    else if (password.length < 8)  e.password = 'At least 8 characters';
+    else if (!/[A-Z]/.test(password))   e.password = 'Include at least 1 uppercase letter';
+    else if (!/[0-9]/.test(password))   e.password = 'Include at least 1 number';
+    else if (!/[^A-Za-z0-9]/.test(password)) e.password = 'Include at least 1 special character';
+    if (confirmPassword !== password) e.confirmPassword = 'Passwords do not match';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSignup = async (e) => {
-    e.preventDefault();
+  const handleSignup = async (ev) => {
+    ev.preventDefault();
     setGlobalError('');
     if (!validateForm()) return;
     setIsSubmitting(true);
-
     try {
-      // 1. Register account on server first
       const response = await fetch(`${API}/api/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password })
       });
       const data = await response.json();
-      if (!response.ok) {
-        setGlobalError(data.error || 'Signup failed');
-        return;
-      }
+      if (!response.ok) { setGlobalError(data.error || 'Signup failed'); return; }
 
-      // 2. Generate E2EE key pair client-side (never sent to server raw)
-      const keyPair = generateKeyPair();
+      // Generate a 24-letter recovery key
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      let phraseStr = '';
+      const randBytes = crypto.getRandomValues(new Uint8Array(24));
+      for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+      const phrase = phraseStr.toUpperCase(); // e.g. "ABCDEF..."
 
-      // 3. Wrap private key with password using PBKDF2 + AES-256-GCM
+      // Hash it to get a 32-byte secret key for the keypair
+      const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+      const secretKey = new Uint8Array(hashBuf);
+      const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+
       const encryptedPrivateKey = await encryptPrivateKey(keyPair.secretKey, password);
-
-      // 4. Generate BIP39 24-word recovery phrase from the raw secret key
-      const phrase = await secretKeyToMnemonic(keyPair.secretKey);
       const recoveryKeyHash = await hashRecoveryPhrase(phrase);
 
-      // 5. Send public key + encrypted private key to server (raw key NEVER leaves browser)
-      const token = data.token; // server may return token on signup for convenience
+      const token = data.token;
       const setupHeaders = { 'Content-Type': 'application/json' };
       if (token) setupHeaders['Authorization'] = `Bearer ${token}`;
 
       await fetch(`${API}/api/auth/setup-keys`, {
         method: 'POST',
         headers: setupHeaders,
-        body: JSON.stringify({
-          username,
-          publicKey: encodeBase64(keyPair.publicKey),
-          encryptedPrivateKey,
-          recoveryKeyHash
-        })
+        body: JSON.stringify({ username, publicKey: encodeBase64(keyPair.publicKey), encryptedPrivateKey, recoveryKeyHash })
       });
 
-      // 6. Store key pair in memory + session for immediate use
       await setKeyPair(keyPair);
-
-      // 7. Show recovery phrase modal — user MUST acknowledge before continuing
       setRecoveryPhrase(phrase);
       setShowRecoveryModal(true);
-
     } catch (err) {
       console.error('Signup error:', err);
-      setGlobalError('Network error. Please try again later.');
+      setGlobalError('Network error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -131,14 +110,18 @@ const Signup = () => {
       });
       const data = await response.json();
       if (response.ok) {
+        // Clear any previous user's session data to prevent cross-account leakage
+        try {
+            const { clearUserSession } = await import('./lib/authUtils.js');
+            clearUserSession();
+        } catch(e) {}
         localStorage.setItem('watch_token', data.token);
         localStorage.setItem('watch_username', data.username);
-        // Google OAuth users get ephemeral key (CryptoContext auto-generates on next load)
         navigate('/');
       } else {
         setGlobalError(data.error || 'Google Signup failed');
       }
-    } catch (err) {
+    } catch {
       setGlobalError('Network error during Google Auth');
     } finally {
       setIsSubmitting(false);
@@ -146,10 +129,9 @@ const Signup = () => {
   };
 
   const handlePhraseConfirmed = () => {
-    // User has acknowledged the recovery phrase — go to login
     setShowRecoveryModal(false);
     setRecoveryPhrase('');
-    navigate('/login', { state: { message: 'Account created! Please log in with your new password.' } });
+    navigate('/login', { state: { message: 'Account created! Please check your email to verify your account.' } });
   };
 
   return (
@@ -158,94 +140,335 @@ const Signup = () => {
         <RecoveryPhraseModal phrase={recoveryPhrase} onConfirmed={handlePhraseConfirmed} />
       )}
 
-      <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
-        {/* Back link */}
-        <div style={{ padding: '20px 32px' }}>
-          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a0aab2', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', padding: 0 }}>
-            <ArrowLeft size={16} /> {t('backToHome', 'Back to Home')}
+      <div className="login-layout">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+          .login-layout {
+            display: flex;
+            min-height: 100vh;
+            font-family: 'Outfit', sans-serif;
+            background: #050505;
+            color: #fff;
+            overflow: hidden;
+          }
+
+          .login-left {
+            flex: 1.2;
+            display: none;
+            position: relative;
+            background: linear-gradient(135deg, #111115 0%, #1a1a2e 100%);
+            overflow: hidden;
+          }
+          @media (min-width: 900px) {
+            .login-left { display: flex; flex-direction: column; justify-content: center; padding: 60px 80px; }
+          }
+          .login-left::before {
+            content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
+            border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+            filter: blur(60px);
+          }
+          .login-left::after {
+            content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
+            border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+            filter: blur(60px);
+          }
+
+          .login-right {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background: #050505;
+            padding: 32px 24px;
+          }
+
+          .login-card {
+            width: 100%;
+            max-width: 440px;
+            background: #111114;
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 28px;
+            padding: 48px 40px;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+            position: relative;
+            z-index: 10;
+          }
+
+          .login-input {
+            width: 100%; background: #1a1a1f; border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px; color: #fff; font-size: 15px; padding: 14px 16px 14px 46px;
+            outline: none; box-sizing: border-box; transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+          }
+          .login-input::placeholder { color: #444; }
+          .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+
+          .login-submit-btn {
+            width: 100%; padding: 16px; border-radius: 14px; border: none;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: #fff !important; font-size: 16px; font-weight: 700;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+          }
+          .login-submit-btn * { color: #fff !important; fill: #fff !important; }
+          .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+          .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+          .social-btn {
+            width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            border: 1px solid rgba(255,255,255,0.1); background: #1a1a1f; color: #fff; cursor: pointer;
+            transition: all 0.2s;
+          }
+          .social-btn:hover { background: #25252d; transform: translateY(-2px); }
+
+          .su-spinner {
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: su-spin 0.65s linear infinite; flex-shrink: 0;
+          }
+          @keyframes su-spin { to { transform: rotate(360deg); } }
+
+          /* Light Mode */
+          html[data-theme='light'] .login-layout { background: #f8fafc; }
+          html[data-theme='light'] .login-left { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+          html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
+          html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
+          html[data-theme='light'] .login-left-text { color: #fff !important; }
+          html[data-theme='light'] .login-right { background: #f8fafc; }
+          html[data-theme='light'] .login-card {
+            background: #ffffff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 24px 60px rgba(0,0,0,0.06);
+          }
+          html[data-theme='light'] .login-card h1,
+          html[data-theme='light'] .login-card label { color: #0f172a !important; }
+          html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
+          html[data-theme='light'] .login-card p { color: #64748b !important; }
+          html[data-theme='light'] .login-input {
+            background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+          }
+          html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
+          html[data-theme='light'] .login-input:focus {
+            background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+          }
+          html[data-theme='light'] .social-btn {
+            background: #ffffff; border-color: rgba(0,0,0,0.1); color: #0f172a;
+          }
+          html[data-theme='light'] .social-btn:hover { background: #f8fafc; }
+          html[data-theme='light'] .back-box-btn {
+            background: rgba(255,255,255,0.8) !important;
+            color: #0f172a !important;
+            border-color: rgba(0,0,0,0.1) !important;
+          }
+          html[data-theme='light'] .su-e2ee {
+            background: rgba(99,102,241,0.06) !important;
+            border-color: rgba(99,102,241,0.15) !important;
+          }
+          html[data-theme='light'] .su-e2ee span { color: #4338ca !important; }
+          html[data-theme='light'] .su-e2ee strong { color: #3730a3 !important; }
+          .apple-btn { background: #fff !important; color: #000 !important; border: none !important; }
+          .apple-btn:hover { background: #f0f0f0 !important; }
+          html[data-theme='light'] .apple-btn { background: #000 !important; color: #fff !important; }
+          html[data-theme='light'] .apple-btn:hover { background: #222 !important; }
+          
+          /* Tooltip styles */
+          .tooltip-container { position: relative; display: inline-flex; cursor: help; }
+          .tooltip-container .tooltip-text {
+            visibility: hidden; width: 220px; background-color: #1a1a2e; color: #fff;
+            text-align: center; border-radius: 8px; padding: 10px; position: absolute;
+            z-index: 100; bottom: 125%; left: 50%; transform: translateX(-50%);
+            opacity: 0; transition: opacity 0.3s; font-size: 11px; font-weight: normal;
+            border: 1px solid rgba(99,102,241,0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          }
+          .tooltip-container .tooltip-text::after {
+            content: ""; position: absolute; top: 100%; left: 50%;
+            margin-left: -5px; border-width: 5px; border-style: solid;
+            border-color: #1a1a2e transparent transparent transparent;
+          }
+          .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+          html[data-theme='light'] .tooltip-container .tooltip-text {
+            background-color: #fff; color: #333; border: 1px solid rgba(99,102,241,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          }
+          html[data-theme='light'] .tooltip-container .tooltip-text::after {
+            border-color: #fff transparent transparent transparent;
+          }
+        `}</style>
+
+        {/* ── Back Button ── */}
+        <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
+          <button
+            onClick={() => navigate('/')}
+            className="back-box-btn"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', transition: 'all 0.2s', backdropFilter: 'blur(10px)' }}
+            title="Back to Home"
+          >
+            <ArrowLeft size={20} />
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', minHeight: 'calc(100vh - 72px)' }}>
-          <div className="animated-fade-in" style={{ maxWidth: '420px', width: '100%', textAlign: 'center' }}>
-
-            {/* Logo */}
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-              <Play size={24} fill="#fff" color="#fff" />
+        {/* ── Left Panel ── */}
+        <div className="login-left">
+          <div style={{ position: 'relative', zIndex: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(99,102,241,0.4)' }}>
+                <Play size={24} fill="#fff" color="#fff" style={{ marginLeft: '4px' }} />
+              </div>
+              <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
             </div>
+            <h1 className="login-left-text" style={{ fontSize: '56px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
+              Join the<br />future of<br />
+              <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>watching.</span>
+            </h1>
+            <p className="login-left-text" style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, maxWidth: '480px' }}>
+              Create your free account and start watching with friends in synchronized rooms — with end-to-end encrypted chat.
+            </p>
+          </div>
+        </div>
 
-            <h1 style={{ fontSize: '26px', fontWeight: 900, letterSpacing: '1px', margin: '0 0 8px', color: '#fff', textTransform: 'uppercase', background: 'none', WebkitTextFillColor: '#fff' }}>{'Create Account'}</h1>
-            <p style={{ color: '#888', fontSize: '14px', marginBottom: '32px' }}>{'End-to-end encrypted. Your messages are private.'}</p>
+        {/* ── Right Panel ── */}
+        <div className="login-right">
+          <div className="login-card animated-fade-in">
+            <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>Create Account</h1>
+            <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
+              Already have one?{' '}
+              <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
+            </p>
 
-            {globalError && <div style={{ color: '#ef4444', marginBottom: '16px', fontSize: '14px', background: 'rgba(239,68,68,0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.2)' }}>{globalError}</div>}
+            {globalError && (
+              <div style={{ color: '#ef4444', marginBottom: '20px', fontSize: '14px', background: 'rgba(239,68,68,0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                {globalError}
+              </div>
+            )}
 
-            <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left' }} noValidate>
+            <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
+              {/* Username */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '6px', display: 'block' }}>{t('fullName', 'Username')}</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Username</label>
                 <div style={{ position: 'relative' }}>
-                  <User size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                  <input type="text" style={{ ...inputStyle, borderColor: errors.username ? '#ef4444' : 'rgba(255,255,255,0.12)' }} placeholder="johndoe" value={username}
-                    onChange={e => { setUsername(e.target.value); if (errors.username) setErrors({...errors, username: null}); }}
-                    onFocus={e => e.target.style.borderColor = '#6366f1'} onBlur={e => e.target.style.borderColor = errors.username ? '#ef4444' : 'rgba(255,255,255,0.12)'}
+                  <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                  <input
+                    type="text" className="login-input"
+                    style={{ borderColor: errors.username ? '#ef4444' : undefined }}
+                    placeholder="Username" value={username}
+                    onChange={e => { setUsername(e.target.value); if (errors.username) setErrors({ ...errors, username: null }); }}
                   />
                 </div>
-                {errors.username && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.username}</span>}
+                {errors.username && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.username}</span>}
               </div>
 
+              {/* Email */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '6px', display: 'block' }}>{t('email', 'Email Address')}</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Email Address</label>
                 <div style={{ position: 'relative' }}>
-                  <Mail size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                  <input type="email" style={{ ...inputStyle, borderColor: errors.email ? '#ef4444' : 'rgba(255,255,255,0.12)' }} placeholder="name@example.com" value={email}
-                    onChange={e => { setEmail(e.target.value); if (errors.email) setErrors({...errors, email: null}); }}
-                    onFocus={e => e.target.style.borderColor = '#6366f1'} onBlur={e => e.target.style.borderColor = errors.email ? '#ef4444' : 'rgba(255,255,255,0.12)'}
+                  <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                  <input
+                    type="email" className="login-input"
+                    style={{ borderColor: errors.email ? '#ef4444' : undefined }}
+                    placeholder="name@example.com" value={email}
+                    onChange={e => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: null }); }}
                   />
                 </div>
-                {errors.email && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.email}</span>}
+                {errors.email && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.email}</span>}
               </div>
 
+              {/* Password */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '6px', display: 'block' }}>Password</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Password</label>
                 <div style={{ position: 'relative' }}>
-                  <Lock size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                  <input type={showPassword ? 'text' : 'password'} style={{ ...inputStyle, paddingRight: '44px', borderColor: errors.password ? '#ef4444' : 'rgba(255,255,255,0.12)' }} placeholder="••••••••" value={password}
-                    onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: null}); }}
-                    onFocus={e => e.target.style.borderColor = '#6366f1'} onBlur={e => e.target.style.borderColor = errors.password ? '#ef4444' : 'rgba(255,255,255,0.12)'}
+                  <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                  <input
+                    type={showPassword ? 'text' : 'password'} className="login-input"
+                    style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
+                    placeholder="Min 8 chars, 1 uppercase, 1 number, 1 symbol" value={password}
+                    onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
                   />
-                  <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', display: 'block' }}>{errors.password}</span>}
+                {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
               </div>
 
-              {/* E2EE info badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10, padding: '10px 14px' }}>
-                <span style={{ fontSize: 18 }}>🔐</span>
-                <span style={{ fontSize: 12, color: 'rgba(165,180,252,0.9)', lineHeight: 1.4 }}>
-                  After signup you'll receive a <strong>24-word recovery phrase</strong>. Your messages are end-to-end encrypted — not even the server can read them.
+              {/* Confirm Password */}
+              <div>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Confirm Password</label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'} className="login-input"
+                    style={{ paddingRight: '48px', borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
+                    placeholder="Confirm your password" value={confirmPassword}
+                    onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
+                  />
+                  <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {errors.confirmPassword && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.confirmPassword}</span>}
+              </div>
+
+              {/* E2EE notice */}
+              <div className="su-e2ee" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px', padding: '10px 14px', marginBottom: '24px' }}>
+                <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
+                <span className="su-e2ee" style={{ fontSize: '12px', color: '#a5b4fc', flex: 1 }}>
+                  <strong style={{ color: '#c7d2fe' }}>Save Recovery Phrase</strong>
                 </span>
+                <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
+                  i
+                  <span className="tooltip-text">
+                    After signup you'll receive a 24-letter recovery key. It's the only way to recover your encrypted messages if you forget your password or change your device. The server never sees your messages.
+                  </span>
+                </div>
               </div>
 
-              <button type="submit" disabled={isSubmitting} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: isSubmitting ? 'not-allowed' : 'pointer', opacity: isSubmitting ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'opacity 0.2s' }}>
-                <UserPlus size={18} /> {isSubmitting ? 'Creating account...' : t('signUp', 'Sign Up')}
+              <button type="submit" disabled={isSubmitting} className="login-submit-btn">
+                {isSubmitting
+                  ? <><div className="su-spinner" /><span>Creating account...</span></>
+                  : <><UserPlus size={18} /><span>{t('signUp', 'Sign Up')}</span></>}
               </button>
             </form>
 
-            <div style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
-              <span style={{ fontSize: '12px', color: '#555', letterSpacing: '1px' }}>OR</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
+            <div style={{ margin: '28px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(150,150,150,0.15)' }} />
+              <span style={{ fontSize: '11px', color: '#888', letterSpacing: '1px', fontWeight: 700 }}>OR SIGN UP WITH</span>
+              <div style={{ flex: 1, height: '1px', background: 'rgba(150,150,150,0.15)' }} />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
-              <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setGlobalError('Google Signup was unsuccessful')} theme="filled_black" shape="pill" text="signup_with" />
-            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '8px' }}>
+              {/* Google */}
+              <div className="social-btn" style={{ position: 'relative', overflow: 'hidden', background: '#fff', width: '50px', height: '50px' }}>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 1 }}>
+                  <svg width="22" height="22" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#4285F4" d="M47.532 24.5528C47.532 22.9214 47.3997 21.2811 47.1175 19.6761H24.48V28.9181H37.4434C36.9055 31.8988 35.177 34.5356 32.6461 36.2111V42.2078H40.3801C44.9217 38.0278 47.532 31.8547 47.532 24.5528Z" />
+                    <path fill="#34A853" d="M24.48 48.0016C30.9529 48.0016 36.4116 45.8766 40.3888 42.2078L32.6549 36.2111C30.5031 37.675 27.7253 38.5039 24.4888 38.5039C18.2275 38.5039 12.9187 34.2798 11.0139 28.6006H3.03296V34.7825C7.10718 42.8868 15.4059 48.0016 24.48 48.0016Z" />
+                    <path fill="#FBBC05" d="M11.0051 28.6006C9.99973 25.6199 9.99973 22.3922 11.0051 19.4115V13.2296H3.03296C-0.371021 20.0112 -0.371021 28.0009 3.03296 34.7825L11.0051 28.6006Z" />
+                    <path fill="#EA4335" d="M24.48 9.49932C27.9016 9.44641 31.2086 10.7339 33.6869 13.0973L40.5387 6.24553C36.2 2.17101 30.4414 -0.068932 24.48 0.00161733C15.4059 0.00161733 7.10718 5.11644 3.03296 13.2296L11.0051 19.4115C12.901 13.7235 18.2187 9.49932 24.48 9.49932Z" />
+                  </svg>
+                </div>
+                <div style={{ position: 'absolute', inset: 0, opacity: 0.001, zIndex: 2 }}>
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setGlobalError('Google Signup was unsuccessful')}
+                    type="icon" shape="circle" size="large"
+                  />
+                </div>
+              </div>
 
-            <p style={{ color: '#888', fontSize: '14px' }}>
-              Already have an account?{' '}
-              <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>{t('logIn', 'Log In')}</Link>
-            </p>
+              {/* Apple */}
+              <button
+                type="button"
+                className="social-btn apple-btn"
+                onClick={() => setGlobalError('Apple Sign-In is not yet configured')}
+                title="Sign up with Apple"
+                style={{ width: '50px', height: '50px' }}
+              >
+                <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -254,8 +477,3 @@ const Signup = () => {
 };
 
 export default Signup;
-
-
-
-
-

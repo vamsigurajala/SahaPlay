@@ -1,21 +1,25 @@
 import React, { useState, useRef } from 'react';
 import { X, PlayCircle, MonitorUp, Info, ArrowRight, CheckCircle2, ChevronRight, Settings } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-export default function GuidedShareModal({ app, onClose, onScreenshare }) {
+export default function GuidedShareModal({ app, onClose, onScreenshare, isLight }) {
   if (!app) return null;
 
   const [step, setStep] = useState(1);
-  const [quality, setQuality] = useState('720p');
+  const { t } = useTranslation();
+  const [quality, setQuality] = useState('auto');
   const [showQualityDropdown, setShowQualityDropdown] = useState(false);
   const popupRef = useRef(null);
 
+  // 'auto' passes no video constraints — browser negotiates best quality based on available bandwidth
+  // 'enhancement' is a CSS filter string applied on the sender's canvas — all viewers see the result
   const qualityOptions = {
-    'auto': { label: 'Auto', width: undefined, height: undefined, frameRate: undefined },
-    '360p': { label: '360p', width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30 } },
-    '480p': { label: '480p', width: { ideal: 854 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
-    '720p': { label: '720p', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-    '1080p': { label: '1080p ✦', width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-    'unlimited': { label: 'Unlimited ✦', width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 60 } }
+    'auto':  { label: 'Auto',      sub: 'Adapts to your network',     width: undefined,       height: undefined,       frameRate: undefined,              enhancement: 'none' },
+    '360p':  { label: '360p',      sub: 'Low bandwidth',              width: { ideal: 640 },  height: { ideal: 360 },  frameRate: { ideal: 24 },          enhancement: 'none' },
+    '480p':  { label: '480p',      sub: 'Standard + light enhance',   width: { ideal: 854 },  height: { ideal: 480 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.12) contrast(1.06) brightness(1.02)' },
+    '720p':  { label: '720p HD',   sub: 'HD + enhanced visuals',      width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.22) contrast(1.1) brightness(1.03)' },
+    '1080p': { label: '1080p FHD', sub: 'Full HD + vivid enhance',    width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },          enhancement: 'saturate(1.3) contrast(1.14) brightness(1.04)' },
+    '4k':    { label: '4K UHD',    sub: 'Ultra HD + max enhance',     width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 60 },          enhancement: 'saturate(1.35) contrast(1.16) brightness(1.04)' },
   };
 
   const handleLaunch = () => {
@@ -32,13 +36,57 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
     onScreenshare(qualityOptions[quality], popupRef.current, app);
   };
 
-  const brandColor = app.brandColor || app.color || '#a855f7';
+  // Internal brand color safety map — prevents white/near-white button backgrounds
+  const BRAND_COLORS = {
+    tiktok:    '#EE1D52',
+    instagram: '#E1306C',
+    netflix:   '#E50914',
+    spotify:   '#1DB954',
+    prime:     '#00A8E1',
+    hbomax:    '#991ef2',
+    hulu:      '#1ce783',
+    crunchyroll: '#F47521',
+    hotstar:   '#0063e5',
+    appletv:   '#a855f7',
+    apple:     '#555555',
+    minigolf:  '#10b981',
+    '8ball':   '#3b82f6',
+    slither:   '#a855f7',
+    smashkarts:'#e11d48',
+    krunker:   '#f59e0b',
+  };
+
+  const isColorWhite = (c) => !c || c === '#fff' || c === '#ffffff' || c === 'white' || c === 'rgb(255,255,255)';
+
+  const rawBrand = app.brandColor || app.color || '#a855f7';
+  const brandColor = rawBrand;  // Used for decorative elements (glow, header bar, step circles)
+  // For button backgrounds — always a visible, non-white color
+  const btnColor = BRAND_COLORS[app.id] || (isColorWhite(rawBrand) ? '#a855f7' : rawBrand);
+
+  // Theme-aware styles
+  const modalBg = isLight ? '#ffffff' : '#0d0d12';
+  const modalBorder = isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)';
+  const titleColor = isLight ? '#0f172a' : '#fff';
+  const subTextColor = isLight ? '#222' : '#d1d1d6';
+  const stepCardBorder = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
+  const safetyTextColor = isLight ? '#111' : '#ccc';
+
+  // Number circle logic
+  const getStepBg = (s) => {
+    if (step > s) return brandColor; // Completed
+    if (step === s) return '#000000'; // Current (Force black as requested)
+    return isLight ? '#f1f5f9' : '#1e1e2d'; // Inactive
+  };
+  const getStepColor = (s) => {
+    if (step >= s) return '#ffffff'; // Force white for active/completed
+    return isLight ? '#94a3b8' : '#888'; // Inactive
+  };
 
   return (
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 100000,
+        position: 'fixed', inset: 0, background: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.9)', zIndex: 100000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         backdropFilter: 'blur(16px)', padding: '24px'
       }}
@@ -46,35 +94,35 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
       <div 
         style={{ 
           position: 'absolute', inset: 0, 
-          background: `radial-gradient(circle at 50% 50%, ${brandColor}15 0%, transparent 70%)`,
+          background: `radial-gradient(circle at 50% 50%, ${brandColor}${isLight ? '10' : '15'} 0%, transparent 70%)`,
           pointerEvents: 'none'
         }} 
       />
       <div
         onClick={(e) => { e.stopPropagation(); setShowQualityDropdown(false); }}
         style={{
-          background: '#0d0d12',
-          border: '1px solid rgba(255,255,255,0.08)', position: 'relative',
+          background: modalBg,
+          border: modalBorder, position: 'relative',
           borderRadius: 36, width: '100%', maxWidth: 680,
           display: 'flex', flexDirection: 'column',
-          boxShadow: `0 40px 120px rgba(0,0,0,0.9), 0 0 100px ${brandColor}10, inset 0 1px 1px rgba(255,255,255,0.05)`,
+          boxShadow: isLight ? '0 40px 100px rgba(0,0,0,0.1)' : `0 40px 120px rgba(0,0,0,0.9), 0 0 100px ${brandColor}10, inset 0 1px 1px rgba(255,255,255,0.05)`,
           fontFamily: "'Outfit',sans-serif",
           overflow: 'visible'
         }}
       >
         {/* Header Bar */}
-        <div style={{ height: 4, width: '100%', background: `linear-gradient(90deg, transparent, ${brandColor}, transparent)` }} />
+        <div style={{ height: 4, width: '100%', background: `linear-gradient(90deg, transparent, ${brandColor}, transparent)`, borderRadius: '36px 36px 0 0' }} />
 
         <button
           onClick={onClose}
           style={{
             position: 'absolute', top: 20, right: 20, width: 36, height: 36,
-            borderRadius: '50%', background: 'rgba(255,255,255,0.03)', border: 'none',
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: '50%', background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.03)', border: 'none',
+            color: isLight ? '#0f172a' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', zIndex: 10, transition: 'all 0.2s'
           }}
-          onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.08)'}
-          onMouseLeave={e => e.currentTarget.style.background='rgba(255,255,255,0.03)'}
+          onMouseEnter={e => e.currentTarget.style.background=isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}
+          onMouseLeave={e => e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.03)'}
         >
           <X size={18} />
         </button>
@@ -82,16 +130,16 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
         <div style={{ padding: '48px 50px 40px' }}>
           
           <div style={{ textAlign: 'center', marginBottom: 44 }}>
-            <h2 style={{ margin: '0 0 12px', fontSize: 42, fontWeight: 900, color: '#fff', letterSpacing: '-2px' }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: 42, fontWeight: 900, color: titleColor, letterSpacing: '-2px' }}>
               Watch <span style={{ 
                 color: brandColor, 
                 textShadow: `0 0 20px ${brandColor}40`
               }}>{app.name}</span>
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-               <div style={{ height: 1, width: 60, background: `linear-gradient(90deg, transparent, rgba(255,255,255,0.1))` }} />
-               <span style={{ fontSize: 10, fontWeight: 900, color: '#777', letterSpacing: '3px', textTransform: 'uppercase' }}>Two Step Setup</span>
-               <div style={{ height: 1, width: 60, background: `linear-gradient(90deg, rgba(255,255,255,0.1), transparent)` }} />
+               <div style={{ height: 1, width: 60, background: `linear-gradient(90deg, transparent, ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'})` }} />
+               <span style={{ fontSize: 10, fontWeight: 900, color: isLight ? '#94a3b8' : '#777', letterSpacing: '3px', textTransform: 'uppercase' }}>{t('twoStepSetup', 'Two Step Setup')}</span>
+               <div style={{ height: 1, width: 60, background: `linear-gradient(90deg, ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}, transparent)` }} />
             </div>
           </div>
 
@@ -99,99 +147,118 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
             
             {/* Step 1 Card */}
             <div style={{
-              flex: 1, background: step === 1 ? 'rgba(255,255,255,0.03)' : 'transparent',
-              border: `1px solid ${step === 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'}`,
+              flex: 1, background: step === 1 ? (isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)') : 'transparent',
+              border: `1px solid ${step === 1 ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)') : stepCardBorder}`,
               borderRadius: 24, padding: 24, opacity: step === 1 ? 1 : 0.4,
               transition: 'all 0.4s', display: 'flex', flexDirection: 'column', alignItems: 'center'
             }}>
               <div style={{ 
-                width: 40, height: 40, borderRadius: '50%', background: step > 1 ? brandColor : '#1e1e2d',
-                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: '50%', background: getStepBg(1),
+                color: getStepColor(1), display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 14, fontWeight: 800, marginBottom: 16, border: `2px solid ${step === 1 ? brandColor : 'transparent'}`
               }}>
-                {step > 1 ? <CheckCircle2 size={20} /> : '1'}
+                {step > 1 ? (
+                  <CheckCircle2 size={20} color="#fff" />
+                ) : (
+                  <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>1</span>
+                )}
               </div>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Preparation</span>
-              <p style={{ fontSize: 12, color: '#adadb8', textAlign: 'center', margin: '0 0 20px', lineHeight: 1.5 }}>
-                Launch and log in to your account.
+              <span style={{ fontSize: 15, fontWeight: 700, color: titleColor, marginBottom: 8 }}>{t('preparation', 'Preparation')}</span>
+              <p style={{ fontSize: 12, color: subTextColor, textAlign: 'center', margin: '0 0 20px', lineHeight: 1.5 }}>
+                {t('preparationDesc', 'Launch and log in to your account.')}
               </p>
               {step === 1 ? (
                 <button 
                   onClick={handleLaunch}
                   style={{
-                    width: '100%', background: brandColor, color: '#fff', border: 'none', borderRadius: 14,
+                    width: '100%',
+                    background: `linear-gradient(135deg, ${btnColor} 0%, ${btnColor}cc 100%)`,
+                    border: 'none', borderRadius: 14,
                     padding: '14px 0', fontSize: 13, fontWeight: 900, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    boxShadow: `0 12px 24px ${brandColor}40`, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    textTransform: 'uppercase', letterSpacing: '0.5px'
+                    boxShadow: `0 4px 20px ${btnColor}66`,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    textTransform: 'uppercase', letterSpacing: '1px',
+                    color: '#ffffff', WebkitTextFillColor: '#ffffff'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 16px 32px ${brandColor}60`; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 12px 24px ${brandColor}40`; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 8px 28px ${btnColor}88`; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 4px 20px ${btnColor}66`; }}
                 >
-                  <PlayCircle size={18} /> Launch App <ChevronRight size={14} />
+                  <PlayCircle size={18} color="#fff" />
+                  <span style={{ color: '#fff', WebkitTextFillColor: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{t('launchApp', 'Launch App')}</span>
+                  <ChevronRight size={14} color="#fff" />
                 </button>
               ) : (
-                <div style={{ color: brandColor, fontSize: 12, fontWeight: 700 }}>Ready!</div>
+                <div style={{ color: brandColor, fontSize: 12, fontWeight: 700 }}>{t('ready', 'Ready!')}</div>
               )}
             </div>
 
             {/* Step 2 Card */}
             <div style={{
-              flex: 1, background: step === 2 ? 'rgba(255,255,255,0.03)' : 'transparent',
-              border: `1px solid ${step === 2 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)'}`,
+              flex: 1, background: step === 2 ? (isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)') : 'transparent',
+              border: `1px solid ${step === 2 ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)') : stepCardBorder}`,
               borderRadius: 24, padding: 24, opacity: step === 2 ? 1 : 0.4,
               transition: 'all 0.4s', display: 'flex', flexDirection: 'column', alignItems: 'center'
             }}>
               <div style={{ 
-                width: 40, height: 40, borderRadius: '50%', background: step === 2 ? brandColor : '#1e1e2d',
-                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 40, height: 40, borderRadius: '50%', background: getStepBg(2),
+                color: getStepColor(2), display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 14, fontWeight: 800, marginBottom: 16, border: `2px solid ${step === 2 ? brandColor : 'transparent'}`
-              }}>2</div>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Discovery</span>
-              <p style={{ fontSize: 12, color: '#adadb8', textAlign: 'center', margin: '0 0 20px', lineHeight: 1.5 }}>
-                Select quality and share tab.
+              }}>
+                <span style={{ color: getStepColor(2), WebkitTextFillColor: getStepColor(2) }}>2</span>
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: titleColor, marginBottom: 8 }}>{t('shareTab', 'Discovery')}</span>
+              <p style={{ fontSize: 12, color: subTextColor, textAlign: 'center', margin: '0 0 20px', lineHeight: 1.5 }}>
+                {t('shareTabDesc', 'Select quality and share tab.')}
               </p>
               {step === 2 && (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   
-                  {/* Custom Pro Dropdown */}
+                  {/* Quality Dropdown */}
                   <div style={{ position: 'relative', width: '100%', zIndex: 100 }}>
                     <button
                       onClick={(e) => { e.stopPropagation(); setShowQualityDropdown(!showQualityDropdown); }}
                       style={{
-                        width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', outline: 'none'
+                        width: '100%', background: isLight ? '#fff' : 'rgba(255,255,255,0.05)', 
+                        border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.12)',
+                        borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        color: isLight ? '#0f172a' : '#fff', cursor: 'pointer', outline: 'none'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Settings size={14} color={brandColor} />
-                        {qualityOptions[quality].label}
+                        <Settings size={14} color={btnColor} />
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#0f172a' : '#fff' }}>{qualityOptions[quality].label}</div>
+                          <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#888', marginTop: 1 }}>{qualityOptions[quality].sub}</div>
+                        </div>
                       </div>
-                      <div style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid #666` }} />
+                      <div style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid ${isLight ? '#94a3b8' : '#666'}` }} />
                     </button>
 
                     {showQualityDropdown && (
                       <div style={{
                         position: 'absolute', bottom: '110%', left: 0, right: 0, 
-                        background: '#16161c', border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 12, overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-                        animation: 'fadeInUp 0.2s ease'
+                        background: isLight ? '#fff' : '#16161c', 
+                        border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 12, overflow: 'hidden', boxShadow: isLight ? '0 10px 25px rgba(0,0,0,0.08)' : '0 20px 40px rgba(0,0,0,0.6)',
                       }}>
                         {Object.keys(qualityOptions).map(id => (
                           <div
                             key={id}
                             onClick={() => { setQuality(id); setShowQualityDropdown(false); }}
                             style={{
-                              padding: '12px 16px', fontSize: 13, color: quality === id ? brandColor : '#aaa',
-                              fontWeight: quality === id ? 700 : 500, cursor: 'pointer', 
-                              background: quality === id ? 'rgba(255,255,255,0.03)' : 'transparent',
-                              borderBottom: '1px solid rgba(255,255,255,0.03)'
+                              padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                              background: quality === id ? (isLight ? '#f1f5f9' : `${btnColor}18`) : 'transparent',
+                              borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.04)'
                             }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                            onMouseLeave={e => e.currentTarget.style.background = quality === id ? 'rgba(255,255,255,0.03)' : 'transparent'}
+                            onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f8fafc' : 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={e => e.currentTarget.style.background = quality === id ? (isLight ? '#f1f5f9' : `${btnColor}18`) : 'transparent'}
                           >
-                            {qualityOptions[id].label}
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: quality === id ? 700 : 500, color: quality === id ? btnColor : (isLight ? '#0f172a' : '#fff') }}>{qualityOptions[id].label}</div>
+                              <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#666', marginTop: 1 }}>{qualityOptions[id].sub}</div>
+                            </div>
+                            {quality === id && <div style={{ width: 6, height: 6, borderRadius: '50%', background: btnColor }} />}
                           </div>
                         ))}
                       </div>
@@ -201,17 +268,21 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
                   <button 
                     onClick={handleShare}
                     style={{
-                      width: '100%', background: '#fff', color: '#000', border: 'none', borderRadius: 14,
+                      width: '100%',
+                      background: `linear-gradient(135deg, ${btnColor} 0%, ${btnColor}cc 100%)`,
+                      border: 'none', borderRadius: 14,
                       padding: '14px 0', fontSize: 13, fontWeight: 900, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                      boxShadow: `0 4px 20px ${btnColor}66`,
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      textTransform: 'uppercase', letterSpacing: '0.5px',
-                      boxShadow: '0 12px 24px rgba(255,255,255,0.1)'
+                      textTransform: 'uppercase', letterSpacing: '1px',
+                      color: '#ffffff', WebkitTextFillColor: '#ffffff'
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow='0 16px 32px rgba(255,255,255,0.15)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow='0 12px 24px rgba(255,255,255,0.1)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 8px 28px ${btnColor}88`; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 4px 20px ${btnColor}66`; }}
                   >
-                    <MonitorUp size={18} /> Start Sharing
+                    <MonitorUp size={18} color="#fff" />
+                    <span style={{ color: '#fff', WebkitTextFillColor: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{t('startSharing', 'Start Sharing')}</span>
                   </button>
                 </div>
               )}
@@ -220,8 +291,8 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
           </div>
 
           <div style={{ marginTop: 40, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
-            <Info size={14} color="#666" />
-            <span style={{ fontSize: 12, color: '#666', fontWeight: 500 }}>Stream safely. We never store or access your personal data.</span>
+            <Info size={14} color={isLight ? "#475569" : "#666"} />
+            <span style={{ fontSize: 12, color: safetyTextColor, fontWeight: 500 }}>{t('streamSafelyNotice', 'Stream safely. We never store or access your personal data.')}</span>
           </div>
 
         </div>
@@ -229,8 +300,3 @@ export default function GuidedShareModal({ app, onClose, onScreenshare }) {
     </div>
   );
 }
-
-
-
-
-

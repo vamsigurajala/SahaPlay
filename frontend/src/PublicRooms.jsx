@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, Search, MessageSquare, ArrowLeft, User, Settings, Filter, LogOut, Pin, Star, Hash, Users, HelpCircle, Bell, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 
 
 const catMap = {
@@ -49,6 +50,7 @@ const PublicRooms = () => {
   const token = localStorage.getItem('watch_token');
 
   useEffect(() => {
+    toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
     const handleClickOutside = (e) => {
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
@@ -183,8 +185,7 @@ const PublicRooms = () => {
 
 
   const handleLogout = () => {
-    localStorage.removeItem('watch_token');
-    localStorage.removeItem('watch_username');
+    clearUserSession();
     navigate('/login');
   };
 
@@ -230,7 +231,7 @@ const PublicRooms = () => {
     e.stopPropagation();
     if (!loggedInUsername) return;
     try {
-      const res = await fetch('http://127.0.0.1:3001/api/rooms/make-private', {
+      const res = await fetch(`http://${window.location.hostname}:3001/api/rooms/make-private`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId, username: loggedInUsername })
@@ -501,7 +502,7 @@ const PublicRooms = () => {
                 >
                   <MessageSquare size={18} />
                   {totalUnread > 0 && (
-                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {totalUnread > 9 ? '9+' : totalUnread}
                     </div>
                   )}
@@ -513,14 +514,14 @@ const PublicRooms = () => {
                 <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                   <Bell size={18} />
                   {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                    <div className="unread-badge" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {followRequests.filter(r => r.status === 'pending').length}
                     </div>
                   )}
                 </button>
                 {showNotifications && (
                   <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>Follow Notifications</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
                     <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                       {followRequests.length > 0 ? (
                         followRequests.map(u => (
@@ -534,34 +535,34 @@ const PublicRooms = () => {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
                           
-                          <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                            {u.status === 'pending' ? `@${u.username} wants to follow you` : `@${u.username} started following you`}
-                          </div>
+                              <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                                {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
+                              </div>
                           
-                            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                              {u.status === 'pending' ? (
-                                <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Allow</button>
-                              ) : (
-                                <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Follower</button>
-                              )}
-                              
-                              {u.myFollowStatus === 'accepted' ? (
-                                <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Following</button>
-                              ) : (
-                                <button onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (u.myFollowStatus === 'pending') return;
-                                  handleFollowBack(u.username, e);
-                                }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                  {u.myFollowStatus === 'pending' ? 'Request Sent' : 'Follow Back'}
-                                </button>
-                              )}
+                              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                {u.status === 'pending' ? (
+                                  <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                ) : (
+                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
+                                )}
+                                
+                                {u.myFollowStatus === 'accepted' ? (
+                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
+                                ) : (
+                                  <button onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (u.myFollowStatus === 'pending') return;
+                                    handleFollowBack(u.username, e);
+                                  }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                    {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                        <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>No new notifications</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
                       )}
                     </div>
                   </div>

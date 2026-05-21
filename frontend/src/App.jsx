@@ -13,6 +13,7 @@ import ResetPassword from './ResetPassword';
 import PublicRooms from './PublicRooms';
 import Profile from './Profile';
 import AppSettings from './AppSettings';
+import TvPairing from './TvPairing';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
@@ -26,10 +27,14 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
     if (token) {
-      fetch('http://127.0.0.1:3001/api/settings', { headers: { 'Authorization': `Bearer ${token}` } })
+      const apiHost = window.location.hostname;
+      fetch(`http://${apiHost}:3001/api/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json())
         .then(data => {
-          if (!data.error && data.language) i18n.changeLanguage(data.language);
+          if (!data.error && data.language) {
+            i18n.changeLanguage(data.language);
+            localStorage.setItem('watch_language', data.language);
+          }
         }).catch(()=>{});
     }
 
@@ -46,21 +51,33 @@ function App() {
         color: #111 !important;
       }
 
-      /* ── Force ALL text to be dark unless it's inside an element with a colored gradient bg ── */
-      html[data-theme='light'] * {
+      /* ── Force ALL text to be dark unless it's inside an element with a colored gradient bg or explicitly marked to stay white ── */
+      html[data-theme='light'] *:not(.stay-white):not(.unread-badge):not(.badge-text):not(.danger-red-btn):not(.msg-sent):not(.gcw-force-dark):not(.gcw-force-dark *) {
         color: inherit;
         border-color: rgba(0,0,0,0.1);
       }
 
+      /* Protection for explicitly white text */
+      html[data-theme='light'] .stay-white,
+      html[data-theme='light'] .stay-white *,
+      html[data-theme='light'] .unread-badge,
+      html[data-theme='light'] .unread-badge *,
+      html[data-theme='light'] .danger-red-btn,
+      html[data-theme='light'] .danger-red-btn *,
+      html[data-theme='light'] .msg-sent,
+      html[data-theme='light'] .msg-sent * {
+        color: #ffffff !important;
+      }
+
       /* ── Navbar, panels, cards – force bg to white/light ── */
       html[data-theme='light'] nav,
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.02)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.03)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.04)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.05)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.06)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.07)"],
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.08)"] {
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.02)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.03)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.04)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.05)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.06)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.07)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.08)"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: rgba(0,0,0,0.03) !important;
       }
       html[data-theme='light'] [style*="background: rgba(255,255,255,0.1)"] {
@@ -86,37 +103,37 @@ function App() {
       }
 
       /* ── All semi-transparent white TEXT → proper dark text ── */
-      html[data-theme='light'] [style*="color: rgba(255,255,255"],
-      html[data-theme='light'] [style*="color:rgba(255,255,255"],
-      html[data-theme='light'] [style*="color: rgb(255, 255, 255"],
-      html[data-theme='light'] [style*="color: #fff"],
-      html[data-theme='light'] [style*="color:#fff"],
-      html[data-theme='light'] [style*="color: #ffffff"],
-      html[data-theme='light'] [style*="color: #f1f1f1"],
-      html[data-theme='light'] [style*="color: #e2e8f0"],
-      html[data-theme='light'] [style*="color: #ccc"],
-      html[data-theme='light'] [style*="color:#ccc"],
-      html[data-theme='light'] [style*="color: #ddd"],
-      html[data-theme='light'] [style*="color:#ddd"] {
+      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *) {
         color: #111 !important;
       }
 
       /* ── Mid-gray text → proper readable dark gray ── */
-      html[data-theme='light'] [style*="color: #888"],
-      html[data-theme='light'] [style*="color:#888"],
-      html[data-theme='light'] [style*="color: #666"],
-      html[data-theme='light'] [style*="color:#666"],
-      html[data-theme='light'] [style*="color: #555"],
-      html[data-theme='light'] [style*="color:#555"],
-      html[data-theme='light'] [style*="color: #aaa"],
-      html[data-theme='light'] [style*="color:#aaa"],
-      html[data-theme='light'] [style*="color: #999"],
-      html[data-theme='light'] [style*="color:#999"],
-      html[data-theme='light'] [style*="color: #6b7280"],
-      html[data-theme='light'] [style*="color:#6b7280"],
-      html[data-theme='light'] [style*="color: #4b5563"],
-      html[data-theme='light'] [style*="color: #444"],
-      html[data-theme='light'] [style*="color:#444"] {
+      html[data-theme='light'] [style*="color: #888"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#888"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #666"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#666"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #555"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#555"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #aaa"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#aaa"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #999"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#999"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #6b7280"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#6b7280"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #4b5563"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color: #444"]:not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="color:#444"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         color: #4a5568 !important;
       }
 
@@ -131,23 +148,23 @@ function App() {
       }
 
       /* ── Buttons with dark semi-transparent backgrounds → light surface ── */
-      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.05)"],
-      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.06)"],
-      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.08)"],
-      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.1)"] {
+      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.05)"]:not(.gcw-force-dark button),
+      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.06)"]:not(.gcw-force-dark button),
+      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.08)"]:not(.gcw-force-dark button),
+      html[data-theme='light'] button[style*="background: rgba(255,255,255,0.1)"]:not(.gcw-force-dark button) {
         background: rgba(0,0,0,0.06) !important;
         color: #333 !important;
       }
 
       /* ── Input / textarea fields ── */
-      html[data-theme='light'] input[style],
-      html[data-theme='light'] textarea[style] {
+      html[data-theme='light'] input[style]:not(.gcw-force-dark input),
+      html[data-theme='light'] textarea[style]:not(.gcw-force-dark textarea) {
         background: #ffffff !important;
         color: #111 !important;
         border-color: rgba(0,0,0,0.15) !important;
       }
-      html[data-theme='light'] input::placeholder,
-      html[data-theme='light'] textarea::placeholder {
+      html[data-theme='light'] input::placeholder:not(.gcw-force-dark input::placeholder),
+      html[data-theme='light'] textarea::placeholder:not(.gcw-force-dark textarea::placeholder) {
         color: rgba(0,0,0,0.35) !important;
       }
       html[data-theme='light'] .input-field {
@@ -157,13 +174,13 @@ function App() {
       }
 
       /* ── select dropdowns ── */
-      html[data-theme='light'] select,
-      html[data-theme='light'] .device-select {
+      html[data-theme='light'] select:not(.gcw-force-dark select),
+      html[data-theme='light'] .device-select:not(.gcw-force-dark .device-select) {
         background: #f9f9f9 !important;
         color: #111 !important;
         border-color: rgba(0,0,0,0.15) !important;
       }
-      html[data-theme='light'] select option {
+      html[data-theme='light'] select option:not(.gcw-force-dark option) {
         background: #ffffff !important;
         color: #111 !important;
       }
@@ -174,17 +191,18 @@ function App() {
         background: none !important;
         color: #111 !important;
       }
-
+      
       /* ── Chat widget container (fixed positioned floating panel) ── */
-      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay),
-      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay) {
+
+      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark .chat-modal-overlay),
+      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark *) {
         background: #f7f8fc !important;
         border-color: rgba(0,0,0,0.1) !important;
       }
-      html[data-theme='light'] .chat-modal-overlay {
+      html[data-theme='light'] .chat-modal-overlay:not(.gcw-force-dark .chat-modal-overlay) {
         background: rgba(15, 23, 42, 0.4) !important;
       }
-      html[data-theme='light'] .chat-widget-main-panel {
+      html[data-theme='light'] .chat-widget-main-panel:not(.gcw-force-dark) {
         background: rgba(255, 255, 255, 0.85) !important;
         border-color: rgba(0, 0, 0, 0.08) !important;
       }
@@ -209,9 +227,8 @@ function App() {
       }
 
       /* ── Scrollbars ── */
-      html[data-theme='light'] ::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); }
-      html[data-theme='light'] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
-      html[data-theme='light'] ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+      html[data-theme='light'] ::-webkit-scrollbar { display: none !important; }
+      html[data-theme='light'] * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
 
       /* ── Red Danger Buttons (Clear Chat, Delete, etc.) ── */
       html[data-theme='light'] .danger-red-btn,
@@ -226,21 +243,21 @@ function App() {
       }
 
       /* ── Dropdowns (Search, Notifications, Profile) ── */
-      html[data-theme='light'] .nav-dropdown {
+      html[data-theme='light'] .nav-dropdown:not(.gcw-force-dark .nav-dropdown) {
         background: #ffffff !important;
         border: 1px solid rgba(0,0,0,0.12) !important;
         box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
       }
 
       /* Text color for dropdowns */
-      html[data-theme='light'] .nav-dropdown {
+      html[data-theme='light'] .nav-dropdown:not(.gcw-force-dark .nav-dropdown) {
         color: #1e293b !important;
       }
-      html[data-theme='light'] .nav-dropdown button {
+      html[data-theme='light'] .nav-dropdown button:not(.gcw-force-dark button) {
         color: #1e293b !important;
       }
       /* Preserve Log Out button red text */
-      html[data-theme='light'] .nav-dropdown button[style*="f87171"] {
+      html[data-theme='light'] .nav-dropdown button[style*="f87171"]:not(.gcw-force-dark button) {
         color: #ef4444 !important;
       }
       
@@ -408,43 +425,43 @@ function App() {
         background: rgba(0,0,0,0.06) !important;
       }
 
-      html[data-theme='light'] .chat-list-header {
+      html[data-theme='light'] .chat-list-header:not(.gcw-force-dark .chat-list-header) {
         background: #ffffff !important;
         border-bottom: 1px solid rgba(0,0,0,0.08) !important;
       }
-      html[data-theme='light'] .chat-list-header *,
-      html[data-theme='light'] .chat-header-title {
+      html[data-theme='light'] .chat-list-header *:not(.gcw-force-dark *),
+      html[data-theme='light'] .chat-header-title:not(.gcw-force-dark .chat-header-title) {
         color: #111111 !important;
       }
-      html[data-theme='light'] .chat-list-header input {
+      html[data-theme='light'] .chat-list-header input:not(.gcw-force-dark input) {
         background: rgba(0,0,0,0.05) !important;
         border: 1px solid rgba(0,0,0,0.12) !important;
         color: #111111 !important;
       }
-      html[data-theme='light'] .chat-list-header input::placeholder {
+      html[data-theme='light'] .chat-list-header input::placeholder:not(.gcw-force-dark input::placeholder) {
         color: #888 !important;
       }
 
       /* Tags and Previews */
-      html[data-theme='light'] .chat-tag {
+      html[data-theme='light'] .chat-tag:not(.gcw-force-dark .chat-tag) {
         font-weight: 800 !important;
       }
       /* Darken the tag text for room/private */
-      html[data-theme='light'] .chat-tag[style*="rgb(129, 140, 248)"],
-      html[data-theme='light'] .chat-tag[style*="#818cf8"],
-      html[data-theme='light'] .chat-tag[style*="rgba(99, 102, 241"] { 
+      html[data-theme='light'] .chat-tag[style*="rgb(129, 140, 248)"]:not(.gcw-force-dark .chat-tag),
+      html[data-theme='light'] .chat-tag[style*="#818cf8"]:not(.gcw-force-dark .chat-tag),
+      html[data-theme='light'] .chat-tag[style*="rgba(99, 102, 241"]:not(.gcw-force-dark .chat-tag) { 
         color: #4338ca !important; 
         background: rgba(67, 56, 202, 0.12) !important; 
       }
-      html[data-theme='light'] .chat-tag[style*="rgb(74, 222, 128)"],
-      html[data-theme='light'] .chat-tag[style*="#4ade80"],
-      html[data-theme='light'] .chat-tag[style*="rgba(34, 197, 94"] { 
+      html[data-theme='light'] .chat-tag[style*="rgb(74, 222, 128)"]:not(.gcw-force-dark .chat-tag),
+      html[data-theme='light'] .chat-tag[style*="#4ade80"]:not(.gcw-force-dark .chat-tag),
+      html[data-theme='light'] .chat-tag[style*="rgba(34, 197, 94"]:not(.gcw-force-dark .chat-tag) { 
         color: #047857 !important; 
         background: rgba(4, 120, 87, 0.12) !important; 
       }
 
-      html[data-theme='light'] .chat-preview,
-      html[data-theme='light'] .chat-preview * {
+      html[data-theme='light'] .chat-preview:not(.gcw-force-dark .chat-preview),
+      html[data-theme='light'] .chat-preview *:not(.gcw-force-dark .chat-preview *) {
         color: #444444 !important;
       }
 
@@ -474,7 +491,7 @@ function App() {
       }
 
       /* Status icons (Mute, Pin, Lock) - Dark but NOT FILLED */
-      html[data-theme='light'] .chat-status-icon {
+      html[data-theme='light'] .chat-status-icon:not(.gcw-force-dark .chat-status-icon) {
         color: #1a1a1a !important;
         stroke: #1a1a1a !important;
         fill: none !important;
@@ -495,7 +512,7 @@ function App() {
 
       /* ── Menu hover effects (Removing !important to allow dynamic JS colors) ── */
       html[data-theme='light'] .menu-btn:hover { background: rgba(0,0,0,0.05); }
-      html[data-theme='light'] .chat-menu-item:hover { background: rgba(0,0,0,0.05); }
+      html[data-theme='light'] .chat-menu-item:hover:not(.gcw-force-dark .chat-menu-item:hover) { background: rgba(0,0,0,0.05); }
       html[data-theme='light'] .settings-menu-btn:hover { background: rgba(0,0,0,0.04) !important; }
       html[data-theme='light'] .settings-menu-btn-danger:hover { background: rgba(220,38,38,0.1) !important; }
 
@@ -610,8 +627,8 @@ function App() {
   }, [i18n]);
 
 
-  // Hardcoded Client ID for demonstration - user will need to replace this in production
-  const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE';
+  // Load Google Client ID from environment variables (.env file)
+  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE';
 
   return (
     <CryptoProvider>
@@ -623,6 +640,7 @@ function App() {
             <Route path="/verify" element={<Verify />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/tv" element={<TvPairing />} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

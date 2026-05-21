@@ -1,39 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Eye, EyeOff, Shield, Key, AlertTriangle, Check } from 'lucide-react';
-import { useCrypto } from './contexts/CryptoContext';
-import {
-  mnemonicToSecretKey,
-  encryptPrivateKey,
-  hashRecoveryPhrase
-} from './lib/crypto.js';
-import nacl from 'tweetnacl';
+import { Eye, EyeOff, Key, Play, LogIn, CheckCircle, Shield } from 'lucide-react';
+import { mnemonicToSecretKey, encryptPrivateKey, hashRecoveryPhrase } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
+import nacl from 'tweetnacl';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 
 const ResetPassword = () => {
-  const [password, setPassword]               = useState('');
+  const [password, setPassword]           = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [token, setToken]                     = useState('');
-  const [showPassword, setShowPassword]       = useState(false);
-  const [showConfirm, setShowConfirm]         = useState(false);
-  const [errors, setErrors]                   = useState({});
-  const [isSubmitting, setIsSubmitting]       = useState(false);
-  const [globalError, setGlobalError]         = useState('');
-  const [successMsg, setSuccessMsg]           = useState('');
-
-  // Recovery phrase step
-  const [phrase, setPhrase]                   = useState('');
-  const [phraseError, setPhraseError]         = useState('');
-  const [phraseVerified, setPhraseVerified]   = useState(false);
-  const [isVerifyingPhrase, setIsVerifyingPhrase] = useState(false);
-  // Optional: account may not have a recovery phrase (old account)
-  const [skipPhrase, setSkipPhrase]           = useState(false);
+  const [showPassword, setShowPassword]   = useState(false);
+  const [showConfirm, setShowConfirm]     = useState(false);
+  const [recoveryKey, setRecoveryKey]     = useState('');
+  const [token, setToken]                 = useState('');
+  const [errors, setErrors]               = useState({});
+  const [isSubmitting, setIsSubmitting]   = useState(false);
+  const [globalError, setGlobalError]     = useState('');
+  const [successMsg, setSuccessMsg]       = useState('');
 
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { setKeyPair } = useCrypto();
 
   useEffect(() => {
     const params   = new URLSearchParams(location.search);
@@ -41,103 +28,66 @@ const ResetPassword = () => {
     if (urlToken) {
       setToken(urlToken);
     } else {
-      setGlobalError('Invalid or missing reset token.');
+      setGlobalError('Invalid or missing reset token. Please request a new reset link.');
     }
   }, [location]);
 
-  const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
-    if (!password) { newErrors.password = 'Password is required'; isValid = false; }
-    else if (password.length < 8) { newErrors.password = 'Password must be at least 8 characters'; isValid = false; }
-    else if (!/(?=.*[A-Z])/.test(password)) { newErrors.password = 'Must contain at least one uppercase letter'; isValid = false; }
-    else if (!/(?=.*\d)/.test(password)) { newErrors.password = 'Must contain at least one number'; isValid = false; }
-    if (password !== confirmPassword) { newErrors.confirmPassword = 'Passwords do not match'; isValid = false; }
-    setErrors(newErrors);
-    return isValid;
+  const validate = () => {
+    const errs = {};
+    if (!password) errs.password = 'Password is required';
+    else if (password.length < 8) errs.password = 'Must be at least 8 characters';
+    else if (!/(?=.*[A-Z])/.test(password)) errs.password = 'Must include at least one uppercase letter';
+    else if (!/(?=.*\d)/.test(password)) errs.password = 'Must include at least one number';
+    if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
-  // Step 1: Verify recovery phrase
-  const handleVerifyPhrase = async () => {
-    setPhraseError('');
-    setIsVerifyingPhrase(true);
-    try {
-      const words = phrase.trim().toLowerCase().split(/\s+/);
-      if (words.length !== 24) {
-        setPhraseError('Please enter all 24 words of your recovery phrase.');
-        return;
-      }
-      // Try to decode — this validates the checksum
-      await mnemonicToSecretKey(phrase);
-      setPhraseVerified(true);
-    } catch (err) {
-      setPhraseError('Invalid recovery phrase. Please check your words and try again.');
-    } finally {
-      setIsVerifyingPhrase(false);
-    }
-  };
-
-  // Step 2: Reset password + re-wrap key
   const handleSubmit = async (e) => {
     e.preventDefault();
     setGlobalError('');
-
     if (!token) { setGlobalError('Invalid reset token.'); return; }
-    if (!validateForm()) return;
-    if (!phraseVerified && !skipPhrase) {
-      setGlobalError('Please verify your recovery phrase first.');
-      return;
-    }
+    if (!validate()) return;
 
     setIsSubmitting(true);
     try {
-      // 1. Reset password on server
+      let payload = { token, newPassword: password };
+
+      // If user provides a recovery key, regenerate their keys so they don't lose data
+      if (recoveryKey.trim()) {
+        try {
+          const secretKey = await mnemonicToSecretKey(recoveryKey.trim());
+          const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+          
+          const publicKeyBase64 = encodeBase64(keyPair.publicKey);
+          const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, password);
+          const recKeyHash = await hashRecoveryPhrase(recoveryKey.trim());
+
+          payload.publicKey = publicKeyBase64;
+          payload.encryptedPrivateKey = encryptedPrivKey;
+          payload.recoveryKeyHash = recKeyHash;
+        } catch (err) {
+          console.error("Recovery key error:", err);
+          setGlobalError("Invalid recovery key format.");
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const response = await fetch(`${API}/api/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword: password })
+        body: JSON.stringify(payload)
       });
       const data = await response.json();
 
       if (!response.ok) {
-        setGlobalError(data.error || 'Password reset failed');
+        setGlobalError(data.error || 'Password reset failed. Please try again.');
         return;
       }
 
-      // 2. If user provided recovery phrase, re-wrap key with new password
-      if (phraseVerified && phrase.trim()) {
-        try {
-          const secretKey          = await mnemonicToSecretKey(phrase);
-          const kp                 = nacl.box.keyPair.fromSecretKey(secretKey);
-          const encryptedPrivKey   = await encryptPrivateKey(secretKey, password);
-          const recoveryKeyHash    = await hashRecoveryPhrase(phrase);
-
-          // Use the token from reset response to authenticate the rekey request
-          const loginToken = data.token || null;
-          if (loginToken) {
-            await fetch(`${API}/api/auth/rekey`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${loginToken}`
-              },
-              body: JSON.stringify({
-                encryptedPrivateKey: encryptedPrivKey,
-                publicKey: encodeBase64(kp.publicKey),
-                recoveryKeyHash
-              })
-            });
-            // Load key into session for immediate use
-            await setKeyPair(kp);
-          }
-        } catch (rekeyErr) {
-          console.warn('[ResetPassword] Re-key failed:', rekeyErr);
-          // Not fatal — user can still log in but without E2EE history recovery
-        }
-      }
-
-      setSuccessMsg(data.message || 'Password reset successful!');
-    } catch (err) {
+      setSuccessMsg(data.message || 'Password reset successfully!');
+    } catch {
       setGlobalError('Network error. Please try again later.');
     } finally {
       setIsSubmitting(false);
@@ -145,145 +95,259 @@ const ResetPassword = () => {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px', background: '#0a0a0a', fontFamily: "'Outfit', sans-serif" }}>
-      <div style={{ maxWidth: '480px', width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '40px 36px' }}>
-        
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 0 0 8px rgba(99,102,241,0.12)' }}>
-            <Key size={24} color="#fff" />
+    <div className="login-layout">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+        .login-layout {
+          display: flex;
+          min-height: 100vh;
+          font-family: 'Outfit', sans-serif;
+          background: #050505;
+          color: #fff;
+          overflow: hidden;
+        }
+
+        .login-left {
+          flex: 1.2;
+          display: none;
+          position: relative;
+          background: linear-gradient(135deg, #111115 0%, #1a1a2e 100%);
+          overflow: hidden;
+        }
+        @media (min-width: 900px) {
+          .login-left { display: flex; flex-direction: column; justify-content: center; padding: 60px 80px; }
+        }
+        .login-left::before {
+          content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
+          border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+          filter: blur(60px);
+        }
+        .login-left::after {
+          content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
+          border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+          filter: blur(60px);
+        }
+
+        .login-right {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          background: #050505;
+          padding: 24px;
+        }
+
+        .login-card {
+          width: 100%;
+          max-width: 440px;
+          background: #111114;
+          border: 1px solid rgba(255,255,255,0.04);
+          border-radius: 28px;
+          padding: 48px 40px;
+          box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+          position: relative;
+          z-index: 10;
+        }
+
+        .login-input {
+          width: 100%; background: #1a1a1f; border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 14px; color: #fff; font-size: 15px; padding: 14px 16px 14px 46px;
+          outline: none; box-sizing: border-box; transition: all 0.2s;
+          font-family: 'Outfit', sans-serif;
+        }
+        .login-input::placeholder { color: #444; }
+        .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+
+        .login-submit-btn {
+          width: 100%; padding: 16px; border-radius: 14px; border: none;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          color: #fff !important; font-size: 16px; font-weight: 700;
+          font-family: 'Outfit', sans-serif;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+        }
+        .login-submit-btn * { color: #fff !important; fill: #fff !important; }
+        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+        .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        .rp-spinner {
+          width: 18px; height: 18px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: #fff; border-radius: 50%;
+          animation: rp-spin 0.65s linear infinite;
+          flex-shrink: 0;
+        }
+        @keyframes rp-spin { to { transform: rotate(360deg); } }
+
+        /* Light Mode */
+        html[data-theme='light'] .login-layout { background: #f8fafc; }
+        html[data-theme='light'] .login-left { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
+        html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
+        html[data-theme='light'] .login-left-text { color: #fff !important; }
+        html[data-theme='light'] .login-right { background: #f8fafc; }
+        html[data-theme='light'] .login-card {
+          background: #ffffff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 24px 60px rgba(0,0,0,0.06);
+        }
+        html[data-theme='light'] .login-card h1,
+        html[data-theme='light'] .login-card label { color: #0f172a !important; }
+        html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
+        html[data-theme='light'] .login-card p { color: #64748b !important; }
+        html[data-theme='light'] .login-input {
+          background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+        }
+        html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
+        html[data-theme='light'] .login-input:focus {
+          background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+        }
+      `}</style>
+
+      {/* ── Left Panel ── */}
+      <div className="login-left">
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(99,102,241,0.4)' }}>
+              <Play size={24} fill="#fff" color="#fff" style={{ marginLeft: '4px' }} />
+            </div>
+            <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
           </div>
-          <h1 style={{ fontSize: '24px', margin: 0, color: '#fff', fontWeight: 800 }}>Reset Password</h1>
-          <p style={{ color: '#666', fontSize: 14, margin: '8px 0 0', lineHeight: 1.5 }}>
-            Enter your 24-word recovery phrase to re-lock your encrypted messages with your new password.
+          <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
+            Create your<br />new password.<br />
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Stay secure.</span>
+          </h1>
+          <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
+            Choose a strong password with at least 8 characters, one uppercase letter, and one number.
           </p>
         </div>
+      </div>
 
-        {globalError && <div style={{ color: '#ef4444', marginBottom: '16px', fontSize: '14px', background: 'rgba(239,68,68,0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(239,68,68,0.2)' }}>{globalError}</div>}
+      {/* ── Right Panel ── */}
+      <div className="login-right">
+        <div className="login-card animated-fade-in">
 
-        {successMsg ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '2px solid #10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-              <Check size={24} color="#10b981" />
-            </div>
-            <div style={{ color: '#4ade80', marginBottom: '20px', fontSize: '16px', fontWeight: 600 }}>{successMsg}</div>
-            <Link to="/login" style={{ textDecoration: 'none', display: 'inline-block', padding: '14px 32px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontWeight: 700 }}>Go to Login</Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} noValidate>
-
-            {/* ─ STEP 1: Recovery Phrase ─ */}
-            <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Shield size={16} color="#818cf8" />
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#a5b4fc' }}>Step 1 — Recovery Phrase</span>
-                {phraseVerified && <span style={{ marginLeft: 'auto', fontSize: 12, color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Check size={12} /> Verified</span>}
+          {successMsg ? (
+            /* ── Success ── */
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 40px rgba(16,185,129,0.15)' }}>
+                <CheckCircle size={36} color="#10b981" strokeWidth={1.5} />
               </div>
+              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px' }}>Password Reset!</h1>
+              <p style={{ color: '#888', fontSize: '15px', lineHeight: 1.65, margin: '0 0 32px' }}>
+                Your password has been updated successfully. You can now log in with your new password.
+              </p>
+              <button onClick={() => navigate('/login')} className="login-submit-btn">
+                <LogIn size={18} /><span>Go to Login</span>
+              </button>
+            </div>
+          ) : (
+            /* ── Form ── */
+            <>
+              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>New Password</h1>
+              <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
+                Choose a strong password for your account.
+              </p>
 
-              {phraseVerified ? (
-                <p style={{ margin: 0, color: '#34d399', fontSize: 13 }}>✓ Recovery phrase verified. Your encrypted messages will be re-locked with your new password.</p>
-              ) : (
-                <>
-                  <textarea
-                    placeholder="Enter your 24 recovery words separated by spaces…"
-                    value={phrase}
-                    onChange={e => { setPhrase(e.target.value); setPhraseError(''); }}
-                    rows={3}
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      background: '#0d0d1a', border: '1px solid rgba(99,102,241,0.3)',
-                      borderRadius: 10, color: '#e2e8f0', fontSize: 13,
-                      padding: '12px 14px', resize: 'vertical', outline: 'none',
-                      fontFamily: 'monospace', lineHeight: 1.6,
-                      marginBottom: phraseError ? 8 : 12
-                    }}
-                  />
-                  {phraseError && <p style={{ margin: '0 0 8px', color: '#f87171', fontSize: 12 }}>{phraseError}</p>}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={handleVerifyPhrase}
-                      disabled={isVerifyingPhrase || !phrase.trim()}
-                      style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: isVerifyingPhrase || !phrase.trim() ? 0.6 : 1 }}
-                    >
-                      {isVerifyingPhrase ? 'Verifying…' : 'Verify Phrase'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSkipPhrase(s => !s)}
-                      style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#888', fontSize: 12, cursor: 'pointer' }}
-                    >
-                      {skipPhrase ? "I'll provide my phrase" : "I lost my recovery phrase"}
-                    </button>
-                  </div>
-                  {skipPhrase && (
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <AlertTriangle size={14} color="#f87171" style={{ flexShrink: 0, marginTop: 2 }} />
-                        <p style={{ margin: 0, color: '#f87171', fontSize: 12, lineHeight: 1.5 }}>
-                          Without your recovery phrase, your previous encrypted messages cannot be decrypted. You'll get a fresh key pair after reset — old messages will appear encrypted.
-                        </p>
-                      </div>
+              {globalError && (
+                <div style={{ color: '#ef4444', marginBottom: '20px', fontSize: '14px', background: 'rgba(239,68,68,0.1)', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  {globalError}
+                  {globalError.includes('expired') && (
+                    <div style={{ marginTop: '10px' }}>
+                      <Link to="/forgot-password" style={{ color: '#6366f1', fontWeight: 700, textDecoration: 'none' }}>
+                        Request a new reset link →
+                      </Link>
                     </div>
                   )}
-                </>
+                </div>
               )}
-            </div>
 
-            {/* ─ STEP 2: New Password ─ */}
-            <div>
-              <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '6px', display: 'block' }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>Step 2 — New Password</span>
-              </label>
-              <div style={{ position: 'relative', marginBottom: 8 }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  style={{ width: '100%', boxSizing: 'border-box', background: '#111', border: `1px solid ${errors.password ? '#ef4444' : 'rgba(255,255,255,0.12)'}`, borderRadius: '12px', color: '#fff', fontSize: '15px', padding: '12px 44px 12px 16px', outline: 'none' }}
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: null}); }}
-                />
-                <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
+                {/* New Password */}
+                <div>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>New Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Key size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="login-input"
+                      style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
+                      placeholder="Min 8 chars, 1 uppercase, 1 number"
+                      value={password}
+                      onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(p => !p)}
+                      style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Confirm Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <Key size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      className="login-input"
+                      style={{ paddingRight: '48px', borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
+                      placeholder="Re-enter your new password"
+                      value={confirmPassword}
+                      onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(p => !p)}
+                      style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}
+                    >
+                      {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.confirmPassword}</span>}
+                </div>
+
+                {/* Recovery Key (Optional) */}
+                <div>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Recovery Key <span style={{ color: '#666', fontWeight: 400 }}>(Optional but recommended)</span></label>
+                  <div style={{ position: 'relative' }}>
+                    <Shield size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                    <input
+                      type="text"
+                      className="login-input"
+                      placeholder="e.g. ABCD EFGH IJKL MNOP QRST UVWX"
+                      value={recoveryKey}
+                      onChange={e => setRecoveryKey(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(99,102,241,0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(99,102,241,0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#a5b4fc', lineHeight: 1.5 }}>
+                      If you enter your recovery key, your password will be updated <strong>without losing any data</strong>. If you leave this blank, your old encrypted messages will be <strong>permanently erased</strong> for your security.
+                    </p>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={isSubmitting || !token} className="login-submit-btn">
+                  {isSubmitting
+                    ? <><div className="rp-spinner" /><span>Resetting...</span></>
+                    : <><LogIn size={18} /><span>Reset Password</span></>}
                 </button>
-              </div>
-              {errors.password && <span style={{ color: '#ef4444', fontSize: '12px' }}>{errors.password}</span>}
-            </div>
+              </form>
 
-            <div>
-              <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '6px', display: 'block' }}>Confirm New Password</label>
-              <div style={{ position: 'relative', marginBottom: 8 }}>
-                <input
-                  type={showConfirm ? 'text' : 'password'}
-                  style={{ width: '100%', boxSizing: 'border-box', background: '#111', border: `1px solid ${errors.confirmPassword ? '#ef4444' : 'rgba(255,255,255,0.12)'}`, borderRadius: '12px', color: '#fff', fontSize: '15px', padding: '12px 44px 12px 16px', outline: 'none' }}
-                  placeholder="Re-enter new password"
-                  value={confirmPassword}
-                  onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({...errors, confirmPassword: null}); }}
-                />
-                <button type="button" onClick={() => setShowConfirm(p => !p)} style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.confirmPassword && <span style={{ color: '#ef4444', fontSize: '12px' }}>{errors.confirmPassword}</span>}
-            </div>
-
-            <button
-              type="submit"
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: '16px', fontWeight: 700, cursor: isSubmitting || !token ? 'not-allowed' : 'pointer', opacity: isSubmitting || !token ? 0.7 : 1, transition: 'opacity 0.2s' }}
-              disabled={isSubmitting || !token}
-            >
-              {isSubmitting ? 'Resetting & Re-keying…' : 'Reset Password'}
-            </button>
-          </form>
-        )}
+              <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
+                <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>← Back to Login</Link>
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 export default ResetPassword;
-
-
-
-
-

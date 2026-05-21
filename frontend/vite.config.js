@@ -8,6 +8,10 @@ const __dirname = dirname(__filename)
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    host: true, // Listen on all network interfaces
+    allowedHosts: true, // Allow all hosts so localtunnel works
+  },
   plugins: [react()],
   resolve: {
     alias: {

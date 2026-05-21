@@ -6,6 +6,7 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config(); // Load variables
 const bcrypt = require('bcrypt');
@@ -13,6 +14,54 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
+
+// ─── Gmail SMTP Transporter ──────────────────────────────────────────────────
+const gmailTransporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
+
+async function sendEmail({ to, subject, html, text, headers }) {
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn('[Email] Gmail credentials not configured — skipping email to:', to);
+    return null;
+  }
+  try {
+    const info = await gmailTransporter.sendMail({
+      from: `"SahaPlay" <${process.env.GMAIL_USER}>`,
+      to,
+      subject,
+      text: text || subject,
+      html,
+      headers: headers || {},
+    });
+    console.log('[Email] Sent successfully to:', to, '| Message ID:', info.messageId);
+    return info;
+  } catch (err) {
+    console.error('[Email] Failed to send to:', to, '| Error:', err.message);
+    return null;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Detect LAN IP at startup ───
+function getLanIp() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip loopback and non-IPv4
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return '127.0.0.1'; // fallback
+}
+const LAN_IP = getLanIp();
+console.log(`[Server] Detected LAN IP: ${LAN_IP}`);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_jwt_key_for_watch_together';
 
@@ -310,76 +359,135 @@ app.get('/api/youtube/search', async (req, res) => {
 
 // --- Twitch Discovery (Simulated Mode) ---
 const SIMULATED_TWITCH_CHANNELS = [
-  { id: 'xqc', name: 'xQc', title: 'Just Chatting & Reacts', category: 'Just Chatting' },
-  { id: 'kaicenat', name: 'KaiCenat', title: 'Mafiathon 2.0', category: 'Just Chatting' },
-  { id: 'ibai', name: 'ibai', title: 'League of Legends Mundiales', category: 'League of Legends' },
-  { id: 'auronplay', name: 'auronplay', title: 'Talking & Games', category: 'Just Chatting' },
-  { id: 'gaules', name: 'gaules', title: 'Major CS coverage', category: 'Counter-Strike 2' },
-  { id: 'ninja', name: 'Ninja', title: 'Fortnite WITH SUBS!', category: 'Fortnite' },
-  { id: 'shroud', name: 'shroud', title: 'Playing everything', category: 'Valorant' },
-  { id: 'riotgames', name: 'Riot Games', title: 'LEC Spring Split', category: 'League of Legends' },
-  { id: 'tarik', name: 'tarik', title: 'VCT Watchparty!', category: 'Valorant' },
-  { id: 'hasanabi', name: 'HasanAbi', title: 'News & Politics', category: 'Just Chatting' },
-  { id: 'buddha', name: 'buddha', title: 'NoPixel GTA RP', category: 'GTA V' },
-  { id: 'sykkuno', name: 'Sykkuno', title: 'GTA Heists', category: 'GTA V' },
-  { id: 'zerkaa', name: 'Zerkaa', title: 'Mandem RP', category: 'GTA V' },
-  { id: 'pokimane', name: 'pokimane', title: 'Just Chatting & Games', category: 'Just Chatting' },
-  { id: 'asmongold', name: 'Asmongold', title: 'MMO Grinding', category: 'World of Warcraft' },
-  { id: 'summit1g', name: 'summit1g', title: 'Racing & chill', category: 'DayZ' },
-  { id: 'esl_csgo', name: 'ESL_CSGO', title: 'Pro League Season 20', category: 'Counter-Strike 2' },
-  { id: 'tenz', name: 'TenZ', title: 'Ranked Valorant', category: 'Valorant' },
-  { id: 's1mple', name: 's1mple', title: 'CS Ranked', category: 'Counter-Strike 2' },
-  { id: 'pestily', name: 'Pestily', title: 'Tarkov Raids', category: 'Escape from Tarkov' },
-  { id: 'lvndmark', name: 'LVNDMARK', title: 'Full Stash Runs', category: 'Escape from Tarkov' },
-  { id: 'amouranth', name: 'amouranth', title: 'ASMR & more', category: 'Just Chatting' },
-  { id: 'mizkif', name: 'mizkif', title: 'Iron Forge Gym', category: 'Just Chatting' },
-  { id: 'lirik', name: 'Lirik', title: 'Variety Sunday', category: 'Variety' },
-  { id: 'cohhcarnage', name: 'CohhCarnage', title: 'Full Playthrough', category: 'Variety' },
-  { id: 'chess', name: 'Chess', title: 'Grandmaster Tournaments', category: 'Chess' },
-  { id: 'gothamchess', name: 'GothamChess', title: 'Guess The Move', category: 'Chess' },
-  { id: 'rocketleague', name: 'Rocket League', title: 'RLCS Major', category: 'Rocket League' },
-  { id: 'overwatchleague', name: 'overwatchleague', title: 'Live Matches', category: 'Overwatch 2' },
-  { id: 'valorant', name: 'valorant', title: 'Champions Tour', category: 'Valorant' },
-  { id: 'callofduty', name: 'callofduty', title: 'CDL Matches', category: 'Call of Duty' },
-  { id: 'bethesda', name: 'bethesda', title: 'Developer Showcase', category: 'Gaming' },
-  { id: 'nintendo', name: 'nintendo', title: 'Direct Mini', category: 'Gaming' },
-  { id: 'xbox', name: 'xbox', title: 'Game Pass Showcase', category: 'Gaming' },
-  { id: 'playstation', name: 'playstation', title: 'State of Play', category: 'Gaming' },
-  { id: 'gamesdonequick', name: 'gamesdonequick', title: 'SGDQ 2024', category: 'Speedrunning' },
-  { id: 'monstercat', name: 'monstercat', title: '24/7 Music', category: 'Music' },
-  { id: 'chillhop', name: 'chillhop', title: 'Lofi hip hop radio', category: 'Music' },
-  { id: 'ludwig', name: 'ludwig', title: 'Mogul Moves', category: 'YouTube/Twitch' },
-  { id: 'nickmercs', name: 'nickmercs', title: 'Apex Predator Grinding', category: 'Apex Legends' },
-  { id: 'timthetatman', name: 'timthetatman', title: 'Warzone Wins', category: 'Call of Duty' },
-  { id: 'tfue', name: 'tfue', title: 'Zero Build Fortnite', category: 'Fortnite' },
-  { id: 'sodapoppin', name: 'sodapoppin', title: 'Variety degenerate', category: 'Variety' },
-  { id: 'kyedae', name: 'kyedae', title: 'Val with friends', category: 'Valorant' },
-  { id: 'otzdarva', name: 'otzdarva', title: 'Trapper main', category: 'Dead by Daylight' },
-  { id: 'sacriel', name: 'sacriel', title: 'Tactical Tarkov', category: 'Escape from Tarkov' },
-  { id: 'jerma985', name: 'jerma985', title: 'Dollhouse Stream', category: 'Variety' },
-  { id: 'criticalrole', name: 'criticalrole', title: 'Campaign 3', category: 'D&D' }
+  { id: 'xqc', name: 'xQc', title: 'Reacting to Daily Dose of Internet', category: 'Just Chatting' },
+  { id: 'kaicenat', name: 'KaiCenat', title: 'MAFIATHON 2.0 - 24/7 LIVE', category: 'Just Chatting' },
+  { id: 'ibai', name: 'ibai', title: 'KINGS LEAGUE MUNDIAL!', category: 'Sports' },
+  { id: 'auronplay', name: 'auronplay', title: 'Hablando un poco', category: 'Just Chatting' },
+  { id: 'gaules', name: 'gaules', title: 'MAJOR CS coverage - Gaules TV', category: 'Counter-Strike 2' },
+  { id: 'ninja', name: 'Ninja', title: 'Fortnite OG Season is back!', category: 'Fortnite' },
+  { id: 'shroud', name: 'shroud', title: 'Playing everything new', category: 'Gaming' },
+  { id: 'riotgames', name: 'Riot Games', title: 'LEC Spring Split Playoffs', category: 'Esports' },
+  { id: 'tarik', name: 'tarik', title: 'VCT Watchparty w/ friends', category: 'Valorant' },
+  { id: 'hasanabi', name: 'HasanAbi', title: 'News, Politics & Culture', category: 'Just Chatting' },
+  { id: 'pokimane', name: 'pokimane', title: 'Cozy gaming & chat', category: 'Just Chatting' },
+  { id: 'asmongold', name: 'Asmongold', title: 'The state of gaming in 2024', category: 'Just Chatting' },
+  { id: 'chess', name: 'Chess', title: 'Champions Chess Tour', category: 'Gaming' },
+  { id: 'monstercat', name: 'monstercat', title: '24/7 Music Radio', category: 'Music' },
+  { id: 'chillhop', name: 'chillhop', title: 'Lofi hip hop radio - beats to relax/study to', category: 'Music' },
+  { id: 'ludwig', name: 'ludwig', title: 'The Biggest Event of the Year', category: 'Just Chatting' },
+  { id: 'sypherpk', name: 'SypherPK', title: 'Fortnite Fashion Show!', category: 'Fortnite' },
+  { id: 'clix', name: 'Clix', title: 'FNCS Finals Day 2', category: 'Fortnite' },
+  { id: 'valkyrae', name: 'Valkyrae', title: 'Among Us with Friends!', category: 'Gaming' },
+  { id: 'disguisedtoast', name: 'DisguisedToast', title: 'Team DSG Watchparty', category: 'Esports' },
+  { id: 'lilypichu', name: 'LilyPichu', title: 'Art & Piano', category: 'Art' },
+  { id: 'tenz', name: 'TenZ', title: 'Aim Lab then Ranked', category: 'Valorant' },
+  { id: 's1mple', name: 's1mple', title: 'CS2 Pro Grind', category: 'Counter-Strike 2' },
+  { id: 'esl_csgo', name: 'ESL_CSGO', title: 'Pro League Season 20', category: 'Esports' },
+  { id: 'bobross', name: 'BobRoss', title: 'The Joy of Painting', category: 'Art' },
+  { id: 'beyondthesummit', name: 'BeyondTheSummit', title: 'Dota 2 Pro Circuit', category: 'Esports' },
+  { id: 'rocketleague', name: 'RocketLeague', title: 'RLCS Major Finals', category: 'Esports' },
+  { id: 'speedrun', name: 'Speedrun', title: 'GDQ Any% Runs', category: 'Esports' },
+  { id: 'marcrebillet', name: 'MarcRebillet', title: 'Improv Live Session', category: 'Music' },
+  { id: 'deadmau5', name: 'deadmau5', title: 'Studio Session', category: 'Music' }
 ].map(c => ({
   ...c,
-  // Official Twitch preview template (shows actual live frame)
   thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${c.id.toLowerCase()}-440x248.jpg`
 }));
 
-app.get('/api/twitch/top', (req, res) => {
-  res.json(SIMULATED_TWITCH_CHANNELS.slice(0, 50));
+async function getLiveTwitchStreams() {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const token = process.env.TWITCH_ACCESS_TOKEN;
+  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/streams?first=40', {
+      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+    });
+    if (!r.ok) return null;
+    const { data } = await r.json();
+    return data.map(s => ({
+      id: s.user_login,
+      name: s.user_name,
+      title: s.title,
+      category: s.game_name,
+      thumbnail: s.thumbnail_url.replace('{width}', '440').replace('{height}', '248')
+    }));
+  } catch (err) {
+    console.error('Twitch API error:', err);
+    return null;
+  }
+}
+
+async function searchTwitchChannels(query) {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const token = process.env.TWITCH_ACCESS_TOKEN;
+  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+
+  try {
+    const r = await fetch(`https://api.twitch.tv/helix/search/channels?query=${encodeURIComponent(query)}&first=20`, {
+      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+    });
+    if (!r.ok) return null;
+    const { data } = await r.json();
+    return data.map(c => ({
+      id: c.broadcaster_login,
+      name: c.display_name,
+      title: c.title,
+      category: c.game_name,
+      thumbnail: c.thumbnail_url.replace('{width}', '440').replace('{height}', '248'),
+      isLive: c.is_live
+    }));
+  } catch (err) {
+    console.error('Twitch Search error:', err);
+    return null;
+  }
+}
+
+app.get('/api/twitch/top', async (req, res) => {
+  const live = await getLiveTwitchStreams();
+  res.json(live || SIMULATED_TWITCH_CHANNELS);
+});
+
+app.get('/api/twitch/search', async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.json([]);
+
+  const live = await searchTwitchChannels(q);
+  if (live) return res.json(live);
+
+  const query = q.toLowerCase();
+  const matches = SIMULATED_TWITCH_CHANNELS.filter(c => 
+    c.id.toLowerCase().includes(query) || 
+    c.name.toLowerCase().includes(query) ||
+    c.title.toLowerCase().includes(query) ||
+    c.category.toLowerCase().includes(query)
+  );
+  if (matches.length > 0) return res.json(matches);
+  
+  res.json([{
+    id: q.replace(/\s+/g, ''),
+    name: q,
+    title: 'Watch Live Content',
+    category: 'Twitch Search',
+    thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${q.replace(/\s+/g, '').toLowerCase()}-440x248.jpg`
+  }]);
 });
 
 // --- Vimeo Discovery (Simulated Staff Picks) ---
 const SIMULATED_VIMEO_VIDEOS = [
   { id: '118671603', name: 'The Last Knit', title: 'Award Winning Animation', category: 'Animation' },
   { id: '119421832', name: 'Alike', title: 'Emotional Story of Life', category: 'Creative' },
-  { id: '221532151', name: 'The Present', title: 'A Boy and a Gift', category: 'Storytelling' },
+  { id: '221532151', name: 'The Present', title: 'A Boy and a Gift', category: 'Cinema' },
   { id: '269661571', name: 'In a Heartbeat', title: 'Animated Short Film', category: 'Animation' },
   { id: '231791807', name: 'The Maker', title: 'Stop Motion Masterpiece', category: 'Arts' },
   { id: '8354924', name: 'Falling', title: 'Cinematography Showcase', category: 'Cinema' },
   { id: '7127490', name: 'Mortimer', title: 'Short Film Selection', category: 'Experimental' },
-  { id: '27246366', name: 'The Elephant\'s Garden', title: 'Surreal Visual Voyage', category: 'Psychedelic' },
-  { id: '2475184', name: 'Address Is Approximate', title: 'Google Maps Journey', category: 'Travel' },
-  { id: '22439234', name: 'Symmetry', title: 'The Beauty of Math', category: 'Science' }
+  { id: '27246366', name: 'The Elephant\'s Garden', title: 'Surreal Visual Voyage', category: 'Experimental' },
+  { id: '2475184', name: 'Address Is Approximate', title: 'Google Maps Journey', category: 'Creative' },
+  { id: '22439234', name: 'Symmetry', title: 'The Beauty of Math', category: 'Arts' },
+  { id: '137885456', name: 'The Old Man and the Sea', title: 'Classic Animation', category: 'Animation' },
+  { id: '10829255', name: 'Pioneer', title: 'Historical Drama', category: 'Cinema' },
+  { id: '22439234', name: 'Oscillation', title: 'Visual Physics', category: 'Experimental' }
 ].map(v => ({
   ...v,
   thumbnail: `https://vumbnail.com/${v.id}.jpg`
@@ -441,68 +549,119 @@ app.post('/api/signup', async (req, res) => {
     return res.status(400).json({ error: 'Username, email, and password are required' });
   }
   const username = rawUsername.toLowerCase();
-  const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Detect country from IP
-  let detectedCountry = null;
   try {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    const cleanIp = ip.replace('::ffff:', '');
-    // Use a free IP geolocation API
-    const geoRes = await fetch(`http://ip-api.com/json/${cleanIp === '127.0.0.1' || cleanIp === '::1' ? '' : cleanIp}?fields=country,countryCode`);
-    const geoData = await geoRes.json();
-    if (geoData && geoData.country) detectedCountry = geoData.country;
-  } catch (e) { /* silent */ }
-  
-  // Automatically verify the user in "mock setup" mode
-  db.run('INSERT INTO users (username, email, password, isVerified, country) VALUES (?, ?, ?, 1, ?)', 
-    [username, email, hashedPassword, detectedCountry], 
-    function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(400).json({ error: 'Username or email already exists' });
-        }
-        return res.status(500).json({ error: 'Database error' });
-      }
-      
-      // Return a short-lived token so the client can immediately call /api/auth/setup-keys
-      const setupToken = jwt.sign({ id: this.lastID, username }, JWT_SECRET, { expiresIn: '10m' });
-      return res.json({ message: 'User created and auto-verified successfully! You can now log in.', token: setupToken });
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Detect country from IP
+    let detectedCountry = null;
+    try {
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const cleanIp = ip.replace('::ffff:', '');
+      const geoRes = await fetch(`http://ip-api.com/json/${cleanIp === '127.0.0.1' || cleanIp === '::1' ? '' : cleanIp}?fields=country,countryCode`);
+      const geoData = await geoRes.json();
+      if (geoData && geoData.country) detectedCountry = geoData.country;
+    } catch (e) { /* silent */ }
+
+    // Generate secure verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    const result = await pool.query(
+      'INSERT INTO users (username, email, password, "isVerified", "verificationToken", country) VALUES ($1, $2, $3, 0, $4, $5) RETURNING id',
+      [username, email, hashedPassword, verificationToken, detectedCountry]
+    );
+    const newUserId = result.rows[0].id;
+
+    // Return a short-lived token so the client can immediately call /api/auth/setup-keys
+    const setupToken = jwt.sign({ id: newUserId, username }, JWT_SECRET, { expiresIn: '10m' });
+
+    // Send Verification Email
+    const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
+    const verifyHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>Verify Your Email</title></head>
+      <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
+          <tr><td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+              <tr>
+                <td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:40px;text-align:center;">
+                  <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">&#9654; SahaPlay</div>
+                  <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:15px;">Verify your email address</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:48px 40px;">
+                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome, ${rawUsername}!</h1>
+                  <p style="color:#a0a0c0;font-size:15px;line-height:1.75;margin:0 0 24px;">
+                    You've signed up for SahaPlay using this email address. Please verify your email to activate your account and start watching with friends.
+                  </p>
+                  <div style="text-align:center;margin:0 0 32px;">
+                    <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Verify Email Address</a>
+                  </div>
+                  <p style="color:#6b6b8a;font-size:13px;line-height:1.6;margin:0;">
+                    If you didn't create this account, please ignore this email.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+    sendEmail({
+      to: email,
+      subject: `Verify your SahaPlay account`,
+      text: `Hi ${rawUsername},\n\nPlease verify your email by clicking: ${verifyLink}\n\nThe SahaPlay Team`,
+      html: verifyHtml,
+    });
+
+    return res.json({ message: 'Account created! Please check your email to verify your account.', token: setupToken });
+
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Username or email already exists' });
     }
-  );
+    console.error('[signup] Error:', err);
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
 });
 
-app.get('/api/verify', (req, res) => {
+app.get('/api/verify', async (req, res) => {
   const { token } = req.query;
   if (!token) return res.status(400).json({ error: 'Token is required' });
 
-  db.get('SELECT * FROM users WHERE verificationToken = ?', [token], (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE "verificationToken" = $1', [token]);
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' });
 
-    db.run('UPDATE users SET isVerified = 1, verificationToken = NULL WHERE id = ?', [user.id], (updateErr) => {
-      if (updateErr) return res.status(500).json({ error: 'Failed to verify user' });
-      res.json({ message: 'Email successfully verified. You can now login.' });
-    });
-  });
+    const user = result.rows[0];
+    await pool.query('UPDATE users SET "isVerified" = 1, "verificationToken" = NULL WHERE id = $1', [user.id]);
+    
+    res.json({ message: 'Email successfully verified. You can now login.' });
+  } catch (err) {
+    console.error('[verify] Error:', err);
+    res.status(500).json({ error: 'Database error during verification' });
+  }
 });
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { username: rawUsername, password } = req.body;
   const username = rawUsername ? rawUsername.toLowerCase() : '';
-  console.log('[LOGIN] Request received for:', username);
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  db.get('SELECT * FROM users WHERE username = ? OR email = ?', [username, username], async (err, user) => {
-    console.log('[LOGIN] DB callback fired. err:', err?.message, 'user found:', !!user);
-    if (err) { console.error('[LOGIN] DB Error:', err); return res.status(500).json({ error: 'Database error' }); }
-    if (!user) return res.status(400).json({ error: 'Invalid credentials' });
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE username = $1 OR email = $1', [username]);
+    if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
     
-    console.log('[LOGIN] isVerified:', user.isVerified, 'type:', typeof user.isVerified);
+    const user = result.rows[0];
+    
     if (user.isVerified === 0) {
-      return res.status(403).json({ error: 'Please verify your email address before logging in.' });
+      return res.status(403).json({ error: 'Account not verified. Please check your email to verify your account before logging in.' });
     }
     
     // If the user originated from Google, they might not have a password
@@ -510,14 +669,11 @@ app.post('/api/login', (req, res) => {
        return res.status(400).json({ error: 'Please sign in with Google' });
     }
 
-    console.log('[LOGIN] Comparing password...');
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('[LOGIN] Password match:', isValidPassword);
     if (!isValidPassword) return res.status(400).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    console.log('[LOGIN] Success! Sending token.');
-    // Return E2EE key blobs so client can decrypt private key in-browser
+    
     res.json({
       message: 'Login successful',
       token,
@@ -525,7 +681,10 @@ app.post('/api/login', (req, res) => {
       encryptedPrivateKey: user.encryptedPrivateKey || null,
       publicKey: user.publicKey || null
     });
-  });
+  } catch (err) {
+    console.error('[LOGIN] DB Error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 app.post('/api/auth/google', async (req, res) => {
@@ -544,33 +703,80 @@ app.post('/api/auth/google', async (req, res) => {
     const { email, name } = payload;
     
     // Check if user exists
-    db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      
-      if (user) {
-        // User exists, log them in
-        const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-        return res.json({ message: 'Login successful', token, username: user.username });
-      } else {
-        // User does not exist, create them
-        // We set password to null since they use Google
-        // We set isVerified to 1 since Google already verified the email
-        // We make sure the username is somewhat unique if they happen to clash
-        const baseUsername = name.replace(/\s+/g, '').toLowerCase();
-        const randSuffix = Math.floor(Math.random() * 10000);
-        const finalUsername = `${baseUsername}${randSuffix}`;
-        
-        db.run('INSERT INTO users (username, email, password, isVerified) VALUES (?, ?, NULL, 1)', 
-          [finalUsername, email], 
-          function(insertErr) {
-            if (insertErr) return res.status(500).json({ error: 'Failed to create Google user' });
-            
-            const token = jwt.sign({ id: this.lastID, username: finalUsername }, JWT_SECRET, { expiresIn: '30d' });
-            return res.json({ message: 'Signup successful', token, username: finalUsername });
-          }
-        );
+    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    if (existingUser.rows.length > 0) {
+      const user = existingUser.rows[0];
+      if (user.isVerified === 0) {
+        return res.status(403).json({ error: 'Account not verified. Please check your email to verify your account.' });
       }
-    });
+      const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+      return res.json({ message: 'Login successful', token, username: user.username });
+    } else {
+      // User does not exist, create them
+      const baseUsername = (name || 'user').replace(/\s+/g, '').toLowerCase();
+      const randSuffix = Math.floor(Math.random() * 10000);
+      const finalUsername = `${baseUsername}${randSuffix}`;
+      
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+
+      const insertResult = await pool.query(
+        'INSERT INTO users (username, email, password, "isVerified", "verificationToken") VALUES ($1, $2, NULL, 0, $3) RETURNING id',
+        [finalUsername, email, verificationToken]
+      );
+      
+      const newId = insertResult.rows[0]?.id;
+      // Setup token for keys
+      const token = jwt.sign({ id: newId, username: finalUsername }, JWT_SECRET, { expiresIn: '10m' });
+
+      // Send verification email to new Google user
+      const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
+      const verifyHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="utf-8"><title>Verify Your Email</title></head>
+        <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
+            <tr><td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                <tr>
+                  <td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:40px;text-align:center;">
+                    <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">&#9654; SahaPlay</div>
+                    <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:15px;">Verify your email address</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:48px 40px;">
+                    <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome, ${finalUsername}!</h1>
+                    <p style="color:#a0a0c0;font-size:15px;line-height:1.75;margin:0 0 24px;">
+                      You've signed up for SahaPlay using Google. Please verify your email to activate your account and start watching with friends.
+                    </p>
+                    <div style="text-align:center;margin:0 0 32px;">
+                      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Verify Email Address</a>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#13132a;padding:24px 40px;text-align:center;">
+                    <p style="color:#4a4a6a;font-size:12px;margin:0;">© 2026 SahaPlay · All rights reserved</p>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+        </body>
+        </html>
+      `;
+
+      sendEmail({
+        to: email,
+        subject: 'Verify your SahaPlay account',
+        text: `Hi ${finalUsername},\n\nPlease verify your email by clicking: ${verifyLink}\n\nThe SahaPlay Team`,
+        html: verifyHtml
+      });
+
+      return res.json({ message: 'Signup successful', token, username: finalUsername });
+    }
 
   } catch (error) {
     console.error('Google Auth Error:', error);
@@ -578,78 +784,154 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-app.post('/api/forgot-password', (req, res) => {
+app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email or username is required' });
 
-  // Accept either email OR username lookup
-  db.get('SELECT * FROM users WHERE email = ? OR username = ?', [email, email], (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    
-    // If user doesn't exist or uses Google OAuth (null password), return generic success to prevent email enumeration
-    if (!user || !user.password) {
+  try {
+    // Accept either email OR username lookup — use pool.query directly
+    const result = await pool.query(
+      'SELECT * FROM users WHERE email = $1 OR LOWER(username) = LOWER($2)',
+      [email, email]
+    );
+    const user = result.rows[0];
+
+    // If user doesn't exist, return generic success (prevent email enumeration)
+    if (!user) {
       return res.json({ message: 'If an account matches that email, a password reset link has been sent.' });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetExpiry = Date.now() + 3600000; // 1 hour from now
+    const resetExpiry = Date.now() + 600000; // 10 minutes from now
 
-    db.run('UPDATE users SET resetToken = ?, resetTokenExpiry = ? WHERE id = ?', [resetToken, resetExpiry, user.id], async (updateErr) => {
-      if (updateErr) return res.status(500).json({ error: 'Failed to generate reset token' });
+    // Update reset token in DB using pool.query directly (proper PostgreSQL)
+    await pool.query(
+      'UPDATE users SET "resetToken" = $1, "resetTokenExpiry" = $2 WHERE id = $3',
+      [resetToken, resetExpiry, user.id]
+    );
 
-      // --- DEV MODE: Return direct reset link so no email service needed ---
-      const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-      console.log(`[RESET] Password reset link for @${user.username}: ${resetLink}`);
+    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+    console.log(`[RESET] Password reset link for @${user.username}: ${resetLink}`);
 
-      // Attempt Ethereal email (non-blocking — always return resetLink)
-      try {
-        let testAccount = await nodemailer.createTestAccount();
-        let transporter = nodemailer.createTransport({
-          host: "smtp.ethereal.email",
-          port: 587,
-          secure: false,
-          auth: { user: testAccount.user, pass: testAccount.pass },
-        });
-        let info = await transporter.sendMail({
-          from: '"Watch Together App" <noreply@watchtogether.local>',
-          to: user.email,
-          subject: "Password Reset Request",
-          text: `Reset your password: ${resetLink}`,
-          html: `<p>You requested a password reset.</p><p><a href="${resetLink}">Click here to reset your password</a></p><p>This link expires in 1 hour.</p>`,
-        });
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        return res.json({ message: 'Password reset link generated!', resetLink, previewUrl });
-      } catch (emailErr) {
-        console.error('[RESET] Ethereal email failed (ignored):', emailErr.message);
-        // Always succeed — return direct link even if Ethereal fails
-        return res.json({ message: 'Password reset link generated!', resetLink });
+    // Send real email via Gmail SMTP
+    const resetHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><title>Reset Your Password</title></head>
+      <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
+          <tr><td align="center">
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+              <tr>
+                <td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:40px;text-align:center;">
+                  <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">▶ SahaPlay</div>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">Watch Together. Anywhere.</p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:48px 40px;">
+                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Reset Your Password</h1>
+                  <p style="color:#a0a0c0;font-size:15px;line-height:1.7;margin:0 0 32px;">
+                    We received a request to reset the password for your SahaPlay account associated with <strong style="color:#c4b5fd;">${user.email}</strong>.
+                    Click the button below to create a new password. This link expires in <strong style="color:#fff;">10 minutes</strong>.
+                  </p>
+                  <div style="text-align:center;margin:0 0 32px;">
+                    <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Reset My Password</a>
+                  </div>
+                  <p style="color:#6b6b8a;font-size:13px;line-height:1.6;margin:0;">
+                    If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.
+                  </p>
+                  <hr style="border:none;border-top:1px solid #2a2a4a;margin:32px 0;">
+                  <p style="color:#6b6b8a;font-size:12px;margin:0;">
+                    Or copy and paste this link in your browser:<br>
+                    <a href="${resetLink}" style="color:#7c3aed;word-break:break-all;">${resetLink}</a>
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="background:#13132a;padding:24px 40px;text-align:center;">
+                  <p style="color:#4a4a6a;font-size:12px;margin:0;">© 2026 SahaPlay · All rights reserved</p>
+                </td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Reset your SahaPlay password',
+      text: `Hello ${user.username},\n\nYou requested a password reset for your SahaPlay account.\n\nClick this link to reset your password (expires in 10 minutes):\n${resetLink}\n\nIf you did not request this, please ignore this email.\n\nThanks,\nThe SahaPlay Team`,
+      html: resetHtml,
+      headers: {
+        'X-Priority': '3',
+        'X-Mailer': 'SahaPlay Mailer',
+        'List-Unsubscribe': `<mailto:${process.env.GMAIL_USER}>`,
       }
     });
-  });
+
+    return res.json({ message: 'Password reset link sent to your email!' });
+
+  } catch (err) {
+    console.error('[forgot-password] Error:', err);
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
 });
 
-app.post('/api/reset-password', (req, res) => {
-  const { token, newPassword } = req.body;
+app.post('/api/reset-password', async (req, res) => {
+  const { token, newPassword, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
 
-  db.get('SELECT * FROM users WHERE resetToken = ?', [token], async (err, user) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
+  try {
+    // Look up user by reset token
+    const result = await pool.query(
+      'SELECT * FROM users WHERE "resetToken" = $1',
+      [token]
+    );
+    const user = result.rows[0];
+
     if (!user) return res.status(400).json({ error: 'Invalid or expired reset token' });
-    
-    if (Date.now() > user.resetTokenExpiry) {
-      return res.status(400).json({ error: 'Reset token has expired' });
+
+    if (Date.now() > Number(user.resetTokenExpiry)) {
+      return res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    db.run('UPDATE users SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?', [hashedPassword, user.id], (updateErr) => {
-      if (updateErr) return res.status(500).json({ error: 'Failed to reset password' });
-      // Return a short-lived token so ResetPassword.jsx can call /api/auth/rekey immediately
-      const rekeyToken = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '10m' });
-      res.json({ message: 'Password has been successfully reset. You can now login.', token: rekeyToken });
-    });
-  });
+    // Update password and clear token
+    if (publicKey && encryptedPrivateKey && recoveryKeyHash) {
+      await pool.query(
+        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = $2, "encryptedPrivateKey" = $3, "recoveryKeyHash" = $4 WHERE id = $5',
+        [hashedPassword, publicKey, encryptedPrivateKey, recoveryKeyHash, user.id]
+      );
+    } else {
+      await pool.query(
+        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL WHERE id = $2',
+        [hashedPassword, user.id]
+      );
+
+      // The user failed to provide a recovery key. As requested, clear all their messages to ensure safety and start fresh.
+      await pool.query(
+        'DELETE FROM messages WHERE "senderName" = $1 OR "targetName" = $1',
+        [user.username]
+      );
+    }
+
+    console.log(`[RESET] Password successfully reset for @${user.username}`);
+
+    // Return a short-lived token so ResetPassword.jsx can call /api/auth/rekey immediately
+    const rekeyToken = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '10m' });
+    return res.json({ message: 'Password has been successfully reset. You can now login.', token: rekeyToken });
+
+  } catch (err) {
+    console.error('[reset-password] Error:', err);
+    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
 });
+
+
 
 // ─── E2EE Key Management Endpoints ──────────────────────────────────────────
 
@@ -922,6 +1204,7 @@ function authenticateToken(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Token required' });
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
+    if (!user || !user.username) return res.status(403).json({ error: 'Invalid token payload' });
     // Normalize username to lowercase to ensure database joins work correctly
     req.user = { ...user, username: user.username.toLowerCase() };
     next();
@@ -987,9 +1270,22 @@ const queryGet = (sql, params) => new Promise((resolve, reject) => db.get(sql, p
 
 app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) => {
   try {
+    if (req.user.id === 0 || req.user.isGuest) {
+      // Return a generic guest profile for TV/Guest sessions
+      return res.json({
+        id: 0,
+        username: req.user.username,
+        displayName: 'Guest User',
+        avatarPath: null,
+        bio: 'Viewing via Cast',
+        followersCount: 0,
+        followingCount: 0,
+        isGuest: true
+      });
+    }
+
     const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, pinnedRooms FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
-
     const [followersRow, followingRow] = await Promise.all([
       queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
       queryGet('SELECT COUNT(*) as count FROM follows WHERE followerId = ? AND status = ?', [user.username, 'accepted'])
@@ -1575,18 +1871,22 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const roomRow = await queryGet('SELECT hostUsername, permissions FROM room_names WHERE roomId = ?', [partner]);
       if (roomRow) {
         const perms = roomRow.permissions ? JSON.parse(roomRow.permissions) : {};
-        const isHost = roomRow.hostUsername && roomRow.hostUsername.toLowerCase() === username.toLowerCase();
+        // Admins have the same send privileges as the host.
+        // Use in-memory room.admins Set (the authoritative source) rather than room.users[].isAdmin
+        const memRoom = rooms.get(partner.toLowerCase());
+        // isUserAdmin robustly checks for BOTH host (by case-insensitive username) AND admins.
+        const isRoomAdminOrHost = memRoom ? isUserAdmin(memRoom, { username }) : (roomRow.hostUsername && roomRow.hostUsername.toLowerCase() === username.toLowerCase());
 
-        if (perms.chat === 'host' && !isHost) {
+        if (perms.chat === 'host' && !isRoomAdminOrHost) {
           return res.status(400).json({ error: 'Only the host can send messages in this room.' });
         }
 
         const hasLink = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g.test(actualMessage);
-        if (hasLink && perms.allowLinks === false && !isHost) {
+        if (hasLink && perms.allowLinks === false && !isRoomAdminOrHost) {
           return res.status(400).json({ error: 'Links are not allowed in this room.' });
         }
 
-        if (mediaUrl && perms.allowMedia === false && !isHost) {
+        if (mediaUrl && perms.allowMedia === false && !isRoomAdminOrHost) {
           return res.status(400).json({ error: 'Media uploads are not allowed in this room.' });
         }
       }
@@ -2004,6 +2304,19 @@ app.post('/api/profile/change-password', authenticateToken, async (req, res) => 
 
 // â”€â”€ GET App Settings â”€â”€
 app.get('/api/settings', authenticateToken, (req, res) => {
+  if (req.user.id === 0 || req.user.isGuest) {
+    return res.json({
+      language: 'en',
+      country: 'US',
+      showCountry: true,
+      notifyApp: true,
+      notifyJoin: true,
+      notifyMessages: true,
+      notifyFriendRequests: true,
+      notifyLeave: true,
+      notifyJoinRequests: true
+    });
+  }
   db.get('SELECT language, country, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
@@ -2209,14 +2522,31 @@ app.get('/api/rooms/public', (req, res) => {
 });
 
 function buildUserList(room) {
-  return room.users.map(u => ({
-    socketId: u.socketId,
-    username: u.username,
-    isMuted: u.isMuted || room.mutedUsers.has(u.username),
-    isHost: u.socketId === room.hostId,
-    publicKey: room.publicKeys?.[u.socketId] || u.publicKey || null,
-    avatarPath: u.avatarPath || null
-  }));
+  // Collect usernames that are currently pending approval so we can exclude them
+  // from the active member list. This handles the case where a user was in the room
+  // before it was locked and their old socket entry is still in room.users.
+  const pendingUsernames = new Set();
+  if (room.pendingJoins) {
+    room.pendingJoins.forEach(pending => {
+      if (pending.username) pendingUsernames.add(pending.username.toLowerCase());
+    });
+  }
+
+  return room.users
+    .filter(u => !pendingUsernames.has((u.username || '').toLowerCase()))
+    .map(u => {
+      const isModeratorMuted = room.mutedUsers.has(u.username);
+      return {
+        socketId: u.socketId,
+        username: u.username,
+        isMuted: !!(u.isMuted || isModeratorMuted),
+        isModMuted: isModeratorMuted,
+        isHost: u.socketId === room.hostId,
+        isAdmin: isUserAdmin(room, u),
+        publicKey: room.publicKeys?.[u.socketId] || u.publicKey || null,
+        avatarPath: u.avatarPath || null
+      };
+    });
 }
 
 function getSerializableRoom(room) {
@@ -2230,6 +2560,7 @@ function getSerializableRoom(room) {
     isPublic: !!room.isPublic,
     category: room.category || 'other',
     thumbnailPath: room.thumbnailPath || null,
+    uiState: room.uiState || { camPositions: {}, camSizes: {}, circleCams: [] },
     permissions: room.permissions || {},
     settings: room.settings || {},
     bannedUsers: Array.from(room.bannedUsers || []),
@@ -2240,16 +2571,31 @@ function getSerializableRoom(room) {
 }
 
 // Helper to check if a user has admin privileges in a room
-function isUserAdmin(room, socket) {
-  if (!room || !socket) return false;
-  // Host is always admin
-  const isHost = (room.hostId === socket.id) || 
-                 (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+function isUserAdmin(room, userOrSocket) {
+  if (!room || !userOrSocket) return false;
+  
+  // Normalized identifiers
+  const socketId = userOrSocket.socketId || userOrSocket.id;
+  const username = userOrSocket.username;
+
+  // 1. Host is always admin
+  const isHost = (room.hostId === socketId) || 
+                 (room.hostUsername && username && room.hostUsername.toLowerCase() === username.toLowerCase());
   if (isHost) return true;
   
-  // If "Auto-Admin Members" is on, any registered user is admin
-  // Guests (Anonymous) are NEVER auto-admins
-  if (room.settings?.newMembersAdmins && socket.username && socket.username !== 'Anonymous' && !socket.username.toLowerCase().startsWith('guest_')) {
+  // 2. Manual Admin check
+  if (room.admins && username && room.admins.has(username.toLowerCase())) {
+    return true;
+  }
+
+  // 3. Auto-Admin logic (Applies to all users if setting is enabled)
+  // Check if they are explicitly denied first
+  if (room.deniedAdmins && username && room.deniedAdmins.has(username.toLowerCase())) {
+    return false;
+  }
+
+  const isAutoAdminEnabled = room.settings?.newMembersAdmins === true || room.settings?.newMembersAdmins === 'true';
+  if (isAutoAdminEnabled && username) {
     return true;
   }
   
@@ -2282,13 +2628,86 @@ function isNSFWUrl(url) {
   return isKeywordMatch || isDomainMatch;
 }
 
+// --- TV Pairing State ---
+const activePairingCodes = new Map();
+
+function generatePairingCode() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code;
+  do {
+    code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+  } while (activePairingCodes.has(code));
+  return code;
+}
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
 
+  // ─── TV Pairing Logic ───
+  socket.on('request_tv_code', (data) => {
+    const code = generatePairingCode();
+    activePairingCodes.set(code, { socketId: socket.id, generatedAt: Date.now(), username: data?.username || 'Smart TV' });
+    
+    setTimeout(() => {
+      if (activePairingCodes.get(code)?.socketId === socket.id) {
+        activePairingCodes.delete(code);
+        socket.emit('tv_code_expired');
+      }
+    }, 10 * 60 * 1000);
+
+    socket.emit('tv_code_generated', { code });
+  });
+
+  socket.on('link_tv_code', ({ code, roomId }) => {
+    if (!socket.username || !roomId) {
+      socket.emit('error_notification', 'You must be logged in and in a room to link a TV.');
+      return;
+    }
+
+    const normalizedCode = (code || '').toUpperCase();
+    const tvData = activePairingCodes.get(normalizedCode);
+    
+    if (tvData) {
+      const tvSocketId = tvData.socketId;
+      activePairingCodes.delete(normalizedCode);
+      
+      // Auto-approve the TV username so it bypasses the lobby
+      const roomObj = rooms.get(roomId);
+      if (roomObj) {
+        if (!roomObj.approvedUsers) roomObj.approvedUsers = new Set();
+        roomObj.approvedUsers.add(tvData.username.toLowerCase());
+      }
+
+      // Generate a REAL signed guest JWT for the TV so it can authenticate API calls
+      // Use a sanitised username so it works as a valid identifier in the DB layer
+      const tvUsername = (tvData.username || 'smarttv').toLowerCase().replace(/\s+/g, '_');
+      const guestToken = jwt.sign(
+        { id: 0, username: tvUsername, isGuest: true, isTV: true },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      io.to(tvSocketId).emit('tv_linked', { roomId, guestToken, guestUsername: tvUsername });
+      socket.emit('tv_link_success', { message: 'TV linked successfully.' });
+    } else {
+      socket.emit('error_notification', 'Invalid or expired pairing code. Please try again.');
+    }
+  });
+
   socket.on('disconnect', () => {
     unregisterSocket(socket.username, socket.id);
+    
+    // Cleanup any active pairing codes for this socket
+    for (const [code, data] of activePairingCodes.entries()) {
+      if (data.socketId === socket.id) {
+        activePairingCodes.delete(code);
+      }
+    }
   });
 
   // ─── Helper for Finalizing Room Join ───
@@ -2332,9 +2751,12 @@ io.on('connection', (socket) => {
     targetSocket.username = username;
     registerSocket(username, targetSocket.id);
 
+    // Note: approvedUsers is only populated when host explicitly approves via approve_join.
+    // We do NOT auto-approve everyone who joins - that would bypass the lock on re-entry.
+
     if (!roomObj.users.find(u => u.socketId === targetSocket.id)) {
       // Fetch and cache avatarPath for profile picture display in group chat
-      const userEntry = { socketId: targetSocket.id, username, avatarPath: null };
+      const userEntry = { socketId: targetSocket.id, username, avatarPath: null, isMuted: true };
       roomObj.users.push(userEntry);
       if (username && username !== 'Anonymous') {
         db.get('SELECT "avatarPath", "publicKey", "notifyJoinRequests" FROM users WHERE username = ?', [username], (err, row) => {
@@ -2357,7 +2779,7 @@ io.on('connection', (socket) => {
     const isAutoAdmin = roomObj.settings?.newMembersAdmins && !isGuestStr;
     const isRoomHost = (roomObj.hostId === targetSocket.id) || isDbHost;
     if (isAutoAdmin && !isRoomHost) {
-      targetSocket.emit('you_are_now_host');
+      targetSocket.emit('you_are_now_admin');
     }
 
     // Emit initial state
@@ -2369,7 +2791,7 @@ io.on('connection', (socket) => {
     targetSocket.broadcast.to(roomId).emit('user_joined', { 
       socketId: targetSocket.id, 
       username, 
-      isMuted: false, 
+      isMuted: true, 
       isHost: roomObj.hostId === targetSocket.id, 
       publicKey: null,
       avatarPath: roomObj.users.find(u => u.socketId === targetSocket.id)?.avatarPath || null
@@ -2489,7 +2911,7 @@ io.on('connection', (socket) => {
         }
       });
 
-    if (roomObj.screenshareHostId) targetSocket.emit('webrtc_screenshare_started', roomObj.screenshareHostId);
+    if (roomObj.screenshareHostId) targetSocket.emit('webrtc_screenshare_started', { socketId: roomObj.screenshareHostId, app: roomObj.activeExternalApp });
 
     // CRITICAL: Notify everyone in the room about the new participant
     io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
@@ -2555,6 +2977,7 @@ io.on('connection', (socket) => {
         pendingJoins: new Map(), // socketId -> { username, socket }
         approvedSockets: new Set(), // socketId -> approved
         mutedUsers: new Set(), bannedUsers: new Set(),
+        admins: new Set(), deniedAdmins: new Set(),
         groupMessages: [], publicKeys: {},
         roomName: 'Room Chat',
         category: 'other',
@@ -2566,7 +2989,8 @@ io.on('connection', (socket) => {
         },
         settings: { 
           audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player',
-          lockRoom: false, onlyLoggedIn: false, newMembersAdmins: false
+          lockRoom: false, onlyLoggedIn: false, newMembersAdmins: false,
+          ...JSON.parse(row.settings || '{}')
         }
       });
     }
@@ -2580,6 +3004,7 @@ io.on('connection', (socket) => {
           if (row.isPublic !== undefined && row.isPublic !== null) room.isPublic = !!row.isPublic;
           if (row.hostUsername) room.hostUsername = row.hostUsername;
           if (row.category) room.category = row.category;
+          if (row.thumbnailPath) room.thumbnailPath = row.thumbnailPath;
           try { if (row.permissions) room.permissions = JSON.parse(row.permissions); } catch (e) { }
           try { if (row.settings) room.settings = JSON.parse(row.settings); } catch (e) { }
         }
@@ -2597,37 +3022,45 @@ io.on('connection', (socket) => {
     });
 
     Promise.all([loadMetadata, loadBans]).then(() => {
-      // ─── Advanced Security Checks ───
-      // Check if user is the true DB host, or if no DB host exists and they were temporarily assigned.
-      let isActuallyHost = (room.hostId === socket.id) || (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
-      
+      const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+      const isActuallyHost = (room.hostId === socket.id) || (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
+
+      console.log(`[JOIN_TRACE] Security check for ${username}: isActuallyHost=${isActuallyHost}, lockRoom=${room.settings.lockRoom}`);
       if (!isActuallyHost) {
-        const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
         if (room.settings.onlyLoggedIn && isGuestOrLocal) {
+          console.log(`[JOIN_TRACE] Rejected: Members Only`);
           socket.emit('join_rejected', { reason: 'members_only' });
           return;
         }
 
-        if (room.settings.lockRoom && !room.approvedSockets?.has(socket.id)) {
-          room.pendingJoins.set(socket.id, { username, socket });
-          socket.emit('waiting_for_approval');
+        if (room.settings.lockRoom) {
+          const isApproved = (room.approvedUsers && username && username !== 'Anonymous' && room.approvedUsers.has(username.toLowerCase()))
+                          || room.approvedSockets?.has(socket.id);
           
-          db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
-            const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
-            // Notify ALL current room members who are admins (host OR newMembersAdmins users)
-            room.users.forEach(u => {
-              const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
-              const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
-              if (uIsHost || uIsAutoAdmin) {
-                io.to(u.socketId).emit('join_requested', { socketId: socket.id, username, avatarPath });
-              }
+          console.log(`[JOIN_TRACE] Lock check for ${username}: isApproved=${isApproved}`);
+          
+          if (!isApproved) {
+            console.log(`[JOIN_TRACE] Sent waiting_for_approval to ${username}`);
+            room.pendingJoins.set(socket.id, { username, socket });
+            socket.emit('waiting_for_approval');
+
+            // Notify host/admins
+            db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
+              const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
+              room.users.forEach(u => {
+                const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
+                const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
+                if (uIsHost || uIsAutoAdmin) {
+                  io.to(u.socketId).emit('join_requested', { socketId: socket.id, username, avatarPath });
+                }
+              });
             });
-          });
-          return;
+            return;
+          }
         }
       }
 
-      console.log(`[JOIN_FLOW] Verification complete for ${username}, executing join`);
+      console.log(`[JOIN_TRACE] Success! Joining ${username} to ${roomId}`);
       executeFinalJoin(socket, room, roomId, username);
     });
   });
@@ -2662,8 +3095,10 @@ io.on('connection', (socket) => {
     
     // Check Permissions
     const allowChat = room.permissions?.chat || 'all';
-    const isRoomHost = room.hostUsername && socket.username === room.hostUsername;
-    if (allowChat === 'host' && !isRoomHost) {
+    const actualUsername = username || socket.username;
+    // isUserAdmin robustly checks for BOTH host (by socketId and case-insensitive username) AND admins.
+    const isRoomAdminOrHost = isUserAdmin(room, { id: socket.id, username: actualUsername });
+    if (allowChat === 'host' && !isRoomAdminOrHost) {
       socket.emit('error_notification', 'Only the host can send messages in this room.');
       return;
     }
@@ -2673,7 +3108,7 @@ io.on('connection', (socket) => {
     const safeMessage = message || '';
     
     // â”€â”€ Content Filtering â”€â”€
-    if (room.permissions && room.permissions.allowLinks === false) {
+    if (room.permissions && room.permissions.allowLinks === false && !isRoomAdminOrHost) {
        // Match http/https links AND bare domains like google.com, website.in, etc.
        const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
        if (urlRegex.test(safeMessage)) {
@@ -2682,7 +3117,7 @@ io.on('connection', (socket) => {
        }
     }
     
-    if (room.permissions && room.permissions.allowMedia === false) {
+    if (room.permissions && room.permissions.allowMedia === false && !isRoomAdminOrHost) {
        if (mediaUrl || safeMessage.includes('data:image/') || safeMessage.includes('uploads/') || safeMessage.includes('/api/files/') || safeMessage.includes('/api/stream/')) {
           socket.emit('error_notification', 'Sharing media is disabled in this room.');
           return;
@@ -2741,7 +3176,21 @@ io.on('connection', (socket) => {
   socket.on('track_rooms', ({ roomIds }) => {
     if (!Array.isArray(roomIds)) return;
     roomIds.forEach(rid => {
-      if (rid) socket.join(rid.toLowerCase());
+      if (!rid) return;
+      socket.join(rid.toLowerCase());
+
+      // Immediately send current room permissions back so GlobalChatWidget
+      // has the correct initial state without waiting for the next message.
+      const room = rooms.get(rid.toLowerCase()) || rooms.get(rid);
+      if (room && room.permissions) {
+        const isHost = (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase()) || isUserAdmin(room, { username: socket.username });
+        socket.emit('room_permissions_snapshot', {
+          roomId: rid.toLowerCase(),
+          permissions: room.permissions,
+          isHost: !!isHost,
+          admins: Array.from(room.admins || [])
+        });
+      }
     });
   });
 
@@ -3180,6 +3629,15 @@ io.on('connection', (socket) => {
     io.in(roomId).emit('media_changed', mediaUrl);
     io.in(roomId).emit('room_state', getSerializableRoom(room));
   });
+
+  socket.on('ui_sync', ({ roomId: rawRoomId, data }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!roomId || !rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+    room.uiState = data;
+    // Broadcast UI changes to everyone in the room except sender
+    socket.to(roomId).emit('ui_sync', data);
+  });
   socket.on('play', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
@@ -3196,6 +3654,11 @@ io.on('connection', (socket) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     const room = rooms.get(roomId);
+
+    // Check Permissions
+    const allowMedia = room.permissions?.changeMedia || 'all';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+
     room.isPlaying = false; room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_pause', currentTime);
   });
@@ -3203,6 +3666,11 @@ io.on('connection', (socket) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     const room = rooms.get(roomId);
+
+    // Check Permissions
+    const allowMedia = room.permissions?.changeMedia || 'all';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+
     room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_seek', currentTime);
   });
@@ -3270,28 +3738,30 @@ io.on('connection', (socket) => {
   socket.on('cam_answer', ({ targetSocketId, answer }) => {
     io.to(targetSocketId).emit('cam_answer', { senderSocketId: socket.id, answer });
   });
-  socket.on('cam_ice', ({ targetSocketId, candidate }) => {
-    io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
-  });
-
-  socket.on('self_mute', ({ roomId, isMuted }) => {
-    if (rooms.has(roomId)) {
-      const room = rooms.get(roomId);
+  socket.on('self_mute', ({ roomId: rawRoomId, isMuted }) => {
+    // Use payload roomId first, fallback to socket.roomId in case of mismatch
+    const roomId = (rawRoomId ? rawRoomId.toLowerCase() : null) || socket.roomId;
+    if (!roomId || !rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
       
-      // Check Permissions if unmuting
-      if (!isMuted) {
-        const allowMic = room.permissions?.mic || 'all';
-        if (allowMic === 'host' && !isUserAdmin(room, socket)) {
-          socket.emit('error_notification', 'Only administrators can use the microphone.');
-          return;
-        }
+    // Check Permissions if unmuting
+    if (!isMuted) {
+      const allowMic = room.permissions?.mic || 'all';
+      if (allowMic === 'host' && !isUserAdmin(room, socket)) {
+        socket.emit('error_notification', 'Only administrators can use the microphone.');
+        return;
       }
+    }
 
-      const u = room.users.find(usr => usr.socketId === socket.id);
-      if (u) {
-        u.isMuted = isMuted;
-        io.to(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    // Find user by socketId first, fallback to username for robustness
+    const u = room.users.find(usr => usr.socketId === socket.id)
+           || room.users.find(usr => usr.username && socket.username && usr.username.toLowerCase() === socket.username.toLowerCase());
+    if (u) {
+      u.isMuted = !!isMuted;
+      if (!isMuted) {
+        room.mutedUsers.delete(u.username);
       }
+      io.to(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
     }
   });
   socket.on('cam_ice', ({ targetSocketId, candidate }) => {
@@ -3332,7 +3802,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (!room) return;
     room.screenshareHostId = socket.id;
-    io.in(roomId).emit('webrtc_screenshare_started', socket.id);
+    io.in(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app: room.activeExternalApp });
   });
 
   // â”€â”€ Screenshare Stop â”€â”€
@@ -3350,6 +3820,19 @@ io.on('connection', (socket) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
+
+    // Hierarchy Protection: Admins cannot kick the Host
+    const isTargetHost = (targetSocketId === room.hostId) || (room.hostUsername && room.users.find(u => u.socketId === targetSocketId)?.username?.toLowerCase() === room.hostUsername.toLowerCase());
+    if (isTargetHost) {
+      socket.emit('error_notification', 'You cannot kick the room host.');
+      return;
+    }
+
+    const targetUser = room.users.find(u => u.socketId === targetSocketId);
+    if (targetUser && targetUser.username && room.approvedUsers) {
+      room.approvedUsers.delete(targetUser.username.toLowerCase());
+    }
+    
     io.to(targetSocketId).emit('kicked_out', { reason: 'kicked' });
     room.users = room.users.filter(u => u.socketId !== targetSocketId);
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
@@ -3386,9 +3869,85 @@ io.on('connection', (socket) => {
     if (!room || !isUserAdmin(room, socket)) return;
     const targetUser = room.users.find(u => u.socketId === targetSocketId);
     if (!targetUser) return;
-    if (room.mutedUsers.has(targetUser.username)) { room.mutedUsers.delete(targetUser.username); io.to(targetSocketId).emit('you_are_unmuted'); }
-    else { room.mutedUsers.add(targetUser.username); io.to(targetSocketId).emit('you_are_muted'); }
+    
+    // Privacy Policy: Admin can only Mute, not Unmute.
+    // Set both the user object isMuted AND the mutedUsers set so user_list is immediately correct.
+    targetUser.isMuted = true;
+    room.mutedUsers.add(targetUser.username);
+    io.to(targetSocketId).emit('you_are_muted');
+    // Always emit user_list to ensure UI is in sync for all clients
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+  });
+
+  socket.on('mod_mute_all', ({ roomId: rawRoomId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+
+    room.users.forEach(u => {
+      // Mute everyone except the person who issued the command
+      if (u.socketId !== socket.id) {
+        u.isMuted = true;                       // set on user object
+        room.mutedUsers.add(u.username);        // add to moderator mute set
+        io.to(u.socketId).emit('you_are_muted');
+      }
+    });
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+  });
+  
+  socket.on('mod_toggle_admin', ({ roomId: rawRoomId, targetSocketId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    if (!room || !isUserAdmin(room, socket)) return;
+
+    const targetUser = room.users.find(u => u.socketId === targetSocketId);
+    if (!targetUser || !targetUser.username) return;
+
+    // Hierarchy Protection: Cannot toggle Host
+    const isTargetHost = (targetSocketId === room.hostId) || (room.hostUsername && targetUser.username.toLowerCase() === room.hostUsername.toLowerCase());
+    if (isTargetHost) {
+      socket.emit('error_notification', 'You cannot change the room host\'s permissions.');
+      return;
+    }
+
+    if (!room.admins) room.admins = new Set();
+    if (!room.deniedAdmins) room.deniedAdmins = new Set();
+    const unameLower = targetUser.username.toLowerCase();
+    
+    const currentlyAdmin = isUserAdmin(room, targetUser);
+    
+    if (currentlyAdmin) {
+      // Logic to REMOVE admin
+      if (room.admins.has(unameLower)) {
+        room.admins.delete(unameLower);
+      }
+      // If auto-admin is on, we must explicitly deny them
+      if (room.settings?.newMembersAdmins) {
+        room.deniedAdmins.add(unameLower);
+      }
+    } else {
+      // Logic to MAKE admin
+      room.admins.add(unameLower);
+      // Remove from denied if they were there
+      room.deniedAdmins.delete(unameLower);
+    }
+
+    // Broadcast updated list
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    
+    // Also broadcast room settings updated so GlobalChatWidget can recalculate its admin permissions
+    io.in(roomId).emit('room_settings_updated', { 
+      roomId,
+      roomName: room.roomName, 
+      permissions: room.permissions, 
+      settings: room.settings,
+      hostUsername: room.hostUsername || null,
+      admins: Array.from(room.admins || [])
+    });
+    
+    // Notify the target user of their change in status
+    const isNowAdmin = isUserAdmin(room, targetUser);
+    io.to(targetSocketId).emit(isNowAdmin ? 'you_are_now_admin' : 'you_are_no_longer_admin');
   });
 
   socket.on('approve_join', ({ roomId, targetSocketId }) => {
@@ -3399,15 +3958,30 @@ io.on('connection', (socket) => {
       console.log(`[Security] ${socket.username} approved join for ${pending.username}`);
       if (!room.approvedSockets) room.approvedSockets = new Set();
       room.approvedSockets.add(targetSocketId);
-      
+
+      // Also add to persistent approvedUsers so refresh doesn't require re-approval
+      if (!room.approvedUsers) room.approvedUsers = new Set();
+      if (pending.username && pending.username !== 'Anonymous') {
+        room.approvedUsers.add(pending.username.toLowerCase());
+      }
+
       room.pendingJoins.delete(targetSocketId);
 
-      // Execute the final join immediately on the backend (this adds the user to the room)
-      executeFinalJoin(pending.socket, room, roomId, pending.username);
-      
-      // join_approved just signals the waiting screen to disappear - frontend should NOT re-emit join_room
-      io.to(targetSocketId).emit('join_approved');
-      // Tell all hosts/admins to dismiss the notification (include username for toast ID matching)
+      // CRITICAL FIX: pending.socket was captured at request time and may be STALE if Socket.IO
+      // reconnected in the meantime. Always resolve the live socket at approval time.
+      const liveSocket = io.sockets.sockets.get(targetSocketId);
+      if (liveSocket) {
+        console.log(`[JOIN_FLOW] Live socket found for ${pending.username}, executing final join`);
+        executeFinalJoin(liveSocket, room, roomId, pending.username);
+        // join_approved signals the waiting screen to disappear
+        liveSocket.emit('join_approved');
+      } else {
+        // User disconnected while waiting — they will re-join automatically via reconnect
+        // and approvedUsers already contains them so they won't hit the lobby again
+        console.log(`[JOIN_FLOW] Socket gone for ${pending.username} (disconnected while waiting) — approvedUsers updated so reconnect will bypass lobby`);
+      }
+
+      // Tell all hosts/admins to dismiss the notification
       io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
     }
   });
@@ -3506,10 +4080,28 @@ io.on('connection', (socket) => {
        }
     }
 
-    io.in(roomId).emit('room_settings_updated', { roomName: room.roomName, permissions: room.permissions, settings: room.settings });
+    // Refresh user list and state for everyone because isAdmin status or permissions might have changed
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    io.in(roomId).emit('room_state', getSerializableRoom(room));
+    io.in(roomId).emit('room_settings_updated', { 
+      roomId,
+      roomName: room.roomName, 
+      permissions: room.permissions, 
+      settings: room.settings,
+      hostUsername: room.hostUsername || null,
+      admins: Array.from(room.admins || [])
+    });
   });
 
-
+  socket.on('leave_room', ({ roomId }) => {
+    if (!roomId) return;
+    const room = rooms.get(roomId.toLowerCase());
+    if (room && socket.username) {
+      console.log(`[Security] User ${socket.username} explicitly left room ${roomId} - clearing approved status`);
+      if (room.approvedUsers) room.approvedUsers.delete(socket.username.toLowerCase());
+      if (room.approvedSockets) room.approvedSockets.delete(socket.id);
+    }
+  });
 
   socket.on('mod_unban', ({ roomId, username }) => {
     const room = rooms.get(roomId);
@@ -3678,6 +4270,12 @@ io.on('connection', (socket) => {
         }
         io.in(socket.roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
         socket.to(socket.roomId).emit('user_left', { username: socket.username, count: room.users.length });
+
+        // NOTE: We intentionally do NOT clear approvedUsers/approvedSockets on disconnect.
+        // Disconnects can be caused by page refresh or network drops — the user is still
+        // considered "in the room" and should rejoin seamlessly.
+        // Approval is only cleared via the explicit 'leave_room' event (intentional exit).
+        if (room.approvedSockets) room.approvedSockets.delete(socket.id);
       }
     }
     for (const [roomId, room] of rooms.entries()) {
@@ -4059,8 +4657,21 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = 3001;
+const FRONTEND_PORT = process.env.FRONTEND_PORT || 5173;
+
+// ─── Server Info Endpoint (for Cast to TV LAN URL) ───
+app.get('/api/server-info', (req, res) => {
+  res.json({
+    lanIp: LAN_IP,
+    lanUrl: `http://${LAN_IP}:${FRONTEND_PORT}`,
+    tvUrl: `http://${LAN_IP}:${FRONTEND_PORT}/tv`,
+    backendUrl: `http://${LAN_IP}:${PORT}`
+  });
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
+  console.log(`Cast TV URL: http://${LAN_IP}:${FRONTEND_PORT}/tv`);
 });
 
 // Keep server alive on unhandled errors instead of crashing silently

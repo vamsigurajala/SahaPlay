@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lock, X, ShieldAlert, Timer, Eye, EyeOff, ChevronRight, Loader2, Key, AlertTriangle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
-const API = 'http://localhost:3001';
+const API = `http://${window.location.hostname}:3001`;
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 4; 
 const LOCKOUT_ATTEMPTS = 3;
@@ -50,6 +51,7 @@ function CooldownTimer({ blockedUntil, onExpired }) {
 }
 
 export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', onUnlock, onClose, onToggleSuccess }) {
+  const { t } = useTranslation();
   const myUsername = localStorage.getItem('watch_username') || '';
   const storageKey = `chat_lock_state_${myUsername}`;
   
@@ -172,7 +174,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
       }
     } catch (err) {
       console.error('Verify PIN error:', err);
-      setError(true); setErrorMsg('Connection lost. Please try again.');
+      setError(true); setErrorMsg(t('connectionLost', 'Connection lost. Please try again.'));
     } finally { setChecking(false); }
   };
 
@@ -190,7 +192,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         setAttempts(0);
         setBlockedUntil(null);
         localStorage.setItem(storageKey, JSON.stringify({ attempts: 0, blockedUntil: null }));
-        toast.success('Access restored via Master Key');
+        toast.success(t('accessRestoredMasterKey', 'Access restored via Master Key'));
         if (action === 'unlock') onUnlock?.(chatKey);
         else onToggleSuccess?.(action === 'toggle-lock');
       } else {
@@ -199,7 +201,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
       }
     } catch (err) {
       console.error('Verify Recovery error:', err);
-      setError(true); setErrorMsg('Network error. Check connection.');
+      setError(true); setErrorMsg(t('networkError', 'Network error. Check connection.'));
     } finally { setChecking(false); }
   };
 
@@ -211,12 +213,12 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        toast.error('FINAL ATTEMPT FAILED: LOCKED CHATS WIPED', { duration: 6000, icon: '🔥' });
+        toast.error(t('selfDestructTriggered', 'FINAL ATTEMPT FAILED: LOCKED CHATS WIPED'), { duration: 6000, icon: '🔥' });
         localStorage.removeItem(storageKey);
         setTimeout(() => window.location.reload(), 2000);
       }
     } catch {
-      toast.error('Critical Error: Failed to wipe data locally.');
+      toast.error(t('criticalWipeError', 'Critical Error: Failed to wipe data locally.'));
     }
   };
 
@@ -224,11 +226,11 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 10000000, background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 20 }}>
         <Trash2 size={80} color="#ef4444" style={{ marginBottom: 24, animation: 'pulse 1s infinite' }} />
-        <h1 style={{ color: '#fff', fontSize: '2rem', marginBottom: 16 }}>SECURITY OVERRIDE: WIPING LOCKED DATA</h1>
+        <h1 style={{ color: '#fff', fontSize: '2rem', marginBottom: 16 }}>{t('wipingTitle', 'SECURITY OVERRIDE: WIPING LOCKED DATA')}</h1>
         <div style={{ width: 200, height: 4, background: '#111', borderRadius: 2, overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ height: '100%', background: '#ef4444', width: '100%', animation: 'progressWipe 2s linear infinite' }} />
         </div>
-        <p style={{ color: '#666', fontSize: 14 }}>Too many failed attempts. For your security, all <strong>locked chats</strong> are being permanently deleted.</p>
+        <p style={{ color: '#666', fontSize: 14 }}>{t('selfDestructDesc', 'Too many failed attempts. For your security, all')} <strong>{t('lockedChats', 'locked chats')}</strong> {t('selfDestructDesc2', 'are being permanently deleted.')}</p>
         <style>{`
           @keyframes progressWipe { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
         `}</style>
@@ -308,7 +310,11 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         </div>
 
         <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.8rem', color: isLight ? '#1e293b' : '#fff', letterSpacing: '-0.03em' }}>
-          {mode === 'pin' ? (action === 'unlock' ? (chatName === 'Locked Chats Vault' ? 'Unlock Vault' : `Private Access`) : `Secure Chat`) : 'Master Recovery'}
+          {mode === 'pin'
+            ? (action === 'unlock'
+                ? (chatName === 'Locked Chats Vault' ? t('unlockVault', 'Unlock Vault') : t('privateAccess', 'Private Access'))
+                : t('secureChat', 'Secure Chat'))
+            : t('masterRecovery', 'Master Recovery')}
         </h2>
         
         {attempts === 3 && mode === 'pin' && !isBlocked ? (
@@ -319,12 +325,12 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
           }}>
             <AlertTriangle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
             <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 700 }}>
-              Last attempt. If incorrect, all locked chats will be deleted.
+              {t('lastAttemptWarning', 'Last attempt. If incorrect, all locked chats will be deleted.')}
             </div>
           </div>
         ) : (
           <p style={{ margin: '12px 0 32px', fontSize: '1rem', color: isLight ? '#475569' : '#64748b', fontWeight: 500 }}>
-            {isBlocked ? 'Security lockout enabled' : (mode === 'pin' ? 'Please enter your 6-digit PIN' : 'Enter your Master Key')}
+            {isBlocked ? t('securityLockoutActive', 'Security lockout enabled') : (mode === 'pin' ? t('enterPin6Digit', 'Please enter your 6-digit PIN') : t('enterMasterKey', 'Enter your Master Key'))}
           </p>
         )}
 
@@ -425,7 +431,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
             >
               {checking ? <Loader2 className="animate-spin" size={24} color="#ffffff" /> : (
                 <div style={{ color: isEnabled ? '#ffffff' : (isLight ? '#94a3b8' : '#4b5563'), display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {mode === 'pin' ? 'Unlock Chats' : 'Verify Master Key'} 
+                  {mode === 'pin' ? t('unlockChats', 'Unlock Chats') : t('verifyMasterKey', 'Verify Master Key')} 
                   <ChevronRight size={20} color={isEnabled ? "#ffffff" : "inherit"} />
                 </div>
               )}
@@ -439,7 +445,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   onMouseEnter={e => e.currentTarget.style.color = isLight ? '#4f46e5' : '#fff'}
                   onMouseLeave={e => e.currentTarget.style.color = '#818cf8'}
                 >
-                  Use Master Key
+                  {t('useMasterKey', 'Use Master Key')}
                 </button>
               )}
               {mode === 'recovery' && (
@@ -449,7 +455,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   onMouseEnter={e => e.currentTarget.style.color = isLight ? '#1e293b' : '#fff'}
                   onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
                 >
-                  Back to PIN
+                  {t('backToPin', 'Back to PIN')}
                 </button>
               )}
             </div>
@@ -463,8 +469,9 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         @keyframes fadeInUp { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
         .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .unlock-submit-btn.enabled { color: #ffffff !important; }
-        .unlock-submit-btn.enabled div { color: #ffffff !important; }
+        .unlock-submit-btn.enabled { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+        .unlock-submit-btn.enabled div { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+        .unlock-submit-btn.enabled svg { color: #ffffff !important; }
       `}</style>
     </div>
   );

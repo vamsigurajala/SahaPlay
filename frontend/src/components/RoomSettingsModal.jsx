@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Camera, Shield, Zap, Volume2, Video, Settings, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/CropImage';
 
-const API = 'http://localhost:3001';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
   const [avatar, setAvatar] = useState(null);
@@ -30,18 +34,18 @@ const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
         </div>
         <span style={{ fontSize: 15, color: document.documentElement.getAttribute('data-theme') === 'light' ? '#000' : '#eee', fontWeight: 600 }}>@{uname}</span>
       </div>
-       <button
-         onClick={() => {
-           onUnban(uname);
-           socket.emit('mod_unban', { roomId: (roomId || '').toLowerCase(), username: uname });
-           toast.success(`User @${uname} has been unbanned.`);
-         }}
-         style={{ background: 'rgba(16,185,129,0.1)', border: 'none', color: '#10b981', padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}
-         onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-       >
-         Unban
-       </button>
+        <button
+          onClick={() => {
+            onUnban(uname);
+            socket.emit('mod_unban', { roomId: (roomId || '').toLowerCase(), username: uname });
+            toast.success(`User @${uname} has been unbanned.`);
+          }}
+          style={{ background: 'rgba(16,185,129,0.1)', border: 'none', color: '#10b981', padding: '8px 18px', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+        >
+          {t('unban', 'Unban')}
+        </button>
     </div>
   );
 };
@@ -54,6 +58,7 @@ export default function RoomSettingsModal({
   isHost,
   roomId
 }) {
+  const { t } = useTranslation();
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const [activeTab, setActiveTab] = useState('general');
   const [roomName, setRoomName] = useState(room?.roomName || '');
@@ -188,12 +193,13 @@ export default function RoomSettingsModal({
     </button>
   );
 
-  return (
+  return createPortal(
     <>
       <div 
         onClick={onClose}
-      style={{ position: 'absolute', inset: 0, zIndex: 10000, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-    >
+        className="room-modals-overlay"
+        style={{ position: 'fixed', inset: 0, zIndex: 999999, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+      >
       <div 
         onClick={e => e.stopPropagation()}
         className="modal-enter" 
@@ -229,18 +235,27 @@ export default function RoomSettingsModal({
         
         {/* Header */}
         <div style={{ padding: '24px 30px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: isLight ? '#000' : '#fff', margin: 0, letterSpacing: '-0.5px' }}>Room Settings</h2>
-            <p style={{ fontSize: 13, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Manage your room preferences and security</p>
-          </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: thumbnail ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.2)', overflow: 'hidden' }}>
+                {thumbnail ? (
+                  <img src={`${API}${thumbnail}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <Settings size={22} color="#fff" />
+                )}
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>{t('roomSettings', 'Room Settings')}</h2>
+                <div style={{ fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 600, marginTop: 2 }}>{t('configureYourSpace', 'Configure your space')}</div>
+              </div>
+            </div>
         </div>
 
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Sidebar */}
           <div style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <TabButton id="general" label="General" icon={Settings} />
-            <TabButton id="media" label="Media Player" icon={Zap} />
-            <TabButton id="security" label="Security" icon={Shield} />
+            <TabButton id="general" label={t('generalTab', 'General')} icon={Settings} />
+            <TabButton id="media" label={t('mediaPlayerTab', 'Media Player')} icon={Zap} />
+            <TabButton id="security" label={t('securityTab', 'Security')} icon={Shield} />
           </div>
 
           {/* Content */}
@@ -249,21 +264,21 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Room Name */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Name</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomNameLabel', 'Room Name')}</label>
                   <input 
                     value={roomName}
                     onChange={e => setRoomName(e.target.value)}
                     style={{ width: '100%', padding: '16px 20px', background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 16, color: isLight ? '#000' : '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
-                    placeholder="Enter room name..."
+                    placeholder={t('enterRoomName', 'Enter room name...')}
                     onFocus={e => { e.target.style.borderColor = '#a855f7'; e.target.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.2)'; e.target.style.background = 'rgba(0,0,0,0.4)'; }}
                     onBlur={e => { e.target.style.borderColor = 'rgba(168, 85, 247, 0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(0,0,0,0.3)'; }}
                   />
-                  <p style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>Visible across the platform once saved.</p>
+                  <p style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>{t('visibleOnceSaved', 'Visible across the platform once saved.')}</p>
                 </div>
 
                 {/* Thumbnail */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>Room Thumbnail</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomThumbnailLabel', 'Room Thumbnail')}</label>
                   <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                     <div style={{ width: 160, height: 100, borderRadius: 18, background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)' }}>
                       {thumbnail ? (
@@ -286,9 +301,9 @@ export default function RoomSettingsModal({
                         onChange={handleFileSelect} 
                       />
                       <label htmlFor="thumb-upload" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: isLight ? '#fff' : 'rgba(255,255,255,0.05)', borderRadius: 10, color: isLight ? '#334155' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)' }}>
-                        <Camera size={16} /> Choose New
+                        <Camera size={16} /> {t('chooseNew', 'Choose New')}
                       </label>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#555', marginTop: 10, lineHeight: 1.4 }}>Recommended size: 1200x800px. JPG or PNG.</p>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#555', marginTop: 10, lineHeight: 1.4 }}>{t('recommendedSizeInfo', 'Recommended size: 1200x800px. JPG or PNG.')}</p>
                     </div>
                   </div>
                 </div>
@@ -299,7 +314,7 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Custom Name */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', marginBottom: 10 }}>Media Player Name</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', marginBottom: 10 }}>{t('mediaPlayerName', 'Media Player Name')}</label>
                   <input 
                     value={settings.playerCustomName}
                     onChange={e => setSettings({...settings, playerCustomName: e.target.value})}
@@ -314,8 +329,8 @@ export default function RoomSettingsModal({
                       <Volume2 size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Audio Ducking</h4>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Lower media volume when others speak</p>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('audioDucking', 'Audio Ducking')}</h4>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('audioDuckingDesc', 'Lower media volume when others speak')}</p>
                     </div>
                   </div>
                   <button 
@@ -333,8 +348,8 @@ export default function RoomSettingsModal({
                       <Video size={20} />
                     </div>
                     <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Webcam Syncing</h4>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>Coordinate camera grids across users</p>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('webcamSyncing', 'Webcam Syncing')}</h4>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('webcamSyncingDesc', 'Coordinate camera grids across users')}</p>
                     </div>
                   </div>
                   <button 
@@ -351,7 +366,7 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Access Management */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Access Management</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('accessManagement', 'Access Management')}</label>
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {/* Lock Room Toggle */}
@@ -359,7 +374,7 @@ export default function RoomSettingsModal({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <Lock size={18} color="#a855f7" />
-                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>Lock Room</span>
+                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>{t('lockRoom', 'Lock Room')}</span>
                         </div>
                         <button 
                           onClick={() => setSettings({...settings, lockRoom: !settings.lockRoom})}
@@ -369,7 +384,7 @@ export default function RoomSettingsModal({
                         </button>
                       </div>
                       <div style={{ paddingLeft: 30 }}>
-                        <span style={{ fontSize: 10, color: '#6b7280' }}>Require host approval to join</span>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>{t('lockRoomDesc', 'Require host approval to join')}</span>
                       </div>
                     </div>
 
@@ -378,7 +393,7 @@ export default function RoomSettingsModal({
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           <UserCheck size={18} color="#3b82f6" />
-                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>Members Only</span>
+                          <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>{t('membersOnly', 'Members Only')}</span>
                         </div>
                         <button 
                           onClick={() => setSettings({...settings, onlyLoggedIn: !settings.onlyLoggedIn})}
@@ -388,7 +403,7 @@ export default function RoomSettingsModal({
                         </button>
                       </div>
                       <div style={{ paddingLeft: 30 }}>
-                        <span style={{ fontSize: 10, color: '#6b7280' }}>Only logged-in users enter</span>
+                        <span style={{ fontSize: 10, color: '#6b7280' }}>{t('membersOnlyDesc', 'Only logged-in users enter')}</span>
                       </div>
                     </div>
                   </div>
@@ -396,12 +411,12 @@ export default function RoomSettingsModal({
 
                 {/* Admin Privileges */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>Admin Privileges</label>
+                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('adminPrivileges', 'Admin Privileges')}</label>
                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '20px 24px', background: isLight ? '#f8fafc' : 'rgba(16, 185, 129, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(16, 185, 129, 0.1)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                         <Shield size={20} color="#10b981" />
-                        <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>Auto-Admin Members</h4>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('autoAdminMembers', 'Auto-Admin Members')}</h4>
                       </div>
                       <button 
                         onClick={() => setSettings({...settings, newMembersAdmins: !settings.newMembersAdmins})}
@@ -411,19 +426,19 @@ export default function RoomSettingsModal({
                       </button>
                     </div>
                     <div style={{ paddingLeft: 34 }}>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: 0 }}>Give new members admin permissions by default</p>
+                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: 0 }}>{t('autoAdminMembersDesc', 'Give new members admin permissions by default')}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Permissions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>Permissions</label>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>{t('permissions', 'Permissions')}</label>
                   
                   {[
-                    { id: 'chat', label: 'Who can send messages?', icon: Zap },
-                    { id: 'cam', label: 'Who can use webcam?', icon: Video },
-                    { id: 'mic', label: 'Who can use microphone?', icon: Mic },
+                    { id: 'chat', label: t('whoCanSendMessages', 'Who can send messages?'), icon: Zap },
+                    { id: 'cam', label: t('whoCanUseWebcam', 'Who can use webcam?'), icon: Video },
+                    { id: 'mic', label: t('whoCanUseMicrophone', 'Who can use microphone?'), icon: Mic },
                   ].map(p => {
                     const val = permissions[p.id] || 'all';
                     return (
@@ -439,7 +454,7 @@ export default function RoomSettingsModal({
                               onClick={() => setPermissions({...permissions, [p.id]: v})}
                               style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'transparent', color: val === v ? (isLight ? '#fefefe' : '#fff') : (isLight ? '#000' : '#555'), transition: 'all 0.3s' }}
                             >
-                              {v === 'all' ? 'ALL' : 'HOST ONLY'}
+                              {v === 'all' ? t('allLabel', 'ALL') : t('hostOnlyLabel', 'HOST ONLY')}
                             </button>
                           ))}
                         </div>
@@ -450,11 +465,11 @@ export default function RoomSettingsModal({
 
                 {/* Chat Filtering */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>Messaging Controls</label>
+                  <label style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff' }}>{t('messagingControls', 'Messaging Controls')}</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {[
-                      { id: 'allowLinks', label: 'Allow Links', icon: Link2 },
-                      { id: 'allowMedia', label: 'Allow Media', icon: ImageIcon },
+                      { id: 'allowLinks', label: t('allowLinks', 'Allow Links'), icon: Link2 },
+                      { id: 'allowMedia', label: t('allowMedia', 'Allow Media'), icon: ImageIcon },
                     ].map(f => (
                       <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.02)', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -477,13 +492,13 @@ export default function RoomSettingsModal({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                        <ShieldAlert size={16} color="#ef4444" />
                         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#334155' : '#fff', textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>
-                           Security Banned Users {bannedUsers.length > 0 ? `(${bannedUsers.length})` : ''}
+                           {t('securityBannedUsers', 'Security Banned Users')} {bannedUsers.length > 0 ? `(${bannedUsers.length})` : ''}
                         </label>
                        <button 
                          onClick={() => socket.emit('mod_fetch_bans', { roomId })}
                          style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#a855f7', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                        >
-                         <Zap size={12} /> Sync Now
+                         <Zap size={12} /> {t('syncNow', 'Sync Now')}
                        </button>
                     </div>
                    <div style={{ padding: '24px 28px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 18, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)', minHeight: 140 }}>
@@ -500,28 +515,29 @@ export default function RoomSettingsModal({
                        ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 140, gap: 14 }}>
                           <UserMinus size={36} color="#555" />
-                          <div style={{ textAlign: 'center', color: '#777', fontSize: 14, fontWeight: 500 }}>No users are banned from this room.</div>
+                          <div style={{ textAlign: 'center', color: '#777', fontSize: 14, fontWeight: 500 }}>{t('noBannedUsers', 'No users are banned from this room.')}</div>
                         </div>
                       )}
                    </div>
                 </div>
 
                 {/* Danger Zone */}
-                <div style={{ marginTop: 24, padding: 32, borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.05)' }}>
+                <div style={{ marginTop: 24, padding: 32, borderRadius: 16, border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.1)' }}>
                   <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
                     <ShieldAlert color="#ef4444" size={28} style={{ marginTop: 2 }} />
                     <div style={{ flex: 1 }}>
-                      <h4 style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Danger Zone</h4>
-                      <p style={{ fontSize: 13, color: '#991b1b', margin: '8px 0 20px', lineHeight: 1.6 }}>
-                        Deleting this room is a permanent action. All metadata, pinned status, and chat messages hosted here will be destroyed.
+                      <h4 style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('dangerZone', 'Danger Zone')}</h4>
+                      <p style={{ fontSize: 13, color: isLight ? '#991b1b' : '#fca5a5', margin: '8px 0 20px', lineHeight: 1.6 }}>
+                        {t('dangerZoneDesc', 'Deleting this room is a permanent action. All metadata, pinned status, and chat messages hosted here will be destroyed.')}
                       </p>
                       <button 
                         onClick={() => setShowDeleteConfirm(true)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#ef4444', border: 'none', borderRadius: 10, color: '#fffffe !important', fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)' }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.3)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        className="stay-white"
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px', background: '#ef4444', border: 'none', borderRadius: 10, color: '#ffffff !important', fontSize: 14, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#dc2626'; e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(239, 68, 68, 0.3)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.2)'; }}
                       >
-                        <Trash2 size={18} color="#fffffe" /> <span style={{ color: '#fffffe' }}>Delete Forever</span>
+                        <Trash2 size={18} color="#ffffff" className="stay-white" /> <span style={{ color: '#ffffff' }} className="stay-white">{t('deleteForever', 'Delete Forever')}</span>
                       </button>
                     </div>
                   </div>
@@ -532,8 +548,8 @@ export default function RoomSettingsModal({
         </div>
 
         <div style={{ padding: '24px 30px', borderTop: isLight ? '1px solid #f1f5f9' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: isLight ? '#f8fafc' : 'rgba(15, 10, 35, 0.2)', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}>
-          <button onClick={onClose} style={{ padding: '14px 28px', background: isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: isLight ? '#000' : '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = isLight ? '#94a3b8' : 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)'; }}>Cancel</button>
-          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: isLight ? '#fefefe' : '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!isLight) e.currentTarget.style.boxShadow = '0 10px 25px rgba(99, 102, 241, 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)'; }}>Save Changes</button>
+          <button onClick={onClose} style={{ padding: '14px 28px', background: isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: isLight ? '#000' : '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = isLight ? '#94a3b8' : 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)'; }}>{t('cancel', 'Cancel')}</button>
+          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: isLight ? '#fefefe' : '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!isLight) e.currentTarget.style.boxShadow = '0 10px 25px rgba(99, 102, 241, 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)'; }}>{t('saveChanges', 'Save Changes')}</button>
         </div>
       </div>
 
@@ -547,9 +563,9 @@ export default function RoomSettingsModal({
       `}</style>
       {/* Cropper Overlay */}
       {showCropper && (
-        <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', inset: 0, zIndex: 20000, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div onClick={e => e.stopPropagation()} className="room-modals-overlay" style={{ position: 'fixed', inset: 0, zIndex: 20000, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="modal-enter" style={{ background: isLight ? '#fff' : '#140c21', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 640, boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8)' }}>
-            <h3 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800, color: isLight ? '#000' : '#fff' }}>Crop Thumbnail</h3>
+            <h3 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800, color: isLight ? '#000' : '#fff' }}>{t('cropThumbnail', 'Crop Thumbnail')}</h3>
             
             <div style={{ position: 'relative', width: '100%', height: 350, background: '#111', borderRadius: 16, overflow: 'hidden' }}>
               <Cropper
@@ -587,7 +603,7 @@ export default function RoomSettingsModal({
                   onMouseEnter={e => e.currentTarget.style.background = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)'}
                   onMouseLeave={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'}
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button 
                   onClick={handleConfirmCrop}
@@ -596,7 +612,7 @@ export default function RoomSettingsModal({
                   onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                 >
-                  {isUploading ? 'Uploading...' : <><Save size={18} /> Apply & Save</>}
+                  {isUploading ? t('uploading', 'Uploading...') : <><Save size={18} /> {t('applyAndSave', 'Apply & Save')}</>}
                 </button>
               </div>
             </div>
@@ -608,15 +624,15 @@ export default function RoomSettingsModal({
 
       {/* Delete Confirmation Overlay */}
       {showDeleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 30000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="room-modals-overlay" style={{ position: 'fixed', inset: 0, zIndex: 30000, background: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="modal-enter" style={{ background: '#1a1025', border: '1px solid #ef444430', borderRadius: 28, width: '100%', maxWidth: 420, padding: 32, boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 16 }}>
               <div style={{ width: 72, height: 72, borderRadius: '24px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', marginBottom: 8, transform: 'rotate(-5deg)' }}>
                 <Trash2 size={36} />
               </div>
-              <h3 style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>Delete this room?</h3>
+              <h3 style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: 0, letterSpacing: '-0.5px' }}>{t('deleteRoomQuestion', 'Delete this room?')}</h3>
               <p style={{ fontSize: 15, color: '#aaa', lineHeight: 1.6, margin: 0 }}>
-                This is a <strong style={{ color: '#ef4444' }}>permanent action</strong>. All chats, history, and room metadata will be destroyed forever.
+                {t('deleteRoomWarningText', 'This is a permanent action. All chats, history, and room metadata will be destroyed forever.')}
               </p>
 
               <label style={{ 
@@ -640,7 +656,7 @@ export default function RoomSettingsModal({
                   style={{ width: 18, height: 18, marginTop: 2, accentColor: '#ef4444', cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: 13, color: isDeleteConfirmed ? '#eee' : '#bbb', fontWeight: 500, lineHeight: 1.4 }}>
-                  I understand that all chats and room data will be <strong>permanently deleted</strong>.
+                  {t('deleteRoomAcknowledgeCheckbox', 'I understand that all chats and room data will be permanently deleted.')}
                 </span>
               </label>
               
@@ -651,7 +667,7 @@ export default function RoomSettingsModal({
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
                 >
-                  Cancel
+                  {t('cancel', 'Cancel')}
                 </button>
                 <button 
                   onClick={handleDeleteRoom}
@@ -670,14 +686,15 @@ export default function RoomSettingsModal({
                   onMouseEnter={e => { if(isDeleteConfirmed) { e.currentTarget.style.transform = 'translateY(-2px)'; } }}
                   onMouseLeave={e => { if(isDeleteConfirmed) { e.currentTarget.style.transform = 'translateY(0)'; } }}
                 >
-                  Delete Room
+                  {t('deleteRoomButton', 'Delete Room')}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </>
+    </>,
+    document.body
   );
 }
 

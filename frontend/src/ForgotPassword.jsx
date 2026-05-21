@@ -1,58 +1,34 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { Mail, ArrowLeft, Send, CheckCircle, Play, LogIn } from 'lucide-react';
+
+const API = `http://${window.location.hostname}:3001`;
 
 const ForgotPassword = () => {
-  const [email, setEmail] = useState('');
-  const [errors, setErrors] = useState({});
+  const [email, setEmail]             = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [resetLink, setResetLink] = useState('');
-
-  const validateForm = () => {
-    const newErrors = {};
-    let isValid = true;
-
-    if (!email.trim()) {
-      newErrors.email = 'Email or username is required';
-      isValid = false;
-    } else if (email.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      // Only strictly validate email format when @ is present
-      newErrors.email = 'Please enter a valid email format';
-      isValid = false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
+  const [submitted, setSubmitted]     = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!email.trim()) { setGlobalError('Please enter your email or username.'); return; }
     setGlobalError('');
-    setSuccessMsg('');
-    setPreviewUrl('');
-    setResetLink('');
-    
-    if (!validateForm()) return;
-    
     setIsSubmitting(true);
     try {
-      const response = await fetch('http://127.0.0.1:3001/api/forgot-password', {
+      const response = await fetch(`${API}/api/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
       });
       const data = await response.json();
-      
       if (response.ok) {
-        setSuccessMsg(data.message);
-        if (data.resetLink) setResetLink(data.resetLink);
-        if (data.previewUrl) setPreviewUrl(data.previewUrl);
+        setSubmitted(true);
       } else {
-        setGlobalError(data.error || 'Request failed');
+        setGlobalError(data.error || 'Something went wrong. Please try again.');
       }
-    } catch (err) {
+    } catch {
       setGlobalError('Network error. Please try again later.');
     } finally {
       setIsSubmitting(false);
@@ -60,69 +36,237 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
-      <div className="glass-panel animated-fade-in" style={{ padding: '40px', maxWidth: '420px', width: '100%', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>Reset Password 🔐</h1>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px', fontWeight: '300' }}>
-          Enter your email address and we'll send you a link to reset your password.
-        </p>
+    <div className="login-layout">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
-        {globalError && <div style={{ color: 'var(--danger)', marginBottom: '15px', fontSize: '14px', background: 'var(--danger-bg)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255, 75, 75, 0.2)' }}>{globalError}</div>}
-        
-        {successMsg ? (
-          <div>
-            <div style={{ color: '#4ade80', marginBottom: '15px', fontSize: '15px', fontWeight: '500' }}>✅ {successMsg}</div>
-            {resetLink && (
-              <div style={{ marginBottom: '16px', padding: '14px', background: 'rgba(99,102,241,0.15)', borderRadius: '12px', border: '1px solid rgba(99,102,241,0.4)' }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔐 Your Reset Link (Dev Mode)</p>
-                <a href={resetLink} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'block', background: 'var(--accent)', color: '#fff', padding: '12px 20px', borderRadius: '10px', textDecoration: 'none', fontWeight: '600', fontSize: '15px', textAlign: 'center' }}>
-                  👉 Click Here to Reset Password
-                </a>
-              </div>
-            )}
-            {previewUrl && (
-              <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '12px', textDecoration: 'underline' }}>
-                📧 View test email in Ethereal
-              </a>
-            )}
-            <Link to="/login" className="btn" style={{ textDecoration: 'none', display: 'inline-block' }}>Back to Login</Link>
+        .login-layout {
+          display: flex;
+          min-height: 100vh;
+          font-family: 'Outfit', sans-serif;
+          background: #050505;
+          color: #fff;
+          overflow: hidden;
+        }
+
+        .login-left {
+          flex: 1.2;
+          display: none;
+          position: relative;
+          background: linear-gradient(135deg, #111115 0%, #1a1a2e 100%);
+          overflow: hidden;
+        }
+        @media (min-width: 900px) {
+          .login-left { display: flex; flex-direction: column; justify-content: center; padding: 60px 80px; }
+        }
+        .login-left::before {
+          content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
+          border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+          filter: blur(60px);
+        }
+        .login-left::after {
+          content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
+          border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+          filter: blur(60px);
+        }
+
+        .login-right {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          background: #050505;
+          padding: 24px;
+        }
+
+        .login-card {
+          width: 100%;
+          max-width: 440px;
+          background: #111114;
+          border: 1px solid rgba(255,255,255,0.04);
+          border-radius: 28px;
+          padding: 48px 40px;
+          box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+          position: relative;
+          z-index: 10;
+        }
+
+        .login-input {
+          width: 100%; background: #1a1a1f; border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 14px; color: #fff; font-size: 15px; padding: 14px 16px 14px 46px;
+          outline: none; box-sizing: border-box; transition: all 0.2s;
+          font-family: 'Outfit', sans-serif;
+        }
+        .login-input::placeholder { color: #444; }
+        .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+
+        .login-submit-btn {
+          width: 100%; padding: 16px; border-radius: 14px; border: none;
+          background: linear-gradient(135deg, #6366f1, #a855f7);
+          color: #fff !important; font-size: 16px; font-weight: 700;
+          font-family: 'Outfit', sans-serif;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
+          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+        }
+        .login-submit-btn * { color: #fff !important; fill: #fff !important; }
+        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+        .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+        .fp-spinner {
+          width: 18px; height: 18px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top-color: #fff; border-radius: 50%;
+          animation: fp-spin 0.65s linear infinite;
+          flex-shrink: 0;
+        }
+        @keyframes fp-spin { to { transform: rotate(360deg); } }
+
+        /* Light Mode */
+        html[data-theme='light'] .login-layout { background: #f8fafc; }
+        html[data-theme='light'] .login-left {
+          background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+        }
+        html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
+        html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
+        html[data-theme='light'] .login-left-text { color: #fff !important; }
+
+        html[data-theme='light'] .login-right { background: #f8fafc; }
+        html[data-theme='light'] .login-card {
+          background: #ffffff; border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 24px 60px rgba(0,0,0,0.06);
+        }
+        html[data-theme='light'] .login-card h1,
+        html[data-theme='light'] .login-card label,
+        html[data-theme='light'] .login-card span { color: #0f172a !important; }
+        html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
+        html[data-theme='light'] .login-card p { color: #64748b !important; }
+        html[data-theme='light'] .login-input {
+          background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+        }
+        html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
+        html[data-theme='light'] .login-input:focus {
+          background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+        }
+        html[data-theme='light'] .back-box-btn {
+          background: rgba(255,255,255,0.8) !important;
+          color: #0f172a !important;
+          border-color: rgba(0,0,0,0.1) !important;
+        }
+        html[data-theme='light'] .fp-link { color: #64748b !important; }
+        html[data-theme='light'] .fp-link:hover { color: #6366f1 !important; }
+        html[data-theme='light'] .fp-success-note {
+          background: rgba(16,185,129,0.08) !important;
+          color: #059669 !important;
+        }
+        html[data-theme='light'] .fp-success-email { color: #6366f1 !important; }
+      `}</style>
+
+      {/* ── Back Button (same as Login) ── */}
+      <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
+        <button
+          onClick={() => navigate('/login')}
+          className="back-box-btn"
+          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', transition: 'all 0.2s', backdropFilter: 'blur(10px)' }}
+          title="Back to Login"
+        >
+          <ArrowLeft size={20} />
+        </button>
+      </div>
+
+      {/* ── Left Panel (same as Login) ── */}
+      <div className="login-left">
+        <div style={{ position: 'relative', zIndex: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(99,102,241,0.4)' }}>
+              <Play size={24} fill="#fff" color="#fff" style={{ marginLeft: '4px' }} />
+            </div>
+            <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} noValidate>
-            <div className="input-group">
-              <label className="input-label" htmlFor="email">Email or Username</label>
-              <input
-                id="email"
-                type="text"
-                className={`input-field ${errors.email ? 'error' : ''}`}
-                placeholder="your@email.com  or  your_username"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email) setErrors({...errors, email: null});
-                }}
-              />
-              {errors.email && <span className="error-text">{errors.email}</span>}
-            </div>
+          <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
+            Forgot your<br />password?<br />
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>No problem.</span>
+          </h1>
+          <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
+            Enter your email and we'll send you a secure link to reset your password. Takes less than a minute.
+          </p>
+        </div>
+      </div>
 
-            <button type="submit" className="btn" style={{ width: '100%', marginTop: '5px' }} disabled={isSubmitting}>
-              {isSubmitting ? 'Sending Link...' : 'Send Reset Link'}
-            </button>
-            
-            <div style={{ marginTop: '16px', fontSize: '14px' }}>
-              <Link to="/login" style={{ color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: '500' }}>Back to Login</Link>
+      {/* ── Right Panel ── */}
+      <div className="login-right">
+        <div className="login-card animated-fade-in">
+
+          {submitted ? (
+            /* ── Success State ── */
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 40px rgba(16,185,129,0.15)' }}>
+                <CheckCircle size={36} color="#10b981" strokeWidth={1.5} />
+              </div>
+              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px', letterSpacing: '-0.5px' }}>Check your inbox!</h1>
+              <p style={{ color: '#888', fontSize: '15px', lineHeight: 1.65, margin: '0 0 28px' }}>
+                We sent a reset link to{' '}
+                <strong className="fp-success-email" style={{ color: '#a78bfa' }}>{email}</strong>.
+                {' '}It expires in <strong style={{ color: '#fff' }}>10 minutes</strong>.
+              </p>
+              <div className="fp-success-note" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '14px', padding: '14px 18px', marginBottom: '28px', color: '#34d399', fontSize: '14px', lineHeight: 1.6, textAlign: 'left' }}>
+                📬 <strong>Don't see it?</strong> Check your <em>Spam</em> or <em>Promotions</em> folder. It may take 1–2 minutes.
+              </div>
+              <button
+                onClick={() => navigate('/login')}
+                className="login-submit-btn"
+              >
+                <LogIn size={18} />
+                <span>Back to Login</span>
+              </button>
             </div>
-          </form>
-        )}
+          ) : (
+            /* ── Form ── */
+            <>
+              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>Reset Password</h1>
+              <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
+                Enter your email or username and we'll send you a reset link.
+              </p>
+
+              {globalError && (
+                <div style={{ color: '#ef4444', marginBottom: '20px', fontSize: '14px', background: 'rgba(239,68,68,0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  {globalError}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
+                <div>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Email or Username</label>
+                  <div style={{ position: 'relative' }}>
+                    <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                    <input
+                      id="fp-email"
+                      type="text"
+                      className="login-input"
+                      placeholder="name@example.com or username"
+                      value={email}
+                      autoComplete="email"
+                      onChange={(e) => { setEmail(e.target.value); setGlobalError(''); }}
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" disabled={isSubmitting} className="login-submit-btn">
+                  {isSubmitting
+                    ? <><div className="fp-spinner" /><span>Sending link...</span></>
+                    : <><Send size={18} /><span>Send Reset Link</span></>}
+                </button>
+              </form>
+
+              <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
+                Remember your password?{' '}
+                <Link to="/login" className="fp-link" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>Log In</Link>
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
 export default ForgotPassword;
-
-
-
-
-

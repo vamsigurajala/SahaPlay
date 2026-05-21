@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import PinSetupModal from './PinSetupModal';
@@ -19,7 +20,9 @@ import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decrypt
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 
-const API = 'http://localhost:3001';
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 // CSS for typing indicators
 const typingCss = `
@@ -36,12 +39,27 @@ const typingCss = `
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
   
   /* ── Chat Menu Hover Effects ── */
+  .menu-btn { color: var(--menu-item-text); transition: color 0.2s ease, background 0.2s ease; }
+  .menu-btn svg { transition: color 0.2s ease; }
   .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #ef4444 !important; }
   .menu-btn-danger:hover svg { color: #ef4444 !important; }
+
+  /* ── Data-hovertype: guaranteed color change for both icon and text ── */
+  [data-hovertype="danger"]:hover { color: #dc2626 !important; background: rgba(239, 68, 68, 0.12) !important; }
+  [data-hovertype="danger"]:hover * { color: #dc2626 !important; }
+  [data-hovertype="primary"]:hover { color: #4f46e5 !important; background: rgba(99, 102, 241, 0.1) !important; }
+  [data-hovertype="primary"]:hover * { color: #4f46e5 !important; }
+  
+  /* Modal Button Transitions */
+  .modal-btn-transition { transition: transform 0.2s ease-in-out; }
+  .modal-btn-transition:hover { transform: translateY(-2px); }
+
   html[data-theme='light'] .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #dc2626 !important; }
   html[data-theme='light'] .menu-btn-danger:hover svg { color: #dc2626 !important; }
   .menu-btn-primary:hover { background: rgba(99, 102, 241, 0.1) !important; color: #6366f1 !important; }
   .menu-btn-primary:hover svg { color: #6366f1 !important; }
+  html[data-theme='light'] .menu-btn-primary:hover { background: rgba(99, 102, 241, 0.1) !important; color: #4f46e5 !important; }
+  html[data-theme='light'] .menu-btn-primary:hover svg { color: #4f46e5 !important; }
 
   /* ── Modal Light Mode Overrides ── */
   html[data-theme='light'] .chat-modal-box { 
@@ -116,6 +134,86 @@ const typingCss = `
 
   .chat-menu-item:hover {
     background: var(--menu-item-hover) !important;
+  }
+
+  /* ── Message Text Overrides ── */
+  html[data-theme='light'] .msg-received {
+    color: #000000 !important;
+  }
+  html[data-theme='light'] .msg-received * {
+    color: #000000 !important;
+  }
+  html[data-theme='light'] .msg-received a {
+    color: #4f46e5 !important;
+    text-decoration: underline !important;
+  }
+  .stay-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+
+  /* ── Fullscreen Force-Dark: override every light-mode selector ── */
+  /* Applied via .gcw-force-dark on the panel root when transparentMode=true */
+  html[data-theme='light'] .chat-widget-main-panel.gcw-force-dark {
+    --dropdown-bg: #1f2026;
+    --dropdown-border: rgba(255,255,255,0.08);
+    --dropdown-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    --menu-item-text: #eee;
+    --menu-item-hover: rgba(255,255,255,0.05);
+    --menu-icon: #aaa;
+    --menu-divider: rgba(255,255,255,0.08);
+    --header-text: #ffffff;
+    --header-btn: #888888;
+    --input-bg: rgba(255,255,255,0.04);
+    --input-border: rgba(255,255,255,0.08);
+    --input-text: #ffffff;
+  }
+  html[data-theme='light'] .gcw-force-dark .msg-received {
+    color: #ffffff !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .msg-received * {
+    color: #ffffff !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .msg-received a {
+    color: #a5b4fc !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .chat-modal-box {
+    background: rgba(20,20,25,0.95) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    box-shadow: 0 25px 50px rgba(0,0,0,0.8) !important;
+  }
+  
+  /* Ensure selects and options are readable in ALL themes (Light/Dark) within the chat panel */
+  .chat-widget-main-panel select,
+  .chat-widget-main-panel option {
+    background: #1f2026 !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.15) !important;
+  }
+  
+  /* Guarantee Dropdown Menus within Force-Dark stay dark even against global !important rules */
+  /* This part is specifically for Light Mode + Fullscreen */
+  html[data-theme='light'] .gcw-force-dark .nav-dropdown {
+    background: #1f2026 !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7) !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .chat-menu-item {
+    color: #eee !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .chat-menu-item svg {
+    color: #aaa !important;
+    stroke: #aaa !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .chat-menu-item:hover {
+    background: rgba(255,255,255,0.12) !important;
+  }
+
+  /* Destructive hover in Force-Dark: ensure icon ALSO turns red */
+  html[data-theme='light'] .gcw-force-dark .menu-btn-destructive:hover {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #ef4444 !important;
+  }
+  html[data-theme='light'] .gcw-force-dark .menu-btn-destructive:hover svg {
+    color: #ef4444 !important;
+    stroke: #ef4444 !important;
   }
 `;
 
@@ -266,8 +364,10 @@ const GlobalChatWidget = forwardRef(({
   onMarkRead, 
   onNewMessage,
   activeRoomTab,
-  activeRoomPartner
+  activeRoomPartner,
+  transparentMode = false
 }, ref) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const vaultMenuRef = useRef(null);
   const myUsername = (localStorage.getItem('watch_username') || '').toLowerCase();
@@ -408,6 +508,7 @@ const GlobalChatWidget = forwardRef(({
   const [pendingLockedChat, setPendingLockedChat] = useState(null);
   const [showLockScreen, setShowLockScreen] = useState(false);
   const [vaultUnlockPending, setVaultUnlockPending] = useState(false);
+  const [bulkUnlockPending, setBulkUnlockPending] = useState(false);
   const [showPinSetup, setShowPinSetup] = useState(false);
   const [setupTrigger, setSetupTrigger] = useState(null);
   const [lockToggleTarget, setLockToggleTarget] = useState(null); // { chat, action }
@@ -457,6 +558,7 @@ const GlobalChatWidget = forwardRef(({
   const [activeConvMenu, setActiveConvMenu] = useState(null);
   const [hoveredConvId, setHoveredConvId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [hoveredMenuBtn, setHoveredMenuBtn] = useState(null); // tracks hovered header menu button
   const [showVaultMenu, setShowVaultMenu] = useState(false);
   const [keysMissing, setKeysMissing] = useState(false);
   const [repairingKeys, setRepairingKeys] = useState(false);
@@ -500,7 +602,17 @@ const GlobalChatWidget = forwardRef(({
   const [autoLockMinutes, setAutoLockMinutes] = useState(parseInt(localStorage.getItem('chat_lock_auto_minutes') || '5'));
 
   const token = localStorage.getItem('watch_token');
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  // _isLight tracks the real system theme; isLight is derived and forced to false
+  // in fullscreen (transparentMode) so the overlay always uses dark styling over video.
+  const [_isLight, setIsLight] = useState(document.documentElement.getAttribute('data-theme') === 'light');
+  const isLight = _isLight && !transparentMode;
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const socketRef = useRef(null);
@@ -557,6 +669,7 @@ const GlobalChatWidget = forwardRef(({
       setShowChatMenu(false);
       setShowVaultMenu(false);
       setActiveConvMenu(null);
+      setActiveMessageMenu(null);
     };
     window.addEventListener('mousedown', closeMenus);
     return () => window.removeEventListener('mousedown', closeMenus);
@@ -838,7 +951,7 @@ const GlobalChatWidget = forwardRef(({
       if (typeof part === 'string' && part.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i)) {
         let href = part;
         if (!href.match(/^https?:\/\//i)) href = 'http://' + href;
-        return <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{color:isMe?'#fff':'#6366f1', textDecoration:'underline'}} onClick={e=>e.stopPropagation()}>{part}</a>;
+        return <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{color:isMe?'#fff':(isLight ? '#4f46e5' : '#6366f1'), textDecoration:'underline'}} onClick={e=>e.stopPropagation()}>{part}</a>;
       }
       return part;
     });
@@ -876,7 +989,7 @@ const GlobalChatWidget = forwardRef(({
   // Connect socket for live updates (reactions + new messages)
   useEffect(() => {
     if (!token || socketRef.current || !isReady) return;
-    const sock = io('http://127.0.0.1:3001', { auth: { token }, transports: ['websocket'] });
+    const sock = io(API, { auth: { token }, transports: ['websocket'] });
     socketRef.current = sock;
 
     sock.on('connect', () => {
@@ -972,7 +1085,7 @@ const GlobalChatWidget = forwardRef(({
       } else if (blockedLow === meLow) {
         // Someone blocked/unblocked me
         setBlockingMe(prev => {
-          const next = isBlocked ? [...new Set([...prev, blocker])] : prev.filter(u => u.toLowerCase() !== blockerLow);
+          const next = isBlocked ? [...new Set([...prev, blocker])] : prev.filter(u => u.toLowerCase() !== blockedLow);
           localStorage.setItem(`blocking_me_${myUsername}`, JSON.stringify(next));
           return next;
         });
@@ -1292,7 +1405,10 @@ const GlobalChatWidget = forwardRef(({
             displayName: isGroup 
               ? (msg.roomName || exists.displayName || 'Room Chat') 
               : (exists.displayName || (isMine ? partner : (msg.senderName || msg.username || partner))),
-            partnerAvatar: exists.partnerAvatar || (isMine ? msg.partnerAvatar : msg.senderAvatar) || null
+            partnerAvatar: exists.partnerAvatar || (isMine ? msg.partnerAvatar : msg.senderAvatar) || null,
+            // Sync permissions from each incoming message so the widget stays current
+            ...(isGroup && msg.roomPermissions ? { permissions: msg.roomPermissions } : {}),
+            ...(isGroup && msg.isHost !== undefined ? { isHost: msg.isHost } : {})
           };
           const others = conversations.filter(c => c.partner !== partner && c.id !== partner);
           updatedList = [updatedItem, ...others];
@@ -1324,6 +1440,39 @@ const GlobalChatWidget = forwardRef(({
     sock.on('new_chat_message', handleNewMsg);
     sock.on('global_new_chat_message', handleNewMsg);
     sock.on('private_message', handleNewMsg);
+
+    // Sync room permissions into conversations + activeChat when:
+    // (a) widget first connects/reconnects — server sends a snapshot
+    // (b) host changes room settings live
+    const applyRoomPermissions = ({ roomId, permissions, isHost }) => {
+      if (!roomId || !permissions) return;
+      const rid = roomId.toLowerCase();
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+        (c.id === rid || (c.partner || '').toLowerCase() === rid)
+          ? { ...c, permissions, isHost: !!isHost }
+          : c
+      ));
+      // Also update activeChat if the user is currently viewing this room chat
+      setActiveChat(prev => {
+        if (!prev || prev.type !== 'room') return prev;
+        const chatId = (prev.id || prev.partner || '').toLowerCase();
+        if (chatId !== rid) return prev;
+        return { ...prev, permissions, isHost: !!isHost };
+      });
+    };
+
+    sock.on('room_permissions_snapshot', applyRoomPermissions);
+    sock.on('room_settings_updated', ({ roomId, permissions, hostUsername, admins = [] }) => {
+      if (!roomId || !permissions) return;
+      const rid = roomId.toLowerCase();
+      const myUser = (myUsername || localStorage.getItem('watch_username') || '').toLowerCase();
+      // Determine isHost: if hostUsername matches current user, or if they are in the admins array
+      const isHost = !!(
+        (hostUsername && myUser && hostUsername.toLowerCase() === myUser) || 
+        admins.map(a => a.toLowerCase()).includes(myUser)
+      );
+      applyRoomPermissions({ roomId: rid, permissions, isHost });
+    });
 
     // Re-unified typing indicator is now handled by sock.on('chat:typing') at the top
     sock.on('dm_cleared', (data) => {
@@ -1818,6 +1967,12 @@ const GlobalChatWidget = forwardRef(({
     setView('chat');
     setActiveRelation(null); // Reset
     setMessages([]); // Clear previous chat context immediately
+
+    // For room chats: request a fresh permissions snapshot immediately.
+    // This ensures the widget has current restrictions even if no messages have been exchanged recently.
+    if (chat.type === 'room' && socketRef.current) {
+      socketRef.current.emit('track_rooms', { roomIds: [targetPartner] });
+    }
     if (chat.type === 'private') {
       try {
         const r = await fetch(`${API}/api/users/${chat.partner}`, {
@@ -1936,6 +2091,13 @@ const GlobalChatWidget = forwardRef(({
     // ── Client-side room permission checks ──
     if (activeChat.type === 'room' && activeChat.permissions && !activeChat.isHost) {
       const perms = activeChat.permissions;
+
+      // Check host-only messaging FIRST — before any optimistic update
+      if (perms.chat === 'host') {
+        toast.error('Only the host can send messages in this room.');
+        return;
+      }
+
       const linkRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
       if (perms.allowLinks === false && linkRegex.test(inputValue.trim())) {
         toast.error('🔗 Links are not allowed in this room.');
@@ -2320,13 +2482,7 @@ const GlobalChatWidget = forwardRef(({
 
   return (
     <div ref={wrapperRef} style={{ display: 'contents' }}>
-      <style>{`
-        .modal-btn-transition { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .modal-btn-transition:hover { transform: translateY(-1px); }
-        .modal-btn-transition:active { transform: translateY(0); scale: 0.98; }
-        .forced-white-text { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-        @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-      `}</style>
+      <style>{typingCss}</style>
     {/* ── Chat Lock Screen overlay ── */}
     {showLockScreen && pendingLockedChat && (
       <ChatLockScreen
@@ -2335,6 +2491,26 @@ const GlobalChatWidget = forwardRef(({
         action="unlock"
         onUnlock={handleChatUnlock}
         onClose={() => { setShowLockScreen(false); setPendingLockedChat(null); }}
+      />
+    )}
+    {bulkUnlockPending && (
+      <ChatLockScreen
+        chatKey="bulk_unlock"
+        chatName={`${selectedChats.length} selected chats`}
+        action="unlock"
+        onUnlock={() => {
+          setLockedChats(prev => {
+            const next = prev.filter(k => !selectedChats.map(s => s.toLowerCase()).includes(k.toLowerCase()));
+            localStorage.setItem(`locked_chats_${myUsername}`, JSON.stringify(next));
+            window.dispatchEvent(new Event('locked_chats_updated'));
+            return next;
+          });
+          toast.success(`Unlocked ${selectedChats.length} chat${selectedChats.length > 1 ? 's' : ''}`);
+          setSelectedChats([]);
+          setSelectMode(false);
+          setBulkUnlockPending(false);
+        }}
+        onClose={() => setBulkUnlockPending(false)}
       />
     )}
     {vaultUnlockPending && (
@@ -2396,6 +2572,7 @@ const GlobalChatWidget = forwardRef(({
         onSuccess={() => { setShowForgotPin(false); }}
       />
     )}
+    <style dangerouslySetInnerHTML={{ __html: typingCss }} />
     {deleteChatPending && createPortal(
       <div
         onMouseDown={e => e.stopPropagation()}
@@ -2453,41 +2630,40 @@ const GlobalChatWidget = forwardRef(({
             </button>
             <button
               onClick={() => { deleteChat(deleteChatPending); setDeleteChatPending(null); }}
-              className="modal-btn-transition danger-red-btn"
+              className="modal-btn-transition danger-red-btn stay-white"
               style={{
                 padding: '14px 36px', background: '#ef4444', border: 'none',
                 borderRadius: 18, color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, 
                 boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'
               }}
             >
-              Delete
+              <span className="stay-white" style={{color: '#fff'}}>Delete</span>
             </button>
           </div>
         </div>
       </div>,
       document.body
     )}
-    <div ref={containerRef} className="chat-widget-main-panel" style={{
+    <div ref={containerRef} className={`chat-widget-main-panel${transparentMode ? ' gcw-force-dark' : ''}`} style={{
         position: 'fixed',
-        top: 80,
-        right: 20,
-        width: 380,
-        height: 'calc(100vh - 100px)',
-        background: 'rgba(10, 10, 10, 0.82)',
-        backdropFilter: 'blur(24px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
+        top: transparentMode ? 0 : 80,
+        right: transparentMode ? 0 : 20,
+        width: transparentMode ? 400 : 380,
+        height: transparentMode ? '100vh' : 'calc(100vh - 100px)',
+        background: transparentMode ? 'transparent' : 'rgba(10, 10, 10, 0.82)',
+        backdropFilter: transparentMode ? 'none' : 'blur(24px) saturate(180%)',
+        WebkitBackdropFilter: transparentMode ? 'none' : 'blur(24px) saturate(180%)',
+        boxShadow: transparentMode ? 'none' : '0 20px 50px rgba(0,0,0,0.5)',
         display: isOpen ? 'flex' : 'none',
         flexDirection: 'column',
         zIndex: 10000,
         overflow: 'hidden',
-        borderRadius: 32,
-        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: transparentMode ? 0 : 32,
+        border: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         fontFamily: "'Inter', sans-serif"
       }}>
-        <style>{typingCss}</style>
         {/* Lightbox — rendered inside widget so clicks don't escape to parent */}
         {lightbox && (
           <MediaLightbox url={lightbox.url} type={lightbox.type} onClose={() => setLightbox(null)} />
@@ -2498,8 +2674,8 @@ const GlobalChatWidget = forwardRef(({
           alignItems: 'center', 
           justifyContent: 'space-between', 
           padding: '16px 20px', 
-          background: 'rgba(0,0,0,0.3)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)' 
+          background: transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)',
+          borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)' 
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {view === 'chat' && (
@@ -2533,7 +2709,7 @@ const GlobalChatWidget = forwardRef(({
             {view === 'chat' && activeChat && (
               <div style={{ position: 'relative' }} ref={chatMenuRef}>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); setShowChatMenu(!showChatMenu); }} 
+                  onClick={(e) => { e.stopPropagation(); setShowChatMenu(!showChatMenu); setActiveMessageMenu(null); }} 
                   style={{ background: 'transparent', border: 'none', color: 'var(--header-btn)', cursor: 'pointer', display: 'flex', padding: 4, borderRadius: '50%', transition: 'all 0.2s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#888'; }}
@@ -2552,28 +2728,20 @@ const GlobalChatWidget = forwardRef(({
                         <>
                           <button onClick={() => {
                             const isBlocked = blockedChats.some(k => k.toLowerCase() === (activeChat.partner || activeChat.id).toLowerCase());
-                            if (isBlocked) {
-                              toggleBlockChat(activeChat.partner || activeChat.id);
-                            } else {
-                              setBlockUserPending(activeChat);
-                            }
+                            if (isBlocked) { toggleBlockChat(activeChat.partner || activeChat.id); } else { setBlockUserPending(activeChat); }
                             setShowChatMenu(false);
-                          }} className="menu-btn menu-btn-danger" style={{ 
-                            display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '10px 14px', 
-                            background: 'transparent', border: 'none', color: 'var(--menu-item-text)', textAlign: 'left', 
-                            cursor: 'pointer', borderRadius: 8, fontSize: 13, fontWeight: 600, transition: 'all 0.2s' 
-                          }}>
-                            <Ban size={14} style={{ color: '#ef4444', transition: 'color 0.2s' }} /> {blockedChats.some(k => k.toLowerCase() === (activeChat.partner || activeChat.id).toLowerCase()) ? 'Unblock User' : 'Block User'}
+                          }} data-hovertype="danger" className="chat-menu-item menu-btn menu-btn-danger"
+                          onMouseEnter={() => setHoveredMenuBtn('block')}
+                          onMouseLeave={() => setHoveredMenuBtn(null)}
+                          style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='block' ? 'rgba(239,68,68,0.12)' : 'transparent', border:'none', color: hoveredMenuBtn==='block' ? '#dc2626' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='block' ? '#dc2626' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                            <Ban size={14} color={hoveredMenuBtn==='block' ? '#dc2626' : undefined}/> {blockedChats.some(k => k.toLowerCase() === (activeChat.partner || activeChat.id).toLowerCase()) ? t('unblockUser', 'Unblock User') : t('blockUser', 'Block User')}
                           </button>
-                          <button onClick={() => {
-                            setClearChatModalOpen(activeChat);
-                            setShowChatMenu(false);
-                          }} className="menu-btn menu-btn-danger" style={{ 
-                            display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '10px 14px', 
-                            background: 'transparent', border: 'none', color: 'var(--menu-item-text)', textAlign: 'left', 
-                            cursor: 'pointer', borderRadius: 8, fontSize: 13, fontWeight: 600, transition: 'all 0.2s' 
-                          }}>
-                            <Trash2 size={14} style={{ color: '#ef4444', transition: 'color 0.2s' }} /> Clear Chat
+                          <button onClick={() => { setClearChatModalOpen(activeChat); setShowChatMenu(false); }}
+                          data-hovertype="danger" className="chat-menu-item menu-btn menu-btn-danger"
+                          onMouseEnter={() => setHoveredMenuBtn('clearPrivate')}
+                          onMouseLeave={() => setHoveredMenuBtn(null)}
+                          style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='clearPrivate' ? 'rgba(239,68,68,0.12)' : 'transparent', border:'none', color: hoveredMenuBtn==='clearPrivate' ? '#dc2626' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='clearPrivate' ? '#dc2626' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                            <Trash2 size={14} color={hoveredMenuBtn==='clearPrivate' ? '#dc2626' : undefined}/> {t('clearChat', 'Clear Chat')}
                           </button>
                         </>
                       )}
@@ -2581,30 +2749,20 @@ const GlobalChatWidget = forwardRef(({
                       {activeChat.type === 'room' && (
                         <>
                         <button onClick={() => {
-                          if (!activeChat.isHost) {
-                             toast.error('Only host can edit this room name');
-                             return;
-                          }
-                          setRenameInput(activeChat.displayName);
-                          setRenameModalOpen(true);
-                          setShowChatMenu(false);
-                        }} className="menu-btn menu-btn-primary" style={{ 
-                          display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '10px 14px', 
-                          background: 'transparent', border: 'none', color: 'var(--menu-item-text)', 
-                          textAlign: 'left', cursor: 'pointer', 
-                          borderRadius: 8, fontSize: 13, fontWeight: 600, transition: 'all 0.2s' 
-                        }} onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <Edit2 size={14} style={{ color: 'inherit' }} /> Edit Name
+                          if (!activeChat.isHost) { toast.error('Only host can edit this room name'); return; }
+                          setRenameInput(activeChat.displayName); setRenameModalOpen(true); setShowChatMenu(false);
+                        }} data-hovertype="primary" className="chat-menu-item menu-btn menu-btn-primary"
+                        onMouseEnter={() => setHoveredMenuBtn('editName')}
+                        onMouseLeave={() => setHoveredMenuBtn(null)}
+                        style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='editName' ? 'rgba(99,102,241,0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='editName' ? '#4f46e5' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='editName' ? '#4f46e5' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                          <Edit2 size={14} color={hoveredMenuBtn==='editName' ? '#4f46e5' : undefined}/> {t('editName', 'Edit Name')}
                         </button>
-                        <button onClick={() => {
-                          setClearGroupChatModalOpen(activeChat);
-                          setShowChatMenu(false);
-                        }} className="menu-btn menu-btn-danger" style={{ 
-                          display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '10px 14px', 
-                          background: 'transparent', border: 'none', color: 'var(--menu-item-text)', textAlign: 'left', 
-                          cursor: 'pointer', borderRadius: 8, fontSize: 13, fontWeight: 600, transition: 'all 0.2s' 
-                        }}>
-                          <Trash2 size={14} style={{ color: '#ef4444', transition: 'color 0.2s' }} /> Clear Chat
+                        <button onClick={() => { setClearGroupChatModalOpen(activeChat); setShowChatMenu(false); }}
+                        data-hovertype="danger" className="chat-menu-item menu-btn menu-btn-danger"
+                        onMouseEnter={() => setHoveredMenuBtn('clearRoom')}
+                        onMouseLeave={() => setHoveredMenuBtn(null)}
+                        style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='clearRoom' ? 'rgba(239,68,68,0.12)' : 'transparent', border:'none', color: hoveredMenuBtn==='clearRoom' ? '#dc2626' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='clearRoom' ? '#dc2626' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                          <Trash2 size={14} color={hoveredMenuBtn==='clearRoom' ? '#dc2626' : undefined}/> {t('clearChat', 'Clear Chat')}
                         </button>
                         </>
                       )}
@@ -2677,9 +2835,9 @@ const GlobalChatWidget = forwardRef(({
                         className="chat-menu-item"
                       >
                         {showLockedChats ? <Unlock size={16} color="#818cf8" /> : <Lock size={16} color="var(--menu-icon)" />}
-                        <span style={{ flex: 1 }}>{showLockedChats ? 'Close vault' : 'Locked chats'}</span>
+                        <span style={{ flex: 1 }}>{showLockedChats ? t('closeVault', 'Close vault') : t('lockedChatsTitle', 'Locked chats')}</span>
                         {lockedChats.length > 0 && (
-                          <span className="unread-badge" style={{
+                          <span className="unread-badge stay-white" style={{
                             background: '#ef4444',
                             color: '#fff',
                             fontSize: '0.65rem', fontWeight: 800,
@@ -2700,15 +2858,15 @@ const GlobalChatWidget = forwardRef(({
                           padding: '10px 14px', borderRadius: 8, border: 'none',
                           background: showHiddenChats ? 'rgba(99,102,241,0.12)' : 'transparent',
                           width: '100%', textAlign: 'left',
-                          fontSize: '0.85rem', color: showHiddenChats ? '#818cf8' : '#eee',
+                          fontSize: '0.85rem', color: showHiddenChats ? '#818cf8' : 'var(--menu-item-text)',
                           cursor: 'pointer', transition: 'background 0.18s'
                         }}
                         className="chat-menu-item"
                       >
                         <EyeOff size={16} color={showHiddenChats ? '#818cf8' : 'var(--menu-icon)'} />
-                        <span style={{ flex: 1 }}>{showHiddenChats ? 'Back to chats' : 'Hidden chats'}</span>
+                        <span style={{ flex: 1 }}>{showHiddenChats ? t('backToChats', 'Back to chats') : t('hiddenChatsTitle', 'Hidden chats')}</span>
                         {hiddenChats.length > 0 && (
-                          <span className="unread-badge" style={{
+                          <span className="unread-badge stay-white" style={{
                             background: '#ef4444',
                             color: '#fff',
                             fontSize: '0.65rem', fontWeight: 800,
@@ -2745,7 +2903,7 @@ const GlobalChatWidget = forwardRef(({
                         className="chat-menu-item"
                       >
                         <CheckCheck size={16} color="var(--menu-icon)" />
-                        Mark all as read
+                        {t('markAllAsRead', 'Mark all as read')}
                       </button>
                       {!selectMode && (
                         <>
@@ -2768,7 +2926,7 @@ const GlobalChatWidget = forwardRef(({
                             className="chat-menu-item"
                           >
                             <SquareCheck size={16} color="var(--menu-icon)" />
-                            Select chats
+                            {t('selectChats', 'Select chats')}
                           </button>
                         </>
                       )}
@@ -2789,11 +2947,11 @@ const GlobalChatWidget = forwardRef(({
               padding: '16px 20px', 
               position: 'sticky', 
               top: 0,
-              background: selectMode ? 'rgba(18, 14, 35, 0.98)' : 'rgba(10, 10, 10, 0.98)', 
+              background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : 'rgba(10, 10, 10, 0.98)'), 
               zIndex: 30, 
-              borderBottom: '1px solid rgba(255,255,255,0.03)', 
+              borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.03)', 
               transition: 'background 0.25s',
-              backdropFilter: 'blur(10px)'
+              backdropFilter: transparentMode ? 'none' : 'blur(10px)'
             }}>
               {selectMode ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '38px' }}>
@@ -2835,17 +2993,25 @@ const GlobalChatWidget = forwardRef(({
                       }}
                       style={{
                         background: 'transparent', border: 'none',
-                        color: '#818cf8', cursor: 'pointer', display: 'flex',
-                        padding: '6px', borderRadius: '4px',
-                        transition: 'all 0.18s'
+                        cursor: 'pointer', display: 'flex',
+                        padding: '6px', transition: 'all 0.18s'
                       }}
                       title="Select all visible"
                     >
                       {(() => {
-                        const visible = conversations.filter(c => showHiddenChats ? hiddenChats.includes(c.id || c.partner) : !hiddenChats.includes(c.id || c.partner));
+                        const visible = conversations.filter(c => {
+                          const cId = (c.id || c.partner).toLowerCase();
+                          if (showLockedChats) return lockedChats.includes(cId);
+                          if (showHiddenChats) return hiddenChats.includes(c.id || c.partner);
+                          return !hiddenChats.includes(c.id || c.partner) && !lockedChats.includes(cId);
+                        });
                         const visibleKeys = visible.map(c => c.id || c.partner);
                         const isAllSelected = visibleKeys.length > 0 && visibleKeys.every(k => selectedChats.includes(k));
-                        return isAllSelected ? <SquareCheck size={20} fill="rgba(129,140,248,0.2)" /> : <Square size={20} color="#666" />;
+                        return isAllSelected ? (
+                          <SquareCheck size={20} color="#818cf8" fill="rgba(129,140,248,0.1)" />
+                        ) : (
+                          <Square size={20} color="#444" />
+                        );
                       })()}
                     </button>
 
@@ -2946,6 +3112,20 @@ const GlobalChatWidget = forwardRef(({
                                 </>
                               )}
                             </button>
+                            {/* Unlock chats — only in locked vault */}
+                            {showLockedChats && (
+                              <button
+                                onClick={() => {
+                                  setShowSelectionMenu(false);
+                                  setBulkUnlockPending(true);
+                                }}
+                                className="chat-menu-item"
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
+                              >
+                                <Unlock size={16} color="var(--menu-icon)" />
+                                Unlock selected
+                              </button>
+                            )}
                             {/* Hide / Unhide chats */}
                             <button
                               onClick={() => {
@@ -2982,7 +3162,7 @@ const GlobalChatWidget = forwardRef(({
                 <div style={{ position: 'relative' }}>
                   <Search size={16} color="#666" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
                   <input
-                    placeholder="Search users..."
+                    placeholder={t('searchUsers', 'Search users...')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
@@ -3079,7 +3259,7 @@ const GlobalChatWidget = forwardRef(({
                         <Lock size={16} color={autoLockOnClose ? '#818cf8' : 'var(--menu-icon)'} />
                       </div>
                       <div style={{ flex: 1, fontWeight: 500 }}>Auto-lock on close</div>
-                      <div style={{ width: 32, height: 18, borderRadius: 20, background: autoLockOnClose ? '#8b5cf6' : (isLight ? '#d1d5db' : '#333'), position: 'relative', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                      <div style={{ width: 32, height: 18, borderRadius: 20, background: autoLockOnClose ? '#8b5cf6' : (isLight ? '#d1d5db' : 'rgba(255,255,255,0.15)'), position: 'relative', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                         <div style={{ position: 'absolute', top: 3, left: autoLockOnClose ? 17 : 3, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
                       </div>
                     </button>
@@ -3308,12 +3488,11 @@ const GlobalChatWidget = forwardRef(({
                     <>
                       <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                         {chat.type === 'room' ? (
-                          // For group/room chats: show a gradient group avatar with members icon
-                          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+                          <div style={{ width: '100%', height: '100%', background: displayAvatar ? 'none' : 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
-                              <img src={`${API}${displayAvatar}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <img src={`${API}${displayAvatar}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
-                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                              <Users size={20} color="#fff" />
                             )}
                           </div>
                         ) : (
@@ -3326,103 +3505,107 @@ const GlobalChatWidget = forwardRef(({
                           )
                         )}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display:'flex', alignItems:'center', color: 'var(--header-text)' }}>
                             {displayName}
-                      {typingStatuses[chatKey] && (
-                        <div className="typing-dots">
-                          <div className="typing-dot"></div>
-                          <div className="typing-dot"></div>
-                          <div className="typing-dot"></div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            {typingStatuses[chatKey] ? (
+                              <div className="typing-dots">
+                                <div className="typing-dot"></div>
+                                <div className="typing-dot"></div>
+                                <div className="typing-dot"></div>
+                              </div>
+                            ) : (
+                              chat.lastTimestamp > 0 && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--header-btn)', whiteSpace: 'nowrap' }}>
+                                  {formatDistanceToNow(Number(chat.lastTimestamp))}
+                                </div>
+                              )
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {chat.lastTimestamp > 0 && (
-                        <div style={{ fontSize: '0.7rem', color: 'var(--header-btn)', whiteSpace: 'nowrap' }}>
-                          {formatDistanceToNow(Number(chat.lastTimestamp))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--header-btn)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                      <span className="chat-tag" style={{ 
-                        background: chat.type === 'room' ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.2)', 
-                        color: chat.type === 'room' ? '#818cf8' : '#4ade80',
-                        padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', marginRight: 6, textTransform: 'uppercase', fontWeight: 600, flexShrink: 0
-                      }}>
-                        {chat.type}
-                      </span>
-                      <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                        {(() => {
-                          // If chat has been cleared / no messages yet, show a friendly placeholder
-                          if (chat.type === 'room' && (!chat.lastTimestamp || chat.lastTimestamp === 0)) {
-                            return <span style={{ color: 'var(--menu-icon)' }}>Start a conversation</span>;
-                          }
-                          const mediaLabel = chat.lastMediaType ? (chat.lastMediaType.startsWith('video') ? 'Video' : 'Photo') : null;
-                          const rawMsg = chat.message || '';
-                          const msgLabel = mediaLabel || chat.decryptedText || (looksLikeCiphertext(rawMsg) ? (isMe ? 'Message sent' : 'Encrypted message') : (rawMsg || ''));
-                          if (chat.type === 'room') {
-                            const senderLabel = isMe ? 'You' : (chat.lastSenderName || '');
-                            return senderLabel ? `${senderLabel}: ${msgLabel}` : msgLabel;
-                          }
-                          return `${isMe ? 'You: ' : ''}${msgLabel}`;
-                        })()}
-                      </span>
-                    </div>
-                    {mutedChats.includes(chatKey) && (
-                      <BellOff size={14} className="chat-status-icon" color="var(--header-btn)" style={{ marginLeft: 8, flexShrink: 0 }} />
-                    )}
-                    {chatLockEnabled && lockedChats.includes(chatKey) && (
-                      <Lock size={14} className="chat-status-icon" color="#818cf8" style={{ marginLeft: 8, flexShrink: 0 }} />
-                    )}
-                    {pinnedChats.includes(chatKey) && (
-                      <Pin size={14} className="chat-status-icon" color="var(--header-btn)" style={{ marginLeft: 8, flexShrink: 0, fill: 'var(--header-btn)' }} />
-                    )}
-                    {unread > 0 && (
-                      <div className="unread-badge" style={{
-                        background: '#ef4444', borderRadius: '50%', color: '#fff',
-                        fontSize: 10, fontWeight: 'bold', minWidth: 18, height: 18,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        padding: '0 4px', marginLeft: 8, flexShrink: 0
-                      }}>
-                        {unread > 99 ? '99+' : unread}
-                      </div>
-                    )}
 
-                    {/* Dropdown Menu Arrow (Flex Flow, sliding transition inside bottom row) */}
-                     <div
-                      className="chat-item-arrow"
-                      ref={activeConvMenu === chatKey ? convMenuRef : null}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const next = activeConvMenu === chatKey ? null : chatKey;
-                        setActiveConvMenu(next);
-                        if (next) {
-                          setShowGlobalMenu(false);
-                          setShowSelectionMenu(false);
-                          setShowVaultMenu(false);
-                        }
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 20 : 0,
-                        opacity: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 1 : 0,
-                        transform: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 'translateX(0)' : 'translateX(10px)',
-                        overflow: 'hidden',
-                        transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                        color: '#aaa',
-                        marginLeft: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 8 : 0,
-                        flexShrink: 0,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <ChevronDown size={18} />
-                    </div>
-                  </div>
-                </div>
+                        <div style={{ fontSize: '0.85rem', color: isLight ? 'var(--header-btn)' : '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                            <span className="chat-tag" style={{ 
+                              background: chat.type === 'room' ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.2)', 
+                              color: chat.type === 'room' ? '#818cf8' : '#4ade80',
+                              padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', marginRight: 6, textTransform: 'uppercase', fontWeight: 600, flexShrink: 0
+                            }}>
+                              {chat.type}
+                            </span>
+                            <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {(() => {
+                                // If chat has been cleared / no messages yet, show a friendly placeholder
+                                if (chat.type === 'room' && (!chat.lastTimestamp || chat.lastTimestamp === 0)) {
+                                  return <span style={{ color: 'var(--menu-icon)' }}>Start a conversation</span>;
+                                }
+                                const mediaLabel = chat.lastMediaType ? (chat.lastMediaType.startsWith('video') ? 'Video' : 'Photo') : null;
+                                const rawMsg = chat.message || '';
+                                const msgLabel = mediaLabel || chat.decryptedText || (looksLikeCiphertext(rawMsg) ? (isMe ? 'Message sent' : 'Encrypted message') : (rawMsg || ''));
+                                if (chat.type === 'room') {
+                                  const senderLabel = isMe ? 'You' : (chat.lastSenderName || '');
+                                  return senderLabel ? `${senderLabel}: ${msgLabel}` : msgLabel;
+                                }
+                                return `${isMe ? 'You: ' : ''}${msgLabel}`;
+                              })()}
+                            </span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+                            {mutedChats.includes(chatKey) && (
+                              <BellOff size={14} className="chat-status-icon" color="var(--header-btn)" style={{ flexShrink: 0 }} />
+                            )}
+                            {chatLockEnabled && lockedChats.includes(chatKey) && (
+                              <Lock size={14} className="chat-status-icon" color="#818cf8" style={{ flexShrink: 0 }} />
+                            )}
+                            {pinnedChats.includes(chatKey) && (
+                              <Pin size={14} className="chat-status-icon" color="var(--header-btn)" style={{ flexShrink: 0, fill: 'var(--header-btn)' }} />
+                            )}
+                            {unread > 0 && (
+                              <div className="unread-badge stay-white" style={{
+                                background: '#ef4444', borderRadius: '50%', color: '#fff',
+                                fontSize: 10, fontWeight: 'bold', minWidth: 18, height: 18,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                padding: '0 4px', flexShrink: 0
+                              }}>
+                                {unread > 99 ? '99+' : unread}
+                              </div>
+                            )}
+                            {/* Dropdown Menu Arrow (Flex Flow, sliding transition inside bottom row) */}
+                             <div
+                              className="chat-item-arrow"
+                              ref={activeConvMenu === chatKey ? convMenuRef : null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const next = activeConvMenu === chatKey ? null : chatKey;
+                                setActiveConvMenu(next);
+                                if (next) {
+                                  setShowGlobalMenu(false);
+                                  setShowSelectionMenu(false);
+                                  setShowVaultMenu(false);
+                                }
+                              }}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 20 : 0,
+                                opacity: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 1 : 0,
+                                transform: (hoveredConvId === chatKey || activeConvMenu === chatKey) ? 'translateX(0)' : 'translateX(10px)',
+                                overflow: 'hidden',
+                                transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                                color: '#aaa',
+                                marginLeft: 0,
+                                flexShrink: 0,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <ChevronDown size={18} />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
                 {/* Dropdown Menu Box */}
                 {activeConvMenu === chatKey && (
@@ -3440,19 +3623,19 @@ const GlobalChatWidget = forwardRef(({
                   }}>
                     {/* Hide chat */}
                     <div className="chat-menu-item" onClick={() => toggleHideChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <EyeOff size={16} color="var(--menu-icon)" /> {hiddenChats.includes(chatKey) ? 'Unhide chat' : 'Hide chat'}
+                      <EyeOff size={16} color="var(--menu-icon)" /> {hiddenChats.includes(chatKey) ? t('unhideChat', 'Unhide chat') : t('hideChat', 'Hide chat')}
                     </div>
                     {/* Pin chat */}
                     <div className="chat-menu-item" onClick={() => togglePinChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <Pin size={16} color="var(--menu-icon)" /> {pinnedChats.includes(chatKey) ? 'Unpin chat' : 'Pin chat'}
+                      <Pin size={16} color="var(--menu-icon)" /> {pinnedChats.includes(chatKey) ? t('unpinChat', 'Unpin chat') : t('pinChat', 'Pin chat')}
                     </div>
                     {/* Mute notifications */}
                     <div className="chat-menu-item" onClick={() => toggleMuteChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <BellOff size={16} color="var(--menu-icon)" /> {mutedChats.includes(chatKey) ? 'Unmute notifications' : 'Mute notifications'}
+                      <BellOff size={16} color="var(--menu-icon)" /> {mutedChats.includes(chatKey) ? t('unmuteNotifications', 'Unmute notifications') : t('muteNotifications', 'Mute notifications')}
                     </div>
                     {/* Mark as read */}
                     <div className="chat-menu-item" onClick={() => markChatAsRead(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <CheckCheck size={16} color="var(--menu-icon)" /> Mark as read
+                      <CheckCheck size={16} color="var(--menu-icon)" /> {t('markAsRead', 'Mark as read')}
                     </div>
                     {/* Chat lock */}
                     <div className="chat-menu-item" onClick={() => {
@@ -3470,7 +3653,7 @@ const GlobalChatWidget = forwardRef(({
                       }
                     }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: lockedChats.includes(chatKey) ? '#818cf8' : 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       {lockedChats.includes(chatKey) ? <Unlock size={16} color="#818cf8" /> : <Lock size={16} color="var(--menu-icon)" />}
-                      {lockedChats.includes(chatKey) ? 'Unlock chat' : 'Lock chat'}
+                      {lockedChats.includes(chatKey) ? t('unlockChat', 'Unlock chat') : t('lockChat', 'Lock chat')}
                     </div>
 
                     {/* Divider before last 3 options */}
@@ -3486,7 +3669,7 @@ const GlobalChatWidget = forwardRef(({
                           setBlockUserPending(chat);
                         }
                       }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: '#f97316', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <Ban size={16} className="menu-icon" color="#f97316" /> {blockedChats.some(k => k.toLowerCase() === chatKey.toLowerCase()) ? 'Unblock' : 'Block'}
+                        <Ban size={16} className="menu-icon" color="#f97316" /> {blockedChats.some(k => k.toLowerCase() === chatKey.toLowerCase()) ? t('unblock', 'Unblock') : t('block', 'Block')}
                       </div>
                     )}
                     {/* Clear chat */}
@@ -3495,14 +3678,14 @@ const GlobalChatWidget = forwardRef(({
                       if (chat.type === 'room') setClearGroupChatModalOpen(chat);
                       else setClearChatModalOpen(chat);
                     }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <MessageSquareX size={16} className="menu-icon" color="var(--menu-icon)" /> Clear chat
+                      <MessageSquareX size={16} className="menu-icon" color="var(--menu-icon)" /> {t('clearChat', 'Clear chat')}
                     </div>
                     {/* Delete chat */}
                     <div className="chat-menu-item menu-btn-destructive" onClick={() => {
                       setActiveConvMenu(null);
                       setDeleteChatPending(chatKey);
                     }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: '#ef4444', cursor: 'pointer', transition: 'background 0.2s' }}>
-                      <Trash2 size={16} className="menu-icon" color="#ef4444" /> Delete chat
+                      <Trash2 size={16} className="menu-icon" color="#ef4444" /> {t('deleteChat', 'Delete chat')}
                     </div>
                   </div>
                 )}
@@ -3556,7 +3739,7 @@ const GlobalChatWidget = forwardRef(({
                   return (
                     <div key={msg.tempId || msg.id || i} 
                          id={`gcw-msg-${msg.id || msg.tempId || i}`}
-                         style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                       {msg.replyTo && (
                         <div onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
                           <span style={{color:isMe?'#6366f1':'#a855f7',fontWeight:600}}>{(() => {
@@ -3612,12 +3795,13 @@ const GlobalChatWidget = forwardRef(({
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)} 
                                onMouseLeave={() => setHoveredRowId(null)}>
-                            <div className={`msg-bubble ${isMe ? 'msg-sent' : 'msg-received'}`} style={{
+                            <div className={`msg-bubble ${isMe ? 'msg-sent stay-white' : 'msg-received'}`} style={{
                                position: 'relative',
-                               background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : '#121212'),
+                               background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
                                padding: isMediaOnly ? '0' : '10px 16px',
                                borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                               fontSize: 14, color: '#ffffff',
+                               fontSize: 14, color: transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
+                               textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
                                maxWidth: '100%', wordBreak: 'break-word'
                              }}
                                onMouseEnter={() => setHoveredMsgId(msg.id||i)} 
@@ -3646,44 +3830,61 @@ const GlobalChatWidget = forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.4)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
-                                    <div style={{position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:4, zIndex:100, boxShadow:'0 4px 12px rgba(0,0,0,0.5)', minWidth: 140}} onClick={e => e.stopPropagation()}>
+                                    <div style={{
+                                      position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, 
+                                      background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)', 
+                                      borderRadius:12, padding:6, zIndex:100, 
+                                      boxShadow:'var(--dropdown-shadow)', minWidth: 145,
+                                      WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
+                                    }} onClick={e => e.stopPropagation()}>
                                       {isMe ? (
                                         <>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                            <Trash2 size={12}/> Unsend
+                                          <button onClick={() => { handleDeleteMessage(msg.id, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                            <Trash2 size={12} color="#ef4444"/> {t('unsend', 'Unsend')}
                                           </button>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#aaa', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.06)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                            <Trash2 size={12}/> Delete for me
+                                          <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'var(--menu-item-text)', WebkitTextFillColor:'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--menu-item-hover)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                            <Trash2 size={12} color={isLight ? '#475569' : '#aaa'}/> {t('deleteForMe', 'Delete for me')}
                                           </button>
                                         </>
                                       ) : (
-                                        <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:6, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'6px 8px', fontSize:12, borderRadius:4, whiteSpace:'nowrap'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.1)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                          <Trash2 size={12}/> Delete
+                                        <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                          <Trash2 size={12} color="#ef4444"/> {t('delete', 'Delete')}
                                         </button>
                                       )}
                                     </div>
                                   )}
                                 </div>
                               )}
-                              
-                              {activeReactionMsg === msg.id && !showAllEmojis && (
-                                <div style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
-                                  <div style={{background:'rgba(26,26,46,0.95)',backdropFilter:'blur(4px)',border:'1px solid rgba(255,255,255,0.1)',borderRadius: 30,padding:'6px 8px',display:'flex',alignItems:'center',gap:6,width:'max-content',boxShadow:'0 8px 24px rgba(0,0,0,0.6)'}}>
-                                    {(QUICK_EMOJIS).map(em=>(
-                                      <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
-                                    ))}
-                                    <button onClick={(e)=>{e.stopPropagation(); setShowAllEmojis(true);}} style={{background:'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background='rgba(255,255,255,0.1)'}><Plus size={14}/></button>
+
+                                {activeReactionMsg === msg.id && !showAllEmojis && (
+                                  <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                    <div style={{
+                                      background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
+                                      backdropFilter:'blur(12px)',
+                                      border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                      borderRadius: 30,
+                                      padding:'6px 8px',
+                                      display:'flex',
+                                      alignItems:'center',
+                                      gap:6,
+                                      width:'max-content',
+                                      boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+                                    }}>
+                                      {(QUICK_EMOJIS).map(em=>(
+                                        <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                                      ))}
+                                      <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14}/></button>
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
                             </div>
                             
                                                     <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i}`}>
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#444',padding:2}}>
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
                                 <SmilePlus size={16}/>
                               </button>
                             </div>
@@ -3693,7 +3894,7 @@ const GlobalChatWidget = forwardRef(({
                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div style={{display:'flex',gap:4,marginTop:2,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start'}}>
                               {Object.entries(msg.reactions).map(([em, users]) => users.length > 0 && (
-                                <span key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'rgba(255,255,255,0.1)',borderRadius:10,padding:'2px 6px',fontSize:11,cursor:'pointer',userSelect:'none'}}>
+                                <span key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)', border:`1px solid ${users.includes(myUsername)?'#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: isLight ? '#1e293b' : '#ddd'}}>
                                   {em} {users.length>1?users.length:''}
                                 </span>
                               ))}
@@ -3744,20 +3945,14 @@ const GlobalChatWidget = forwardRef(({
             </div>
           )}
 
-          {/* Full Emoji Picker positioned inside chat container */}
-          {showAllEmojis && activeReactionMsg && (
-            <div style={{position:'absolute', bottom: 76, right: 16, zIndex: 99999, boxShadow:'0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}}>
-              <Picker data={data} theme="dark" previewPosition="none" searchPosition="none" navPosition="bottom" perLine={6} onEmojiSelect={(emojiObj) => { setShowAllEmojis(false); handleReact(activeReactionMsg, emojiObj.native); }}/>
-            </div>
-          )}
         </div>
 
         {/* Input area for chat view */}
         {view === 'chat' && (
           <div style={{
             padding: '12px 14px',
-            borderTop: '1px solid rgba(255,255,255,0.05)',
-            background: 'rgba(0,0,0,0.2)',
+            borderTop: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.05)',
+            background: transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)',
             flexShrink: 0,
             position: 'relative'
           }}>
@@ -3797,17 +3992,17 @@ const GlobalChatWidget = forwardRef(({
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
                   <Plus size={18} color="#6366f1" />
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Friendship Required</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{t('friendshipRequired', 'Friendship Required')}</div>
                 <p style={{ fontSize: 11, color: '#888', margin: 0, lineHeight: 1.5 }}>
                   {activeRelation.followStatus === 'accepted' 
-                    ? `Waiting for ${activeChat.displayName} to follow you back.` 
+                    ? t('waitingForFollowBack', { name: activeChat.displayName, defaultValue: `Waiting for ${activeChat.displayName} to follow you back.` }) 
                     : activeRelation.isFollowingMe 
-                      ? `You need to follow ${activeChat.displayName} back to chat.`
-                      : `You need to follow each other to start messaging.`}
+                      ? t('needToFollowBack', { name: activeChat.displayName, defaultValue: `You need to follow ${activeChat.displayName} back to chat.` })
+                      : t('needMutualFollow', 'You need to follow each other to start messaging.')}
                 </p>
                 {activeRelation.followStatus !== 'accepted' && (
-                  <button onClick={() => navigate(`/profile/${activeChat.partner}`)} style={{ marginTop: 12, padding: '8px 16px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                    View Profile
+                  <button className="stay-white" onClick={() => navigate(`/profile/${activeChat.partner}`)} style={{ marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 10, color: '#fff !important', fontSize: 11, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(99,102,241,0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
+                    {t('viewProfile', 'View Profile')}
                   </button>
                 )}
               </div>
@@ -3874,24 +4069,32 @@ const GlobalChatWidget = forwardRef(({
                     const perms = activeChat.permissions;
                     const isHost = activeChat.isHost;
                     if (!perms || isHost) return null;
+                    const chatLocked = perms.chat === 'host';
                     const linksBlocked = perms.allowLinks === false;
                     const mediaBlocked = perms.allowMedia === false;
-                    if (!linksBlocked && !mediaBlocked) return null;
+                    if (!chatLocked && !linksBlocked && !mediaBlocked) return null;
                     return (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                        {chatLocked && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, color: '#ef4444',
+                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                            borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
+                          }}>🔒 Host-only messaging</span>
+                        )}
                         {linksBlocked && (
                           <span style={{
-                            fontSize: 10, fontWeight: 600, color: '#f59e0b',
-                            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+                            fontSize: 10, fontWeight: 600, color: '#ef4444',
+                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
                             borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
-                          }}>🔗 Links disabled</span>
+                          }}>🔗 Links Disabled</span>
                         )}
                         {mediaBlocked && (
                           <span style={{
-                            fontSize: 10, fontWeight: 600, color: '#f59e0b',
-                            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+                            fontSize: 10, fontWeight: 600, color: '#ef4444',
+                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
                             borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
-                          }}>📷 Media disabled</span>
+                          }}>📷 Media Disabled</span>
                         )}
                       </div>
                     );
@@ -3902,7 +4105,8 @@ const GlobalChatWidget = forwardRef(({
                       <input 
                         ref={inputRef}
                         type="text" 
-                        placeholder="Message..."
+                        placeholder={activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
+                        disabled={!!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)}
                         value={inputValue}
                         onChange={e => {
                           setInputValue(e.target.value);
@@ -3972,8 +4176,8 @@ const GlobalChatWidget = forwardRef(({
                       )}
                     </div>
 
-                    <button type="submit" disabled={!inputValue.trim() && !isUploading} style={{
-                      width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:(!inputValue.trim() && !isUploading)?0.5:1, flexShrink: 0
+                    <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)} style={{
+                      width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', color:'#fff', cursor: (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost))?0.5:1, flexShrink: 0
                     }}>
                       <Send size={18} />
                     </button>
@@ -4009,10 +4213,10 @@ const GlobalChatWidget = forwardRef(({
                     toggleBlockChat(blockUserPending.partner || blockUserPending.id);
                     setBlockUserPending(null);
                   }} 
-                  className="modal-btn-transition danger-red-btn"
+                  className="modal-btn-transition danger-red-btn stay-white"
                   style={{ padding: '14px 36px', background: '#ef4444', border: 'none', borderRadius: 18, color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)' }} 
                 >
-                  Block
+                  <span className="stay-white" style={{color: '#fff'}}>Block</span>
                 </button>
               </div>
             </div>
@@ -4042,7 +4246,9 @@ const GlobalChatWidget = forwardRef(({
                   setClearChatModalOpen(false); 
                   setClearForBoth(false); 
                   toast.success('Chat history cleared');
-                }} className="modal-btn-transition danger-red-btn" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>Clear Chat</button>
+                }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>
+                  <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
+                </button>
               </div>
             </div>
           </div>,
@@ -4066,7 +4272,9 @@ const GlobalChatWidget = forwardRef(({
                   if (socketRef.current) socketRef.current.emit('clear_room_chat', { roomId: clearGroupChatModalOpen.partner }); 
                   setClearGroupChatModalOpen(false); 
                   toast.success('Chat history cleared');
-                }} className="modal-btn-transition danger-red-btn" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>Clear Chat</button>
+                }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>
+                  <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
+                </button>
               </div>
             </div>
           </div>,
@@ -4101,7 +4309,7 @@ const GlobalChatWidget = forwardRef(({
                 <input value={renameInput} onChange={e=>setRenameInput(e.target.value)} autoFocus style={{width:'100%',background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)',border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:18,padding:'18px 22px',color: isLight ? '#000' : '#fff',marginBottom:28,fontSize:15,outline:'none'}} placeholder="Enter new name..."/>
                 <div style={{display:'flex',gap:14,justifyContent:'flex-end'}}>
                   <button type="button" onClick={()=>setRenameModalOpen(false)} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #e2e8f0' : 'none', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
-                  <button type="submit" className="modal-btn-transition forced-white-text" style={{padding:'14px 36px',background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',borderRadius:18,color:'#ffffff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(99,102,241,0.4)'}}><span className="forced-white-text">Save</span></button>
+                  <button type="submit" className="modal-btn-transition stay-white" style={{padding:'14px 36px',background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',borderRadius:18,color:'#ffffff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(99,102,241,0.4)'}}><span className="stay-white">Save</span></button>
                 </div>
               </form>
             </div>
@@ -4172,8 +4380,22 @@ const GlobalChatWidget = forwardRef(({
           action="reset"
         />
       )}
+        {/* Full Emoji Picker positioned inside main widget container */}
+        {showAllEmojis && activeReactionMsg && (
+          <div className="emoji-picker-container" style={{position:'absolute', bottom: 84, right: 16, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onClick={e=>e.stopPropagation()}>
+            <Picker 
+              data={data} 
+              theme={isLight ? 'light' : 'dark'} 
+              previewPosition="none" 
+              searchPosition="none" 
+              navPosition="bottom" 
+              perLine={6} 
+              onEmojiSelect={(emojiObj) => { setShowAllEmojis(false); handleReact(activeReactionMsg, emojiObj.native); setActiveReactionMsg(null); }}
+            />
+          </div>
+        )}
+      </div>
     </div>
-  </div>
   );
 });
 

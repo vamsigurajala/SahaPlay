@@ -6,12 +6,24 @@
  */
 import React, { useState } from 'react';
 import { Shield, Copy, Check, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
+  const { t } = useTranslation();
   const [acknowledged, setAcknowledged]  = useState(false);
   const [copied, setCopied]              = useState(false);
   const [revealed, setRevealed]          = useState(false);
-  const words = phrase ? phrase.split(' ') : [];
+  
+  // Format the 24 letters into groups of 4 for readability, e.g. "ABCD EFGH IJKL..."
+  const isLetters = phrase && phrase.length === 24 && !phrase.includes(' ');
+  let displayBlocks = [];
+  if (isLetters) {
+    for (let i = 0; i < 24; i += 4) {
+      displayBlocks.push(phrase.substring(i, i + 4));
+    }
+  } else {
+    displayBlocks = phrase ? phrase.split(' ') : [];
+  }
 
   const handleCopy = async () => {
     try {
@@ -48,10 +60,10 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             <Shield size={28} color="#fff" />
           </div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', fontFamily: "'Outfit', sans-serif" }}>
-            Your Recovery Phrase
+            {t('recoveryPhraseTitle', 'Your Recovery Phrase')}
           </h2>
           <p style={{ margin: '8px 0 0', color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.5 }}>
-            This 24-word phrase is the <strong style={{ color: '#a78bfa' }}>only way</strong> to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.
+            {t('recoveryPhraseDesc1', 'This 24-letter key is the')} <strong style={{ color: '#a78bfa' }}>{t('onlyWay', 'only way')}</strong> {t('recoveryPhraseDesc2', 'to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')}
           </p>
         </div>
 
@@ -63,28 +75,27 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
         }}>
           <AlertTriangle size={16} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
           <p style={{ margin: 0, color: '#f87171', fontSize: 13, lineHeight: 1.5 }}>
-            Write these words down or store them in a password manager. Screenshots can be accessed by others. <strong>Never share this phrase.</strong>
+            {t('recoveryWarningText1', 'Write these words down or store them in a password manager. Screenshots can be accessed by others.')} <strong>{t('neverSharePhrase', 'Never share this phrase.')}</strong>
           </p>
         </div>
 
         {/* Phrase Grid */}
         <div style={{ position: 'relative', marginBottom: 16 }}>
           <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+            display: 'grid', gridTemplateColumns: isLetters ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)', gap: 8,
             filter: revealed ? 'none' : 'blur(8px)',
             transition: 'filter 0.3s',
             userSelect: revealed ? 'auto' : 'none',
             pointerEvents: revealed ? 'auto' : 'none'
           }}>
-            {words.map((word, i) => (
+            {displayBlocks.map((block, i) => (
               <div key={i} style={{
                 background: 'rgba(255,255,255,0.06)',
                 border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, padding: '7px 10px',
-                display: 'flex', alignItems: 'center', gap: 6
+                borderRadius: 8, padding: '10px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
               }}>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', minWidth: 16 }}>{i + 1}.</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#e2e8f0', fontFamily: 'monospace' }}>{word}</span>
+                <span style={{ fontSize: 16, letterSpacing: '2px', fontWeight: 700, color: '#e2e8f0', fontFamily: 'monospace' }}>{block}</span>
               </div>
             ))}
           </div>
@@ -98,8 +109,8 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             }} onClick={() => setRevealed(true)}>
               <div style={{ textAlign: 'center' }}>
                 <Eye size={24} color="#a78bfa" style={{ marginBottom: 6 }} />
-                <p style={{ margin: 0, color: '#a78bfa', fontSize: 13, fontWeight: 600 }}>Click to reveal phrase</p>
-                <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>Make sure no one is watching your screen</p>
+                <p style={{ margin: 0, color: '#a78bfa', fontSize: 13, fontWeight: 600 }}>{t('clickToReveal', 'Click to reveal key')}</p>
+                <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>{t('makeSureNoOneWatching', 'Make sure no one is watching your screen')}</p>
               </div>
             </div>
           )}
@@ -119,7 +130,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
               transition: 'all 0.25s'
             }}
           >
-            {copied ? <><Check size={15} /> Copied!</> : <><Copy size={15} /> Copy all 24 words</>}
+            {copied ? <><Check size={15} /> {t('copiedLabel', 'Copied!')}</> : <><Copy size={15} /> {t('copyAllWords', 'Copy recovery key')}</>}
           </button>
         )}
 
@@ -132,7 +143,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             style={{ width: 18, height: 18, marginTop: 2, accentColor: '#6366f1', flexShrink: 0 }}
           />
           <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
-            I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages.
+            {t('recoveryAcknowledge', 'I have written down or securely stored my 24-letter recovery key. I understand this is the only way to recover my encrypted messages.')}
           </span>
         </label>
 
@@ -152,7 +163,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             boxShadow: acknowledged && revealed ? '0 4px 20px rgba(99,102,241,0.4)' : 'none'
           }}
         >
-          {!revealed ? 'Reveal phrase first' : !acknowledged ? 'Please acknowledge above' : "I've saved it — Continue →"}
+          {!revealed ? t('revealPhraseFirst', 'Reveal key first') : !acknowledged ? t('pleaseAcknowledge', 'Please acknowledge above') : t('savedContinue', "I've saved it — Continue →")}
         </button>
       </div>
 

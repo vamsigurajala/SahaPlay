@@ -158,10 +158,18 @@ export async function secretKeyToMnemonic(secretKeyBytes) {
 }
 
 /**
- * Converts a 24-word mnemonic back to the 32-byte secret key (async, verifies checksum).
+ * Converts a 24-word mnemonic or a 24-letter key back to the 32-byte secret key (async, verifies checksum).
  */
 export async function mnemonicToSecretKey(mnemonic) {
-  return mnemonicToEntropy(mnemonic.trim().toLowerCase());
+  const m = mnemonic.trim().toLowerCase();
+  if (m.includes(' ')) {
+    // Legacy BIP39 24-word phrase
+    return mnemonicToEntropy(m);
+  } else {
+    // New 24-letter recovery key
+    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(m));
+    return new Uint8Array(hashBuf);
+  }
 }
 
 /**
