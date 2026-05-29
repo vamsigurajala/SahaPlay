@@ -70,7 +70,7 @@ h1 {
 
 /* Modern Gradient Pill Buttons */
 .btn {
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   color: #fff;
   border: none;
   padding: 14px 24px;
@@ -86,12 +86,12 @@ h1 {
   gap: 8px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 242, 254, 0.15);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
 }
 
 .btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 242, 254, 0.25);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
   filter: brightness(1.1);
 }
 
@@ -296,19 +296,73 @@ html[data-theme='light'] .input-field {
   color: #111 !important;
 }
 
-html[data-theme='light'] h1, html[data-theme='light'] h2, html[data-theme='light'] h3 {
+html[data-theme='light'] h1:not(.login-left-text),
+html[data-theme='light'] h2:not(.login-left-text),
+html[data-theme='light'] h3:not(.login-left-text) {
   background: none !important;
   -webkit-text-fill-color: #1a202c !important;
   color: #1a202c !important;
 }
 
+/* Keep login left panel text white in light mode */
+html[data-theme='light'] .login-left-text {
+  background: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+  color: #ffffff !important;
+}
+html[data-theme='light'] .login-left p.login-left-text {
+  color: rgba(255,255,255,0.85) !important;
+  -webkit-text-fill-color: rgba(255,255,255,0.85) !important;
+}
+
+/* Guest buttons in light mode */
+html[data-theme='light'] .guest-outline-btn {
+  background: #64748b !important;
+  color: #fff !important;
+  border-color: #64748b !important;
+}
+html[data-theme='light'] .guest-outline-btn:hover {
+  background: #475569 !important;
+}
+html[data-theme='light'] .guest-submit-btn {
+  background: #64748b !important;
+  color: #fff !important;
+}
+html[data-theme='light'] .guest-submit-btn:hover {
+  background: #475569 !important;
+}
+html[data-theme='light'] .guest-input {
+  color: #ffffff !important;
+}
 html[data-theme='light'] .glass-panel {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255,255,255,0.7) !important;
   background: rgba(255, 255, 255, 0.85) !important;
 }
+html[data-theme='light'] .btn {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25) !important;
+}
+
+html[data-theme='light'] .btn:hover {
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4) !important;
+  filter: brightness(1.05) !important;
+  transform: translateY(-2px) !important;
+}
 
 html[data-theme='light'] .btn-secondary {
-  background: rgba(0, 0, 0, 0.03) !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(99, 102, 241, 0.15) !important;
+  color: #475569 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+}
+
+html[data-theme='light'] .btn-secondary:hover {
+  background: #ffffff !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  color: #6366f1 !important;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.1) !important;
+  transform: translateY(-2px) !important;
 }
 
 .menu-btn {
@@ -382,3 +436,167 @@ html[data-theme='light'] .btn-secondary {
   100% { transform: scale(1.1) translate(2px, -2px); border-radius: 60% 40% 30% 70% / 50% 60% 40% 60%; }
 }
 
+/* ── FOOTER STYLE COPIED FROM HOME ── */
+.home-footer {
+  background: #09090b; border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 80px 40px 40px;
+}
+.footer-link-btn {
+  background: none; border: none; font-size: 14px; text-align: left;
+  cursor: pointer; transition: all 0.2s; color: #6b7280; padding: 0;
+}
+.footer-link-btn:hover { color: #818cf8; }
+.footer-social-btn {
+  width: 40px; height: 40px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+  color: #888; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: all 0.2s;
+}
+/* hover handled by inline brand-color styles in Footer.jsx; this is the CSS fallback */
+.footer-social-btn:hover { color: #818cf8; background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); transform: translateY(-2px); }
+
+html[data-theme='light'] .home-footer {
+  background: #ffffff !important;
+  border-top: 1px solid rgba(0,0,0,0.08) !important;
+}
+html[data-theme='light'] .home-footer h3,
+html[data-theme='light'] .home-footer h4 {
+  color: #111 !important;
+}
+html[data-theme='light'] .footer-link-btn {
+  color: #6b7280 !important;
+}
+html[data-theme='light'] .footer-link-btn:hover {
+  color: #6366f1 !important;
+}
+html[data-theme='light'] .footer-social-btn {
+  /* no !important — inline hover styles (brand bg + white icon) must win */
+  background: rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.08);
+  color: #555;
+}
+html[data-theme='light'] .footer-social-btn:hover {
+  /* fallback only — React inline styles already handle brand color + white icon */
+  transform: translateY(-2px);
+}
+html[data-theme='light'] .home-footer-bottom {
+  color: #6b7280 !important;
+  border-top-color: rgba(0,0,0,0.08) !important;
+}
+
+.encryption-section {
+  padding: 100px 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: radial-gradient(circle at 50% 50%, #1e1136, #09090b);
+}
+html[data-theme='light'] .encryption-section {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  background: radial-gradient(circle at 50% 50%, #f0f4ff, #eef2ff);
+}
+
+/* ── STAY WHITE: forces text white regardless of theme ── */
+.stay-white {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ── FEATURE TOGGLE (Host Controls section) ── */
+.feat-toggle-track {
+  width: 42px;
+  height: 24px;
+  border-radius: 99px;
+  position: relative;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.feat-toggle-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  position: absolute;
+  top: 3px;
+  transition: left 0.2s ease;
+}
+/* Dark mode: inactive toggle track — use solid visible grey */
+.feat-toggle-track[data-active='false'] {
+  background: #4b5563 !important;
+}
+.feat-toggle-thumb {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* In light mode, inactive toggle track should use a visible grey */
+html[data-theme='light'] .feat-toggle-track[data-active='false'] {
+  background: rgba(0, 0, 0, 0.18) !important;
+}
+/* Active stays purple — handled inline — but ensure thumb is visible */
+html[data-theme='light'] .feat-toggle-thumb {
+  background: #ffffff !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* ── LIVE SCREENSHARE badge always white text ── */
+.live-badge {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* ── GUEST MARQUEE WARNING (GOLDISH SHADE & SCROLLING) ── */
+.guest-marquee-container {
+  width: 100%;
+  overflow: hidden;
+  background: rgba(245, 158, 11, 0.08); /* subtle goldish / amber color shade */
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+  padding: 8px 0;
+}
+.guest-marquee-text {
+  white-space: nowrap;
+  animation: marquee 25s linear infinite;
+  display: inline-block;
+  padding-left: 100%;
+  color: #fbbf24; /* goldish color */
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+@keyframes marquee {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-100%, 0); }
+}
+
+/* --- Section Spacing Utility --- */
+.section-padding {
+  padding-top: 80px !important;
+  padding-bottom: 80px !important;
+}
+
+@media (max-width: 768px) {
+  .section-padding {
+    padding-top: 60px !important;
+    padding-bottom: 60px !important;
+  }
+}
+
+/* ══════════════════════════════════════════
+   HOW IT WORKS PAGE — LAYOUT UTILITIES
+══════════════════════════════════════════ */
+.hiw-section {
+  padding-top: 90px;
+  padding-bottom: 90px;
+  width: 100%;
+}
+.hiw-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+@media (min-width: 768px) {
+  .hiw-container { padding: 0 48px; }
+}
+@media (min-width: 1024px) {
+  .hiw-container { padding: 0 80px; }
+}
+@media (max-width: 640px) {
+  .hiw-section { padding-top: 60px; padding-bottom: 60px; }
+}

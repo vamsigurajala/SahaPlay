@@ -204,6 +204,13 @@ const Signup = () => {
           }
           .login-input::placeholder { color: #444; }
           .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+          .login-input:-webkit-autofill,
+          .login-input:-webkit-autofill:hover, 
+          .login-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #ffffff !important;
+            -webkit-box-shadow: 0 0 0px 1000px #1a1a1f inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
 
           .login-submit-btn {
             width: 100%; padding: 16px; border-radius: 14px; border: none;
@@ -247,11 +254,23 @@ const Signup = () => {
           html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
           html[data-theme='light'] .login-card p { color: #64748b !important; }
           html[data-theme='light'] .login-input {
-            background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+            background: #ffffff !important; border: 1px solid rgba(0,0,0,0.15) !important; color: #0f172a !important;
           }
           html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
           html[data-theme='light'] .login-input:focus {
-            background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+            background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+          }
+          html[data-theme='light'] .login-input:-webkit-autofill,
+          html[data-theme='light'] .login-input:-webkit-autofill:hover, 
+          html[data-theme='light'] .login-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #0f172a !important;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
+          html[data-theme='light'] .login-left-gradient-text {
+            background: none !important;
+            -webkit-text-fill-color: #ffffff !important;
+            color: #ffffff !important;
           }
           html[data-theme='light'] .social-btn {
             background: #ffffff; border-color: rgba(0,0,0,0.1); color: #0f172a;
@@ -266,8 +285,12 @@ const Signup = () => {
             background: rgba(99,102,241,0.06) !important;
             border-color: rgba(99,102,241,0.15) !important;
           }
-          html[data-theme='light'] .su-e2ee span { color: #4338ca !important; }
-          html[data-theme='light'] .su-e2ee strong { color: #3730a3 !important; }
+          html[data-theme='light'] .su-e2ee-label { color: #4338ca !important; }
+          html[data-theme='light'] .su-e2ee-label strong { color: #3730a3 !important; }
+          html[data-theme='light'] .su-e2ee .tooltip-container {
+            background: rgba(99, 102, 241, 0.15) !important;
+            color: #4338ca !important;
+          }
           .apple-btn { background: #fff !important; color: #000 !important; border: none !important; }
           .apple-btn:hover { background: #f0f0f0 !important; }
           html[data-theme='light'] .apple-btn { background: #000 !important; color: #fff !important; }
@@ -289,10 +312,10 @@ const Signup = () => {
           }
           .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
           html[data-theme='light'] .tooltip-container .tooltip-text {
-            background-color: #fff; color: #333; border: 1px solid rgba(99,102,241,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background-color: #ffffff !important; color: #1e293b !important; border: 1px solid rgba(99,102,241,0.2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
           }
           html[data-theme='light'] .tooltip-container .tooltip-text::after {
-            border-color: #fff transparent transparent transparent;
+            border-color: #ffffff transparent transparent transparent !important;
           }
         `}</style>
 
@@ -319,7 +342,7 @@ const Signup = () => {
             </div>
             <h1 className="login-left-text" style={{ fontSize: '56px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
               Join the<br />future of<br />
-              <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>watching.</span>
+              <span className="login-left-gradient-text" style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>watching.</span>
             </h1>
             <p className="login-left-text" style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, maxWidth: '480px' }}>
               Create your free account and start watching with friends in synchronized rooms — with end-to-end encrypted chat.
@@ -381,7 +404,7 @@ const Signup = () => {
                   <input
                     type={showPassword ? 'text' : 'password'} className="login-input"
                     style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
-                    placeholder="Min 8 chars, 1 uppercase, 1 number, 1 symbol" value={password}
+                    placeholder="Password" value={password}
                     onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
                   />
                   <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
@@ -412,7 +435,7 @@ const Signup = () => {
               {/* E2EE notice */}
               <div className="su-e2ee" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px', padding: '10px 14px', marginBottom: '24px' }}>
                 <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
-                <span className="su-e2ee" style={{ fontSize: '12px', color: '#a5b4fc', flex: 1 }}>
+                <span className="su-e2ee-label" style={{ fontSize: '12px', color: '#a5b4fc', flex: 1 }}>
                   <strong style={{ color: '#c7d2fe' }}>Save Recovery Phrase</strong>
                 </span>
                 <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>

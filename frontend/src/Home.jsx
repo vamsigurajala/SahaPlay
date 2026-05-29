@@ -2,14 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, User, LogOut, Settings, Hash, Compass, ArrowRight, Star, Plus, Shield, Check, X, AlertCircle, Camera, Search, MessageSquare, Zap, Globe, Pin, Users, HelpCircle, Bell } from 'lucide-react';
-import { FaWhatsapp, FaTelegramPlane } from 'react-icons/fa';
-import { FaXTwitter } from 'react-icons/fa6';
-import { SiGmail } from 'react-icons/si';
+import { Play, ArrowRight, Plus, Check, Zap, Globe, MessageSquare, AlertCircle, Pin, Hash, Users } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-import GlobalChatWidget from './components/GlobalChatWidget';
 import CreateRoomModal from './components/CreateRoomModal';
-import { useDebounce } from './hooks/useDebounce';
+import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 
 const catMap = {
   movies: '🎬 Movies',
@@ -18,6 +15,37 @@ const catMap = {
   gaming: '🎮 Gaming',
   sports: '⚽ Sports',
   other: '✨ Other'
+};
+
+const getCategoryLabel = (id, t) => {
+  const emojiMap = {
+    movies: '🎬',
+    anime: '⛩️',
+    songs: '🎵',
+    gaming: '🎮',
+    sports: '⚽',
+    other: '✨'
+  };
+  const keyMap = {
+    movies: 'catMovies',
+    anime: 'catAnime',
+    songs: 'catMusic',
+    gaming: 'catGaming',
+    sports: 'catSports',
+    other: 'catOther'
+  };
+  const defaultMap = {
+    movies: 'Movies',
+    anime: 'Anime',
+    songs: 'Music',
+    gaming: 'Gaming',
+    sports: 'Sports',
+    other: 'Other'
+  };
+  const emoji = emojiMap[id] || '✨';
+  const key = keyMap[id] || 'catOther';
+  const defaultVal = defaultMap[id] || 'Other';
+  return `${emoji} ${t(key, defaultVal)}`;
 };
 
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -37,191 +65,8 @@ const Home = () => {
   const isLoggedIn = !!token;
 
   const [pinnedRooms, setPinnedRooms] = useState([]);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [profile, setProfile] = useState(null);
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const [searchResults, setSearchResults] = useState([]);
-  const [showRecentChats, setShowRecentChats] = useState(false);
-  const [recentChats, setRecentChats] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [followRequests, setFollowRequests] = useState([]);
-  const [unreadCounts, setUnreadCounts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
-  });
-  const [totalUnread, setTotalUnread] = useState(() => {
-    try {
-      const counts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-      return Object.values(counts).reduce((a, b) => a + b, 0);
-    } catch { return 0; }
-  });
-  const navIconsRef = useRef(null);
-  const chatWidgetRef = useRef(null);
-
-  useEffect(() => {
-    toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
-    const handleClickOutside = (e) => {
-      // Don't close if clicking inside the chat widget
-      if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
-      if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
-        setShowSearch(false);
-        setShowRecentChats(false);
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // ── Unread message tracking ──
-  useEffect(() => {
-    if (!token) return;
-    const getLastSeen = () => {
-      try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; }
-    };
-    const checkUnread = async () => {
-      try {
-        const lastSeen = getLastSeen();
-        const param = encodeURIComponent(JSON.stringify(lastSeen));
-        const res = await fetch(`${API}/api/chats/recent?lastSeen=${param}`, { headers: { 'Authorization': `Bearer ${token}` } });
-        const data = await res.json();
-        if (!Array.isArray(data)) return;
-        const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-        const counts = {};
-        let total = 0;
-        data.forEach(chat => {
-          const chatKey = chat.id || chat.partner;
-          if (chat.unread && chat.unread > 0) {
-            counts[chatKey] = chat.unread;
-            total += chat.unread;
-            localCounts[chatKey] = chat.unread; // Keep local identical to DB precise count
-          } else {
-            delete localCounts[chatKey]; // Sync local storage for seen chats
-          }
-        });
-        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-        setUnreadCounts(counts);
-        setTotalUnread(total);
-      } catch {}
-    };
-    checkUnread();
-    window.addEventListener('focus', checkUnread);
-    return () => window.removeEventListener('focus', checkUnread);
-  }, [token]);
-
-  // Called by GlobalChatWidget when a new real-time message arrives
-  const handleNewMessage = useCallback((partner, msg) => {
-    const chatKey = partner;
-    // Don't show total unread if the widget is already open and viewing this chat
-    if (chatWidgetRef.current?.isOpen && chatWidgetRef.current?.activeChat?.partner === partner) return;
-
-    // Check if muted before playing sound
-    const myUsername = localStorage.getItem('watch_username') || '';
-    let isMuted = false;
-    try {
-      const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
-      if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
-    } catch {}
-
-    if (!isMuted) {
-      try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'); // Subtle "pop"
-        audio.volume = 0.5;
-        audio.play().catch(()=>{});
-      } catch(e){}
-    }
-
-    const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-    localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
-    localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-    
-    setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
-    setTotalUnread(prev => prev + 1);
-  }, []);
-
-  const handleMarkRead = useCallback((chatId) => {
-    const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
-    lastSeen[chatId] = Date.now();
-    localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
-    
-    // Clear local unread counts
-    setUnreadCounts(prev => {
-      const next = { ...prev };
-      delete next[chatId];
-      return next;
-    });
-
-    // Refetch precise unread counts to keep navbar in sync with backend
-    if (token) {
-      const param = encodeURIComponent(JSON.stringify(lastSeen));
-      fetch(`${API}/api/chats/recent?lastSeen=${param}`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          let total = 0;
-          data.forEach(c => { total += (c.unread || 0); });
-          setTotalUnread(total);
-        }
-      }).catch(() => {});
-    }
-  }, [token, API]);
-
-
-  useEffect(() => {
-    const fetchRequests = () => {
-      if (token) {
-        fetch(`${API}/api/follow/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(r => r.json()).then(data => { if (Array.isArray(data)) setFollowRequests(data); }).catch(() => {});
-      }
-    };
-    fetchRequests();
-    // Poll every 3s so accepted status reflects immediately across all panels
-    const interval = setInterval(fetchRequests, 3000);
-    window.addEventListener('focus', fetchRequests);
-    window.addEventListener('follow_status_updated', fetchRequests);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', fetchRequests);
-      window.removeEventListener('follow_status_updated', fetchRequests);
-    };
-  }, [token]);
-
-  const handleAllowRequest = async (requestingUser, e) => {
-    e.stopPropagation();
-    try {
-      const r = await fetch(`${API}/api/follow/${requestingUser}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      const d = await r.json();
-      if (!d.error) {
-         toast.success(`Accepted ${requestingUser}'s follow request`);
-         setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, status: 'accepted' } : u));
-      }
-    } catch {}
-  };
-
-  const handleFollowBack = async (requestingUser, e) => {
-    e.stopPropagation();
-    // Optimistically update UI immediately so button changes to "Request Sent"
-    setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: 'pending' } : u));
-    try {
-      const r = await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      const d = await r.json();
-      if (d.error) {
-        toast.error(d.error);
-        // Revert optimistic update on error
-        setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
-      } else {
-        toast.success(`Follow request sent to ${requestingUser}!`);
-        window.dispatchEvent(new Event('follow_status_updated'));
-      }
-    } catch {
-      // Revert on network error
-      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
-    }
-  };
 
 
 
@@ -262,12 +107,6 @@ const Home = () => {
       })
       .catch(() => {});
   }, [token, fetchRooms]);
-
-  useEffect(() => {
-    if (!debouncedSearchQuery) { setSearchResults([]); return; }
-    fetch(`${API}/api/users/search?q=${debouncedSearchQuery}`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if(Array.isArray(d)) setSearchResults(d); else setSearchResults([]); }).catch(() => {});
-  }, [debouncedSearchQuery, token]);
 
 
   const handleUnpin = async (e, roomId) => {
@@ -420,28 +259,6 @@ const Home = () => {
         .join-btn:hover {
           transform: translateY(-2px);
           box-shadow: 0 8px 25px rgba(99,102,241,0.5);
-        }
-        .guest-marquee-container {
-          width: 100%;
-          overflow: hidden;
-          background: rgba(245, 158, 11, 0.08); /* subtle amber */
-          border-bottom: 1px solid rgba(245, 158, 11, 0.15);
-          padding: 8px 0;
-        }
-        .guest-marquee-text {
-          white-space: nowrap;
-          animation: marquee 25s linear infinite;
-          display: inline-block;
-          padding-left: 100%;
-          color: #fbbf24;
-          font-size: 13px;
-          font-weight: 600;
-          letter-spacing: 0.3px;
-        }
-        @keyframes marquee {
-          0% { transform: translate(0, 0); }
-          100% { transform: translate(-100%, 0); }
-        }
         
         /* Create Room Modal */
         .cr-overlay {
@@ -636,19 +453,6 @@ const Home = () => {
           justify-content: center; transition: all 0.2s;
         }
         .footer-social-btn:hover { color: #818cf8; background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); }
-
-        /* ── GUEST MARQUEE ── */
-        .guest-marquee-container {
-          width: 100%; overflow: hidden;
-          background: rgba(245,158,11,0.08);
-          border-bottom: 1px solid rgba(245,158,11,0.15); padding: 8px 0;
-        }
-        .guest-marquee-text {
-          white-space: nowrap; animation: marquee 25s linear infinite;
-          display: inline-block; padding-left: 100%;
-          color: #fbbf24; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
-        }
-        @keyframes marquee { 0% { transform: translate(0,0); } 100% { transform: translate(-100%,0); } }
 
         /* ── CREATE ROOM MODAL ── */
         .cr-overlay {
@@ -851,241 +655,7 @@ const Home = () => {
       />
 
       {/* Navbar */}
-      <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative' }}>
-        {/* Left: Logo */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-            <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
-          </div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
-        </div>
-
-        {/* Center: Nav Links */}
-        <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>Home</button>
-          <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>Explore</button>
-          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>How it Works</button>
-          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
-          <button className="nav-link-btn" style={{ padding: '8px 16px' }} onClick={() => toast.success('Help center coming soon!')}>Support</button>
-        </div>
-
-        {/* Right: Actions */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-
-        {isLoggedIn ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* Global Search and Chat Icons */}
-            <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
-              <div style={{ position: 'relative' }}>
-                <button 
-                  className={`nav-icon-btn${showSearch ? ' active' : ''}`}
-                  title="Search"
-                  onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
-                >
-                  <Search size={18} />
-                </button>
-                {showSearch && (
-                  <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                    <input 
-                      autoFocus
-                      placeholder="Search users..."
-                      className="nav-input"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8 }}
-                    />
-                    <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-                      {searchResults.length > 0 ? (
-                        searchResults.map(u => (
-                          <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
-                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                              <div style={{ color: '#6b7280', fontSize: 11 }}>@{u.username}</div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <button 
-                  className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
-                  title="Chats"
-                  onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
-                >
-                  <MessageSquare size={18} />
-                  {totalUnread > 0 && (
-                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {totalUnread > 9 ? '9+' : totalUnread}
-                    </div>
-                  )}
-                </button>
-              </div>
-
-              {/* Notifications / Follow Requests */}
-              <div style={{ position: 'relative' }}>
-                <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
-                  <Bell size={18} />
-                  {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                    <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {followRequests.filter(r => r.status === 'pending').length}
-                    </div>
-                  )}
-                </button>
-                {showNotifications && (
-                  <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
-                    <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                      {followRequests.length > 0 ? (
-                        followRequests.map(u => (
-                          <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                            onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent'}>
-                            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                              {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color="#888" />}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                          
-                              <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                                {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
-                              </div>
-                              
-                              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                {u.status === 'pending' ? (
-                                  <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
-                                ) : (
-                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
-                                )}
-                                
-                                {u.myFollowStatus === 'accepted' ? (
-                                  <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
-                                ) : (
-                                  <button onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (u.myFollowStatus === 'pending') return;
-                                    handleFollowBack(u.username, e);
-                                  }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                    {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}
-            onMouseLeave={() => setShowUserMenu(false)}
-          >
-            <div className="profile-pill"
-              onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
-            >
-              <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {profile?.avatarPath ? (
-                  <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User size={14} style={{ color: '#6366f1' }} />
-                )}
-              </div>
-              <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
-            </div>
-            {/* Hover Dropdown - absolutely positioned, never affects layout */}
-            {showUserMenu && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
-                <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <User size={16} color="#6366f1" />
-                    </div>
-                    {t('account', 'Account')}
-                  </button>
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Settings size={16} color="#10b981" />
-                    </div>
-                    {t('app', 'App')}
-                  </button>
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <HelpCircle size={16} color="#f59e0b" />
-                    </div>
-                    {t('contactSupport', 'Contact Support')}
-                  </button>
-                  <div className="profile-divider" />
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <LogOut size={16} color="#f87171" />
-                    </div>
-                    {t('logOut', 'Log Out')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-        ) : (
-          /* Not logged in: show login/signup */
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px', fontWeight: 500, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', transition: 'color 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = '#ccc'}
-            >
-              {t('logIn', 'Log In')}
-            </button>
-            <button onClick={() => navigate('/signup')} style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-            >
-              {t('signUp', 'Sign Up')}
-            </button>
-          </div>
-        )}
-        </div>
-      </nav>
-
-      {/* Guest Warning Marquee */}
-      {!isLoggedIn && (
-        <div className="guest-marquee-container">
-          <div className="guest-marquee-text">
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <AlertCircle size={14} /> 
-              {t('guestLimitations', 'You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join "Members Only" rooms. Sign Up for a free account to unlock all features!')}
-            </span>
-          </div>
-        </div>
-      )}
+      <Navbar />
 
       {/* Hero */}
       <section style={{ textAlign: 'center', padding: '100px 0 80px', width: '100%' }}>
@@ -1114,17 +684,17 @@ const Home = () => {
                 <Play size={18} fill="#fff" strokeWidth={0} style={{ color: '#fff' }} /> <span style={{ color: '#ffffff' }} className="stay-white">{t('createRoom', 'Create Room')}</span>
               </button>
             )}
-            <form onSubmit={handleJoin} style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '14px', overflow: 'hidden' }}>
+            <form onSubmit={handleJoin} className="hero-join-form" style={{ display: 'flex', alignItems: 'center', borderRadius: '14px', overflow: 'hidden' }}>
               <input
                 type="text"
                 placeholder={t('enterRoomId', 'Enter Room ID...')}
                 value={roomId}
                 onChange={e => setRoomId(e.target.value)}
-                style={{ background: 'transparent', border: 'none', outline: 'none', padding: '16px 20px', color: '#fff', fontSize: '15px', width: '220px' }}
+                className="hero-join-input"
+                style={{ background: 'transparent', border: 'none', outline: 'none', padding: '16px 20px', fontSize: '15px', width: '220px' }}
               />
-              <button type="submit" style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.1)', padding: '16px 24px', color: '#fff', fontWeight: 600, fontSize: '15px', cursor: 'pointer', transition: 'background 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+              <button type="submit" className="hero-join-btn"
+                style={{ border: 'none', padding: '16px 24px', fontWeight: 600, fontSize: '15px', cursor: 'pointer', transition: 'background 0.2s' }}
               >
                 {t('join', 'Join')}
               </button>
@@ -1132,7 +702,7 @@ const Home = () => {
           </div>
           
           <div style={{ marginTop: '32px', fontSize: '15px' }}>
-            <span style={{ color: '#888' }}>{t('lookingForParty', 'Looking for a party?')}</span>
+            <span className="hero-party-text">{t('lookingForParty', 'Looking for a party?')}</span>
             <button className="hero-link-btn" onClick={() => navigate('/public')} style={{ background: 'none', border: 'none', color: '#a855f7', cursor: 'pointer', fontWeight: 600, padding: '0 6px', textDecoration: 'underline', transition: 'color 0.2s' }}>
               {t('joinPublicRooms', 'Join public rooms')}
             </button>
@@ -1184,7 +754,7 @@ const Home = () => {
               <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                 <div className="img-layer">
                   <img src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} alt="Room Cover" className="pinned-img"/>
-                  <div className="cat-badge pinned-tag">{catMap[room.category] || '✨ Other'}</div>
+                  <div className="cat-badge pinned-tag">{getCategoryLabel(room.category, t)}</div>
                   <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title={t('unpinRoom', 'Unpin Room')} style={{ right: 8, top: 8 }}>
                     <Pin className="unpin-icon" size={16} />
                   </button>
@@ -1234,74 +804,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="home-footer">
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: 60, marginBottom: 80 }}>
-            {/* Branding Column */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Play fill="#fff" size={14} style={{ marginLeft: 2 }} />
-                </div>
-                <h3 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>WatchTogether</h3>
-              </div>
-              <p style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300, color: '#6b7280', margin: 0, cursor: 'text' }}>
-                Bringing people together across the digital divide. Watch, chat, and react in perfect harmony.
-              </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {[FaXTwitter, FaTelegramPlane, FaWhatsapp].map((Icon, idx) => (
-                  <button key={idx} className="footer-social-btn">
-                    <Icon size={18}/>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Product Column */}
-            <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('product', 'Product')}</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn" onClick={() => navigate('/public')}>{t('joinPublicRooms', 'Public Rooms')}</button>
-                <button className="footer-link-btn" onClick={() => navigate('/login')}>{t('logIn', 'Sign In')}</button>
-                <button className="footer-link-btn" onClick={() => navigate('/signup')}>{t('signUp', 'Get Started')}</button>
-              </div>
-            </div>
-
-            {/* Resources Column */}
-            <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('resources', 'Resources')}</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn">{t('helpCenter', 'Help Center')}</button>
-                <button className="footer-link-btn">{t('releaseNotes', 'Release Notes')}</button>
-                <button className="footer-link-btn">{t('community', 'Community')}</button>
-              </div>
-            </div>
-
-            {/* Legal Column */}
-            <div>
-              <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('legal', 'Legal')}</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <button className="footer-link-btn">{t('privacyPolicy', 'Privacy Policy')}</button>
-                <button className="footer-link-btn">{t('termsOfService', 'Terms of Use')}</button>
-                <button className="footer-link-btn">{t('cookies', 'Cookies')}</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Bar */}
-          <div className="home-footer-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 40, color: '#444', fontSize: 12 }}>
-            <div>&copy; 2026 WatchTogether. All rights reserved.</div>
-            <div style={{ display: 'flex', gap: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Globe size={14}/> English (International)
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      <GlobalChatWidget ref={chatWidgetRef} isOpen={showRecentChats} onClose={() => setShowRecentChats(false)} unreadCounts={unreadCounts} onMarkRead={handleMarkRead} onNewMessage={handleNewMessage} />
+      <Footer />
     </div>
   );
 };

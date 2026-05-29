@@ -288,7 +288,7 @@ function broadcastMessage(roomId, msg, senderSocketId, senderUsername) {
 }
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // raised to support contact-form image uploads
 
 // Global Rate Limiter (200 requests per 15 mins)
 const globalLimiter = rateLimit({
@@ -4649,6 +4649,428 @@ app.get('/api/chat-lock/locked-chats', authenticateToken, async (req, res) => {
     return res.status(500).json({ error: 'Database error' });
   }
 });
+
+// ─── Contact Form ─────────────────────────────────────────────────────────────
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  message: { success: false, error: 'Too many messages sent. Please wait an hour before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post('/api/contact', contactLimiter, async (req, res) => {
+  const { name, email, subject, message, images } = req.body;
+
+  // ── Guard: credentials must exist ────────────────────
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.error('[contact] Gmail credentials missing from .env! Set GMAIL_USER and GMAIL_APP_PASSWORD.');
+    return res.status(500).json({
+      success: false,
+      error: 'Email service not configured. Please email sahaaplay@gmail.com directly.',
+    });
+  }
+
+  // ── Validation ──────────────────────────────────────
+  const trim  = (v) => (v ? String(v).trim() : '');
+  const cName    = trim(name);
+  const cEmail   = trim(email).toLowerCase();
+  const cSubject = trim(subject);
+  const cMsg     = trim(message);
+
+  if (cName.length < 2)
+    return res.status(400).json({ success: false, error: 'Name must be at least 2 characters.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cEmail))
+    return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+  if (!cSubject)
+    return res.status(400).json({ success: false, error: 'Subject is required.' });
+  if (cMsg.length < 10)
+    return res.status(400).json({ success: false, error: 'Message must be at least 10 characters.' });
+
+  // ── Image validation ─────────────────────────────────
+  const attachments = [];
+  if (Array.isArray(images) && images.length > 0) {
+    if (images.length > 5)
+      return res.status(400).json({ success: false, error: 'Maximum 5 images allowed.' });
+
+    const OK_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      if (!img || !img.data || !img.type) continue;
+      if (!OK_TYPES.includes(img.type))
+        return res.status(400).json({ success: false, error: `Image ${i + 1}: only JPG, PNG, GIF, WEBP allowed.` });
+      const raw   = img.data.replace(/^data:[^;]+;base64,/, '');
+      const bytes = Math.ceil((raw.length * 3) / 4);
+      if (bytes > 5 * 1024 * 1024)
+        return res.status(400).json({ success: false, error: `Image ${i + 1} exceeds the 5 MB limit.` });
+      attachments.push({
+        filename:    img.name || `image-${i + 1}`,
+        content:     raw,
+        encoding:    'base64',
+        contentType: img.type,
+      });
+    }
+  }
+
+  // ── HTML helpers ─────────────────────────────────────
+  const esc = (s) =>
+    String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+  // ── Notification email to sahaaplay@gmail.com ────────
+  const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">📬 New Contact Message</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">via SahaPlay Contact Form</p>
+  </div>
+  <div style="padding:32px 40px">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px;width:80px">From</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px;font-weight:600">${esc(cName)}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Email</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${cEmail}" style="color:#818cf8;text-decoration:none">${cEmail}</a></td></tr>
+      <tr><td style="padding:10px 0;color:#9ca3af;font-size:13px">Subject</td>
+          <td style="padding:10px 0;color:#fff;font-size:14px">${esc(cSubject)}</td></tr>
+    </table>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:${attachments.length ? '16px' : '0'}">
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">Message</p>
+      <p style="color:#e5e7eb;font-size:15px;line-height:1.75;margin:0">${esc(cMsg)}</p>
+    </div>
+    ${attachments.length ? `<p style="color:#9ca3af;font-size:13px;margin:0">📎 ${attachments.length} image${attachments.length > 1 ? 's' : ''} attached</p>` : ''}
+  </div>
+  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to respond directly to <strong>${esc(cName)}</strong> at ${cEmail}</p>
+  </div>
+</div>
+</body></html>`;
+
+  // ── Confirmation email to the user ───────────────────
+  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">✅ We got your message!</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Support</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">Hi <strong style="color:#fff">${esc(cName)}</strong>,</p>
+    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
+      Thanks for reaching out! We received your message and will get back to you
+      within <strong style="color:#818cf8">48 hours</strong>.
+    </p>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:24px">
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">Your message</p>
+      <p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${esc(cMsg)}</p>
+    </div>
+    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
+      Need urgent help? Email us at
+      <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
+    </p>
+  </div>
+  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
+  </div>
+</div>
+</body></html>`;
+
+  try {
+    // Send notification to sahaaplay@gmail.com (with Reply-To set to sender)
+    await gmailTransporter.sendMail({
+      from:     `"SahaPlay Contact" <${process.env.GMAIL_USER}>`,
+      replyTo:  `"${cName}" <${cEmail}>`,
+      to:       process.env.GMAIL_USER,
+      subject:  `[SahaPlay Contact] ${cSubject}`,
+      html:     notifyHtml,
+      text:     `From: ${cName} <${cEmail}>\nSubject: ${cSubject}\n\n${cMsg}`,
+      attachments,
+    });
+
+    // Send confirmation to the user — non-blocking (failure is not fatal)
+    sendEmail({
+      to:      cEmail,
+      subject: 'We received your message — SahaPlay',
+      html:    confirmHtml,
+      text:    `Hi ${cName},\n\nThanks for reaching out! We received your message and will get back to you within 48 hours.\n\nYour message:\n${cMsg}\n\n— SahaPlay Team`,
+    }).catch(e => console.warn('[contact] Confirmation email failed (non-fatal):', e.message));
+
+    return res.json({ success: true, message: 'Message sent!' });
+  } catch (err) {
+    console.error('[contact] Full error:', {
+      message: err.message,
+      code:     err.code,
+      command:  err.command,
+      response: err.response,
+    });
+    if (err.code === 'EAUTH') {
+      return res.status(500).json({
+        success: false,
+        error: 'Email authentication failed. Check GMAIL_APP_PASSWORD in .env',
+      });
+    }
+    if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
+      return res.status(500).json({
+        success: false,
+        error: 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
+      });
+    }
+    const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
+    return res.status(500).json({
+      success: false,
+      error: isAuthErr
+        ? 'Email authentication failed. Please email sahaaplay@gmail.com directly.'
+        : 'Failed to send message. Please try again or email sahaaplay@gmail.com directly.',
+    });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Bug Report ───────────────────────────────────────────────────────────────
+const bugReportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: { success: false, error: 'Too many bug reports submitted. Please wait an hour before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const ALLOWED_BUG_TYPES = [
+  '🎬 Video / Sync Issue',
+  '💬 Chat Not Working',
+  '🔐 Login / Account Problem',
+  '📱 Mobile / Responsive Layout',
+  '🔔 Notifications Not Working',
+  '🎤 Audio / Microphone Issue',
+  '📷 Camera / Screenshare Issue',
+  '⚡ App Crashing / Freezing',
+  '🎨 UI / Visual Glitch',
+  '🔗 Link / URL Problem',
+  '🔒 Security Concern',
+  '🔹 Other Bug',
+];
+
+app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
+  const { name, email, bugType, severity, whatHappened, whatExpected, actualResult,
+          stepsToReproduce, browser, os, screenSize, consoleErrors, attachments } = req.body;
+
+  // ── Credentials guard ─────────────────────────────────
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.error('[report-bug] Gmail credentials missing from .env!');
+    return res.status(500).json({
+      success: false,
+      error: 'Email service not configured. Please email sahaaplay@gmail.com directly.',
+    });
+  }
+
+  // ── Validation ──────────────────────────────────────
+  const trim = (v) => (v ? String(v).trim() : '');
+  const rName          = trim(name);
+  const rEmail         = trim(email).toLowerCase();
+  const rBugType       = trim(bugType);
+  const rSeverity      = trim(severity).toLowerCase();
+  const rWhatHappened  = trim(whatHappened);
+  const rWhatExpected  = trim(whatExpected);
+  const rActualResult  = trim(actualResult);
+  const rSteps         = trim(stepsToReproduce);
+  const rBrowser       = trim(browser);
+  const rOs            = trim(os);
+  const rScreenSize    = trim(screenSize);
+  const rConsoleErrors = trim(consoleErrors);
+
+  if (rName.length < 2)
+    return res.status(400).json({ success: false, error: 'Name must be at least 2 characters.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail))
+    return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+  if (!ALLOWED_BUG_TYPES.includes(rBugType))
+    return res.status(400).json({ success: false, error: 'Please select a valid bug type.' });
+  if (!['minor', 'major', 'critical'].includes(rSeverity))
+    return res.status(400).json({ success: false, error: 'Please select a severity level.' });
+  if (rWhatHappened.length < 20)
+    return res.status(400).json({ success: false, error: 'Please describe what happened (min 20 characters).' });
+  if (rWhatExpected.length < 10)
+    return res.status(400).json({ success: false, error: 'Please describe what you expected (min 10 characters).' });
+  if (rActualResult.length < 10)
+    return res.status(400).json({ success: false, error: 'Please describe what actually happened (min 10 characters).' });
+  if (!rBrowser)
+    return res.status(400).json({ success: false, error: 'Please enter your browser.' });
+  if (!rOs)
+    return res.status(400).json({ success: false, error: 'Please enter your operating system.' });
+
+  // ── Generate report ID ──────────────────────────────
+  const reportId = 'BUG-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  // ── Attachment validation ────────────────────────────
+  const emailAttachments = [];
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    if (attachments.length > 5)
+      return res.status(400).json({ success: false, error: 'Maximum 5 attachments allowed.' });
+
+    const OK_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
+    for (let i = 0; i < attachments.length; i++) {
+      const att = attachments[i];
+      if (!att || !att.data || !att.type) continue;
+      if (!OK_TYPES.includes(att.type))
+        return res.status(400).json({ success: false, error: `File ${i + 1}: only images (JPG, PNG, GIF, WEBP) and videos (MP4, WEBM) are allowed.` });
+      const raw   = att.data.replace(/^data:[^;]+;base64,/, '');
+      const bytes = Math.ceil((raw.length * 3) / 4);
+      if (bytes > 10 * 1024 * 1024)
+        return res.status(400).json({ success: false, error: `File ${i + 1} exceeds the 10 MB limit.` });
+      emailAttachments.push({
+        filename:    att.name || `attachment-${i + 1}`,
+        content:     raw,
+        encoding:    'base64',
+        contentType: att.type,
+      });
+    }
+  }
+
+  // ── HTML helpers ─────────────────────────────────────
+  const esc = (s) =>
+    String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+  const severityMeta = {
+    minor:    { bg: '#fef3c7', color: '#92400e', label: '🟡 Minor' },
+    major:    { bg: '#fed7aa', color: '#9a3412', label: '🟠 Major' },
+    critical: { bg: '#fee2e2', color: '#991b1b', label: '🔴 Critical' },
+  }[rSeverity] || { bg: '#f3f4f6', color: '#374151', label: rSeverity };
+
+  // ── Notification email to sahaaplay@gmail.com ─────────
+  const bugSections = [
+    { label: 'What were they doing?',  content: rWhatHappened },
+    { label: 'What did they expect?',  content: rWhatExpected },
+    { label: 'What actually happened?', content: rActualResult },
+    ...(rSteps         ? [{ label: 'Steps to reproduce',   content: rSteps }]         : []),
+    ...(rConsoleErrors ? [{ label: '⚠️ Console Errors',    content: rConsoleErrors, mono: true }] : []),
+  ];
+
+  const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">🐛 New Bug Report</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">${esc(reportId)} · via SahaPlay Bug Report Form</p>
+  </div>
+  <div style="padding:32px 40px">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px;width:130px">Report ID</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="font-family:monospace;background:rgba(99,102,241,0.15);color:#818cf8;padding:3px 10px;border-radius:6px;font-size:14px;font-weight:700">${esc(reportId)}</span></td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Reporter</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px;font-weight:600">${esc(rName)}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Email</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${rEmail}" style="color:#818cf8;text-decoration:none">${rEmail}</a></td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Severity</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:3px 10px;border-radius:6px;font-size:13px;font-weight:700">${severityMeta.label}</span></td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Bug Type</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px">${esc(rBugType)}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Browser</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e5e7eb;font-size:14px">${esc(rBrowser)}</td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">OS</td>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e5e7eb;font-size:14px">${esc(rOs)}</td></tr>
+      <tr><td style="padding:10px 0;color:#9ca3af;font-size:13px">Screen</td>
+          <td style="padding:10px 0;color:#e5e7eb;font-size:14px">${esc(rScreenSize || 'Not provided')}</td></tr>
+    </table>
+    ${bugSections.map(({ label, content, mono }) => `
+    <div style="background:${mono ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.03)'};border:1px solid ${mono ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)'};border-radius:12px;padding:20px;margin-bottom:16px">
+      <p style="color:${mono ? '#ef4444' : '#9ca3af'};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">${esc(label)}</p>
+      ${mono
+        ? `<pre style="color:#fca5a5;font-size:13px;line-height:1.6;margin:0;white-space:pre-wrap;font-family:'Courier New',monospace">${esc(content)}</pre>`
+        : `<p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${esc(content)}</p>`}
+    </div>`).join('')}
+    ${emailAttachments.length ? `<p style="color:#9ca3af;font-size:13px;margin:0">📎 ${emailAttachments.length} attachment${emailAttachments.length > 1 ? 's' : ''} included</p>` : ''}
+  </div>
+  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to contact <strong>${esc(rName)}</strong> at ${rEmail}</p>
+  </div>
+</div>
+</body></html>`;
+
+  // ── Confirmation email to user ────────────────────────
+  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">🐛 Bug Report Received</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Bug Tracker</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 12px">Hi <strong style="color:#fff">${esc(rName)}</strong>,</p>
+    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
+      We received your bug report about <strong style="color:#818cf8">${esc(rBugType)}</strong>.
+      Our team will investigate it and we'll update you here when it's resolved.
+    </p>
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
+      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px">Report Details</p>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0;width:110px">Report ID</td>
+            <td style="font-family:monospace;color:#a5b4fc;font-size:14px;font-weight:700;padding:6px 0">${esc(reportId)}</td></tr>
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">Bug Type</td>
+            <td style="color:#e5e7eb;font-size:14px;padding:6px 0">${esc(rBugType)}</td></tr>
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">Severity</td>
+            <td style="font-size:14px;padding:6px 0"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:2px 8px;border-radius:4px;font-weight:700;font-size:13px">${severityMeta.label}</span></td></tr>
+      </table>
+    </div>
+    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 8px">
+      We'll email you at this address when the issue is resolved.
+    </p>
+    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
+      For urgent help: <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
+    </p>
+  </div>
+  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
+  </div>
+</div>
+</body></html>`;
+
+  try {
+    await gmailTransporter.sendMail({
+      from:    `"SahaPlay Bug Reports" <${process.env.GMAIL_USER}>`,
+      replyTo: `"${rName}" <${rEmail}>`,
+      to:      process.env.GMAIL_USER,
+      subject: `[BUG REPORT] ${rSeverity.toUpperCase()} - ${rBugType} | ${reportId}`,
+      html:    notifyHtml,
+      text:    `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${rBugType}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
+      attachments: emailAttachments,
+    });
+
+    // Non-blocking confirmation to user
+    sendEmail({
+      to:      rEmail,
+      subject: `Bug Report Received - ${reportId} | SahaPlay`,
+      html:    confirmHtml,
+      text:    `Hi ${rName},\n\nWe received your bug report (${reportId}) about ${rBugType}.\n\nSeverity: ${rSeverity}\n\nOur team will investigate and we'll update you at this email when it's resolved.\n\nFor urgent issues: sahaaplay@gmail.com\n\n— SahaPlay Team`,
+    }).catch(e => console.warn('[report-bug] Confirmation email failed (non-fatal):', e.message));
+
+    return res.json({ success: true, reportId });
+  } catch (err) {
+    console.error('[report-bug] Full error:', {
+      message:  err.message,
+      code:     err.code,
+      command:  err.command,
+      response: err.response,
+    });
+    if (err.code === 'EAUTH') {
+      return res.status(500).json({
+        success: false,
+        error: 'Email authentication failed. Check GMAIL_APP_PASSWORD in .env',
+      });
+    }
+    if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
+      return res.status(500).json({
+        success: false,
+        error: 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
+      });
+    }
+    const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
+    return res.status(500).json({
+      success: false,
+      error: isAuthErr
+        ? 'Email authentication failed. Please email sahaaplay@gmail.com directly.'
+        : 'Failed to submit bug report. Please try again or email sahaaplay@gmail.com directly.',
+    });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Global Express Error Handler
 app.use((err, req, res, next) => {

@@ -237,6 +237,13 @@ const Login = () => {
           outline: none; box-sizing: border-box; transition: all 0.2s;
         }
         .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+        .login-input:-webkit-autofill,
+        .login-input:-webkit-autofill:hover, 
+        .login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #ffffff !important;
+          -webkit-box-shadow: 0 0 0px 1000px #1a1a1f inset !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
         
         .social-btn {
           width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -276,10 +283,17 @@ const Login = () => {
         html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
         html[data-theme='light'] .login-card p { color: #64748b !important; }
         html[data-theme='light'] .login-input {
-          background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+          background: #ffffff !important; border: 1px solid rgba(0,0,0,0.15) !important; color: #0f172a !important;
         }
         html[data-theme='light'] .login-input:focus {
-          background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+          background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+        }
+        html[data-theme='light'] .login-input:-webkit-autofill,
+        html[data-theme='light'] .login-input:-webkit-autofill:hover, 
+        html[data-theme='light'] .login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #0f172a !important;
+          -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+          transition: background-color 5000s ease-in-out 0s;
         }
         html[data-theme='light'] .social-btn {
           background: #ffffff; border-color: rgba(0,0,0,0.1); color: #0f172a;
@@ -293,6 +307,26 @@ const Login = () => {
           background: rgba(255,255,255,0.8) !important;
           color: #0f172a !important;
           border-color: rgba(0,0,0,0.1) !important;
+        }
+
+        /* Light mode — Join as Guest outline button */
+        html[data-theme='light'] .guest-outline-btn {
+          background: #64748b !important;
+          color: #fff !important;
+          border-color: #64748b !important;
+        }
+        html[data-theme='light'] .guest-outline-btn:hover {
+          background: #475569 !important;
+          border-color: #475569 !important;
+        }
+
+        /* Light mode — Continue as Guest filled button */
+        html[data-theme='light'] .guest-submit-btn {
+          background: #64748b !important;
+          color: #fff !important;
+        }
+        html[data-theme='light'] .guest-submit-btn:hover {
+          background: #475569 !important;
         }
       `}</style>
 
@@ -354,7 +388,7 @@ const Login = () => {
             </div>
 
             <button type="submit" disabled={isSubmitting} className="login-submit-btn">
-              <LogIn size={20} /> <span>{isSubmitting ? t('unlockingKeys', 'Unlocking keys...') : t('logIn', 'Log In')}</span>
+              <LogIn size={20} /> <span>{isSubmitting ? t('loggingIn', 'Logging in...') : t('logIn', 'Log In')}</span>
             </button>
           </form>
 
@@ -392,16 +426,16 @@ const Login = () => {
           </p>
 
           {!showGuestInput ? (
-            <button onClick={() => setShowGuestInput(true)} style={{ width: '100%', padding: '16px', borderRadius: '14px', border: '1px solid rgba(150,150,150,0.2)', background: 'transparent', color: 'inherit', fontSize: '15px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(150,150,150,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <button onClick={() => setShowGuestInput(true)} className="guest-outline-btn" style={{ width: '100%', padding: '16px', borderRadius: '14px', border: '1px solid rgba(150,150,150,0.2)', background: 'transparent', color: 'inherit', fontSize: '15px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(150,150,150,0.05)'; }} onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
               <User size={18} /> {t('joinAsGuest', 'Join as Guest')}
             </button>
           ) : (
             <form onSubmit={handleGuestJoin} style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'left', animation: 'slideInDown 0.3s ease' }}>
               <div style={{ position: 'relative' }}>
                 <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                <input type="text" className="login-input" placeholder={t('guestDisplayName', 'Guest Display Name')} value={guestName} onChange={e => setGuestName(e.target.value)} autoFocus />
+                <input type="text" className="login-input guest-input" placeholder={t('guestDisplayName', 'Guest Display Name')} value={guestName} onChange={e => setGuestName(e.target.value)} autoFocus />
               </div>
-              <button type="submit" style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#334155', color: '#fff', fontSize: '16px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#1e293b'} onMouseLeave={e => e.currentTarget.style.background = '#334155'}>
+              <button type="submit" className="guest-submit-btn stay-white" style={{ width: '100%', padding: '16px', borderRadius: '14px', border: 'none', background: '#334155', color: '#fff', fontSize: '16px', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = '#1e293b'} onMouseLeave={e => e.currentTarget.style.background = '#334155'}>
                 {t('continueAsGuest', 'Continue as Guest')}
               </button>
             </form>

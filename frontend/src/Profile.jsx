@@ -1174,8 +1174,8 @@ const Profile = () => {
                   <input className="profile-input" value={displayName} onChange={e => setDisplayName(e.target.value)} disabled={!editingName} style={{ flex: 1 }} />
                   {editingName ? (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="profile-save-box" onClick={handleSaveProfile} title="Save Changes"><Check size={18} /></button>
-                      <button className="profile-cancel-btn" onClick={() => { setEditingName(false); setDisplayName(profile.displayName || profile.username); }} title="Cancel"><X size={18} /></button>
+                      <button className="profile-save-box" onClick={handleSaveProfile} title={t('saveChanges', 'Save Changes')}><Check size={18} /></button>
+                      <button className="profile-cancel-btn" onClick={() => { setEditingName(false); setDisplayName(profile.displayName || profile.username); }} title={t('cancelBtn', 'Cancel')}><X size={18} /></button>
                     </div>
                   ) : (
                     <button className="profile-edit-btn" onClick={() => setEditingName(true)}>
@@ -1207,8 +1207,8 @@ const Profile = () => {
                   </div>
                   {editingBio ? (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="profile-save-box" onClick={handleSaveProfile} title="Save Bio"><Check size={18} /></button>
-                      <button className="profile-cancel-btn" onClick={() => { setEditingBio(false); setBio(profile.bio || ''); }} title="Cancel"><X size={18} /></button>
+                      <button className="profile-save-box" onClick={handleSaveProfile} title={t('saveChanges', 'Save Changes')}><Check size={18} /></button>
+                      <button className="profile-cancel-btn" onClick={() => { setEditingBio(false); setBio(profile.bio || ''); }} title={t('cancelBtn', 'Cancel')}><X size={18} /></button>
                     </div>
                   ) : (
                     <button className="profile-edit-btn" onClick={() => setEditingBio(true)} style={{ alignSelf: 'flex-start' }}>
@@ -1229,7 +1229,7 @@ const Profile = () => {
             {openSection === 'email' && (
               <div className="acc-body">
                 <div className="field-label">{t('profileEmailText', 'Your registered email address')}</div>
-                <input className="profile-input" value={profile.email || ''} disabled style={{ opacity: 0.6 }} />
+                <input className="profile-input" value={profile.email || ''} disabled style={{ opacity: 0.6 }} onClick={() => alert(`Email: ${profile.email}`)} />
               </div>
             )}
           </div>
@@ -1323,7 +1323,7 @@ const Profile = () => {
                         }} style={{ padding: '8px 16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}>
-                          Unblock
+                          {t('unblock', 'Unblock')}
                         </button>
                       </div>
                     ))}

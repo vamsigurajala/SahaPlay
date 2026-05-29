@@ -159,6 +159,13 @@ const ResetPassword = () => {
         }
         .login-input::placeholder { color: #444; }
         .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+        .login-input:-webkit-autofill,
+        .login-input:-webkit-autofill:hover, 
+        .login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #ffffff !important;
+          -webkit-box-shadow: 0 0 0px 1000px #1a1a1f inset !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
 
         .login-submit-btn {
           width: 100%; padding: 16px; border-radius: 14px; border: none;
@@ -196,11 +203,18 @@ const ResetPassword = () => {
         html[data-theme='light'] .login-submit-btn span { color: #ffffff !important; }
         html[data-theme='light'] .login-card p { color: #64748b !important; }
         html[data-theme='light'] .login-input {
-          background: #f1f5f9; border-color: rgba(0,0,0,0.05); color: #0f172a;
+          background: #ffffff !important; border: 1px solid rgba(0,0,0,0.15) !important; color: #0f172a !important;
         }
         html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
         html[data-theme='light'] .login-input:focus {
-          background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.1);
+          background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+        }
+        html[data-theme='light'] .login-input:-webkit-autofill,
+        html[data-theme='light'] .login-input:-webkit-autofill:hover, 
+        html[data-theme='light'] .login-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: #0f172a !important;
+          -webkit-box-shadow: 0 0 0px 1000px #ffffff inset !important;
+          transition: background-color 5000s ease-in-out 0s;
         }
       `}</style>
 

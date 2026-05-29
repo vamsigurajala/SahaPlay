@@ -14,6 +14,11 @@ import PublicRooms from './PublicRooms';
 import Profile from './Profile';
 import AppSettings from './AppSettings';
 import TvPairing from './TvPairing';
+import Features from './Features';
+import HowItWorks from './HowItWorks';
+import Pricing from './Pricing';
+import Contact from './Contact';
+import ReportBug from './ReportBug';
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
@@ -103,18 +108,18 @@ function App() {
       }
 
       /* ── All semi-transparent white TEXT → proper dark text ── */
-      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *) {
+      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
+      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn) {
         color: #111 !important;
       }
 
@@ -597,12 +602,21 @@ function App() {
       
       /* Footer violet hover */
       html[data-theme='light'] .footer-link-btn:hover { color: #6366f1 !important; }
-      html[data-theme='light'] .footer-social-btn:hover { color: #fff !important; background: #6366f1 !important; border-color: #6366f1 !important; }
+      /* footer-social-btn hover: brand bg + white icon come from React inline styles; don't override them here */
+      html[data-theme='light'] .footer-social-btn:hover { transform: translateY(-2px); }
       
       /* Pinned room corrections */
       html[data-theme='light'] .pinned-name { color: #111 !important; }
       html[data-theme='light'] .pinned-id { color: #718096 !important; }
       html[data-theme='light'] .pinned-tag { background: #edf2f7 !important; color: #4a5568 !important; border-color: #cbd5e0 !important; }
+
+      /* ── Guest login buttons – keep white text in light mode ── */
+      html[data-theme='light'] .guest-submit-btn,
+      html[data-theme='light'] .guest-submit-btn *,
+      html[data-theme='light'] .guest-outline-btn,
+      html[data-theme='light'] .guest-outline-btn * {
+        color: #ffffff !important;
+      }
     `;
 
     const applyTheme = () => {
@@ -641,6 +655,11 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/tv" element={<TvPairing />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/how-it-works" element={<HowItWorks />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/report-bug" element={<ReportBug />} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

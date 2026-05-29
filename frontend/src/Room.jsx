@@ -3553,7 +3553,7 @@ const Room = () => {
             onMouseEnter={e => { e.currentTarget.style.background = isLightMode ? '#e2e8f0' : 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = isLightMode ? '#0f172a' : '#fff'; }}
             onMouseLeave={e => { e.currentTarget.style.background = isLightMode ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = isLightMode ? '#334155' : 'rgba(255,255,255,0.85)'; }}
           >
-            Leave Room
+            {t('leaveRoom', 'Leave Room')}
           </button>
         </div>
       </div>
