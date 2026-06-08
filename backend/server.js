@@ -320,13 +320,11 @@ const io = new Server(server, {
   allowEIO3: true
 });
 
-// Multer setup for local file uploads
+// Multer setup — disk storage kept for room media streaming (/api/upload)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
@@ -334,6 +332,19 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+// Memory-only multer for chat media — bytes go straight to Supabase Storage
+const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+// Ensure the chat-media Supabase Storage bucket exists on startup
+(async () => {
+  const { error } = await supabase.storage.createBucket('chat-media', { public: true });
+  if (error && !error.message?.includes('already exists') && !error.message?.toLowerCase().includes('duplicate')) {
+    console.warn('[Storage] Could not create chat-media bucket:', error.message);
+  } else {
+    console.log('[Storage] chat-media bucket ready');
+  }
+})();
 
 // Run on startup: add media_expires_at column if it doesn't exist yet
 pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_expires_at TIMESTAMPTZ`).catch(e => {
@@ -1858,9 +1869,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const roomId = 'dm-' + dmUsers.join('-');
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
-      await pool.query(
+      const dmInsert = await pool.query(
         `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessage || null,
          mediaUrl || null, mediaType || null, ts,
@@ -1868,9 +1879,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          nonce || null, ephemeralPublicKey || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null]
       );
+      const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
       const payload = {
-        id: String(ts),
+        id: dmDbId,
         senderId: req.user.id || 'http_client',
         senderName: username,
         senderAvatar: senderAvatar,
@@ -1897,7 +1909,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       invalidateCacheForUser(username);
       invalidateCacheForUser(partner);
 
-      res.json({ success: true, timestamp: ts });
+      res.json({ success: true, timestamp: ts, id: dmDbId });
     } else if (type === 'room') {
       // ─── Room Permissions Check ───
       const roomRow = await queryGet('SELECT hostUsername, permissions FROM room_names WHERE roomId = ?', [partner]);
@@ -1927,9 +1939,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       // The sender's own publicKey is fetched from users table on history read
       const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
 
-      await pool.query(
+      const roomInsert = await pool.query(
         `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
@@ -1937,6 +1949,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          ephemText || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null]
       );
+      const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
       // Build e2ee broadcast payload — include senderPublicKey (= ephemeralPublicKey from frontend for group)
       // plus the key-map so every recipient can decrypt their own copy
@@ -1946,7 +1959,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         : null;
 
       const msg = {
-        id: String(ts),
+        id: roomDbId,
         userId: req.user.id || 'http_client',
         username,
         senderName: username,
@@ -1977,7 +1990,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       io.emit('global_new_chat_message', { ...msg, roomPermissions: roomPerms });
 
       invalidateCacheForUser(username);
-      res.json({ success: true, timestamp: ts });
+      res.json({ success: true, timestamp: ts, id: roomDbId });
     }
   } catch (err) {
     console.error('[chats/send] error:', err);
@@ -2000,7 +2013,7 @@ const ALLOWED_CHAT_MIME_TYPES = new Set([
 ]);
 
 app.post('/api/upload/chat', authenticateToken, (req, res, next) => {
-  upload.single('media')(req, res, (err) => {
+  chatUpload.single('media')(req, res, async (err) => {
     if (err && err.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({ error: 'File too large. Maximum allowed size is 100MB.' });
     }
@@ -2015,12 +2028,31 @@ app.post('/api/upload/chat', authenticateToken, (req, res, next) => {
     const roomId = req.body.roomId;
     if (roomId) {
       const room = rooms.get(roomId);
-      if (room && room.permissions && room.permissions.allowMedia === false) {
+      if (room?.permissions?.allowMedia === false) {
         return res.status(400).json({ error: 'Sharing media is disabled in this room.' });
       }
     }
-    const mediaUrl = `/api/stream/${req.file.filename}`;
-    res.json({ url: mediaUrl, mimeType: mime });
+
+    try {
+      // Use a random hex name so the encrypted blob is never guessable
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+      const storagePath = `chat-uploads/${filename}`;
+
+      const { error: upErr } = await supabase.storage
+        .from('chat-media')
+        .upload(storagePath, req.file.buffer, {
+          contentType: 'application/octet-stream', // always an encrypted blob
+          upsert: false,
+        });
+      if (upErr) throw upErr;
+
+      // Return the same relative-style URL the client already expects so no
+      // frontend changes are needed.  The stream endpoint proxies to Supabase.
+      res.json({ url: `/api/stream/${filename}`, mimeType: mime });
+    } catch (e) {
+      console.error('[Upload] Supabase Storage error:', e.message);
+      res.status(500).json({ error: 'Upload to storage failed.' });
+    }
   });
 });
 
@@ -2415,10 +2447,24 @@ app.post('/api/upload', upload.single('media'), (req, res) => {
   res.json({ url: mediaUrl });
 });
 
-// Endpoint to stream the uploaded media using HTTP Range Requests (Zero buffering seeking)
-app.get('/api/stream/:filename', (req, res) => {
-  const filePath = path.join(__dirname, 'uploads', req.params.filename);
+// Endpoint to stream uploaded media.
+// New uploads live in Supabase Storage (chat-media bucket).
+// Legacy files that still exist on local disk are served directly.
+app.get('/api/stream/:filename', async (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, 'uploads', filename);
+
+  // ── Fallback: redirect to Supabase Storage if not on local disk ──
   if (!fs.existsSync(filePath)) {
+    const storagePath = `chat-uploads/${filename}`;
+    try {
+      const { data, error } = await supabase.storage
+        .from('chat-media')
+        .createSignedUrl(storagePath, 3600);
+      if (!error && data?.signedUrl) {
+        return res.redirect(307, data.signedUrl);
+      }
+    } catch (_) { /* fall through to 404 */ }
     return res.status(404).send('File not found');
   }
 
@@ -3202,8 +3248,12 @@ io.on('connection', (socket) => {
     const ephemText = e2ee && e2ee.keys ? JSON.stringify(e2ee.keys) : null;
 
     db.run(`INSERT INTO messages (roomId, type, senderId, senderName, message, timestamp, replyTo, mediaUrl, mediaType, nonce, "ephemeralPublicKey") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [roomId, 'group', socket.id, username, message || '', msg.timestamp, replyTo ? JSON.stringify(replyTo) : null, msg.mediaUrl, msg.mediaType, nonceText, ephemText], (err) => {
-        if (err) console.error('Error saving group message:', err);
+      [roomId, 'group', socket.id, username, message || '', msg.timestamp, replyTo ? JSON.stringify(replyTo) : null, msg.mediaUrl, msg.mediaType, nonceText, ephemText], function(err) {
+        if (err) { console.error('Error saving group message:', err); return; }
+        // Send the real DB id back to the sender so delete/unsend uses it reliably
+        if (this.lastID && tempId) {
+          socket.emit('chat:message_persisted', { tempId, dbId: String(this.lastID) });
+        }
       });
 
     broadcastMessage(roomId, msg, socket.id, username);

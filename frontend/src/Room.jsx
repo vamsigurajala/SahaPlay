@@ -1687,6 +1687,15 @@ const Room = () => {
       });
     });
 
+    // Server sends real DB id once the socket-path INSERT completes
+    sock.on('chat:message_persisted', ({ tempId, dbId }) => {
+      setGroupMessages(prev => {
+        const next = prev.map(m => (String(m.id) === String(tempId) || String(m.tempId) === String(tempId)) ? { ...m, id: dbId } : m);
+        groupMessagesRef.current = next;
+        return next;
+      });
+    });
+
     sock.on('chat:message_deleted', ({ messageId, originalId, timestampId }) => {
       setGroupMessages(prev => {
         const next = prev.filter(m => 
