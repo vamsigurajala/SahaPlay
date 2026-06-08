@@ -32,8 +32,12 @@ const HowItWorks = () => {
   }, []);
   const isLight = theme === 'light';
 
-  // Scroll to top on mount
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Section 5 tab state
   const [activeTab, setActiveTab] = useState('youtube');
@@ -236,7 +240,7 @@ const HowItWorks = () => {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -440,7 +444,7 @@ const HowItWorks = () => {
         <div className="hiw-container">
           <div style={{ display: 'flex', gap: 64, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {/* Left: Steps */}
-            <div style={{ flex: '1 1 300px', minWidth: 300 }}>
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <h2 style={{ fontWeight: 800, fontSize: 'clamp(24px, 3vw, 36px)', marginBottom: 12, color: isLight ? '#111' : '#f8f9fa' }}>{t('ifCreatingRoom', "If You're Creating a Room")}</h2>
               <p style={{ color: 'var(--text-secondary)', marginBottom: 40, fontSize: 16 }}>{t('asHostControl', "As the host, you're in complete control.")}</p>
 
@@ -465,7 +469,7 @@ const HowItWorks = () => {
             </div>
 
             {/* Right: Room preview — streaming · chat · calls */}
-            <div style={{ flex: '1 1 300px', minWidth: 300 }}>
+            <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <div style={{
                 border: `1px solid ${isLight ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)'}`,
                 borderRadius: 20,
@@ -565,49 +569,78 @@ const HowItWorks = () => {
       <section id="join" ref={el => sectionRefs.current.join = el} className="hiw-section" style={{ background: isLight ? '#f3f4f6' : '#1a1a2e' }}>
         <div className="hiw-container">
           <div style={{ display: 'flex', gap: 64, flexWrap: 'wrap', alignItems: 'center' }}>
-            {/* Left: Join room phone frame mockup */}
+            {/* Left: Join room — mobile phone frame mockup */}
             <div style={{ flex: '1 1 300px', minWidth: 300 }}>
+              {/* ── Phone outer shell ── */}
               <div style={{
-                border: `1px solid ${isLight ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)'}`,
-                borderRadius: 20,
-                overflow: 'hidden',
-                boxShadow: isLight ? '0 20px 60px rgba(99,102,241,0.18)' : '0 20px 60px rgba(0,0,0,0.4)',
-                maxWidth: 320,
+                position: 'relative',
+                background: 'linear-gradient(160deg, #1e1b30, #2d2a40)',
+                borderRadius: 46,
+                padding: '14px 10px',
+                maxWidth: 336,
                 margin: '0 auto',
+                boxShadow: isLight
+                  ? '0 28px 80px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1.5px #1a1730'
+                  : '0 28px 80px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1.5px #111',
               }}>
-                {/* Header */}
-                <div style={{ background: '#1e1b4b', padding: '14px 18px', textAlign: 'center' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Play size={20} color="#fff" fill="#fff" />
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#fff' }}>{t('joinWatchRoom', 'Join Watch Room')}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{t('roomHashMock', 'Room #3g5jkv')}</div>
+                {/* Volume buttons (left) */}
+                <div style={{ position: 'absolute', left: -3, top: 88, width: 3, height: 26, background: '#151225', borderRadius: '3px 0 0 3px', boxShadow: '-1px 0 3px rgba(0,0,0,0.5)' }} />
+                <div style={{ position: 'absolute', left: -3, top: 128, width: 3, height: 26, background: '#151225', borderRadius: '3px 0 0 3px', boxShadow: '-1px 0 3px rgba(0,0,0,0.5)' }} />
+                {/* Power button (right) */}
+                <div style={{ position: 'absolute', right: -3, top: 108, width: 3, height: 44, background: '#151225', borderRadius: '0 3px 3px 0', boxShadow: '1px 0 3px rgba(0,0,0,0.5)' }} />
+
+                {/* Top bar — speaker pill + camera dot */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, paddingBottom: 10 }}>
+                  <div style={{ width: 50, height: 4, background: 'rgba(255,255,255,0.18)', borderRadius: 2 }} />
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.22)' }} />
                 </div>
 
-                {/* Body */}
-                <div style={{ padding: 18, background: isLight ? '#faf9ff' : '#0f0f1a' }}>
-                  {/* Name input */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>{t('yourDisplayName', 'Your Display Name')}</div>
-                    <div style={{ background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: `1px solid ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 8, padding: '8px 12px', fontSize: 13 }}>
-                      {t('alexMockName', 'Alex_🎬')}
+                {/* Screen */}
+                <div style={{
+                  border: '1px solid rgba(99,102,241,0.25)',
+                  borderRadius: 30,
+                  overflow: 'hidden',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                }}>
+                  {/* Header */}
+                  <div style={{ background: '#1e1b4b', padding: '14px 18px', textAlign: 'center' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Play size={20} color="#fff" fill="#fff" />
+                    </div>
+                    <div className="stay-white" style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#fff' }}>{t('joinWatchRoom', 'Join Watch Room')}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{t('roomHashMock', 'Room #3g5jkv')}</div>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: 18, background: isLight ? '#faf9ff' : '#0f0f1a' }}>
+                    {/* Name input */}
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>{t('yourDisplayName', 'Your Display Name')}</div>
+                      <div style={{ background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: `1px solid ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 8, padding: '8px 12px', fontSize: 13 }}>
+                        {t('alexMockName', 'Alex_🎬')}
+                      </div>
+                    </div>
+
+                    {/* Join button */}
+                    <div className="stay-white" style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '10px', borderRadius: 10, fontWeight: 700, fontSize: 13, marginBottom: 16 }}>
+                      {t('joinRoomBtn', 'Join Room →')}
+                    </div>
+
+                    {/* Status */}
+                    <div style={{ textAlign: 'center', fontSize: 11, color: '#10b981', fontWeight: 600 }}>
+                      {t('threePeopleWatchingBadge', '● 3 people watching')}
+                    </div>
+
+                    {/* Bottom line */}
+                    <div style={{ marginTop: 16, borderTop: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}`, paddingTop: 12, textAlign: 'center', fontSize: 10, color: 'var(--text-secondary)' }}>
+                      {t('joiningRoomMockStatus', 'Joining room 3g5jkv...')}
                     </div>
                   </div>
+                </div>
 
-                  {/* Join button */}
-                  <div className="stay-white" style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '10px', borderRadius: 10, fontWeight: 700, fontSize: 13, marginBottom: 16 }}>
-                    {t('joinRoomBtn', 'Join Room →')}
-                  </div>
-
-                  {/* Status */}
-                  <div style={{ textAlign: 'center', fontSize: 11, color: '#10b981', fontWeight: 600 }}>
-                    {t('threePeopleWatchingBadge', '● 3 people watching')}
-                  </div>
-
-                  {/* Bottom line */}
-                  <div style={{ marginTop: 16, borderTop: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}`, paddingTop: 12, textAlign: 'center', fontSize: 10, color: 'var(--text-secondary)' }}>
-                    {t('joiningRoomMockStatus', 'Joining room 3g5jkv...')}
-                  </div>
+                {/* Home indicator bar */}
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10 }}>
+                  <div style={{ width: 80, height: 4, background: 'rgba(255,255,255,0.28)', borderRadius: 2 }} />
                 </div>
               </div>
             </div>
@@ -676,7 +709,7 @@ const HowItWorks = () => {
           {/* Tab content */}
           <div style={{ display: 'flex', gap: 48, flexWrap: 'wrap', alignItems: 'flex-start' }}>
             {/* Left: Numbered steps */}
-            <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+            <div style={{ flex: '1 1 260px', minWidth: 0 }}>
               <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {tabContent[activeTab].steps.map((step, i) => (
                   <li key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, alignItems: 'flex-start' }}>
@@ -708,7 +741,7 @@ const HowItWorks = () => {
             </div>
 
             {/* Right: Visual mockup */}
-            <div style={{ flex: '1 1 300px', minWidth: 280 }}>
+            <div style={{ flex: '1 1 260px', minWidth: 0 }}>
               {tabContent[activeTab].visual}
             </div>
           </div>
@@ -914,11 +947,12 @@ const HowItWorks = () => {
             <Check size={13} /> {t('readGuideBadge', "You've read the guide")}
           </div>
 
-          <h2 style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 800, color: '#ffffff', marginBottom: 16, lineHeight: 1.1 }}>
+          <h2 className="stay-white" style={{ fontSize: 'clamp(28px, 5vw, 48px)', fontWeight: 800, color: '#ffffff', marginBottom: 16, lineHeight: 1.1 }}>
             {t('finalCtaTitle', 'You Know How It Works.')}
           </h2>
-          <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 18, maxWidth: 460, margin: '0 auto 40px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-            {t('hiwFinalCtaDesc', 'Now experience it yourself —\nyour first room is ready in 30 seconds.')}
+          <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 18, maxWidth: 460, margin: '0 auto 40px', lineHeight: 1.7 }}>
+            {t('hiwFinalCtaLine1', 'Now experience it yourself —')}<br />
+            {t('hiwFinalCtaLine2', 'your first room is ready in 30 seconds.')}
           </p>
 
           {/* Primary CTA button */}
@@ -970,6 +1004,36 @@ const HowItWorks = () => {
       </section>
 
       <Footer />
+
+      {showBackToTop && (
+        <button
+          className="back-to-top-btn"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{
+            position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 999,
+            padding: '10px 22px', borderRadius: 50,
+            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8,
+            color: '#fff', fontSize: 14, fontWeight: 600,
+            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            whiteSpace: 'nowrap',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateX(-50%)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+          }}
+        >
+          <ChevronUp size={18} color="#fff" />
+          {t('termsBackToTop', 'Back to Top')}
+        </button>
+      )}
     </div>
   );
 };

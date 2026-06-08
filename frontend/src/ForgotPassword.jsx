@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Mail, ArrowLeft, Send, CheckCircle, Play, LogIn } from 'lucide-react';
 
 const API = `http://${window.location.hostname}:3001`;
@@ -10,26 +11,30 @@ const ForgotPassword = () => {
   const [globalError, setGlobalError] = useState('');
   const [submitted, setSubmitted]     = useState(false);
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) { setGlobalError('Please enter your email or username.'); return; }
+    if (!email.trim()) { setGlobalError(t('enterEmailOrUsernameError', 'Please enter your email or username.')); return; }
     setGlobalError('');
     setIsSubmitting(true);
     try {
       const response = await fetch(`${API}/api/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, lang: i18n.language })
       });
       const data = await response.json();
       if (response.ok) {
         setSubmitted(true);
       } else {
-        setGlobalError(data.error || 'Something went wrong. Please try again.');
+        const errorMsg = data.error === 'Email or username is required' 
+          ? t('emailOrUsernameRequired', 'Email or username is required') 
+          : (data.error || t('somethingWentWrongError', 'Something went wrong. Please try again.'));
+        setGlobalError(errorMsg);
       }
     } catch {
-      setGlobalError('Network error. Please try again later.');
+      setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +186,7 @@ const ForgotPassword = () => {
           onClick={() => navigate('/login')}
           className="back-box-btn"
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', transition: 'all 0.2s', backdropFilter: 'blur(10px)' }}
-          title="Back to Login"
+          title={t('backToLogin', 'Back to Login')}
         >
           <ArrowLeft size={20} />
         </button>
@@ -197,11 +202,11 @@ const ForgotPassword = () => {
             <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
-            Forgot your<br />password?<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>No problem.</span>
+            {t('forgotPasswordTitle', 'Forgot your password?')}<br />
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('noProblem', 'No problem.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
-            Enter your email and we'll send you a secure link to reset your password. Takes less than a minute.
+            {t('forgotPasswordLeftDesc', "Enter your email and we'll send you a secure link to reset your password. Takes less than a minute.")}
           </p>
         </div>
       </div>
@@ -216,29 +221,27 @@ const ForgotPassword = () => {
               <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 40px rgba(16,185,129,0.15)' }}>
                 <CheckCircle size={36} color="#10b981" strokeWidth={1.5} />
               </div>
-              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px', letterSpacing: '-0.5px' }}>Check your inbox!</h1>
+              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px', letterSpacing: '-0.5px' }}>{t('checkYourInbox', 'Check your inbox!')}</h1>
               <p style={{ color: '#888', fontSize: '15px', lineHeight: 1.65, margin: '0 0 28px' }}>
-                We sent a reset link to{' '}
-                <strong className="fp-success-email" style={{ color: '#a78bfa' }}>{email}</strong>.
-                {' '}It expires in <strong style={{ color: '#fff' }}>10 minutes</strong>.
+                {t('resetLinkSentDesc', 'We sent a reset link to {{email}}. It expires in 10 minutes.', { email: email })}
               </p>
               <div className="fp-success-note" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '14px', padding: '14px 18px', marginBottom: '28px', color: '#34d399', fontSize: '14px', lineHeight: 1.6, textAlign: 'left' }}>
-                📬 <strong>Don't see it?</strong> Check your <em>Spam</em> or <em>Promotions</em> folder. It may take 1–2 minutes.
+                📬 <strong>{t('dontSeeItTitle', "Don't see it?")}</strong> {t('dontSeeItText', 'Check your Spam or Promotions folder. It may take 1–2 minutes.')}
               </div>
               <button
                 onClick={() => navigate('/login')}
                 className="login-submit-btn"
               >
                 <LogIn size={18} />
-                <span>Back to Login</span>
+                <span>{t('backToLoginBtn', 'Back to Login')}</span>
               </button>
             </div>
           ) : (
             /* ── Form ── */
             <>
-              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>Reset Password</h1>
+              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('resetPasswordTitle', 'Reset Password')}</h1>
               <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
-                Enter your email or username and we'll send you a reset link.
+                {t('resetPasswordDesc', "Enter your email or username and we'll send you a reset link.")}
               </p>
 
               {globalError && (
@@ -249,14 +252,14 @@ const ForgotPassword = () => {
 
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
                 <div>
-                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Email or Username</label>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('emailOrUsernameLabel', 'Email or Username')}</label>
                   <div style={{ position: 'relative' }}>
                     <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                     <input
                       id="fp-email"
                       type="text"
                       className="login-input"
-                      placeholder="name@example.com or username"
+                      placeholder={t('emailOrUsernamePlaceholder', 'name@example.com or username')}
                       value={email}
                       autoComplete="email"
                       onChange={(e) => { setEmail(e.target.value); setGlobalError(''); }}
@@ -266,14 +269,14 @@ const ForgotPassword = () => {
 
                 <button type="submit" disabled={isSubmitting} className="login-submit-btn">
                   {isSubmitting
-                    ? <><div className="fp-spinner" /><span>Sending link...</span></>
-                    : <><Send size={18} /><span>Send Reset Link</span></>}
+                    ? <><div className="fp-spinner" /><span>{t('sendingLink', 'Sending link...')}</span></>
+                    : <><Send size={18} /><span>{t('sendResetLink', 'Send Reset Link')}</span></>}
                 </button>
               </form>
 
               <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
-                Remember your password?{' '}
-                <Link to="/login" className="fp-link" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>Log In</Link>
+                {t('rememberPassword', 'Remember your password?')}{' '}
+                <Link to="/login" className="fp-link" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
               </p>
             </>
           )}

@@ -56,7 +56,7 @@ const Pricing = () => {
   };
 
   return (
-    <div style={{
+    <div className="page-enter" style={{
       minHeight: '100vh',
       background: isLight
         ? 'linear-gradient(135deg, #f0f0f8 0%, #e8e8f5 50%, #f0f0f8 100%)'

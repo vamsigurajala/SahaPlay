@@ -14,6 +14,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
+const emailTranslations = require('./email-translations');
 
 // ─── Gmail SMTP Transporter ──────────────────────────────────────────────────
 const gmailTransporter = nodemailer.createTransport({
@@ -332,7 +333,20 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+// Run on startup: add media_expires_at column if it doesn't exist yet
+pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_expires_at TIMESTAMPTZ`).catch(e => {
+  if (!e.message?.includes('already exists')) console.warn('[Migration] media_expires_at:', e.message);
+});
+
+function computeMediaExpiry(mediaType) {
+  if (!mediaType) return null;
+  if (mediaType.startsWith('image/')) return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  if (mediaType.startsWith('video/')) return new Date(Date.now() + 7  * 24 * 60 * 60 * 1000);
+  if (mediaType.startsWith('audio/')) return new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // documents / other
+}
 
 // â”€â”€ YouTube Search Proxy (via yt-search) â”€â”€
 const ytSearch = require('yt-search');
@@ -785,8 +799,11 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 app.post('/api/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email or username is required' });
+  const { email, lang } = req.body;
+  const userLang = lang || 'en';
+  const L = emailTranslations[userLang] || emailTranslations['en'] || {};
+
+  if (!email) return res.status(400).json({ error: L.apiResetEmailOrUsernameRequired || 'Email or username is required' });
 
   try {
     // Accept either email OR username lookup — use pool.query directly
@@ -798,7 +815,7 @@ app.post('/api/forgot-password', async (req, res) => {
 
     // If user doesn't exist, return generic success (prevent email enumeration)
     if (!user) {
-      return res.json({ message: 'If an account matches that email, a password reset link has been sent.' });
+      return res.json({ message: L.apiResetSuccessGeneric || 'If an account matches that email, a password reset link has been sent.' });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -817,7 +834,7 @@ app.post('/api/forgot-password', async (req, res) => {
     const resetHtml = `
       <!DOCTYPE html>
       <html>
-      <head><meta charset="utf-8"><title>Reset Your Password</title></head>
+      <head><meta charset="utf-8"><title>${L.emailResetHeading || 'Reset Your Password'}</title></head>
       <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
           <tr><td align="center">
@@ -825,32 +842,32 @@ app.post('/api/forgot-password', async (req, res) => {
               <tr>
                 <td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:40px;text-align:center;">
                   <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">▶ SahaPlay</div>
-                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">Watch Together. Anywhere.</p>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">${L.emailResetTagline || 'Watch Together. Anywhere.'}</p>
                 </td>
               </tr>
               <tr>
                 <td style="padding:48px 40px;">
-                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Reset Your Password</h1>
+                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">${L.emailResetHeading || 'Reset Your Password'}</h1>
                   <p style="color:#a0a0c0;font-size:15px;line-height:1.7;margin:0 0 32px;">
-                    We received a request to reset the password for your SahaPlay account associated with <strong style="color:#c4b5fd;">${user.email}</strong>.
-                    Click the button below to create a new password. This link expires in <strong style="color:#fff;">10 minutes</strong>.
+                    ${L.emailResetBody1 || 'We received a request to reset the password for your SahaPlay account associated with'} <strong style="color:#c4b5fd;">${user.email}</strong>.
+                    ${L.emailResetBody2 || 'Click the button below to create a new password. This link expires in'} <strong style="color:#fff;">${L.emailResetExpiry || '10 minutes'}</strong>.
                   </p>
                   <div style="text-align:center;margin:0 0 32px;">
-                    <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Reset My Password</a>
+                    <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">${L.emailResetBtn || 'Reset My Password'}</a>
                   </div>
                   <p style="color:#6b6b8a;font-size:13px;line-height:1.6;margin:0;">
-                    If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged.
+                    ${L.emailResetIgnore || "If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged."}
                   </p>
                   <hr style="border:none;border-top:1px solid #2a2a4a;margin:32px 0;">
                   <p style="color:#6b6b8a;font-size:12px;margin:0;">
-                    Or copy and paste this link in your browser:<br>
+                    ${L.emailResetCopyLink || 'Or copy and paste this link in your browser:'}<br>
                     <a href="${resetLink}" style="color:#7c3aed;word-break:break-all;">${resetLink}</a>
                   </p>
                 </td>
               </tr>
               <tr>
                 <td style="background:#13132a;padding:24px 40px;text-align:center;">
-                  <p style="color:#4a4a6a;font-size:12px;margin:0;">© 2026 SahaPlay · All rights reserved</p>
+                  <p style="color:#4a4a6a;font-size:12px;margin:0;">${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}</p>
                 </td>
               </tr>
             </table>
@@ -860,10 +877,22 @@ app.post('/api/forgot-password', async (req, res) => {
       </html>
     `;
 
+    const textVersion = `Hello ${user.username},
+
+${L.emailResetHeading || 'Reset Your Password'}
+
+${L.emailResetBody1 || 'We received a request to reset the password for your SahaPlay account associated with'} ${user.email}.
+${L.emailResetBody2 || 'Click the button below to create a new password. This link expires in'} ${L.emailResetExpiry || '10 minutes'}:
+${resetLink}
+
+${L.emailResetIgnore || "If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged."}
+
+${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}`;
+
     await sendEmail({
       to: user.email,
-      subject: 'Reset your SahaPlay password',
-      text: `Hello ${user.username},\n\nYou requested a password reset for your SahaPlay account.\n\nClick this link to reset your password (expires in 10 minutes):\n${resetLink}\n\nIf you did not request this, please ignore this email.\n\nThanks,\nThe SahaPlay Team`,
+      subject: L.emailResetSubject || 'Reset your SahaPlay password',
+      text: textVersion,
       html: resetHtml,
       headers: {
         'X-Priority': '3',
@@ -872,11 +901,11 @@ app.post('/api/forgot-password', async (req, res) => {
       }
     });
 
-    return res.json({ message: 'Password reset link sent to your email!' });
+    return res.json({ message: L.apiResetSuccess || 'Password reset link sent to your email!' });
 
   } catch (err) {
     console.error('[forgot-password] Error:', err);
-    return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    return res.status(500).json({ error: L.apiErrorFallback || 'Something went wrong. Please try again.' });
   }
 });
 
@@ -1653,6 +1682,7 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           ephemeralPublicKey: r.ephemeralPublicKey || null,
           mediaUrl: r.mediaUrl || null,
           mediaType: r.mediaType || null,
+          mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
@@ -1698,6 +1728,7 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           e2ee,
           mediaUrl: r.mediaUrl || null,
           mediaType: r.mediaType || null,
+          mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
@@ -1828,13 +1859,14 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessage || null,
          mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
-         nonce || null, ephemeralPublicKey || null]
+         nonce || null, ephemeralPublicKey || null,
+         mediaUrl ? computeMediaExpiry(mediaType) : null]
       );
 
       const payload = {
@@ -1896,13 +1928,14 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
 
       await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
          nonce || null,
-         ephemText || null]  // key-map JSON stored here
+         ephemText || null,
+         mediaUrl ? computeMediaExpiry(mediaType) : null]
       );
 
       // Build e2ee broadcast payload — include senderPublicKey (= ephemeralPublicKey from frontend for group)
@@ -1953,20 +1986,42 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 });
 
 // â”€â”€ POST Upload Chat Media (no roomId required) â”€â”€
-app.post('/api/upload/chat', authenticateToken, upload.single('media'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded.' });
-  }
-  // Check if media is allowed in this room
-  const roomId = req.body.roomId;
-  if (roomId) {
-    const room = rooms.get(roomId);
-    if (room && room.permissions && room.permissions.allowMedia === false) {
-      return res.status(400).json({ error: 'Sharing media is disabled in this room.' });
+const ALLOWED_CHAT_MIME_TYPES = new Set([
+  'image/jpeg','image/jpg','image/png','image/gif','image/webp',
+  'video/mp4','video/webm','video/mov','video/quicktime',
+  'application/pdf','application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain','text/csv','application/zip',
+  'audio/mp3','audio/mpeg','audio/wav','audio/ogg','audio/m4a','audio/webm',
+]);
+
+app.post('/api/upload/chat', authenticateToken, (req, res, next) => {
+  upload.single('media')(req, res, (err) => {
+    if (err && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Maximum allowed size is 100MB.' });
     }
-  }
-  const mediaUrl = `/api/stream/${req.file.filename}`;
-  res.json({ url: mediaUrl, mimeType: req.file.mimetype });
+    if (err) return res.status(400).json({ error: err.message || 'Upload failed.' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+
+    const mime = req.file.mimetype;
+    if (!ALLOWED_CHAT_MIME_TYPES.has(mime)) {
+      return res.status(415).json({ error: `File type not supported: ${mime}` });
+    }
+
+    const roomId = req.body.roomId;
+    if (roomId) {
+      const room = rooms.get(roomId);
+      if (room && room.permissions && room.permissions.allowMedia === false) {
+        return res.status(400).json({ error: 'Sharing media is disabled in this room.' });
+      }
+    }
+    const mediaUrl = `/api/stream/${req.file.filename}`;
+    res.json({ url: mediaUrl, mimeType: mime });
+  });
 });
 
 // ─── DELETE Chat Message ───
@@ -4291,6 +4346,7 @@ const chatLockRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   keyGenerator: (req) => req.user?.username || req.ip,
+  validate: { ip: false, keyGeneratorIpFallback: false },
   handler: (req, res) => {
     const blockedUntil = Date.now() + 30 * 1000;
     // Persist block to DB
@@ -4660,7 +4716,7 @@ const contactLimiter = rateLimit({
 });
 
 app.post('/api/contact', contactLimiter, async (req, res) => {
-  const { name, email, subject, message, images } = req.body;
+  const { name, email, subject, message, images, lang } = req.body;
 
   // ── Guard: credentials must exist ────────────────────
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
@@ -4746,30 +4802,32 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 </body></html>`;
 
   // ── Confirmation email to the user ───────────────────
+  const userLang = lang || 'en';
+  const L = emailTranslations[userLang] || emailTranslations['en'] || {};
+
   const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
 <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">✅ We got your message!</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Support</p>
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">${L.emailContactTitle || '✅ We got your message!'}</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">${L.emailContactSubtitle || 'SahaPlay Support'}</p>
   </div>
   <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">Hi <strong style="color:#fff">${esc(cName)}</strong>,</p>
+    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">${L.emailContactHi || 'Hi'} <strong style="color:#fff">${esc(cName)}</strong>,</p>
     <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
-      Thanks for reaching out! We received your message and will get back to you
-      within <strong style="color:#818cf8">48 hours</strong>.
+      ${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}
     </p>
     <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:24px">
-      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">Your message</p>
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">${L.emailContactYourMsg || 'Your message'}</p>
       <p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${esc(cMsg)}</p>
     </div>
     <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
-      Need urgent help? Email us at
+      ${L.emailContactUrgent || 'Need urgent help? Email us at'}
       <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
     </p>
   </div>
   <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
+    <p style="color:#6b7280;font-size:12px;margin:0">— ${L.emailContactFooter || 'SahaPlay Team'}</p>
   </div>
 </div>
 </body></html>`;
@@ -4789,12 +4847,12 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     // Send confirmation to the user — non-blocking (failure is not fatal)
     sendEmail({
       to:      cEmail,
-      subject: 'We received your message — SahaPlay',
+      subject: L.emailContactSubject || 'We received your message — SahaPlay',
       html:    confirmHtml,
-      text:    `Hi ${cName},\n\nThanks for reaching out! We received your message and will get back to you within 48 hours.\n\nYour message:\n${cMsg}\n\n— SahaPlay Team`,
+      text:    `${L.emailContactHi || 'Hi'} ${cName},\n\n${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}\n\n${L.emailContactYourMsg || 'Your message'}:\n${cMsg}\n\n— ${L.emailContactFooter || 'SahaPlay Team'}`,
     }).catch(e => console.warn('[contact] Confirmation email failed (non-fatal):', e.message));
 
-    return res.json({ success: true, message: 'Message sent!' });
+    return res.json({ success: true, message: L.apiContactSuccess || 'Message sent!' });
   } catch (err) {
     console.error('[contact] Full error:', {
       message: err.message,
@@ -4805,21 +4863,21 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     if (err.code === 'EAUTH') {
       return res.status(500).json({
         success: false,
-        error: 'Email authentication failed. Check GMAIL_APP_PASSWORD in .env',
+        error: L.apiContactErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.',
       });
     }
     if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
       return res.status(500).json({
         success: false,
-        error: 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
+        error: L.apiContactErrorConnection || 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
       });
     }
     const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
     return res.status(500).json({
       success: false,
       error: isAuthErr
-        ? 'Email authentication failed. Please email sahaaplay@gmail.com directly.'
-        : 'Failed to send message. Please try again or email sahaaplay@gmail.com directly.',
+        ? (L.apiContactErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.')
+        : (L.apiContactErrorFallback || 'Failed to send message. Please try again or email sahaaplay@gmail.com directly.'),
     });
   }
 });
@@ -4851,14 +4909,17 @@ const ALLOWED_BUG_TYPES = [
 
 app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   const { name, email, bugType, severity, whatHappened, whatExpected, actualResult,
-          stepsToReproduce, browser, os, screenSize, consoleErrors, attachments } = req.body;
+          stepsToReproduce, browser, os, screenSize, consoleErrors, attachments, lang } = req.body;
 
   // ── Credentials guard ─────────────────────────────────
+  const bugUserLang = lang || 'en';
+  const L = emailTranslations[bugUserLang] || emailTranslations['en'] || {};
+
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     console.error('[report-bug] Gmail credentials missing from .env!');
     return res.status(500).json({
       success: false,
-      error: 'Email service not configured. Please email sahaaplay@gmail.com directly.',
+      error: L.apiBugErrorNoConfig || 'Email service not configured. Please email sahaaplay@gmail.com directly.',
     });
   }
 
@@ -4878,23 +4939,23 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   const rConsoleErrors = trim(consoleErrors);
 
   if (rName.length < 2)
-    return res.status(400).json({ success: false, error: 'Name must be at least 2 characters.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorName || 'Name must be at least 2 characters.' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rEmail))
-    return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorEmail || 'Please provide a valid email address.' });
   if (!ALLOWED_BUG_TYPES.includes(rBugType))
-    return res.status(400).json({ success: false, error: 'Please select a valid bug type.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorType || 'Please select a valid bug type.' });
   if (!['minor', 'major', 'critical'].includes(rSeverity))
-    return res.status(400).json({ success: false, error: 'Please select a severity level.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorSeverity || 'Please select a severity level.' });
   if (rWhatHappened.length < 20)
-    return res.status(400).json({ success: false, error: 'Please describe what happened (min 20 characters).' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorHappened || 'Please describe what happened (min 20 characters).' });
   if (rWhatExpected.length < 10)
-    return res.status(400).json({ success: false, error: 'Please describe what you expected (min 10 characters).' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorExpected || 'Please describe what you expected (min 10 characters).' });
   if (rActualResult.length < 10)
-    return res.status(400).json({ success: false, error: 'Please describe what actually happened (min 10 characters).' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorActual || 'Please describe what actually happened (min 10 characters).' });
   if (!rBrowser)
-    return res.status(400).json({ success: false, error: 'Please enter your browser.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorBrowser || 'Please enter your browser.' });
   if (!rOs)
-    return res.status(400).json({ success: false, error: 'Please enter your operating system.' });
+    return res.status(400).json({ success: false, error: L.apiBugErrorOs || 'Please enter your operating system.' });
 
   // ── Generate report ID ──────────────────────────────
   const reportId = 'BUG-' + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -4985,39 +5046,40 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
 </body></html>`;
 
   // ── Confirmation email to user ────────────────────────
+
   const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
-<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+<div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">🐛 Bug Report Received</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Bug Tracker</p>
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">${L.emailBugTitle || '🐛 Bug Report Received'}</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">${L.emailBugSubtitle || 'SahaPlay Bug Tracker'}</p>
   </div>
   <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 12px">Hi <strong style="color:#fff">${esc(rName)}</strong>,</p>
+    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 12px">${L.emailContactHi || 'Hi'} <strong style="color:#fff">${esc(rName)}</strong>,</p>
     <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
-      We received your bug report about <strong style="color:#818cf8">${esc(rBugType)}</strong>.
-      Our team will investigate it and we'll update you here when it's resolved.
+      ${L.emailBugBody1 || 'We received your bug report about'} <strong style="color:#818cf8">${esc(rBugType)}</strong>.
+      ${L.emailBugBody2 || "Our team will investigate it and we'll update you here when it's resolved."}
     </p>
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
-      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px">Report Details</p>
+      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px">${L.emailBugDetails || 'Report Details'}</p>
       <table style="width:100%;border-collapse:collapse">
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0;width:110px">Report ID</td>
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0;width:110px">${L.emailBugReportId || 'Report ID'}</td>
             <td style="font-family:monospace;color:#a5b4fc;font-size:14px;font-weight:700;padding:6px 0">${esc(reportId)}</td></tr>
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">Bug Type</td>
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugType || 'Bug Type'}</td>
             <td style="color:#e5e7eb;font-size:14px;padding:6px 0">${esc(rBugType)}</td></tr>
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">Severity</td>
+        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugSeverity || 'Severity'}</td>
             <td style="font-size:14px;padding:6px 0"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:2px 8px;border-radius:4px;font-weight:700;font-size:13px">${severityMeta.label}</span></td></tr>
       </table>
     </div>
     <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 8px">
-      We'll email you at this address when the issue is resolved.
+      ${L.emailBugHint || "We'll email you at this address when the issue is resolved."}
     </p>
     <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
-      For urgent help: <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
+      ${L.emailBugUrgent || 'For urgent help:'} <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
     </p>
   </div>
   <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
+    <p style="color:#6b7280;font-size:12px;margin:0">— ${L.emailBugFooter || 'SahaPlay Team'}</p>
   </div>
 </div>
 </body></html>`;
@@ -5036,9 +5098,9 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     // Non-blocking confirmation to user
     sendEmail({
       to:      rEmail,
-      subject: `Bug Report Received - ${reportId} | SahaPlay`,
+      subject: `${L.emailBugSubject || 'Bug Report Received'} - ${reportId} | SahaPlay`,
       html:    confirmHtml,
-      text:    `Hi ${rName},\n\nWe received your bug report (${reportId}) about ${rBugType}.\n\nSeverity: ${rSeverity}\n\nOur team will investigate and we'll update you at this email when it's resolved.\n\nFor urgent issues: sahaaplay@gmail.com\n\n— SahaPlay Team`,
+      text:    `${L.emailContactHi || 'Hi'} ${rName},\n\n${L.emailBugBody1 || 'We received your bug report about'} ${rBugType}.\n\n${L.emailBugReportId || 'Report ID'}: ${reportId}\n${L.emailBugSeverity || 'Severity'}: ${rSeverity}\n\n${L.emailBugBody2 || "Our team will investigate and we'll update you at this email when it's resolved."}\n\n${L.emailBugUrgent || 'For urgent issues:'} sahaaplay@gmail.com\n\n— ${L.emailBugFooter || 'SahaPlay Team'}`,
     }).catch(e => console.warn('[report-bug] Confirmation email failed (non-fatal):', e.message));
 
     return res.json({ success: true, reportId });
@@ -5052,22 +5114,103 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     if (err.code === 'EAUTH') {
       return res.status(500).json({
         success: false,
-        error: 'Email authentication failed. Check GMAIL_APP_PASSWORD in .env',
+        error: L.apiBugErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.',
       });
     }
     if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
       return res.status(500).json({
         success: false,
-        error: 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
+        error: L.apiBugErrorConnection || 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
       });
     }
     const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
     return res.status(500).json({
       success: false,
       error: isAuthErr
-        ? 'Email authentication failed. Please email sahaaplay@gmail.com directly.'
-        : 'Failed to submit bug report. Please try again or email sahaaplay@gmail.com directly.',
+        ? (L.apiBugErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.')
+        : (L.apiBugErrorFallback || 'Failed to submit bug report. Please try again or email sahaaplay@gmail.com directly.'),
     });
+  }
+});
+
+app.post('/api/report-user', authenticateToken, bugReportLimiter, async (req, res) => {
+  const reporter = req.user.username;
+  const { reportedUsername, reason, description } = req.body;
+
+  if (!reportedUsername) {
+    return res.status(400).json({ success: false, error: 'Reported username is required.' });
+  }
+  if (!reason) {
+    return res.status(400).json({ success: false, error: 'Reason for report is required.' });
+  }
+
+  // Credentials guard
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.error('[report-user] Gmail credentials missing from .env!');
+    return res.status(500).json({
+      success: false,
+      error: 'Email service not configured. Please report user via sahaaplay@gmail.com directly.',
+    });
+  }
+
+  const reportId = 'REP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  const trim = (v) => (v ? String(v).trim() : '');
+  const rReported = trim(reportedUsername);
+  const rReason = trim(reason);
+  const rDesc = trim(description);
+
+  const esc = (s) =>
+    String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+
+  const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px 40px">
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px">🚨 USER REPORT FILED</h1>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,0.7);font-size:14px">Report ID: ${esc(reportId)}</p>
+  </div>
+  <div style="padding:40px">
+    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:20px;margin-bottom:32px">
+      <h2 style="color:#f87171;font-size:16px;margin:0 0 16px;font-weight:700">Report Summary</h2>
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="color:#888;font-size:14px;padding:8px 0;width:140px;font-weight:600">Reported User:</td>
+          <td style="color:#fff;font-size:15px;padding:8px 0;font-weight:700">@${esc(rReported)}</td>
+        </tr>
+        <tr>
+          <td style="color:#888;font-size:14px;padding:8px 0;font-weight:600">Reporter:</td>
+          <td style="color:#fff;font-size:15px;padding:8px 0">@${esc(reporter)}</td>
+        </tr>
+        <tr>
+          <td style="color:#888;font-size:14px;padding:8px 0;font-weight:600">Reason:</td>
+          <td style="color:#ef4444;font-size:15px;padding:8px 0;font-weight:700">${esc(rReason)}</td>
+        </tr>
+      </table>
+    </div>
+    
+    <div style="margin-bottom:32px">
+      <h3 style="color:#fff;font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Details provided:</h3>
+      <p style="color:#ccc;font-size:14px;line-height:1.6;margin:0;background:rgba(255,255,255,0.03);padding:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05)">
+        \${rDesc ? esc(rDesc) : '<em>No additional details provided.</em>'}
+      </p>
+    </div>
+  </div>
+</div>
+</body></html>`;
+
+  try {
+    await gmailTransporter.sendMail({
+      from:    `"SahaPlay User Reports" <\${process.env.GMAIL_USER}>`,
+      to:      process.env.GMAIL_USER,
+      subject: `[USER REPORT] @\${rReported} reported by @\${reporter} | \${reportId}`,
+      html:    notifyHtml,
+      text:    `User Report \${reportId}\\nReported User: @\${rReported}\\nReporter: @\${reporter}\\nReason: \${rReason}\\n\\nDescription:\\n\${rDesc || 'No details provided.'}`,
+    });
+
+    return res.json({ success: true, reportId });
+  } catch (err) {
+    console.error('[report-user] Full error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to submit report. Please try again later.' });
   }
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5095,6 +5238,42 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Cast TV URL: http://${LAN_IP}:${FRONTEND_PORT}/tv`);
 });
+
+// ─── Media Expiry Cleanup Job (runs every 24 hours) ───
+async function cleanupExpiredMedia() {
+  console.log('[Cleanup] Running media expiry cleanup...');
+  try {
+    const now = new Date().toISOString();
+    const { rows: expired } = await pool.query(
+      `SELECT id, "mediaUrl" FROM messages WHERE media_expires_at IS NOT NULL AND media_expires_at < $1 AND "mediaUrl" IS NOT NULL`,
+      [now]
+    );
+    if (expired.length === 0) { console.log('[Cleanup] No expired media.'); return; }
+
+    const filenames = expired
+      .map(m => {
+        try {
+          const parts = (m.mediaUrl || '').split('/');
+          const fname = parts[parts.length - 1];
+          return fname ? path.join(__dirname, 'uploads', fname) : null;
+        } catch { return null; }
+      })
+      .filter(Boolean);
+
+    filenames.forEach(fp => { try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {} });
+
+    const ids = expired.map(m => m.id);
+    await pool.query(
+      `UPDATE messages SET "mediaUrl" = NULL, "mediaType" = NULL WHERE id = ANY($1::int[])`,
+      [ids]
+    );
+    console.log(`[Cleanup] Cleaned ${expired.length} expired media file(s) ✅`);
+  } catch (err) {
+    console.error('[Cleanup] Error during media cleanup:', err.message);
+  }
+}
+cleanupExpiredMedia();
+setInterval(cleanupExpiredMedia, 24 * 60 * 60 * 1000);
 
 // Keep server alive on unhandled errors instead of crashing silently
 process.on('uncaughtException', (err) => {

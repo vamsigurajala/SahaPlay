@@ -14,12 +14,12 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
   // 'auto' passes no video constraints — browser negotiates best quality based on available bandwidth
   // 'enhancement' is a CSS filter string applied on the sender's canvas — all viewers see the result
   const qualityOptions = {
-    'auto':  { label: 'Auto',      sub: 'Adapts to your network',     width: undefined,       height: undefined,       frameRate: undefined,              enhancement: 'none' },
-    '360p':  { label: '360p',      sub: 'Low bandwidth',              width: { ideal: 640 },  height: { ideal: 360 },  frameRate: { ideal: 24 },          enhancement: 'none' },
-    '480p':  { label: '480p',      sub: 'Standard + light enhance',   width: { ideal: 854 },  height: { ideal: 480 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.12) contrast(1.06) brightness(1.02)' },
-    '720p':  { label: '720p HD',   sub: 'HD + enhanced visuals',      width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.22) contrast(1.1) brightness(1.03)' },
-    '1080p': { label: '1080p FHD', sub: 'Full HD + vivid enhance',    width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },          enhancement: 'saturate(1.3) contrast(1.14) brightness(1.04)' },
-    '4k':    { label: '4K UHD',    sub: 'Ultra HD + max enhance',     width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 60 },          enhancement: 'saturate(1.35) contrast(1.16) brightness(1.04)' },
+    'auto':  { labelKey: 'qualityAutoLabel', label: 'Auto',      subKey: 'qualityAutoSub', sub: 'Adapts to your network',     width: undefined,       height: undefined,       frameRate: undefined,              enhancement: 'none' },
+    '360p':  { labelKey: 'quality360pLabel', label: '360p',      subKey: 'quality360pSub', sub: 'Low bandwidth',              width: { ideal: 640 },  height: { ideal: 360 },  frameRate: { ideal: 24 },          enhancement: 'none' },
+    '480p':  { labelKey: 'quality480pLabel', label: '480p',      subKey: 'quality480pSub', sub: 'Standard + light enhance',   width: { ideal: 854 },  height: { ideal: 480 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.12) contrast(1.06) brightness(1.02)' },
+    '720p':  { labelKey: 'quality720pLabel', label: '720p HD',   subKey: 'quality720pSub', sub: 'HD + enhanced visuals',      width: { ideal: 1280 }, height: { ideal: 720 },  frameRate: { ideal: 30 },          enhancement: 'saturate(1.22) contrast(1.1) brightness(1.03)' },
+    '1080p': { labelKey: 'quality1080pLabel', label: '1080p FHD', subKey: 'quality1080pSub', sub: 'Full HD + vivid enhance',    width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 },          enhancement: 'saturate(1.3) contrast(1.14) brightness(1.04)' },
+    '4k':    { labelKey: 'quality4kLabel', label: '4K UHD',    subKey: 'quality4kSub', sub: 'Ultra HD + max enhance',     width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 60 },          enhancement: 'saturate(1.35) contrast(1.16) brightness(1.04)' },
   };
 
   const handleLaunch = () => {
@@ -54,6 +54,14 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
     slither:   '#a855f7',
     smashkarts:'#e11d48',
     krunker:   '#f59e0b',
+    zee5:      '#5E2A8C',
+    sonyliv:   '#D50000',
+    peacocktv: '#4FC3F7',
+    viki:      '#00B8D4',
+    mxplayer:  '#FF6B35',
+    aha:       '#FF5722',
+    facebook:  '#1877F2',
+    xtwitter:  '#15202B',
   };
 
   const isColorWhite = (c) => !c || c === '#fff' || c === '#ffffff' || c === 'white' || c === 'rgb(255,255,255)';
@@ -131,10 +139,17 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
           
           <div style={{ textAlign: 'center', marginBottom: 44 }}>
             <h2 style={{ margin: '0 0 12px', fontSize: 42, fontWeight: 900, color: titleColor, letterSpacing: '-2px' }}>
-              Watch <span style={{ 
-                color: brandColor, 
-                textShadow: `0 0 20px ${brandColor}40`
-              }}>{app.name}</span>
+              {t('watchPlatform', 'Watch {{name}}', { name: app.name }).split(app.name).map((part, index, arr) => {
+                if (index === arr.length - 1) return part;
+                return (
+                  <React.Fragment key={index}>
+                    {part}
+                    <span style={{ color: brandColor, textShadow: `0 0 20px ${brandColor}40` }}>
+                      {app.name}
+                    </span>
+                  </React.Fragment>
+                );
+              })}
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                <div style={{ height: 1, width: 60, background: `linear-gradient(90deg, transparent, ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'})` }} />
@@ -228,8 +243,8 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Settings size={14} color={btnColor} />
                         <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#0f172a' : '#fff' }}>{qualityOptions[quality].label}</div>
-                          <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#888', marginTop: 1 }}>{qualityOptions[quality].sub}</div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#0f172a' : '#fff' }}>{t(qualityOptions[quality].labelKey, qualityOptions[quality].label)}</div>
+                          <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#888', marginTop: 1 }}>{t(qualityOptions[quality].subKey, qualityOptions[quality].sub)}</div>
                         </div>
                       </div>
                       <div style={{ borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `5px solid ${isLight ? '#94a3b8' : '#666'}` }} />
@@ -255,8 +270,8 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
                             onMouseLeave={e => e.currentTarget.style.background = quality === id ? (isLight ? '#f1f5f9' : `${btnColor}18`) : 'transparent'}
                           >
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: quality === id ? 700 : 500, color: quality === id ? btnColor : (isLight ? '#0f172a' : '#fff') }}>{qualityOptions[id].label}</div>
-                              <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#666', marginTop: 1 }}>{qualityOptions[id].sub}</div>
+                              <div style={{ fontSize: 13, fontWeight: quality === id ? 700 : 500, color: quality === id ? btnColor : (isLight ? '#0f172a' : '#fff') }}>{t(qualityOptions[id].labelKey, qualityOptions[id].label)}</div>
+                              <div style={{ fontSize: 10, color: isLight ? '#94a3b8' : '#666', marginTop: 1 }}>{t(qualityOptions[id].subKey, qualityOptions[id].sub)}</div>
                             </div>
                             {quality === id && <div style={{ width: 6, height: 6, borderRadius: '50%', background: btnColor }} />}
                           </div>

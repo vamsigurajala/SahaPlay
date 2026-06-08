@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { CheckCircle, Send, X, Upload, AlertCircle, ChevronDown, MessageCircle } from 'lucide-react';
@@ -7,7 +8,17 @@ const MAX_CHARS   = 1000;
 const MAX_IMAGES  = 5;
 const MAX_BYTES   = 5 * 1024 * 1024; // 5 MB
 const ALLOWED     = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const SUBJECTS    = ['General Question', 'Bug Report', 'Feature Request', 'Account Issue', 'Safety / Report User', 'Content / Copyright Issue', 'Other'];
+
+// Subject options: value = English (sent to API), labelKey = i18n key for display
+const SUBJECTS = [
+  { value: 'General Question',            labelKey: 'contactSubjectGeneral' },
+  { value: 'Bug Report',                  labelKey: 'contactSubjectBug' },
+  { value: 'Feature Request',             labelKey: 'contactSubjectFeature' },
+  { value: 'Account Issue',               labelKey: 'contactSubjectAccount' },
+  { value: 'Safety / Report User',        labelKey: 'contactSubjectSafety' },
+  { value: 'Content / Copyright Issue',   labelKey: 'contactSubjectCopyright' },
+  { value: 'Other',                       labelKey: 'contactSubjectOther' },
+];
 
 const getBorderColor = (hasError, isLight) =>
   hasError ? '#ef4444' : isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)';
@@ -15,6 +26,7 @@ const getBorderColor = (hasError, isLight) =>
 const formatBytes = (b) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`;
 
 export default function Contact() {
+  const { t, i18n } = useTranslation();
   const [theme, setTheme] = useState(() => localStorage.getItem('watch_theme') || 'dark');
   const isLight = theme === 'light';
 
@@ -27,19 +39,19 @@ export default function Contact() {
   /* ── form ── */
   const [form, setForm]       = useState({ name: '', email: '', subject: '', message: '' });
   const [errors, setErrors]   = useState({});
-  const [images, setImages]   = useState([]);   // [{ file, preview, name, type, size }]
+  const [images, setImages]   = useState([]);
   const [imgErr, setImgErr]   = useState('');
   const [dragging, setDragging] = useState(false);
 
   /* ── submit ── */
-  const [status, setStatus]   = useState('idle');   // idle | loading | success | error
+  const [status, setStatus]   = useState('idle');
   const [apiErr, setApiErr]   = useState('');
 
   const fileRef    = useRef(null);
   const dragCount  = useRef(0);
   const [isMobile, setIsMobile]           = useState(() => window.innerWidth < 640);
   const [hoveredRemove, setHoveredRemove] = useState(null);
-  const [hoveredSuccessBtn, setHoveredSuccessBtn] = useState(null); // 'secondary' | 'primary' | null
+  const [hoveredSuccessBtn, setHoveredSuccessBtn] = useState(null);
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 640);
@@ -64,7 +76,7 @@ export default function Contact() {
           name:  data.displayName || data.username || f.name,
         }));
       })
-      .catch(() => {}); // silent — user can always fill manually
+      .catch(() => {});
   }, []);
 
   /* ── theme tokens ── */
@@ -89,7 +101,6 @@ export default function Contact() {
     transition: 'border-color 0.2s',
   });
 
-  // Select needs a solid background so the native dropdown options are readable in dark mode
   const selectBase = (hasErr) => ({
     ...inputBase(hasErr),
     background: isLight ? '#f9f9ff' : '#18181b',
@@ -100,10 +111,10 @@ export default function Contact() {
   /* ── validate ── */
   const validate = () => {
     const e = {};
-    if (!form.name.trim() || form.name.trim().length < 2) e.name = 'Please enter your name (min 2 characters)';
-    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Please enter a valid email address';
-    if (!form.subject) e.subject = 'Please select a subject';
-    if (!form.message.trim() || form.message.trim().length < 10) e.message = 'Message must be at least 10 characters';
+    if (!form.name.trim() || form.name.trim().length < 2) e.name = t('contactNameError', 'Please enter your name (min 2 characters)');
+    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = t('contactEmailError', 'Please enter a valid email address');
+    if (!form.subject) e.subject = t('contactSubjectError', 'Please select a subject');
+    if (!form.message.trim() || form.message.trim().length < 10) e.message = t('contactMessageError', 'Message must be at least 10 characters');
     return e;
   };
 
@@ -111,17 +122,17 @@ export default function Contact() {
   const processFiles = useCallback((files) => {
     setImgErr('');
     const slots = MAX_IMAGES - images.length;
-    if (slots <= 0) { setImgErr(`Max ${MAX_IMAGES} images allowed.`); return; }
+    if (slots <= 0) { setImgErr(t('contactImagesMax', 'Max {{max}} images allowed.', { max: MAX_IMAGES })); return; }
     const toAdd = [];
     let errMsg = '';
     for (const f of Array.from(files).slice(0, slots)) {
-      if (!ALLOWED.includes(f.type)) { errMsg = 'Only JPG, PNG, GIF, WEBP allowed.'; continue; }
-      if (f.size > MAX_BYTES)        { errMsg = `"${f.name}" exceeds 5 MB limit.`; continue; }
+      if (!ALLOWED.includes(f.type)) { errMsg = t('contactImagesTypeError', 'Only JPG, PNG, GIF, WEBP allowed.'); continue; }
+      if (f.size > MAX_BYTES)        { errMsg = t('contactImagesSizeError', '"{{name}}" exceeds 5 MB limit.', { name: f.name }); continue; }
       toAdd.push({ file: f, preview: URL.createObjectURL(f), name: f.name, type: f.type, size: f.size });
     }
     if (errMsg) setImgErr(errMsg);
     if (toAdd.length) setImages(p => [...p, ...toAdd]);
-  }, [images.length]);
+  }, [images.length, t]);
 
   const removeImg = (i) => {
     setImages(p => { URL.revokeObjectURL(p[i].preview); return p.filter((_, j) => j !== i); });
@@ -168,11 +179,12 @@ export default function Contact() {
           subject: form.subject,
           message: form.message.trim(),
           images:  imagePayload,
+          lang:    i18n.language,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to send message.');
+      if (!res.ok || !data.success) throw new Error(data.error || t('contactErrorFallback', 'Something went wrong.'));
       setStatus('success');
     } catch (err) {
       setStatus('error');
@@ -195,43 +207,36 @@ export default function Contact() {
   ══════════════════════════════════════════════════════ */
   if (status === 'success') {
     return (
-      <div style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
+      <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
         <Navbar />
         <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '40px 12px' : '60px 24px' }}>
           <div style={{ ...cardSt, borderRadius: 20, padding: isMobile ? '40px 24px' : '60px 48px', textAlign: 'center', maxWidth: 520, width: '100%', animation: 'fadeInUp 0.4s ease' }}>
 
-            {/* Animated checkmark circle */}
             <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(16,185,129,0.1)', border: '2px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', animation: 'popIn 0.4s ease' }}>
               <CheckCircle size={40} color="#10b981" />
             </div>
 
-            {/* Title */}
             <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 900, color: isLight ? '#111' : '#fff', margin: '0 0 12px', letterSpacing: '-0.5px' }}>
-              Message Sent! 🎉
+              {t('contactSuccessTitle', 'Message Sent! 🎉')}
             </h2>
 
-            {/* Personalized subtitle */}
             <p style={{ fontSize: 16, color: isLight ? '#4a5568' : '#9ca3af', lineHeight: 1.8, margin: '0 0 8px' }}>
-              Thanks <strong style={{ color: isLight ? '#111' : '#fff' }}>{form.name}</strong>!
+              {t('contactSuccessThanks', 'Thanks {{name}}!', { name: form.name })}
             </p>
 
             <p style={{ fontSize: 15, color: isLight ? '#6b7280' : '#9ca3af', lineHeight: 1.8, margin: '0 0 32px' }}>
-              We received your message about{' '}
-              <strong style={{ color: '#818cf8' }}>"{form.subject}"</strong>
-              {' '}and will reply to{' '}
-              <strong style={{ color: '#818cf8' }}>{form.email}</strong>
-              {' '}within <strong style={{ color: isLight ? '#111' : '#fff' }}>48 hours</strong>.
+              {t('contactSuccessBody', 'We received your message about "{{subject}}" and will reply to {{email}} within', { subject: form.subject, email: form.email })}{' '}
+              <strong style={{ color: isLight ? '#111' : '#fff' }}>{t('contactSuccessHours', '48 hours')}</strong>.
             </p>
 
-            {/* What happens next */}
             <div style={{ background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
               <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#818cf8', margin: '0 0 12px' }}>
-                What happens next
+                {t('contactSuccessNextTitle', 'What happens next')}
               </p>
               {[
-                '📧 Check your inbox for a confirmation email',
-                "⏰ We'll review your message within 48 hours",
-                "💬 We'll reply directly to your email",
+                t('contactSuccessStep1', 'Check your inbox for a confirmation email'),
+                t('contactSuccessStep2', "We'll review your message within 48 hours"),
+                t('contactSuccessStep3', "We'll reply directly to your email"),
               ].map((item, i) => (
                 <div key={i} style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: i < 2 ? 8 : 0, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   {item}
@@ -239,7 +244,6 @@ export default function Contact() {
               ))}
             </div>
 
-            {/* Two action buttons */}
             <div style={{ display: 'flex', gap: 12, flexDirection: isMobile ? 'column' : 'row' }}>
               <button
                 onClick={resetForm}
@@ -254,7 +258,7 @@ export default function Contact() {
                   transition: 'all 0.18s ease',
                 }}
               >
-                Send Another Message
+                {t('contactSendAnother', 'Send Another Message')}
               </button>
               <button
                 onClick={() => { window.location.href = '/'; }}
@@ -270,7 +274,7 @@ export default function Contact() {
                   transition: 'all 0.18s ease',
                 }}
               >
-                Back to Home →
+                {t('contactBackHome', 'Back to Home →')}
               </button>
             </div>
           </div>
@@ -295,23 +299,22 @@ export default function Contact() {
      MAIN PAGE
   ══════════════════════════════════════════════════════ */
   return (
-    <div style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>
 
         {/* ── Badge ── */}
         <div className="contact-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.12)', border: `1px solid rgba(99,102,241,${isLight ? '0.3' : '0.25'})`, color: isLight ? '#4f46e5' : '#818cf8', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
-          <MessageCircle size={14} style={{ flexShrink: 0 }} /> Get in Touch
+          <MessageCircle size={14} style={{ flexShrink: 0 }} /> {t('contactBadge', 'Get in Touch')}
         </div>
 
         {/* ── Title ── */}
         <h1 style={{ fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, textAlign: 'center', margin: '0 0 16px', color: isLight ? '#111' : '#fff', letterSpacing: '-1px', lineHeight: 1.1 }}>
-          We'd Love to Hear From You
+          {t('contactTitle', "We'd Love to Hear From You")}
         </h1>
         <p style={{ textAlign: 'center', fontSize: 16, lineHeight: 1.8, color: isLight ? '#4a5568' : '#9ca3af', maxWidth: 500, margin: '0 0 48px' }}>
-          Have a question, found a bug, or just want to say hi? Send us a message and
-          we'll get back to you within 48 hours.
+          {t('contactSubtitle', "Have a question, found a bug, or just want to say hi? Send us a message and we'll get back to you within 48 hours.")}
         </p>
 
         {/* ══════════ FORM CARD ══════════ */}
@@ -323,11 +326,11 @@ export default function Contact() {
               <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
                 <div style={{ color: '#ef4444', fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
-                  Failed to send message
+                  {t('contactErrorTitle', 'Failed to send message')}
                 </div>
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
-                  {apiErr || 'Something went wrong.'}{' '}
-                  Or email us directly at{' '}
+                  {apiErr || t('contactErrorFallback', 'Something went wrong.')}{' '}
+                  {t('contactErrorEmailFallback', 'Or email us directly at')}{' '}
                   <a href="mailto:sahaaplay@gmail.com" style={{ color: '#818cf8', textDecoration: 'none' }}>
                     sahaaplay@gmail.com
                   </a>
@@ -336,7 +339,7 @@ export default function Contact() {
                   onClick={() => { setStatus('idle'); setApiErr(''); }}
                   style={{ marginTop: 10, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
-                  Try Again
+                  {t('contactTryAgain', 'Try Again')}
                 </button>
               </div>
             </div>
@@ -349,10 +352,10 @@ export default function Contact() {
 
               {/* Name */}
               <div>
-                <label style={labelSt}>Your Name<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+                <label style={labelSt}>{t('contactNameLabel', 'Your Name')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
                 <input
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder={t('contactNamePlaceholder', 'Enter your name')}
                   value={form.name}
                   disabled={status === 'loading'}
                   onChange={e => { setForm(f => ({ ...f, name: e.target.value })); if (errors.name) setErrors(r => ({ ...r, name: '' })); }}
@@ -363,10 +366,10 @@ export default function Contact() {
 
               {/* Email */}
               <div>
-                <label style={labelSt}>Your Email<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+                <label style={labelSt}>{t('contactEmailLabel', 'Your Email')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
                 <input
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder={t('contactEmailPlaceholder', 'your@email.com')}
                   value={form.email}
                   disabled={status === 'loading'}
                   onChange={e => { setForm(f => ({ ...f, email: e.target.value })); if (errors.email) setErrors(r => ({ ...r, email: '' })); }}
@@ -376,15 +379,15 @@ export default function Contact() {
                   ? <div style={errSt}><AlertCircle size={11}/>{errors.email}</div>
                   : <div style={{ fontSize: 11, color: '#6b7280', marginTop: 5 }}>
                       {localStorage.getItem('watch_token') && form.email
-                        ? '✓ Pre-filled from your account'
-                        : 'We\'ll reply to this email'}
+                        ? t('contactEmailPrefilled', '✓ Pre-filled from your account')
+                        : t('contactEmailHint', "We'll reply to this email")}
                     </div>}
               </div>
             </div>
 
             {/* ── Subject ── */}
             <div style={{ marginBottom: 20 }}>
-              <label style={labelSt}>What's this about?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+              <label style={labelSt}>{t('contactSubjectLabel', "What's this about?")}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
               <div style={{ position: 'relative' }}>
                 <select
                   value={form.subject}
@@ -392,8 +395,8 @@ export default function Contact() {
                   onChange={e => { setForm(f => ({ ...f, subject: e.target.value })); if (errors.subject) setErrors(r => ({ ...r, subject: '' })); }}
                   style={{ ...selectBase(!!errors.subject), appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingRight: 38 }}
                 >
-                  <option value="" disabled style={optionPlaceholderSt}>Select a topic…</option>
-                  {SUBJECTS.map(s => <option key={s} value={s} style={optionSt}>{s}</option>)}
+                  <option value="" disabled style={optionPlaceholderSt}>{t('contactSubjectPlaceholder', 'Select a topic…')}</option>
+                  {SUBJECTS.map(s => <option key={s.value} value={s.value} style={optionSt}>{t(s.labelKey, s.value)}</option>)}
                 </select>
                 <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280', display: 'flex' }}>
                   <ChevronDown size={16} />
@@ -405,13 +408,13 @@ export default function Contact() {
             {/* ── Message ── */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={{ ...labelSt, margin: 0 }}>Your Message<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+                <label style={{ ...labelSt, margin: 0 }}>{t('contactMessageLabel', 'Your Message')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
                 <span style={{ fontSize: 12, fontWeight: 600, transition: 'color 0.2s', color: form.message.length >= MAX_CHARS ? '#ef4444' : form.message.length >= 900 ? '#f59e0b' : '#6b7280' }}>
                   {form.message.length} / {MAX_CHARS}
                 </span>
               </div>
               <textarea
-                placeholder={'Write your message here…\nBe as detailed as you like!'}
+                placeholder={t('contactMessagePlaceholder', 'Write your message here…\nBe as detailed as you like!')}
                 value={form.message}
                 disabled={status === 'loading'}
                 onKeyDown={e => { if (e.ctrlKey && e.key === 'Enter') handleSubmit(e); }}
@@ -431,12 +434,16 @@ export default function Contact() {
 
             {/* ── Image Upload ── */}
             <div style={{ marginBottom: 32 }}>
-              <label style={labelSt}>Attach Images <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#6b7280' }}>(optional, up to {MAX_IMAGES})</span></label>
+              <label style={labelSt}>
+                {t('contactImagesLabel', 'Attach Images')}{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#6b7280' }}>
+                  {t('contactImagesOptional', '(optional, up to {{max}})', { max: MAX_IMAGES })}
+                </span>
+              </label>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
-                Screenshots help us understand bugs better. Max 5 MB per image.
+                {t('contactImagesHint', 'Screenshots help us understand bugs better. Max 5 MB per image.')}
               </div>
 
-              {/* Drop zone — only shown when slots remain */}
               {images.length < MAX_IMAGES && (
                 <div
                   onDragEnter={onDragEnter}
@@ -458,9 +465,10 @@ export default function Contact() {
                     <Upload size={18} color="#818cf8" />
                   </div>
                   <div style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: 4 }}>
-                    <span style={{ color: '#818cf8', fontWeight: 600 }}>Click to attach</span> or drag and drop
+                    <span style={{ color: '#818cf8', fontWeight: 600 }}>{t('contactImagesClick', 'Click to attach')}</span>{' '}
+                    {t('contactImagesDrop', 'or drag and drop')}
                   </div>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>JPG, PNG, GIF, WEBP — up to 5 MB each</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>{t('contactImagesTypes', 'JPG, PNG, GIF, WEBP — up to 5 MB each')}</div>
                   <input
                     ref={fileRef}
                     type="file"
@@ -475,7 +483,6 @@ export default function Contact() {
 
               {imgErr && <div style={{ ...errSt, marginTop: 8 }}><AlertCircle size={11}/>{imgErr}</div>}
 
-              {/* Thumbnails */}
               {images.length > 0 && (
                 <>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
@@ -500,7 +507,7 @@ export default function Contact() {
                     ))}
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-                    {images.length} / {MAX_IMAGES} images selected
+                    {t('contactImagesSelected', '{{count}} / {{max}} images selected', { count: images.length, max: MAX_IMAGES })}
                   </div>
                 </>
               )}
@@ -535,10 +542,10 @@ export default function Contact() {
                     <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3" />
                     <path d="M12 2a10 10 0 0 1 10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
                   </svg>
-                  Sending…
+                  {t('contactSending', 'Sending…')}
                 </>
               ) : (
-                <>Send Message <Send size={16} /></>
+                <>{t('contactSendButton', 'Send Message')} <Send size={16} /></>
               )}
             </button>
           </form>

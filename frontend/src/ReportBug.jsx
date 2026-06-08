@@ -1,28 +1,34 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import { CheckCircle, AlertCircle, ChevronDown, Upload, X } from 'lucide-react';
+import {
+  CheckCircle, AlertCircle, ChevronDown, Upload, X,
+  Play, MessageSquare, Lock, Smartphone, Bell, Mic, Camera,
+  Zap, Activity, Palette, Link, Shield, HelpCircle,
+  AlertTriangle, Flame, Bug, Search
+} from 'lucide-react';
 
 const BUG_TYPES = [
-  '🎬 Video / Sync Issue',
-  '💬 Chat Not Working',
-  '🔐 Login / Account Problem',
-  '📱 Mobile / Responsive Layout',
-  '🔔 Notifications Not Working',
-  '🎤 Audio / Microphone Issue',
-  '📷 Camera / Screenshare Issue',
-  '⚡ App Crashing / Freezing',
-  '📶 Performance / Slow Loading',
-  '🎨 UI / Visual Glitch',
-  '🔗 Link / URL Problem',
-  '🔒 Security Concern',
-  '🔹 Other Bug',
+  { key: 'video-sync', Icon: Play,          color: '#6366f1', labelKey: 'rbTypeVideoSync',    fallback: 'Video / Sync Issue' },
+  { key: 'chat',       Icon: MessageSquare,  color: '#3b82f6', labelKey: 'rbTypeChat',          fallback: 'Chat Not Working' },
+  { key: 'login',      Icon: Lock,           color: '#10b981', labelKey: 'rbTypeLoginAccount',  fallback: 'Login / Account Problem' },
+  { key: 'mobile',     Icon: Smartphone,     color: '#8b5cf6', labelKey: 'rbTypeMobileLayout',  fallback: 'Mobile / Responsive Layout' },
+  { key: 'notif',      Icon: Bell,           color: '#f59e0b', labelKey: 'rbTypeNotifications', fallback: 'Notifications Not Working' },
+  { key: 'audio',      Icon: Mic,            color: '#ec4899', labelKey: 'rbTypeAudioMic',      fallback: 'Audio / Microphone Issue' },
+  { key: 'camera',     Icon: Camera,         color: '#06b6d4', labelKey: 'rbTypeCamScreen',     fallback: 'Camera / Screenshare Issue' },
+  { key: 'crash',      Icon: Zap,            color: '#ef4444', labelKey: 'rbTypeCrash',         fallback: 'App Crashing / Freezing' },
+  { key: 'perf',       Icon: Activity,       color: '#f97316', labelKey: 'rbTypePerf',          fallback: 'Performance / Slow Loading' },
+  { key: 'ui',         Icon: Palette,        color: '#a855f7', labelKey: 'rbTypeUI',            fallback: 'UI / Visual Glitch' },
+  { key: 'link',       Icon: Link,           color: '#14b8a6', labelKey: 'rbTypeLink',          fallback: 'Link / URL Problem' },
+  { key: 'security',   Icon: Shield,         color: '#22c55e', labelKey: 'rbTypeSecurity',      fallback: 'Security Concern' },
+  { key: 'other',      Icon: HelpCircle,     color: '#94a3b8', labelKey: 'rbTypeOther',         fallback: 'Other Bug' },
 ];
 
 const SEVERITIES = [
-  { key: 'minor', emoji: '🟡', label: 'Minor', desc: 'Small annoyance, still usable' },
-  { key: 'major', emoji: '🟠', label: 'Major', desc: 'Significantly affects my experience' },
-  { key: 'critical', emoji: '🔴', label: 'Critical', desc: 'App completely broken for me' },
+  { key: 'minor',    Icon: AlertTriangle, color: '#f59e0b', labelKey: 'rbSeverityMinorLabel',    descKey: 'rbSeverityMinorDesc',    fallbackLabel: 'Minor',    fallbackDesc: 'Small annoyance, still usable' },
+  { key: 'major',    Icon: Zap,          color: '#f97316', labelKey: 'rbSeverityMajorLabel',    descKey: 'rbSeverityMajorDesc',    fallbackLabel: 'Major',    fallbackDesc: 'Significantly affects my experience' },
+  { key: 'critical', Icon: Flame,        color: '#ef4444', labelKey: 'rbSeverityCriticalLabel', descKey: 'rbSeverityCriticalDesc', fallbackLabel: 'Critical', fallbackDesc: 'App completely broken for me' },
 ];
 
 const MAX_ATTACH = 5;
@@ -45,6 +51,8 @@ const getFileExt = (name, type) => {
 };
 
 export default function ReportBug() {
+  const { t, i18n } = useTranslation();
+
   /* ── theme ── */
   const [theme, setTheme] = useState(() => localStorage.getItem('watch_theme') || 'dark');
   const isLight = theme === 'light';
@@ -74,6 +82,7 @@ export default function ReportBug() {
   /* ── refs ── */
   const fileRef = useRef(null);
   const dragCount = useRef(0);
+  const bugTypeRef = useRef(null);
 
   /* ── mobile ── */
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
@@ -86,6 +95,17 @@ export default function ReportBug() {
   /* ── hover states ── */
   const [hoveredRemove, setHoveredRemove] = useState(null);
   const [hoveredSuccessBtn, setHoveredSuccessBtn] = useState(null);
+
+  /* ── bug type dropdown ── */
+  const [bugTypeOpen, setBugTypeOpen] = useState(false);
+  useEffect(() => {
+    if (!bugTypeOpen) return;
+    const handler = (e) => {
+      if (bugTypeRef.current && !bugTypeRef.current.contains(e.target)) setBugTypeOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [bugTypeOpen]);
 
   /* ── auto-detect browser / OS / screen ── */
   useEffect(() => {
@@ -169,21 +189,21 @@ export default function ReportBug() {
   const validate = () => {
     const e = {};
     if (!form.name.trim() || form.name.trim().length < 2)
-      e.name = 'Please enter your name (min 2 characters)';
+      e.name = t('rbNameError', 'Please enter your name (min 2 characters)');
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
-      e.email = 'Please enter a valid email address';
+      e.email = t('rbEmailError', 'Please enter a valid email address');
     if (!form.bugType)
-      e.bugType = 'Please select a bug type';
+      e.bugType = t('rbTypeError', 'Please select a bug type');
     if (!form.whatHappened.trim() || form.whatHappened.trim().length < 20)
-      e.whatHappened = 'Please describe what happened (min 20 characters)';
+      e.whatHappened = t('rbDoingError', 'Please describe what happened (min 20 characters)');
     if (!form.whatExpected.trim() || form.whatExpected.trim().length < 10)
-      e.whatExpected = 'Please describe what you expected (min 10 characters)';
+      e.whatExpected = t('rbExpectError', 'Please describe what you expected (min 10 characters)');
     if (!form.actualResult.trim() || form.actualResult.trim().length < 10)
-      e.actualResult = 'Please describe what actually happened (min 10 characters)';
+      e.actualResult = t('rbActualError', 'Please describe what actually happened (min 10 characters)');
     if (!form.browser.trim())
-      e.browser = 'Please enter your browser';
+      e.browser = t('rbBrowserError', 'Please enter your browser');
     if (!form.os.trim())
-      e.os = 'Please enter your operating system';
+      e.os = t('rbOsError', 'Please enter your operating system');
     return e;
   };
 
@@ -191,17 +211,26 @@ export default function ReportBug() {
   const processFiles = useCallback((files) => {
     setAttachErr('');
     const slots = MAX_ATTACH - attachments.length;
-    if (slots <= 0) { setAttachErr(`Max ${MAX_ATTACH} files allowed.`); return; }
+    if (slots <= 0) {
+      setAttachErr(t('rbAttachMax', 'Max {{max}} files allowed.', { max: MAX_ATTACH }));
+      return;
+    }
     const toAdd = [];
     let errMsg = '';
     for (const f of Array.from(files).slice(0, slots)) {
-      if (!ALLOWED_ATT.includes(f.type)) { errMsg = 'Only JPG, PNG, GIF, WEBP, MP4, WEBM allowed.'; continue; }
-      if (f.size > MAX_BYTES) { errMsg = `"${f.name}" exceeds 10 MB limit.`; continue; }
+      if (!ALLOWED_ATT.includes(f.type)) {
+        errMsg = t('rbAttachTypeError', 'Only JPG, PNG, GIF, WEBP, MP4, WEBM allowed.');
+        continue;
+      }
+      if (f.size > MAX_BYTES) {
+        errMsg = t('rbAttachSizeError', '"{{name}}" exceeds 10 MB limit.', { name: f.name });
+        continue;
+      }
       toAdd.push({ file: f, preview: URL.createObjectURL(f), name: f.name, type: f.type, size: f.size, isVideo: f.type.startsWith('video/') });
     }
     if (errMsg) setAttachErr(errMsg);
     if (toAdd.length) setAttachments(p => [...p, ...toAdd]);
-  }, [attachments.length]);
+  }, [attachments.length, t]);
 
   const removeAttachment = (i) => {
     setAttachments(p => { URL.revokeObjectURL(p[i].preview); return p.filter((_, j) => j !== i); });
@@ -264,6 +293,7 @@ export default function ReportBug() {
           screenSize: form.screenSize.trim(),
           consoleErrors: form.consoleErrors.trim(),
           attachments: attachPayload,
+          lang: i18n.language,
         }),
       });
 
@@ -294,12 +324,22 @@ export default function ReportBug() {
     setStatus('idle');
   };
 
+  // Find translated severity display text
+  const currentSeverityObj = SEVERITIES.find(s => s.key === form.severity) || SEVERITIES[1];
+  const severityText = t(currentSeverityObj.labelKey, currentSeverityObj.fallbackLabel);
+
+  // Find translated bug type display text
+  const currentBugTypeObj = BUG_TYPES.find(b => b.key === form.bugType);
+  const bugTypeText = currentBugTypeObj
+    ? t(currentBugTypeObj.labelKey, currentBugTypeObj.fallback)
+    : form.bugType;
+
   /* ══════════════════════════════════════════════════════
      SUCCESS STATE
   ══════════════════════════════════════════════════════ */
   if (status === 'success') {
     return (
-      <div style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
+      <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
         <Navbar />
         <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '40px 12px' : '60px 24px' }}>
           <div style={{ ...cardSt, borderRadius: 20, padding: isMobile ? '40px 24px' : '60px 48px', textAlign: 'center', maxWidth: 540, width: '100%', animation: 'fadeInUp 0.4s ease' }}>
@@ -311,32 +351,34 @@ export default function ReportBug() {
 
             {/* Title */}
             <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 900, color: isLight ? '#111' : '#fff', margin: '0 0 16px', letterSpacing: '-0.5px' }}>
-              Bug Report Submitted!
+              {t('rbSuccessTitle', 'Bug Report Submitted!')}
             </h2>
 
             {/* Personalized message */}
             <p style={{ fontSize: 15, color: isLight ? '#4a5568' : '#9ca3af', lineHeight: 1.8, margin: '0 0 20px' }}>
-              Thanks <strong style={{ color: isLight ? '#111' : '#fff' }}>{form.name}</strong>! We received your{' '}
-              <strong style={{ color: '#818cf8' }}>{form.severity}</strong> bug report about{' '}
-              <strong style={{ color: '#818cf8' }}>{form.bugType}</strong> and will investigate it right away.
-              We'll update you at <strong style={{ color: '#818cf8' }}>{form.email}</strong>.
+              {t('rbSuccessThanks', 'Thanks {{name}}!', { name: form.name })}{' '}
+              {t('rbSuccessBody', "We received your {{severity}} bug report about {{bugType}} and will investigate it right away. We'll update you at {{email}}.", {
+                severity: severityText,
+                bugType: bugTypeText,
+                email: form.email
+              })}
             </p>
 
             {/* Report ID pill */}
             <div style={{ display: 'inline-block', background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '8px 18px', marginBottom: 28, fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 700, color: '#818cf8', letterSpacing: '0.5px' }}>
-              Report ID: {reportId}
+              {t('rbReportId', 'Report ID: {{reportId}}', { reportId })}
             </div>
 
             {/* What happens next */}
             <div style={{ background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
               <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#818cf8', margin: '0 0 12px' }}>
-                What happens next
+                {t('rbNextTitle', 'What happens next')}
               </p>
               {[
-                '🔍 Our team will investigate your report',
-                '⚡ Critical bugs are prioritized immediately',
-                "📧 We'll email you when it's fixed",
-                '🔄 You may be contacted for more details',
+                t('rbNextStep1', '🔍 Our team will investigate your report'),
+                t('rbNextStep2', '⚡ Critical bugs are prioritized immediately'),
+                t('rbNextStep3', "📧 We'll email you when it's fixed"),
+                t('rbNextStep4', '🔄 You may be contacted for more details'),
               ].map((item, i) => (
                 <div key={i} style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: i < 3 ? 8 : 0, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   {item}
@@ -359,7 +401,7 @@ export default function ReportBug() {
                   transition: 'all 0.18s ease',
                 }}
               >
-                Report Another Bug
+                {t('rbReportAnother', 'Report Another Bug')}
               </button>
               <button
                 onClick={() => { window.location.href = '/'; }}
@@ -375,7 +417,7 @@ export default function ReportBug() {
                   transition: 'all 0.18s ease',
                 }}
               >
-                Back to Home →
+                {t('rbBackHome', 'Back to Home →')}
               </button>
             </div>
 
@@ -394,29 +436,33 @@ export default function ReportBug() {
      MAIN PAGE
   ══════════════════════════════════════════════════════ */
   return (
-    <div style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>
 
         {/* ── Badge ── */}
         <div className="rb-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.12)', border: `1px solid rgba(99,102,241,${isLight ? '0.3' : '0.25'})`, color: isLight ? '#4f46e5' : '#818cf8', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
-          🐛 Bug Report
+          <Bug size={14} /> {t('rbBadge', 'Bug Report')}
         </div>
 
         {/* ── Title ── */}
         <h1 style={{ fontSize: 'clamp(28px,5vw,48px)', fontWeight: 900, textAlign: 'center', margin: '0 0 16px', color: isLight ? '#111' : '#fff', letterSpacing: '-1px', lineHeight: 1.1 }}>
-          Found a Bug?
+          {t('rbTitle', 'Found a Bug?')}
         </h1>
         <p style={{ textAlign: 'center', fontSize: 16, lineHeight: 1.8, color: isLight ? '#4a5568' : '#9ca3af', maxWidth: 500, margin: '0 0 24px' }}>
-          Help us fix it. Describe what went wrong and we'll investigate as soon as possible.
+          {t('rbSubtitle', "Help us fix it. Describe what went wrong and we'll investigate as soon as possible.")}
         </p>
 
         {/* ── Info pills ── */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 48 }}>
-          {['🔍 Every report is reviewed', '⚡ Fast response for critical bugs', '🔒 Your info stays private'].map((pill, i) => (
-            <div key={i} style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)', border: `1px solid ${cardBorder}`, borderRadius: 100, padding: '6px 14px', fontSize: 13, color: isLight ? '#4a5568' : '#9ca3af' }}>
-              {pill}
+          {[
+            { Icon: Search, text: t('rbInfoPillReviewed', 'Every report is reviewed') },
+            { Icon: Zap,    text: t('rbInfoPillFast',     'Fast response for critical bugs') },
+            { Icon: Lock,   text: t('rbInfoPillPrivate',  'Your info stays private') },
+          ].map(({ Icon, text }, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)', border: `1px solid ${cardBorder}`, borderRadius: 100, padding: '6px 14px', fontSize: 13, color: isLight ? '#4a5568' : '#9ca3af' }}>
+              <Icon size={13} /> {text}
             </div>
           ))}
         </div>
@@ -430,21 +476,21 @@ export default function ReportBug() {
               <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
                 <div style={{ color: '#ef4444', fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
-                  Failed to submit bug report
+                  {t('rbErrorTitle', 'Failed to submit bug report')}
                 </div>
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
-                  {apiErr || 'Something went wrong.'}{' '}
-                  Email us at{' '}
+                  {apiErr || t('rbErrorFallback', 'Something went wrong.')}{' '}
+                  {t('rbErrorEmailFallback', 'Email us at')}{' '}
                   <a href="mailto:sahaaplay@gmail.com?subject=Bug%20Report" style={{ color: '#818cf8', textDecoration: 'none' }}>
                     sahaaplay@gmail.com
                   </a>
-                  {' '}with subject: <strong>Bug Report</strong>
+                  {' '}{t('rbErrorSubject', 'with subject: Bug Report')}
                 </div>
                 <button
                   onClick={() => { setStatus('idle'); setApiErr(''); }}
                   style={{ marginTop: 10, padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                 >
-                  Try Again
+                  {t('rbTryAgain', 'Try Again')}
                 </button>
               </div>
             </div>
@@ -457,10 +503,10 @@ export default function ReportBug() {
 
               {/* Name */}
               <div>
-                <label style={labelSt}>Your Name<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+                <label style={labelSt}>{t('rbNameLabel', 'Your Name')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
                 <input
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder={t('rbNamePlaceholder', 'Enter your name')}
                   value={form.name}
                   disabled={status === 'loading'}
                   onChange={e => { setForm(f => ({ ...f, name: e.target.value })); if (errors.name) setErrors(r => ({ ...r, name: '' })); }}
@@ -471,10 +517,10 @@ export default function ReportBug() {
 
               {/* Email */}
               <div>
-                <label style={labelSt}>Your Email<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+                <label style={labelSt}>{t('rbEmailLabel', 'Your Email')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
                 <input
                   type="email"
-                  placeholder="your@email.com"
+                  placeholder={t('rbEmailPlaceholder', 'your@email.com')}
                   value={form.email}
                   disabled={status === 'loading'}
                   onChange={e => { setForm(f => ({ ...f, email: e.target.value })); if (errors.email) setErrors(r => ({ ...r, email: '' })); }}
@@ -483,36 +529,93 @@ export default function ReportBug() {
                 {errors.email
                   ? <div className="rb-field-error" style={errSt}><AlertCircle size={11} />{errors.email}</div>
                   : <div style={{ fontSize: 11, color: '#6b7280', marginTop: 5 }}>
-                    {localStorage.getItem('watch_token') && form.email ? '✓ Pre-filled from your account' : "We'll update you when fixed"}
+                    {localStorage.getItem('watch_token') && form.email ? t('rbEmailPrefilled', '✓ Pre-filled from your account') : t('rbEmailHint', "We'll update you when fixed")}
                   </div>}
               </div>
             </div>
 
             {/* ── Bug Type ── */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelSt}>What type of bug is this?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+            <div style={{ marginBottom: 20 }} ref={bugTypeRef}>
+              <label style={labelSt}>{t('rbTypeLabel', 'What type of bug is this?')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
               <div style={{ position: 'relative' }}>
-                <select
-                  value={form.bugType}
+                {/* Trigger */}
+                <button
+                  type="button"
                   disabled={status === 'loading'}
-                  onChange={e => { setForm(f => ({ ...f, bugType: e.target.value })); if (errors.bugType) setErrors(r => ({ ...r, bugType: '' })); }}
-                  style={{ ...selectBase(!!errors.bugType), appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingRight: 38 }}
+                  onClick={() => setBugTypeOpen(o => !o)}
+                  style={{
+                    ...selectBase(!!errors.bugType),
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    cursor: status === 'loading' ? 'not-allowed' : 'pointer',
+                    textAlign: 'left', paddingRight: 38, width: '100%',
+                  }}
                 >
-                  <option value="" disabled style={optionPlaceholderSt}>Select bug type…</option>
-                  {BUG_TYPES.map(t => <option key={t} value={t} style={optionSt}>{t}</option>)}
-                </select>
-                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280', display: 'flex' }}>
-                  <ChevronDown size={16} />
-                </div>
+                  {(() => {
+                    const bt = BUG_TYPES.find(b => b.key === form.bugType);
+                    return bt ? (
+                      <>
+                        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${bt.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <bt.Icon size={13} color={bt.color} />
+                        </div>
+                        <span style={{ fontSize: 14 }}>{t(bt.labelKey, bt.fallback)}</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 14, color: isLight ? '#9ca3af' : '#6b7280' }}>{t('rbTypePlaceholder', 'Select bug type…')}</span>
+                    );
+                  })()}
+                  <ChevronDown size={16} style={{ position: 'absolute', right: 12, top: '50%', transform: `translateY(-50%) rotate(${bugTypeOpen ? 180 : 0}deg)`, transition: 'transform 0.2s', color: isLight ? '#6b7280' : '#9ca3af' }} />
+                </button>
+
+                {/* Dropdown list */}
+                {bugTypeOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 200,
+                    background: isLight ? '#fff' : '#1c1c1f',
+                    border: `1px solid ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                    maxHeight: 300, overflowY: 'auto', padding: 6,
+                  }}>
+                    {BUG_TYPES.map(({ key, Icon, color, labelKey, fallback }) => {
+                      const selected = form.bugType === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setForm(f => ({ ...f, bugType: key }));
+                            if (errors.bugType) setErrors(r => ({ ...r, bugType: '' }));
+                            setBugTypeOpen(false);
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                            padding: '9px 10px', borderRadius: 8, border: 'none',
+                            background: selected ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)') : 'transparent',
+                            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => { if (!selected) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <div style={{ width: 28, height: 28, borderRadius: 8, background: selected ? `${color}28` : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Icon size={14} color={selected ? color : (isLight ? '#6b7280' : '#9ca3af')} />
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#374151' : '#d1d5db') }}>
+                            {t(labelKey, fallback)}
+                          </span>
+                          {selected && <CheckCircle size={14} color="#818cf8" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {errors.bugType && <div className="rb-field-error" style={errSt}><AlertCircle size={11} />{errors.bugType}</div>}
             </div>
 
             {/* ── Severity ── */}
             <div style={{ marginBottom: 20 }}>
-              <label style={labelSt}>How bad is it?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+              <label style={labelSt}>{t('rbSeverityLabel', 'How bad is it?')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 10 }}>
-                {SEVERITIES.map(({ key, emoji, label, desc }) => {
+                {SEVERITIES.map(({ key, Icon, color, labelKey, descKey, fallbackLabel, fallbackDesc }) => {
                   const selected = form.severity === key;
                   return (
                     <button
@@ -524,16 +627,23 @@ export default function ReportBug() {
                         padding: '14px 12px', borderRadius: 10, textAlign: 'left',
                         cursor: status === 'loading' ? 'not-allowed' : 'pointer',
                         fontFamily: 'inherit', transition: 'all 0.15s ease',
-                        border: selected ? '2px solid #6366f1' : `1px solid ${cardBorder}`,
-                        background: selected ? 'rgba(99,102,241,0.08)' : 'transparent',
+                        border: selected ? `2px solid ${color}` : `1px solid ${cardBorder}`,
+                        background: selected ? `${color}14` : 'transparent',
                       }}
                     >
-                      <div style={{ fontSize: 20, marginBottom: 6 }}>{emoji}</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: selected ? '#818cf8' : (isLight ? '#111' : '#fff'), marginBottom: 4 }}>
-                        {label}
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 10, marginBottom: 10,
+                        background: selected ? `${color}22` : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.15s',
+                      }}>
+                        <Icon size={18} color={selected ? color : (isLight ? '#6b7280' : '#9ca3af')} />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: selected ? color : (isLight ? '#111' : '#fff'), marginBottom: 4 }}>
+                        {t(labelKey, fallbackLabel)}
                       </div>
                       <div style={{ fontSize: 12, color: isLight ? '#6b7280' : '#9ca3af', lineHeight: 1.4 }}>
-                        {desc}
+                        {t(descKey, fallbackDesc)}
                       </div>
                     </button>
                   );
@@ -545,14 +655,14 @@ export default function ReportBug() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <label style={{ ...labelSt, margin: 0 }}>
-                  What were you doing when it happened?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
+                  {t('rbDoingLabel', 'What were you doing when it happened?')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
                 </label>
                 <span style={{ fontSize: 12, fontWeight: 600, flexShrink: 0, marginLeft: 8, color: form.whatHappened.length >= 500 ? '#ef4444' : form.whatHappened.length >= 450 ? '#f59e0b' : '#6b7280' }}>
                   {form.whatHappened.length} / 500
                 </span>
               </div>
               <textarea
-                placeholder={`e.g. I was in a watch room with 3 friends, I clicked play on a YouTube video and the video started for me but my friends saw it was still paused...`}
+                placeholder={t('rbDoingPlaceholder', `e.g. I was in a watch room with 3 friends, I clicked play on a YouTube video and the video started for me but my friends saw it was still paused...`)}
                 value={form.whatHappened}
                 disabled={status === 'loading'}
                 onChange={e => {
@@ -571,14 +681,14 @@ export default function ReportBug() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <label style={{ ...labelSt, margin: 0 }}>
-                  What did you expect to happen?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
+                  {t('rbExpectLabel', 'What did you expect to happen?')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
                 </label>
                 <span style={{ fontSize: 12, fontWeight: 600, flexShrink: 0, marginLeft: 8, color: form.whatExpected.length >= 300 ? '#ef4444' : form.whatExpected.length >= 270 ? '#f59e0b' : '#6b7280' }}>
                   {form.whatExpected.length} / 300
                 </span>
               </div>
               <textarea
-                placeholder={`e.g. The video should have played for everyone at the same time...`}
+                placeholder={t('rbExpectPlaceholder', `e.g. The video should have played for everyone at the same time...`)}
                 value={form.whatExpected}
                 disabled={status === 'loading'}
                 onChange={e => {
@@ -597,14 +707,14 @@ export default function ReportBug() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <label style={{ ...labelSt, margin: 0 }}>
-                  What actually happened?<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
+                  {t('rbActualLabel', 'What actually happened?')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span>
                 </label>
                 <span style={{ fontSize: 12, fontWeight: 600, flexShrink: 0, marginLeft: 8, color: form.actualResult.length >= 300 ? '#ef4444' : form.actualResult.length >= 270 ? '#f59e0b' : '#6b7280' }}>
                   {form.actualResult.length} / 300
                 </span>
               </div>
               <textarea
-                placeholder={`e.g. Only my screen started playing, my friends saw a paused video...`}
+                placeholder={t('rbActualPlaceholder', `e.g. Only my screen started playing, my friends saw a paused video...`)}
                 value={form.actualResult}
                 disabled={status === 'loading'}
                 onChange={e => {
@@ -623,16 +733,16 @@ export default function ReportBug() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <label style={{ ...labelSt, margin: 0 }}>
-                  How can we reproduce this bug?{' '}
-                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11, color: '#6b7280' }}>(optional)</span>
+                  {t('rbStepsLabel', 'How can we reproduce this bug?')}{' '}
+                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11, color: '#6b7280' }}>{t('rbStepsOptional', '(optional)')}</span>
                 </label>
                 <span style={{ fontSize: 12, fontWeight: 600, flexShrink: 0, marginLeft: 8, color: form.stepsToReproduce.length >= 500 ? '#ef4444' : form.stepsToReproduce.length >= 450 ? '#f59e0b' : '#6b7280' }}>
                   {form.stepsToReproduce.length} / 500
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>Step-by-step helps us fix it faster</div>
+              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>{t('rbStepsHint', 'Step-by-step helps us fix it faster')}</div>
               <textarea
-                placeholder={`1. Create a room\n2. Invite a friend\n3. Paste a YouTube link\n4. Click play\n5. Bug happens...`}
+                placeholder={t('rbStepsPlaceholder', `1. Create a room\n2. Invite a friend\n3. Paste a YouTube link\n4. Click play\n5. Bug happens...`)}
                 value={form.stepsToReproduce}
                 disabled={status === 'loading'}
                 onChange={e => {
@@ -647,54 +757,56 @@ export default function ReportBug() {
 
             {/* ── Device & Browser ── */}
             <div style={{ marginBottom: 20 }}>
-              <label style={labelSt}>Your device and browser<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
+              <label style={labelSt}>{t('rbDeviceLabel', 'Your device and browser')}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <input
                     type="text"
-                    placeholder="e.g. Chrome 124, Safari 17"
+                    placeholder={t('rbBrowserPlaceholder', 'e.g. Chrome 124, Safari 17')}
                     value={form.browser}
                     disabled={status === 'loading'}
                     onChange={e => { setForm(f => ({ ...f, browser: e.target.value })); if (errors.browser) setErrors(r => ({ ...r, browser: '' })); }}
                     style={inputBase(!!errors.browser)}
                   />
                   {errors.browser && <div className="rb-field-error" style={errSt}><AlertCircle size={11} />{errors.browser}</div>}
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Browser (auto-detected)</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{t('rbBrowserHint', 'Browser (auto-detected)')}</div>
                 </div>
                 <div>
                   <input
                     type="text"
-                    placeholder="e.g. Windows 11, iPhone iOS 17"
+                    placeholder={t('rbOsPlaceholder', 'e.g. Windows 11, iPhone iOS 17')}
                     value={form.os}
                     disabled={status === 'loading'}
                     onChange={e => { setForm(f => ({ ...f, os: e.target.value })); if (errors.os) setErrors(r => ({ ...r, os: '' })); }}
                     style={inputBase(!!errors.os)}
                   />
                   {errors.os && <div className="rb-field-error" style={errSt}><AlertCircle size={11} />{errors.os}</div>}
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Operating System (auto-detected)</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{t('rbOsHint', 'Operating System (auto-detected)')}</div>
                 </div>
               </div>
               <div>
                 <input
                   type="text"
-                  placeholder="e.g. 1920x1080"
+                  placeholder={t('rbScreenPlaceholder', 'e.g. 1920x1080')}
                   value={form.screenSize}
                   disabled={status === 'loading'}
                   onChange={e => setForm(f => ({ ...f, screenSize: e.target.value }))}
                   style={inputBase(false)}
                 />
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>Screen size (optional, auto-detected)</div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4 }}>{t('rbScreenHint', 'Screen size (optional, auto-detected)')}</div>
               </div>
             </div>
 
             {/* ── Attachments ── */}
             <div style={{ marginBottom: 20 }}>
               <label style={labelSt}>
-                Attach screenshots or screen recording{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#6b7280' }}>(optional, up to {MAX_ATTACH})</span>
+                {t('rbAttachLabel', 'Attach screenshots or screen recording')}{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#6b7280' }}>
+                  {t('rbAttachOptional', '(optional, up to {{max}})', { max: MAX_ATTACH })}
+                </span>
               </label>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
-                Screenshots help us see exactly what you're seeing. Max 5 files, 10MB each.
+                {t('rbAttachHint', "Screenshots help us see exactly what you're seeing. Max 5 files, 10MB each.")}
               </div>
 
               {attachments.length < MAX_ATTACH && (
@@ -716,10 +828,10 @@ export default function ReportBug() {
                     <Upload size={18} color="#818cf8" />
                   </div>
                   <div style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: 4 }}>
-                    <span style={{ color: '#818cf8', fontWeight: 600 }}>Click to attach</span> or drag and drop
+                    <span style={{ color: '#818cf8', fontWeight: 600 }}>{t('rbAttachClick', 'Click to attach')}</span> {t('rbAttachDrop', 'or drag and drop')}
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>
-                    Images (JPG, PNG, GIF, WEBP) or Videos (MP4, WEBM) — up to 10 MB each
+                    {t('rbAttachTypes', 'Images (JPG, PNG, GIF, WEBP) or Videos (MP4, WEBM) — up to 10 MB each')}
                   </div>
                   <input
                     ref={fileRef}
@@ -779,7 +891,7 @@ export default function ReportBug() {
                     ))}
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
-                    {attachments.length} / {MAX_ATTACH} files selected
+                    {t('rbAttachSelected', '{{count}} / {{max}} files selected', { count: attachments.length, max: MAX_ATTACH })}
                   </div>
                 </>
               )}
@@ -788,14 +900,14 @@ export default function ReportBug() {
             {/* ── Console Errors (optional) ── */}
             <div style={{ marginBottom: 32 }}>
               <label style={labelSt}>
-                Any error messages or console errors?{' '}
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11, color: '#6b7280' }}>(optional)</span>
+                {t('rbConsoleLabel', 'Any error messages or console errors?')}{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11, color: '#6b7280' }}>{t('rbConsoleOptional', '(optional)')}</span>
               </label>
               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
-                Open browser DevTools (F12 → Console tab) and paste any red error messages here.
+                {t('rbConsoleHint', 'Open browser DevTools (F12 → Console tab) and paste any red error messages here.')}
               </div>
               <textarea
-                placeholder={`Paste error messages here...\ne.g. TypeError: Cannot read property...`}
+                placeholder={t('rbConsolePlaceholder', `Paste error messages here...\ne.g. TypeError: Cannot read property...`)}
                 value={form.consoleErrors}
                 disabled={status === 'loading'}
                 onChange={e => setForm(f => ({ ...f, consoleErrors: e.target.value }))}
@@ -831,15 +943,15 @@ export default function ReportBug() {
                     <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3" />
                     <path d="M12 2a10 10 0 0 1 10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
                   </svg>
-                  Submitting…
+                  {t('rbSubmitting', 'Submitting…')}
                 </>
               ) : (
-                <>Submit Bug Report 🐛</>
+                <><Bug size={16} /> {t('rbSubmitButton', 'Submit Bug Report')}</>
               )}
             </button>
 
             <p style={{ textAlign: 'center', fontSize: 12, color: '#6b7280', marginTop: 12, marginBottom: 0 }}>
-              We typically investigate critical bugs within 24 hours.
+              {t('rbInvestigationHint', 'We typically investigate critical bugs within 24 hours.')}
             </p>
 
           </form>

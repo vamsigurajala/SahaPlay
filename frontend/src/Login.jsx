@@ -31,8 +31,8 @@ const Login = () => {
   const validateForm = () => {
     const newErrors = {};
     let isValid = true;
-    if (!username.trim()) { newErrors.username = 'Username or Email is required'; isValid = false; }
-    if (!password) { newErrors.password = 'Password is required'; isValid = false; }
+    if (!username.trim()) { newErrors.username = t('usernameOrEmailRequired', 'Username or Email is required'); isValid = false; }
+    if (!password) { newErrors.password = t('passwordRequired', 'Password is required'); isValid = false; }
     setErrors(newErrors);
     return isValid;
   };
@@ -52,7 +52,14 @@ const Login = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setGlobalError(data.error || 'Login failed');
+        const errMsg = data.error || '';
+        if (errMsg === 'Invalid credentials') {
+          setGlobalError(t('invalidCredentials', 'Invalid credentials'));
+        } else if (errMsg === 'Login failed') {
+          setGlobalError(t('loginFailed', 'Login failed'));
+        } else {
+          setGlobalError(errMsg || t('loginFailed', 'Login failed'));
+        }
         return;
       }
 
@@ -130,7 +137,7 @@ const Login = () => {
 
       navigate('/');
     } catch (err) {
-      setGlobalError('Network error. Please try again later.');
+      setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -153,10 +160,10 @@ const Login = () => {
         // Google OAuth: CryptoContext will auto-generate ephemeral keys
         navigate('/');
       } else {
-        setGlobalError(data.error || 'Google Login failed');
+        setGlobalError(data.error || t('googleLoginFailed', 'Google Login failed'));
       }
     } catch (err) {
-      setGlobalError('Network error during Google Auth');
+      setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
     } finally {
       setIsSubmitting(false);
     }
@@ -166,7 +173,7 @@ const Login = () => {
     e.preventDefault();
     setGlobalError('');
     if (!guestName.trim()) {
-      setGlobalError('Please enter a display name to join as guest');
+      setGlobalError(t('enterGuestNameError', 'Please enter a display name to join as guest'));
       return;
     }
     clearUserSession();
@@ -308,8 +315,27 @@ const Login = () => {
           color: #0f172a !important;
           border-color: rgba(0,0,0,0.1) !important;
         }
+        
+        .guest-outline-btn {
+          width: 100%;
+          padding: 16px;
+          border-radius: 14px;
+          border: 1px solid rgba(150,150,150,0.2);
+          background: transparent !important;
+          color: #a0aab2 !important;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s;
+        }
+        .guest-outline-btn:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
 
-        /* Light mode — Join as Guest outline button */
         html[data-theme='light'] .guest-outline-btn {
           background: #64748b !important;
           color: #fff !important;
@@ -373,10 +399,7 @@ const Login = () => {
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <label style={{ fontSize: '13px', color: '#a0aab2', fontWeight: 600 }}>{t('password', 'Password')}</label>
-                <Link to="/forgot-password" style={{ fontSize: '13px', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>{t('forgotPassword', 'Forgot Password?')}</Link>
-              </div>
+              <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('password', 'Password')}</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                 <input type={showPassword ? 'text' : 'password'} className="login-input" style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }} placeholder="••••••••" value={password} onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: null}); }} />
@@ -385,6 +408,9 @@ const Login = () => {
                 </button>
               </div>
               {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <Link to="/forgot-password" style={{ fontSize: '13px', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>{t('forgotPassword', 'Forgot Password?')}</Link>
+              </div>
             </div>
 
             <button type="submit" disabled={isSubmitting} className="login-submit-btn">
@@ -426,7 +452,7 @@ const Login = () => {
           </p>
 
           {!showGuestInput ? (
-            <button onClick={() => setShowGuestInput(true)} className="guest-outline-btn" style={{ width: '100%', padding: '16px', borderRadius: '14px', border: '1px solid rgba(150,150,150,0.2)', background: 'transparent', color: 'inherit', fontSize: '15px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = 'rgba(150,150,150,0.05)'; }} onMouseLeave={e => { e.currentTarget.style.background = ''; }}>
+            <button onClick={() => setShowGuestInput(true)} className="guest-outline-btn">
               <User size={18} /> {t('joinAsGuest', 'Join as Guest')}
             </button>
           ) : (

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import PinSetupModal from './PinSetupModal';
@@ -12,6 +12,151 @@ import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
+
+const FILE_LIMITS = {
+  'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
+  'image/png':{ max:10*1024*1024, label:'10MB' }, 'image/gif':{ max:10*1024*1024, label:'10MB' },
+  'image/webp':{ max:10*1024*1024, label:'10MB' },
+  'video/mp4':{ max:100*1024*1024, label:'100MB' }, 'video/webm':{ max:100*1024*1024, label:'100MB' },
+  'video/mov':{ max:100*1024*1024, label:'100MB' }, 'video/quicktime':{ max:100*1024*1024, label:'100MB' },
+  'application/pdf':{ max:25*1024*1024, label:'25MB' },
+  'application/msword':{ max:25*1024*1024, label:'25MB' },
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':{ max:25*1024*1024, label:'25MB' },
+  'application/vnd.ms-excel':{ max:25*1024*1024, label:'25MB' },
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':{ max:25*1024*1024, label:'25MB' },
+  'application/vnd.ms-powerpoint':{ max:25*1024*1024, label:'25MB' },
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':{ max:25*1024*1024, label:'25MB' },
+  'text/plain':{ max:25*1024*1024, label:'25MB' }, 'text/csv':{ max:25*1024*1024, label:'25MB' },
+  'application/zip':{ max:25*1024*1024, label:'25MB' },
+  'audio/mp3':{ max:10*1024*1024, label:'10MB' }, 'audio/mpeg':{ max:10*1024*1024, label:'10MB' },
+  'audio/wav':{ max:10*1024*1024, label:'10MB' }, 'audio/ogg':{ max:10*1024*1024, label:'10MB' },
+  'audio/m4a':{ max:10*1024*1024, label:'10MB' }, 'audio/webm':{ max:10*1024*1024, label:'10MB' },
+};
+
+function validateFile(file) {
+  const limit = FILE_LIMITS[file.type];
+  if (!limit) return { valid: false, error: `❌ File type not supported` };
+  if (file.size > limit.max) return { valid: false, error: `❌ File too large. Max size is ${limit.label}` };
+  return { valid: true };
+}
+
+function FileTypeIcon({ mimeType, size = 20 }) {
+  if (!mimeType) return <Paperclip size={size} color="#888" />;
+  if (mimeType === 'application/pdf') return <FileText size={size} color="#ef4444" />;
+  if (mimeType.includes('word')) return <FileText size={size} color="#3b82f6" />;
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText size={size} color="#10b981" />;
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color="#f97316" />;
+  if (mimeType === 'application/zip') return <Paperclip size={size} color="#6b7280" />;
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color="#6b7280" />;
+  if (mimeType.startsWith('audio/')) return <Music size={size} color="#a855f7" />;
+  if (mimeType.startsWith('video/')) return <Play size={size} color="#3b82f6" fill="#3b82f6" />;
+  return <Paperclip size={size} color="#888" />;
+}
+
+function ExpiryLabel({ expiresAt }) {
+  if (!expiresAt) return null;
+  const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+  if (daysLeft <= 0) return null;
+  if (daysLeft <= 7) return <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2 }}>⚠️ Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''} — save now</div>;
+  return <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>🕐 {daysLeft} days left</div>;
+}
+
+function FileCard({ url, type, fileName, isMe, isLight }) {
+  const typeName = type?.split('/').pop()?.toUpperCase() || 'FILE';
+  const isExpired = !url;
+
+  const handleDownload = async () => {
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName || 'download';
+      a.click();
+    } catch { toast?.error?.('Download failed'); }
+  };
+
+  const cardBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+  const cardBorder = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.09)');
+  const fileNameColor = isMe ? '#fff' : (isLight ? '#1e293b' : '#e2e8f0');
+  const typeColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
+  const expiredColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
+  const dlBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(30,41,59,0.12)' : 'rgba(99,102,241,0.2)');
+  const dlBorder = isMe ? 'rgba(255,255,255,0.3)' : (isLight ? 'rgba(30,41,59,0.22)' : 'rgba(99,102,241,0.3)');
+  const dlColor = isMe ? '#fff' : (isLight ? '#334155' : '#a5b4fc');
+
+  return (
+    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 14px', minWidth: 180, maxWidth: 240, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isExpired ? 0 : 8 }}>
+        <FileTypeIcon mimeType={type} size={22} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: fileNameColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {isExpired ? <s style={{ color: expiredColor }}>{fileName || 'File'}</s> : (fileName || 'File')}
+          </div>
+          <div style={{ fontSize: 10, color: typeColor, marginTop: 1 }}>{typeName}</div>
+        </div>
+      </div>
+      {isExpired
+        ? <div style={{ fontSize: 11, color: expiredColor, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Paperclip size={11} color={expiredColor} /> Expired</div>
+        : <button onClick={handleDownload} style={{ width: '100%', padding: '5px', borderRadius: 6, background: dlBg, border: `1px solid ${dlBorder}`, color: dlColor, fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <Download size={11} color={dlColor} /> Download
+          </button>
+      }
+    </div>
+  );
+}
+
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight }) {
+  const [playing, setPlaying] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const [duration, setDuration] = React.useState(0);
+  const audioRef = React.useRef(null);
+  const isExpired = !url;
+  const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
+
+  if (isExpired) return (
+    <div style={{ padding: '8px 12px', background: isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)'), borderRadius: 10, fontSize: 12, color: expColor, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <Music size={12} color={expColor} /> Voice note expired
+    </div>
+  );
+
+  const toggle = () => {
+    if (!audioRef.current) return;
+    if (playing) audioRef.current.pause(); else audioRef.current.play();
+    setPlaying(p => !p);
+  };
+
+  const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s <= 0) ? null : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  const bubbleBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+  const trackBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.15)');
+  const metaColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
+  const durationStr = fmtDur(duration);
+
+  return (
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '10px 14px', minWidth: 200, marginTop: 2 }}>
+      <audio ref={audioRef} src={url}
+        onTimeUpdate={() => audioRef.current && setProgress(audioRef.current.currentTime / (audioRef.current.duration || 1))}
+        onLoadedMetadata={() => audioRef.current && setDuration(audioRef.current.duration)}
+        onEnded={() => { setPlaying(false); setProgress(0); }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Music size={16} color="#a855f7" style={{ flexShrink: 0 }} />
+        <button onClick={toggle} style={{ background: 'rgba(99,102,241,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+          {playing ? <Pause size={11} color="#fff" fill="#fff" /> : <Play size={11} color="#fff" fill="#fff" />}
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ height: 3, background: trackBg, borderRadius: 2, overflow: 'hidden', cursor: 'pointer' }} onClick={e => { if (!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const pct = (e.clientX - rect.left) / rect.width; audioRef.current.currentTime = pct * (audioRef.current.duration || 0); }}>
+            <div style={{ height: '100%', width: `${progress * 100}%`, background: '#6366f1', transition: 'width 0.1s linear' }} />
+          </div>
+          <div style={{ fontSize: 10, color: metaColor, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Voice Note</span>
+            {durationStr && <span>{durationStr}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 import { formatDistanceToNow } from 'date-fns';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useDebounce } from '../hooks/useDebounce';
@@ -33,6 +178,8 @@ const typingCss = `
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+  @keyframes wave-bar { from { height: 20%; } to { height: 80%; } }
   .typing-dots { display: inline-flex; gap: 2px; align-items: center; margin-left: 4px; }
   .typing-dot { width: 4px; height: 4px; background: #6366f1; borderRadius: 50%; display: inline-block; animation: dot-wave 1.3s infinite ease-in-out; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -148,6 +295,12 @@ const typingCss = `
     text-decoration: underline !important;
   }
   .stay-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+  /* Ensure stay-white elements inside received messages stay white (higher specificity than msg-received *) */
+  html[data-theme='light'] .msg-received .stay-white,
+  html[data-theme='light'] .msg-received .stay-white * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
 
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
   /* Applied via .gcw-force-dark on the panel root when transparentMode=true */
@@ -592,6 +745,14 @@ const GlobalChatWidget = forwardRef(({
   const [typingStatuses, setTypingStatuses] = useState({}); // chatKey -> Set of usernames typing
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
+  const [showMediaPolicyBanner, setShowMediaPolicyBanner] = useState(() => !localStorage.getItem('media_policy_banner_seen'));
   // Re-auth overlay state (shown when sessionStorage key is missing after tab close)
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState('');
@@ -663,7 +824,7 @@ const GlobalChatWidget = forwardRef(({
       if (chatMenuRef.current && chatMenuRef.current.contains(e.target)) return;
       if (convMenuRef.current && convMenuRef.current.contains(e.target)) return;
       if (vaultMenuRef.current && vaultMenuRef.current.contains(e.target)) return;
-      
+
       setShowGlobalMenu(false);
       setShowSelectionMenu(false);
       setShowChatMenu(false);
@@ -2267,25 +2428,15 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const isImg = file.type.startsWith('image/');
-    const isVid = file.type.startsWith('video/');
-    if (!isImg && !isVid) {
-      toast.error('Only images and videos are supported');
-      e.target.value = null;
-      return;
-    }
+  const handleMediaUpload = async (file) => {
+    const validation = validateFile(file);
+    if (!validation.valid) { toast.error(validation.error); return; }
 
-    // ── Client-side room permission check for media ──
     if (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) {
       toast.error('📷 Media sharing is not allowed in this room.');
-      e.target.value = null;
       return;
     }
 
-    // Optimistic placeholder
     const ts = Date.now();
     const tempId = `opt-media-${ts}`;
     const objectUrl = URL.createObjectURL(file);
@@ -2297,11 +2448,11 @@ const GlobalChatWidget = forwardRef(({
       mediaUrl: objectUrl,
       mediaType: file.type,
       timestamp: ts,
-      _isOptimistic: true
+      _isOptimistic: true,
+      _fileName: file.name
     };
     setMessages(prev => [...prev, optimisticMsg]);
     setIsUploading(true);
-    e.target.value = null;
 
     try {
       const { encryptedBlob, mediaKeyBytes } = await encryptMedia(file);
@@ -2429,6 +2580,81 @@ const GlobalChatWidget = forwardRef(({
       setIsUploading(false);
     }
   };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = null;
+    if (!file) return;
+    await handleMediaUpload(file);
+  };
+
+  function formatRecordingTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      recorder.start(100);
+      setIsRecording(true);
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => {
+          if (prev >= 299) { stopRecording(); return 300; }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch {
+      toast.error('Microphone access denied. Please allow microphone permission.');
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+  }
+
+  function cancelRecording() {
+    if (mediaRecorderRef.current) {
+      try { mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop()); } catch {}
+      try { if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop(); } catch {}
+    }
+    clearInterval(timerRef.current);
+    setIsRecording(false);
+    setRecordingTime(0);
+    setAudioBlob(null);
+    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+  }
+
+  async function sendVoiceNote() {
+    if (!audioBlob) return;
+    if (audioBlob.size > 10 * 1024 * 1024) { toast.error('❌ Voice note too large. Max 10MB.'); return; }
+    const mimeType = audioBlob.type || 'audio/webm';
+    const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+    const file = new File([audioBlob], `voice_${Date.now()}.${ext}`, { type: mimeType });
+    const prevUrl = audioUrl;
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setRecordingTime(0);
+    if (prevUrl) URL.revokeObjectURL(prevUrl);
+    await handleMediaUpload(file);
+  }
 
   const handleReact = async (msgId, emoji) => {
     // Optimistic update: enforce single reaction per user
@@ -3720,6 +3946,22 @@ const GlobalChatWidget = forwardRef(({
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); }} 
               style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
             >
+              {/* Media Policy Banner — shown once per user */}
+              {showMediaPolicyBanner && (
+                <div style={{ margin: '0 0 10px', background: isLight ? '#f0f9ff' : 'rgba(99,102,241,0.1)', border: `1px solid ${isLight ? '#bae6fd' : 'rgba(99,102,241,0.25)'}`, borderRadius: 12, padding: '12px 14px', fontSize: 12, color: isLight ? '#0369a1' : '#93c5fd' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, marginBottom: 4, color: isLight ? '#0369a1' : '#a5b4fc' }}>ℹ️ Media Storage Policy</div>
+                      <div style={{ lineHeight: 1.6, color: isLight ? '#0369a1' : '#93c5fd' }}>
+                        Images: 30 days · Videos &amp; Files: 7 days<br />
+                        Voice Notes: 14 days · Text: Kept forever
+                      </div>
+                    </div>
+                    <button onClick={() => { setShowMediaPolicyBanner(false); localStorage.setItem('media_policy_banner_seen', '1'); }} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 2, flexShrink: 0 }}><X size={14} /></button>
+                  </div>
+                </div>
+              )}
+
               {messages.length === 0 ? (
                 loading ? (
                   <div style={{ textAlign: 'center', color: '#888', marginTop: 20, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -3776,7 +4018,7 @@ const GlobalChatWidget = forwardRef(({
                                style={{ flexShrink:0, cursor:isBlocked?'default':'pointer', width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:getAvatarColor(sNameOriginal), marginTop:2 }}
                              >
                                {aSrc ? (<img src={aSrc} alt={sName} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex';}}/>) : null}
-                               <span style={{display:aSrc?'none':'flex',color:'#fff',fontSize:11,fontWeight:700}}>{getInitials(sName)}</span>
+                               <span className="stay-white" style={{display:aSrc?'none':'flex',color:'#fff',fontSize:11,fontWeight:700}}>{getInitials(sName)}</span>
                              </div>
                            );
                          })()}
@@ -3816,16 +4058,32 @@ const GlobalChatWidget = forwardRef(({
                                 )
                               )}
                               {(() => {
-                                // Prefer async-decrypted blob URL if available, else fall back to msg.mediaUrl (optimistic blob)
                                 const msgKey = String(msg.id || msg.timestamp);
                                 const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg.mediaUrl || null;
-                                return resolvedUrl ? (
-                                  <MediaBubble url={resolvedUrl} type={msg.mediaType} onOpenLightbox={openLightbox} onMediaLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })} />
-                                ) : msg.mediaType ? (
-                                  <div style={{ color: '#555', fontSize: 11, padding: '8px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                const mt = msg.mediaType || '';
+                                const isImg = mt.startsWith('image/');
+                                const isVid = mt.startsWith('video/');
+                                const isAudio = mt.startsWith('audio/');
+                                const isFile = mt && !isImg && !isVid && !isAudio;
+
+                                if (isAudio) {
+                                  return <AudioPlayerBubble url={resolvedUrl} expiresAt={msg.mediaExpiresAt} isMe={isMe} isLight={isLight} />;
+                                }
+                                if (isFile) {
+                                  return <FileCard url={resolvedUrl} type={mt} fileName={msg._fileName || msg.mediaFileName} isMe={isMe} isLight={isLight} />;
+                                }
+                                if (resolvedUrl && (isImg || isVid)) {
+                                  return <>
+                                    <MediaBubble url={resolvedUrl} type={mt} onOpenLightbox={openLightbox} onMediaLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })} />
+                                    <ExpiryLabel expiresAt={msg.mediaExpiresAt} />
+                                  </>;
+                                }
+                                if (!resolvedUrl && mt) {
+                                  return <div style={{ color: '#555', fontSize: 11, padding: '8px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
                                     <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Decrypting media…
-                                  </div>
-                                ) : null;
+                                  </div>;
+                                }
+                                return null;
                               })()}
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
@@ -4028,14 +4286,10 @@ const GlobalChatWidget = forwardRef(({
                   </div>
                 )}
                 
-                {/* Hidden file input */}
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  style={{ display: 'none' }}
-                  accept="image/*,video/*"
-                  onChange={handleFileSelect}
-                />
+                {/* Hidden file input — accepts all supported types; validateFile() enforces limits */}
+                <input type="file" ref={fileInputRef} style={{ display: 'none' }}
+                  accept="image/*,video/mp4,video/webm,video/quicktime,video/mov,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a,audio/webm"
+                  onChange={handleFileSelect} />
 
 
                 {activeChat && typingStatuses[activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner] && (
@@ -4100,88 +4354,123 @@ const GlobalChatWidget = forwardRef(({
                     );
                   })()}
 
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                      <input 
-                        ref={inputRef}
-                        type="text" 
-                        placeholder={activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
-                        disabled={!!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)}
-                        value={inputValue}
-                        onChange={e => {
-                          setInputValue(e.target.value);
-                          if (socketRef.current && activeChat) {
-                            socketRef.current.emit('chat:typing', { 
-                              partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner, 
-                              type: activeChat.type 
-                            });
-                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                            typingTimeoutRef.current = setTimeout(() => {
-                              socketRef.current.emit('chat:stop_typing', { 
-                                partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner, 
-                                type: activeChat.type 
-                              });
-                            }, 3000);
-                          }
-                        }}
-                        style={{
-                          flex: 1,
-                          background: 'rgba(255,255,255,0.04)',
-                          border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 14,
-                          padding: '12px 18px',
-                          paddingRight: (!inputValue && !isUploading) ? '75px' : '18px',
-                          color: '#fff',
-                          fontSize: 14,
-                          outline: 'none',
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                        }}
-                        onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(99,102,241,0.3)'; }}
-                        onBlur={e => { e.target.style.background = 'rgba(255,255,255,0.04)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
-                      />
-                      
-                      {!inputValue && !isUploading && (
-                        <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <button type="button" onClick={()=>setShowEmojiPicker(!showEmojiPicker)} style={{background:'transparent',border:'none',color:'#555',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                            <SmilePlus size={20}/>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isUploading || !!(activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost)}
-                            onClick={() => {
-                              if (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) {
-                                toast.error('📷 Media sharing is not allowed in this room.');
-                                return;
-                              }
-                              fileInputRef.current?.click();
-                            }}
-                            title={activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost ? 'Media disabled by host' : 'Attach media'}
-                            style={{
-                              background:'transparent',border:'none',
-                              color: (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) ? '#444' : (isUploading ? '#6366f1' : '#555'),
-                              cursor: (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) ? 'not-allowed' : 'pointer',
-                              display:'flex',alignItems:'center',justifyContent:'center',padding:4,
-                              opacity: (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) ? 0.4 : 1
-                            }}
-                          >
-                            <Paperclip size={18}/>
-                          </button>
-                        </div>
-                      )}
-                      
-                      {isUploading && (
-                        <div style={{ position: 'absolute', right: 12 }}>
-                          <Loader2 size={18} className="animate-spin" color="#6366f1" />
-                        </div>
-                      )}
+                  {/* ── Voice recording UI ── */}
+                  {isRecording && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 14, padding: '10px 14px' }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 600, minWidth: 32 }}>{formatRecordingTime(recordingTime)}</span>
+                      <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'center', height: 20, overflow: 'hidden' }}>
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <div key={i} style={{ width: 3, borderRadius: 2, background: '#ef4444', opacity: 0.6, height: `${20 + Math.sin(Date.now()/200 + i) * 10}%`, animation: `wave-bar 0.8s ease-in-out ${i * 0.07}s infinite alternate` }} />
+                        ))}
+                      </div>
+                      <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
+                      <button type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 8, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: '#fff' }}>
+                        <Check size={12} color="#fff" strokeWidth={2.5} /> Done
+                      </button>
                     </div>
+                  )}
 
-                    <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)} style={{
-                      width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', color:'#fff', cursor: (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost))?0.5:1, flexShrink: 0
-                    }}>
-                      <Send size={18} />
-                    </button>
-                  </div>
+                  {/* ── Voice note preview ── */}
+                  {!isRecording && audioBlob && audioUrl && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, padding: '10px 14px' }}>
+                      <Music size={16} color="#a855f7" style={{ flexShrink: 0 }} />
+                      <audio src={audioUrl} controls style={{ height: 28, flex: 1 }} />
+                      <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
+                      <button type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: '#fff' }}>
+                        {isUploading ? <Loader2 size={12} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={12} color="#fff" /> Send</>}
+                      </button>
+                    </div>
+                  )}
+
+                  {!isRecording && !audioBlob && (
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          placeholder={activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
+                          disabled={!!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)}
+                          value={inputValue}
+                          onChange={e => {
+                            setInputValue(e.target.value);
+                            if (socketRef.current && activeChat) {
+                              socketRef.current.emit('chat:typing', {
+                                partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                                type: activeChat.type
+                              });
+                              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                              typingTimeoutRef.current = setTimeout(() => {
+                                socketRef.current.emit('chat:stop_typing', {
+                                  partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                                  type: activeChat.type
+                                });
+                              }, 3000);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 14,
+                            padding: '12px 18px',
+                            paddingRight: (!inputValue && !isUploading) ? '108px' : '18px',
+                            color: '#fff',
+                            fontSize: 14,
+                            outline: 'none',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }}
+                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(99,102,241,0.3)'; }}
+                          onBlur={e => { e.target.style.background = 'rgba(255,255,255,0.04)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                        />
+
+                        {!inputValue && !isUploading && (
+                          <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
+                              <SmilePlus size={20} />
+                            </button>
+                            {/* Attachment button — opens unified file picker */}
+                            <button
+                              type="button"
+                              disabled={isUploading || !!(activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost)}
+                              onClick={() => {
+                                if (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) {
+                                  toast.error('📷 Media sharing is not allowed in this room.');
+                                  return;
+                                }
+                                fileInputRef.current?.click();
+                              }}
+                              title="Attach image, video, document or file"
+                              style={{ background:'transparent', border:'none', color: isUploading ? '#6366f1' : '#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) ? 0.4 : 1 }}
+                            >
+                              <Paperclip size={18} />
+                            </button>
+                            {/* Mic button — inside input box, hidden while typing */}
+                            <button
+                              type="button"
+                              onClick={startRecording}
+                              title="Record voice note"
+                              style={{ background:'transparent', border:'none', color:'#818cf8', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
+                            >
+                              <Mic size={18} />
+                            </button>
+                          </div>
+                        )}
+
+                        {isUploading && (
+                          <div style={{ position: 'absolute', right: 12 }}>
+                            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} color="#6366f1" />
+                          </div>
+                        )}
+                      </div>
+
+                      <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)} style={{
+                        width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', cursor: (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost))?0.5:1, flexShrink: 0
+                      }}>
+                        <Send size={18} color="#fff" />
+                      </button>
+                    </div>
+                  )}
                 </form>
               </>
             )}

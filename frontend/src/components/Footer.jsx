@@ -7,12 +7,39 @@ import { FaXTwitter } from 'react-icons/fa6';
 
 const Footer = () => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [hoveredSocial, setHoveredSocial] = useState(null);
+
+  const languageNames = {
+    en: 'English (International)',
+    es: 'Español',
+    fr: 'Français',
+    de: 'Deutsch',
+    ja: '日本語',
+    ko: '한국어',
+    zh: '简体中文',
+    hi: 'हिन्दी',
+    pt: 'Português',
+    ar: 'العربية',
+    ru: 'Русский',
+    it: 'Italiano',
+    te: 'తెలుగు',
+    ta: 'தமிழ்',
+    bn: 'বাংলা',
+    mr: 'मराठी',
+    gu: 'ગુજરાતી',
+    ml: 'മലയാളം',
+    kn: 'ಕನ್ನಡ',
+    pa: 'ਪੰਜਾਬੀ'
+  };
+  const currentLang = i18n.language || 'en';
+  const langKey = currentLang.split('-')[0];
+  const langDisplayName = languageNames[langKey] || languageNames['en'];
+
 
   return (
     <footer className="home-footer">
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48, marginBottom: 64 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }} className="footer-grid">
         {/* Brand Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -69,19 +96,11 @@ const Footer = () => {
         <div>
           <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('product', 'Product')}</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/features');
-              window.scrollTo(0, 0);
-            }}>{t('features', 'Features')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/how-it-works');
-              window.scrollTo(0, 0);
-            }}>{t('howItWorks', 'How it Works')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/')}>{t('home', 'Home')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
             <button className="footer-link-btn" onClick={() => navigate('/public')}>{t('publicRooms', 'Public Rooms')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/pricing');
-              window.scrollTo(0, 0);
-            }}>{t('pricing', 'Pricing')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/pricing')}>{t('pricing', 'Pricing')}</button>
           </div>
         </div>
 
@@ -89,18 +108,9 @@ const Footer = () => {
         <div>
           <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('support', 'Support')}</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/contact');
-              window.scrollTo(0, 0);
-            }}>{t('contactUs', 'Contact Us')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/report-bug');
-              window.scrollTo(0, 0);
-            }}>{t('reportBug', 'Report Bug')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/features');
-              setTimeout(() => document.getElementById('safety')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}>{t('safety', 'Safety')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/contact')}>{t('contactUs', 'Contact Us')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/report-bug')}>{t('reportBug', 'Report Bug')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/safety')}>{t('safety', 'Safety')}</button>
           </div>
         </div>
 
@@ -108,28 +118,21 @@ const Footer = () => {
         <div>
           <h4 style={{ color: '#fff', fontSize: 15, fontWeight: 700, marginBottom: 24 }}>{t('legal', 'Legal')}</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/features');
-              setTimeout(() => document.getElementById('privacy-policy')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}>{t('privacyPolicy', 'Privacy Policy')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/features');
-              setTimeout(() => document.getElementById('terms-of-service')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}>{t('termsOfService', 'Terms of Service')}</button>
-            <button className="footer-link-btn" onClick={() => {
-              navigate('/features');
-              setTimeout(() => document.getElementById('cookie-policy')?.scrollIntoView({ behavior: 'smooth' }), 100);
-            }}>{t('cookiePolicy', 'Cookie Policy')}</button>
+            <button className="footer-link-btn" onClick={() => window.open('https://www.iubenda.com/privacy-policy/25516226', '_blank', 'noopener,noreferrer')}>
+              {t('privacyPolicy', 'Privacy Policy')}
+            </button>
+            <button className="footer-link-btn" onClick={() => navigate('/terms')}>{t('termsOfService', 'Terms of Service')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/cookies')}>{t('cookiePolicy', 'Cookie Policy')}</button>
           </div>
         </div>
       </div>
 
       {/* Bottom Bar */}
-      <div className="home-footer-bottom" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 40, color: '#9ca3af', fontSize: 12 }}>
-        <div>&copy; 2026 WatchTogether. All rights reserved.</div>
+      <div className="home-footer-bottom footer-bottom-bar" style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div>&copy; 2026 WatchTogether. {t('allRightsReserved', 'All rights reserved.')}</div>
         <div style={{ display: 'flex', gap: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Globe size={14}/> English (International)
+            <Globe size={14}/> {langDisplayName}
           </div>
         </div>
       </div>

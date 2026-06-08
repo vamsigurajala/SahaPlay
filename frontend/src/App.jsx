@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useLayoutEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { CryptoProvider } from './contexts/CryptoContext';
@@ -19,6 +19,17 @@ import HowItWorks from './HowItWorks';
 import Pricing from './Pricing';
 import Contact from './Contact';
 import ReportBug from './ReportBug';
+import Safety from './Safety';
+import Cookies from './Cookies';
+import Terms from './Terms';
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
@@ -65,6 +76,7 @@ function App() {
       /* Protection for explicitly white text */
       html[data-theme='light'] .stay-white,
       html[data-theme='light'] .stay-white *,
+      html[data-theme='light'] .back-to-top-btn,
       html[data-theme='light'] .unread-badge,
       html[data-theme='light'] .unread-badge *,
       html[data-theme='light'] .danger-red-btn,
@@ -108,18 +120,18 @@ function App() {
       }
 
       /* ── All semi-transparent white TEXT → proper dark text ── */
-      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn),
-      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn) {
+      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn) {
         color: #111 !important;
       }
 
@@ -199,13 +211,23 @@ function App() {
       
       /* ── Chat widget container (fixed positioned floating panel) ── */
 
-      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark .chat-modal-overlay),
-      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark *) {
+      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: #f7f8fc !important;
         border-color: rgba(0,0,0,0.1) !important;
       }
       html[data-theme='light'] .chat-modal-overlay:not(.gcw-force-dark .chat-modal-overlay) {
         background: rgba(15, 23, 42, 0.4) !important;
+      }
+      html[data-theme='light'] .safety-modal-overlay {
+        background: rgba(0,0,0,0.75) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+      }
+      html[data-theme='light'] .report-modal-overlay {
+        background: rgba(0,0,0,0.45) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
       }
       html[data-theme='light'] .chat-widget-main-panel:not(.gcw-force-dark) {
         background: rgba(255, 255, 255, 0.85) !important;
@@ -531,6 +553,11 @@ function App() {
       html[data-theme='light'] .hiw-section p { color: #4a5568 !important; }
       html[data-theme='light'] .hiw-step-card h3 { color: #111 !important; }
       html[data-theme='light'] .hiw-step-card p { color: #4a5568 !important; }
+      /* ── Dark-always sections inside hiw-section (e.g. Safety page CTA) ── */
+      html[data-theme='light'] .gcw-force-dark.hiw-section h2,
+      html[data-theme='light'] .gcw-force-dark.hiw-section h2 * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+      html[data-theme='light'] .gcw-force-dark.hiw-section p,
+      html[data-theme='light'] .gcw-force-dark.hiw-section p * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
 
       /* ── Global Navigation and Components ── */
       html[data-theme='light'] nav { background: rgba(255,255,255,0.95) !important; backdrop-filter: blur(20px) !important; border-bottom: 1px solid rgba(0,0,0,0.08) !important; }
@@ -648,6 +675,7 @@ function App() {
     <CryptoProvider>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
+          <ScrollToTop />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -660,6 +688,9 @@ function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/report-bug" element={<ReportBug />} />
+            <Route path="/safety" element={<Safety />} />
+            <Route path="/cookies" element={<Cookies />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

@@ -1,88 +1,105 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { clearUserSession } from './lib/authUtils.js';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowRight, Plus, Check, Zap, Globe, MessageSquare, AlertCircle, Pin, Hash, Users } from 'lucide-react';
+import { Play, Zap, Globe, MessageSquare, Pin, Hash, Users, Lock, Share2, Mic, ChevronDown, ChevronUp, Paperclip, Heart, CornerUpLeft, Smile, Send } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-const catMap = {
-  movies: '🎬 Movies',
-  anime: '⛩️ Anime',
-  songs: '🎵 Music',
-  gaming: '🎮 Gaming',
-  sports: '⚽ Sports',
-  other: '✨ Other'
-};
-
 const getCategoryLabel = (id, t) => {
-  const emojiMap = {
-    movies: '🎬',
-    anime: '⛩️',
-    songs: '🎵',
-    gaming: '🎮',
-    sports: '⚽',
-    other: '✨'
-  };
-  const keyMap = {
-    movies: 'catMovies',
-    anime: 'catAnime',
-    songs: 'catMusic',
-    gaming: 'catGaming',
-    sports: 'catSports',
-    other: 'catOther'
-  };
-  const defaultMap = {
-    movies: 'Movies',
-    anime: 'Anime',
-    songs: 'Music',
-    gaming: 'Gaming',
-    sports: 'Sports',
-    other: 'Other'
-  };
-  const emoji = emojiMap[id] || '✨';
-  const key = keyMap[id] || 'catOther';
-  const defaultVal = defaultMap[id] || 'Other';
-  return `${emoji} ${t(key, defaultVal)}`;
+  const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
+  const keyMap = { movies: 'catMovies', anime: 'catAnime', songs: 'catMusic', gaming: 'catGaming', sports: 'catSports', other: 'catOther' };
+  const defaultMap = { movies: 'Movies', anime: 'Anime', songs: 'Music', gaming: 'Gaming', sports: 'Sports', other: 'Other' };
+  return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
 };
 
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
+const GROUP_SCRIPT = [
+  { user: 'Alex', initial: 'A', color: '#a855f7', type: 'in', text: 'This part coming up is insane 🔥', reactions: ['👍 3', '❤️ 2'] },
+  { user: 'Sam', initial: 'S', color: '#10b981', type: 'in', text: "I literally can't 😂😂" },
+  { user: 'Vamsi', initial: 'V', color: '#f59e0b', type: 'media', filename: 'movie_clip.mp4', size: '12.4 MB · Video' },
+  { user: 'you', type: 'out', text: 'Omg the music too!! 🎵', reactions: ['❤️ 1'] },
+  { user: 'Maya', initial: 'M', color: '#f472b6', type: 'in', text: 'Pause it!! Need to grab popcorn 🍿' },
+];
+const PRIVATE_SCRIPT = [
+  { type: 'banner' },
+  { user: 'Sarah', initial: 'S', color: '#6366f1', type: 'in', text: 'Did you see that ending? 😱' },
+  { user: 'you', type: 'out', text: 'I had no idea that was coming!!' },
+  { user: 'Sarah', initial: 'S', color: '#6366f1', type: 'image', caption: 'Screenshot I took 😂' },
+  { user: 'you', type: 'out', text: 'HAHA this is the best scene' },
+];
+
+const PLATFORMS = [
+  // ── Video / Streaming ──
+  { name: 'YouTube',      logo: '/platforms/youtube.png' },
+  { name: 'Twitch',       logo: '/platforms/Twitch.png' },
+  { name: 'Netflix',      logo: '/platforms/Netflix.png' },
+  { name: 'Vimeo',        logo: '/platforms/Vimeo.png' },
+  { name: 'Prime Video',  logo: '/platforms/Prime.png' },
+  { name: 'Apple TV',     logo: '/platforms/Appletv.png', logoDark: '/platforms/appletvblack.png' },
+  { name: 'Hulu',         logo: '/platforms/hulu.png' },
+  { name: 'HBO Max',      logo: '/platforms/hbomax.png', logoLight: '/platforms/hbomaxlight.png' },
+  { name: 'Disney+',      logo: '/platforms/disneyhotstar.png', logoDark: '/platforms/disneyhotstarblack.png' },
+  { name: 'Crunchyroll',  logo: '/platforms/crunchyroll.png' },
+  { name: 'ZEE5',         logo: '/platforms/Z5.png' },
+  { name: 'SonyLIV',      logo: '/platforms/sonyliv.png' },
+  { name: 'Peacock TV',   logo: '/platforms/Peacocktv.png' },
+  { name: 'Viki',         logo: '/platforms/Viki.png' },
+  { name: 'MX Player',    logo: '/platforms/MXplayer.png' },
+
+  // ── Music ──
+  { name: 'Spotify',      logo: '/platforms/Spotify.png' },
+  { name: 'Apple Music',  logo: '/platforms/Applemusic.png' },
+  { name: 'SoundCloud',   logo: '/platforms/soundcloud.png' },
+
+  // ── Social ──
+  { name: 'Instagram',    logo: '/platforms/instagram.png' },
+  { name: 'TikTok',       logo: '/platforms/tiktok.png' },
+  { name: 'Facebook',     logo: '/platforms/facebook.png' },
+
+  // ── Games (add your own pngs later) ──
+  { name: 'Aha',          logo: '/platforms/Aha.png' },
+];
 
 const Home = () => {
   const [roomId, setRoomId] = useState('');
   const navigate = useNavigate();
-  const location = useLocation();
   const { t } = useTranslation();
-
-  // Check auth state
   const token = localStorage.getItem('watch_token');
   const loggedInUsername = localStorage.getItem('watch_username');
   const isLoggedIn = !!token;
-
   const [pinnedRooms, setPinnedRooms] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [profile, setProfile] = useState(null);
-
-
+  const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsLight(document.documentElement.getAttribute('data-theme') === 'light'));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  const [activeTab, setActiveTab] = useState('group');
+  const [openFaq, setOpenFaq] = useState(null);
+  const [visibleMessages, setVisibleMessages] = useState([]);
+  const [typingUser, setTypingUser] = useState(null);
+  const chatMsgsRef = useRef(null);
+  const chatSectionRef = useRef(null);
+  const [chatVisible, setChatVisible] = useState(false);
 
   const fetchRooms = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       if (stored.length > 0) {
-        const idsAndMax6 = stored.slice(0, 6).join(',');
-        fetch(`${API}/api/rooms/info?ids=${idsAndMax6}`)
+        fetch(`${API}/api/rooms/info?ids=${stored.slice(0, 6).join(',')}`)
           .then(r => r.json())
-          .then(data => { if(Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
-          .catch(err => console.error('Failed to load pinned rooms', err));
+          .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
+          .catch(() => { });
       } else {
         setPinnedRooms([]);
       }
-    } catch(e) {}
+    } catch (e) { }
   }, []);
 
   useEffect(() => {
@@ -93,714 +110,944 @@ const Home = () => {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API}/api/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        setProfile(data);
         if (data.pinnedRooms) {
           try {
             const arr = JSON.parse(data.pinnedRooms);
             localStorage.setItem('pinned_rooms', JSON.stringify(arr));
             fetchRooms();
-          } catch(e) {}
+          } catch (e) { }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [token, fetchRooms]);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setChatVisible(true); },
+      { threshold: 0.2 }
+    );
+    if (chatSectionRef.current) observer.observe(chatSectionRef.current);
+    return () => observer.disconnect();
+  }, []);
 
-  const handleUnpin = async (e, roomId) => {
+  useEffect(() => {
+    if (!chatVisible) return;
+    const script = activeTab === 'group' ? GROUP_SCRIPT : PRIVATE_SCRIPT;
+    let cancelled = false;
+    let idx = 0;
+    const tids = [];
+    const sched = (fn, ms) => { const t = setTimeout(() => { if (!cancelled) fn(); }, ms); tids.push(t); };
+    const run = () => {
+      if (cancelled) return;
+      if (idx >= script.length) {
+        setTypingUser(null);
+        return;
+      }
+      const msg = script[idx];
+      if (msg.type === 'system' || msg.type === 'banner') {
+        setVisibleMessages(p => [...p, { ...msg, _k: idx }]);
+        idx++;
+        sched(run, 700);
+        return;
+      }
+      if (msg.type !== 'out') setTypingUser({ user: msg.user, color: msg.color, initial: msg.initial });
+      const delay = msg.text ? Math.min(900 + msg.text.length * 22, 2200) : 1200;
+      sched(() => {
+        setTypingUser(null);
+        setVisibleMessages(p => [...p, { ...msg, _k: idx }]);
+        idx++;
+        sched(run, 450);
+      }, delay);
+    };
+    setVisibleMessages([]); setTypingUser(null);
+    sched(run, 600);
+    return () => { cancelled = true; tids.forEach(clearTimeout); };
+  }, [activeTab, chatVisible]);
+
+  useEffect(() => {
+    if (chatMsgsRef.current) chatMsgsRef.current.scrollTop = chatMsgsRef.current.scrollHeight;
+  }, [visibleMessages]);
+
+
+
+  const handleUnpin = async (e, id) => {
     e.stopPropagation();
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      const updated = stored.filter(id => id !== roomId);
+      const updated = stored.filter(r => r !== id);
       localStorage.setItem('pinned_rooms', JSON.stringify(updated));
-      
       if (token) {
         await fetch(`${API}/api/profile/pinned-rooms`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ pinnedRooms: updated })
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ pinnedRooms: updated }),
         });
       }
-
       toast.success('Room unpinned');
       fetchRooms();
-    } catch(err) {}
+    } catch (err) { }
   };
 
   const handleJoin = (e) => {
     e.preventDefault();
-    if (!roomId.trim()) {
-      toast.error('Please enter a Room ID to join!');
-      return;
-    }
+    if (!roomId.trim()) { toast.error('Please enter a Room ID to join!'); return; }
     navigate(`/room/${roomId.trim()}`);
   };
 
   const createRoom = () => {
-    if (!isLoggedIn) {
-      toast.error('Please log in to create a room!');
-      return;
-    }
+    if (!isLoggedIn) { toast.error('Please log in to create a room!'); return; }
     setShowCreateModal(true);
   };
 
-  const handleLogout = () => {
-    clearUserSession();
-    window.location.reload();
-  };
-
   const features = [
-    { icon: <Zap size={28} />, color: '#facc15', title: t('instantSync', 'Instant Sync'), desc: t('instantSyncDesc', 'Zero-latency media synchronization powered by WebSockets.') },
-    { icon: <Globe size={28} />, color: '#34d399', title: t('multiPlatform', 'Multi-Platform'), desc: t('multiPlatformDesc', 'YouTube, Twitch, Vimeo, SoundCloud, and more — all in one place.') },
-    { icon: <MessageSquare size={28} />, color: '#fb923c', title: t('liveChat', 'Live Chat'), desc: t('liveChatDesc', 'Real-time chat with moderation tools, mute, kick, and ban.') },
+    { icon: <Zap size={22} />, color: '#facc15', title: t('instantSync', 'Instant Sync'), desc: t('instantSyncDesc', 'Zero-latency media synchronization powered by WebSockets.') },
+    { icon: <Globe size={22} />, color: '#34d399', title: t('multiPlatform', 'Multi-Platform'), desc: t('multiPlatformDesc', 'YouTube, Twitch, Vimeo, SoundCloud, and more — all in one place.') },
+    { icon: <MessageSquare size={22} />, color: '#fb923c', title: t('liveChat', 'Live Chat'), desc: t('liveChatDesc', 'Real-time chat with moderation tools, mute, kick, and ban.') },
+    { icon: <Lock size={22} />, color: '#a855f7', title: t('chatLock', 'Chat Lock'), desc: t('chatLockDesc', 'End-to-end encrypted chat. Session-only key material. True privacy.') },
+    { icon: <Share2 size={22} />, color: '#38bdf8', title: t('screenShare', 'Screen Share'), desc: t('screenShareDesc', 'Share your screen directly via P2P WebRTC connections.') },
+    { icon: <Mic size={22} />, color: '#f472b6', title: t('voiceVideo', 'Voice & Video'), desc: t('voiceVideoDesc', 'Crystal-clear P2P audio and video with sub-100ms latency.') },
   ];
 
+
   return (
-    <div style={{ minHeight: '100vh', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', overflowX: 'hidden' }}>
       <Toaster position="top-center" />
       <style>{`
-        .pinned-card {
-          border-radius: 28px;
-          cursor: pointer;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(25, 25, 35, 0.4);
-          backdrop-filter: blur(20px);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
+        /* ── Orb animations ── */
+        @keyframes orbFloat1 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          33%      { transform: translate(40px,-40px) scale(1.08); }
+          66%      { transform: translate(-30px,25px) scale(0.95); }
         }
-        .pinned-card:hover {
-          transform: translateY(-8px) scale(1.02);
-          box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-          border-color: rgba(99,102,241,0.5);
-          background: rgba(30, 30, 45, 0.6);
+        @keyframes orbFloat2 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          50%      { transform: translate(-50px,30px) scale(1.1); }
         }
-        .img-layer {
-          height: 160px;
-          position: relative;
-          overflow: hidden;
+        @keyframes orbFloat3 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          40%      { transform: translate(35px,-25px) scale(0.9); }
+          80%      { transform: translate(-25px,35px) scale(1.05); }
         }
-        .pinned-img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .pinned-card:hover .pinned-img {
-          transform: scale(1.1);
-        }
-        .cat-badge {
-          position: absolute;
-          top: 16px;
-          left: 16px;
-          background: rgba(0,0,0,0.7);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255,255,255,0.15);
-          color: #fff;
-          padding: 8px 16px;
-          border-radius: 14px;
-          font-size: 11px;
-          font-weight: 800;
-          letter-spacing: 0.8px;
-          z-index: 10;
-          text-transform: uppercase;
-        }
-        .unpin-btn {
-          position: absolute;
-          top: 16px;
-          right: 16px;
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255,255,255,0.2);
-          color: #fff;
-          width: 36px;
-          height: 36px;
-          border-radius: 14px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-          z-index: 10;
-        }
-        .unpin-btn:hover {
-          background: #ef4444;
-          color: #fff;
-          border-color: #ef4444;
-          box-shadow: 0 0 20px rgba(239,68,68,0.5);
-          transform: rotate(90deg) scale(1.1);
-        }
-        .footer-layer {
-          background: transparent;
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-          border-top: 1px solid rgba(255,255,255,0.08);
-        }
-        .join-btn {
-          background: linear-gradient(135deg, #6366f1, #a855f7);
-          border: none;
-          color: #fff;
-          padding: 8px 20px;
-          border-radius: 14px;
-          font-size: 14px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.3s;
-          box-shadow: 0 4px 15px rgba(99,102,241,0.3);
-        }
-        .join-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(99,102,241,0.5);
-        
-        /* Create Room Modal */
-        .cr-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-          backdrop-filter: blur(8px); z-index: 10000;
-          overflow-y: auto;
-          padding: 40px 16px;
-          animation: fadeIn 0.2s ease;
-          overscroll-behavior: contain;
-        }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .cr-modal {
-          background: rgba(19, 19, 31, 0.95);
-          backdrop-filter: blur(40px);
-          border: 1px solid rgba(255,255,255,0.15);
-          border-radius: 32px;
-          padding: 40px;
-          width: 100%;
-          max-width: 520px;
-          margin: 0 auto;
-          box-shadow: 0 40px 100px rgba(0,0,0,0.9);
-          animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-          position: relative;
-        }
-        .cr-input {
-          width: 100%; padding: 14px 20px;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.12);
-          border-radius: 16px; color: #fff;
-          font-size: 15px; outline: none;
-          transition: all 0.2s;
-          box-sizing: border-box;
-        }
-        .cr-input:focus { border-color: #6366f1; background: rgba(255,255,255,0.1); box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
-        .cr-cat-btn {
-          padding: 12px 8px;
-          border-radius: 16px;
-          border: 1.5px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.04);
-          color: #888;
-          font-size: 13px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .cr-toggle-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px 20px;
-          border-radius: 18px;
-          border: 1.5px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.04);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .nav-link-btn {
-          background: none; border: none; font-size: 14px; font-weight: 700;
-          cursor: pointer; padding: 10px 18px; border-radius: 14px;
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); color: #94a3b8;
-        }
-        .nav-link-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
-        .nav-link-btn.active { background: rgba(99,102,241,0.12); color: #818cf8; box-shadow: 0 0 0 1px rgba(99,102,241,0.2); }
-        
-        .feature-card, .hiw-step-card {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 32px;
-          padding: 40px;
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-          backdrop-filter: blur(10px);
-        }
-        .feature-card:hover, .hiw-step-card:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(99, 102, 241, 0.4);
-          transform: translateY(-8px);
-          box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        @keyframes cardFloat {
+          0%,100% { transform: perspective(1200px) rotateY(-8deg) rotateX(3deg) translateY(0px); }
+          50%      { transform: perspective(1200px) rotateY(-8deg) rotateX(3deg) translateY(-14px); }
         }
 
+        .hero-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; }
+        .orb-1 { width:620px;height:620px; background:radial-gradient(circle,rgba(99,102,241,0.45),transparent 70%); top:-220px;left:-160px; animation:orbFloat1 18s ease-in-out infinite; }
+        .orb-2 { width:460px;height:460px; background:radial-gradient(circle,rgba(168,85,247,0.4),transparent 70%); top:30px;right:-90px; animation:orbFloat2 22s ease-in-out infinite; }
+        .orb-3 { width:330px;height:330px; background:radial-gradient(circle,rgba(6,182,212,0.3),transparent 70%); bottom:-80px;left:38%; animation:orbFloat3 16s ease-in-out infinite; }
+        html[data-theme='light'] .hero-orb { opacity:0.1; }
 
-        /* ── NAV ICON BUTTONS ── */
-        .nav-icon-btn {
-          background: rgba(255,255,255,0.05); border: none; padding: 8px;
-          border-radius: 50%; cursor: pointer; transition: background 0.2s, color 0.2s;
-          display: flex; position: relative; color: #888;
-        }
-        .nav-icon-btn:hover { background: rgba(255,255,255,0.12); color: #ccc; }
-        .nav-icon-btn.active { color: #6366f1; border-radius: 12px; background: rgba(99,102,241,0.12); }
+        .hero-room-card { animation:cardFloat 6s ease-in-out infinite; }
 
-        /* ── HERO BADGE ── */
-        .hero-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3);
-          border-radius: 999px; padding: 6px 16px; margin-bottom: 32px;
-          font-size: 13px; color: #818cf8; font-weight: 600;
-        }
+        /* ── Hero text & form ── */
+        .hero-title { color:#fff; }
+        html[data-theme='light'] .hero-title { color:#0f172a !important; }
+        .hero-desc { color:#94a3b8; }
+        html[data-theme='light'] .hero-desc { color:#475569 !important; }
+        .hero-badge { display:inline-flex;align-items:center;gap:8px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:999px;padding:6px 16px;margin-bottom:32px;font-size:13px;color:#818cf8;font-weight:600; }
+        html[data-theme='light'] .hero-badge { background:#fff;border-color:rgba(0,0,0,0.1);color:#4f46e5;box-shadow:0 4px 12px rgba(0,0,0,0.06);font-weight:700; }
+        .hero-join-form { display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden; }
+        .hero-join-btn { border:none;padding:16px 22px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.2s;background:rgba(99,102,241,0.2);color:#a5b4fc; }
+        .hero-join-btn:hover { background:rgba(99,102,241,0.35); }
+        html[data-theme='light'] .hero-join-form { background:#fff;border-color:rgba(0,0,0,0.1);box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+        html[data-theme='light'] .hero-join-btn { background:#f1f5f9 !important;color:#4f46e5 !important; }
+        html[data-theme='light'] .hero-join-btn:hover { background:#e2e8f0 !important; }
+        .hero-join-input { background:transparent;border:none;outline:none;padding:16px 20px;font-size:15px;width:200px;color:#fff; }
+        html[data-theme='light'] .hero-join-input { color:#111 !important; }
+        .hero-link-btn { background:none;border:none;color:#a855f7;cursor:pointer;font-weight:600;padding:0 4px;font-size:14px;text-decoration:none;transition:color 0.2s; }
+        .hero-link-btn:hover { text-decoration:underline; }
+        html[data-theme='light'] .hero-link-btn { color:#4f46e5 !important; }
+        .hero-party-text { font-size:14px;color:#6b7280; }
+        html[data-theme='light'] .hero-party-text { color:#64748b !important; }
 
-        /* ── HOW IT WORKS ── */
-        .hiw-section { width: 100%; position: relative; }
-        .hiw-badge {
-          display: inline-flex; align-items: center; gap: 8px;
-          background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
-          border-radius: 999px; padding: 5px 14px; margin-bottom: 20px;
-          font-size: 12px; color: #818cf8; font-weight: 600; letter-spacing: 0.3px;
-        }
-        .hiw-step-icon {
-          width: 72px; height: 72px; border-radius: 22px;
-          display: flex; align-items: center; justify-content: center;
-          margin: 0 auto 20px; font-size: 30px; transition: transform 0.3s;
-        }
-        .hiw-step-card:hover .hiw-step-icon { transform: translateY(-4px) scale(1.05); }
-        .hiw-step-num {
-          font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
-          text-transform: uppercase; margin-bottom: 8px;
-        }
+        /* ── Stats bar ── */
+        .stats-bar { background:rgba(255,255,255,0.015);border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05); }
+        html[data-theme='light'] .stats-bar { background:#f9fafb;border-top-color:rgba(0,0,0,0.06);border-bottom-color:rgba(0,0,0,0.06); }
+        .stat-sep { width:1px;height:52px;background:rgba(255,255,255,0.07);align-self:center;flex-shrink:0; }
+        html[data-theme='light'] .stat-sep { background:rgba(0,0,0,0.09); }
 
-        /* ── PINNED CARDS ── */
-        .pinned-card {
-          border-radius: 16px; cursor: pointer;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: #12121a;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-          display: flex; flex-direction: column; overflow: hidden;
-        }
-        .pinned-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-          border-color: rgba(99,102,241,0.5);
-        }
-        .img-layer { height: 130px; position: relative; overflow: hidden; }
-        .pinned-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-        .pinned-card:hover .pinned-img { transform: scale(1.08); }
-        .cat-badge {
-          position: absolute; top: 12px; left: 12px;
-          background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
-          border: 1px solid rgba(255,255,255,0.12); color: #fff;
-          padding: 6px 12px; border-radius: 10px; font-size: 11px;
-          font-weight: 700; letter-spacing: 0.5px; z-index: 10;
-        }
-        .unpin-btn {
-          position: absolute; top: 12px; right: 12px;
-          background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
-          border: 1px solid rgba(255,255,255,0.15); color: #fff;
-          width: 32px; height: 32px; border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); z-index: 10;
-        }
-        .unpin-btn:hover {
-          background: rgba(239,68,68,0.2); color: #ef4444;
-          border-color: rgba(239,68,68,0.4); box-shadow: 0 0 20px rgba(239,68,68,0.3);
-          transform: scale(1.1);
-        }
-        .unpin-btn .unpin-icon { transition: fill 0.3s ease; fill: none; }
-        .unpin-btn:hover .unpin-icon { fill: currentColor; }
-        .footer-layer {
-          background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.12));
-          padding: 12px 16px; display: flex; flex-direction: column;
-          border-top: 1px solid rgba(255,255,255,0.05);
-        }
-        .join-btn {
-          background: linear-gradient(135deg, #6366f1, #a855f7);
-          border: none; color: #fff; padding: 5px 14px; border-radius: 8px;
-          font-size: 13px; font-weight: 600; cursor: pointer;
-          transition: transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275);
-        }
-        .pinned-card:hover .join-btn { transform: translateY(-2px); }
+        /* ── Steps ── */
+        .step-card { flex:1 1 0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:36px 28px;position:relative;overflow:hidden;transition:transform 0.3s,box-shadow 0.3s,border-color 0.3s;z-index:1;min-width:0; }
+        .step-card:hover { transform:translateY(-6px);box-shadow:0 20px 40px rgba(0,0,0,0.4);border-color:rgba(99,102,241,0.3); }
+        html[data-theme='light'] .step-card { background:#fff;border-color:rgba(0,0,0,0.08);box-shadow:0 4px 20px rgba(0,0,0,0.05); }
+        html[data-theme='light'] .step-card:hover { box-shadow:0 16px 40px rgba(0,0,0,0.1);border-color:rgba(99,102,241,0.25); }
+        .step-num-wm { position:absolute;top:-10px;left:10px;font-size:110px;font-weight:900;color:rgba(255,255,255,0.03);line-height:1;user-select:none;pointer-events:none;z-index:0; }
+        html[data-theme='light'] .step-num-wm { color:rgba(0,0,0,0.04); }
+        .step-connector { flex:0 0 52px;border-top:2px dashed rgba(99,102,241,0.25);align-self:center;margin-bottom:60px; }
+        html[data-theme='light'] .step-connector { border-top-color:rgba(99,102,241,0.2); }
 
-        /* ── FEATURES CARDS ── */
-        .feature-card {
-          padding: 28px 24px; cursor: default; border-radius: 24px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: var(--panel-bg); backdrop-filter: blur(24px);
-          box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
+        /* ── Feature cards ── */
+        .feat-card { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:20px;padding:28px;transition:transform 0.25s,box-shadow 0.25s; }
+        .feat-card:hover { transform:translateY(-5px); }
+        html[data-theme='light'] .feat-card { background:#fff;border-color:rgba(0,0,0,0.08);box-shadow:0 2px 12px rgba(0,0,0,0.05); }
+        html[data-theme='light'] .feat-card:hover { box-shadow:0 14px 32px rgba(0,0,0,0.1); }
+        .feat-title { font-size:16px;font-weight:700;margin:0 0 10px;color:#f1f5f9; }
+        html[data-theme='light'] .feat-title { color:#111 !important; }
+        .feat-desc { color:#9ca3af;font-size:14px;line-height:1.65;margin:0; }
+        html[data-theme='light'] .feat-desc { color:#6b7280 !important; }
 
-        /* ── FOOTER ── */
-        .home-footer {
-          background: #09090b; border-top: 1px solid rgba(255,255,255,0.05);
-          padding: 80px 40px 40px;
-        }
-        .footer-link-btn {
-          background: none; border: none; font-size: 14px; text-align: left;
-          cursor: pointer; transition: all 0.2s; color: #6b7280; padding: 0;
-        }
-        .footer-link-btn:hover { color: #818cf8; }
-        .footer-social-btn {
-          width: 40px; height: 40px; border-radius: 10px;
-          background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
-          color: #888; cursor: pointer; display: flex; align-items: center;
-          justify-content: center; transition: all 0.2s;
-        }
-        .footer-social-btn:hover { color: #818cf8; background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); }
+        /* ── Platform badges ── */
+        .plat-badge { display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);font-size:13px;font-weight:700;transition:all 0.2s;white-space:nowrap;color:#cbd5e1; }
+        .plat-badge:hover { background:rgba(255,255,255,0.09);transform:translateY(-2px); }
+        html[data-theme='light'] .plat-badge { background:#fff;border-color:rgba(0,0,0,0.1);box-shadow:0 2px 8px rgba(0,0,0,0.05);color:#374151; }
+        html[data-theme='light'] .plat-badge:hover { box-shadow:0 6px 20px rgba(0,0,0,0.1); }
 
-        /* ── CREATE ROOM MODAL ── */
-        .cr-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-          backdrop-filter: blur(8px); z-index: 10000;
-          overflow-y: auto; padding: 40px 16px; animation: fadeIn 0.2s ease;
-          overscroll-behavior: contain;
-        }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .cr-modal {
-          background: #13131f; border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 24px; padding: 32px; width: 100%; max-width: 480px;
-          margin: 0 auto; box-shadow: 0 32px 80px rgba(0,0,0,0.8);
-          animation: slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1); position: relative;
-        }
-        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .cr-close-btn {
-          position: absolute; top: 0; right: -56px;
-          background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-          border-radius: 50%; width: 44px; height: 44px; cursor: pointer; color: #fff;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 24px; padding-bottom: 2px; transition: all 0.2s;
-        }
-        .cr-close-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
-        @media (max-width: 600px) { .cr-close-btn { top: -56px; right: 0; } }
-        .cr-input {
-          width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff;
-          font-size: 15px; outline: none; transition: border-color 0.2s; box-sizing: border-box;
-        }
-        .cr-input:focus { border-color: rgba(99,102,241,0.6); }
-        .cr-input option { background: #1a1a2e; }
-        .cr-cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 8px; }
-        .cr-cat-btn {
-          padding: 10px 6px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04); color: #aaa; font-size: 13px;
-          font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center;
-        }
-        .cr-cat-btn:hover { border-color: rgba(99,102,241,0.4); color: #fff; }
-        .cr-cat-btn.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.6); color: #a5b4fc; }
-        .cr-toggle-row {
-          display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-          border-radius: 14px; border: 1.5px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03); cursor: pointer; transition: border-color 0.2s;
-        }
-        .cr-toggle-row:hover { border-color: rgba(99,102,241,0.3); }
-        .cr-toggle-track { width: 42px; height: 24px; border-radius: 999px; transition: background 0.3s; position: relative; flex-shrink: 0; }
-        .cr-toggle-thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.3s; }
-        .cr-launch-btn {
-          width: 100%; padding: 14px; border-radius: 14px; border: none;
-          background: linear-gradient(135deg,#6366f1,#a855f7); color: #fff;
-          font-size: 16px; font-weight: 700; cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s; letter-spacing: 0.3px;
-        }
-        .cr-launch-btn:hover { transform: scale(1.02); box-shadow: 0 8px 24px rgba(168,85,247,0.45); }
-        .cr-copy-btn {
-          margin-left: auto; flex-shrink: 0; background: rgba(99,102,241,0.15);
-          border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc;
-          padding: 4px 12px; border-radius: 8px; font-size: 11px; font-weight: 700;
-          cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s;
-        }
-        .cr-copy-btn:hover { background: rgba(99,102,241,0.3); }
-        .cr-copy-btn.copied { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #34d399; }
+        /* ── Hero card glow ── */
+        .hero-glow { position:absolute;width:320px;height:320px;background:radial-gradient(ellipse at center,rgba(99,102,241,0.25) 0%,rgba(168,85,247,0.1) 40%,transparent 70%);border-radius:50%;filter:blur(40px);z-index:0;animation:glowPulse 3s ease-in-out infinite; }
+        .hero-main-card { position:relative;z-index:1;width:340px;background:#0f0f1e;border-radius:16px;overflow:hidden;border:1px solid rgba(99,102,241,0.3);box-shadow:0 0 0 1px rgba(99,102,241,0.15),0 30px 60px -10px rgba(0,0,0,0.5),0 0 40px rgba(99,102,241,0.1),inset 0 1px 0 rgba(255,255,255,0.06);animation:heroFloat 5s ease-in-out infinite;transform-style:preserve-3d;transform:rotateY(-6deg) rotateX(3deg); }
+        @keyframes liveDot { 0%,100%{opacity:1}50%{opacity:0.3} }
+        .live-dot { width:6px;height:6px;border-radius:50%;background:#4eff9a;display:inline-block;animation:liveDot 1.5s ease-in-out infinite; }
 
-        /* ════════════════════════════════
-           LIGHT MODE OVERRIDES
-        ════════════════════════════════ */
-        html[data-theme='light'] .nav-link-btn { color: #555; }
-        html[data-theme='light'] .nav-link-btn:hover { background: rgba(0,0,0,0.06); color: #111; }
-        html[data-theme='light'] .nav-link-btn.active { background: rgba(99,102,241,0.1); color: #4f46e5; }
+        /* ── Step tags ── */
+        .step-tag { display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;background:rgba(99,102,241,0.1);color:#6366f1;font-size:11px;font-weight:600;margin-top:12px; }
+        html[data-theme='light'] .step-tag { color:#4f46e5;background:rgba(99,102,241,0.08); }
 
-        html[data-theme='light'] .nav-icon-btn.active { color: #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+        /* ── Chat Demo section ── */
+        .chat-demo-section { background:#09090b; }
+        html[data-theme='light'] .chat-demo-section { background:#ffffff; }
+        .chat-window { background:#13131f;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;display:flex;flex-direction:column;height:380px; }
+        html[data-theme='light'] .chat-window { background:#f8f7ff;border-color:rgba(0,0,0,0.1); }
+        .chat-tab { padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;font-size:13px;font-weight:600;cursor:pointer;color:#9ca3af;transition:all 0.2s;font-family:inherit; }
+        .chat-tab.active { background:#6366f1;border-color:#6366f1;color:#fff; }
+        html[data-theme='light'] .chat-tab { border-color:rgba(0,0,0,0.12);color:#6b7280; }
+        html[data-theme='light'] .chat-tab.active { background:#6366f1;color:#fff !important; }
+        html[data-theme='light'] .chat-tab.active svg { color:#fff !important; stroke:#fff !important; }
+        .chat-msgs { flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none; }
+        .chat-msgs::-webkit-scrollbar { display:none; }
+        .chat-bubble-in { background:rgba(255,255,255,0.07);border-radius:10px 10px 10px 2px;padding:6px 10px;font-size:12px;color:rgba(255,255,255,0.85);max-width:220px; }
+        html[data-theme='light'] .chat-bubble-in { background:rgba(0,0,0,0.06);color:#1f2937; }
+        .chat-bubble-out { background:linear-gradient(135deg,#6366f1,#7c3aed);border-radius:10px 10px 2px 10px;padding:6px 10px;font-size:12px;color:#fff; }
+        .chat-reaction { display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,0.08);border-radius:12px;padding:2px 7px;font-size:11px;color:rgba(255,255,255,0.6);margin-top:4px;cursor:default; }
+        html[data-theme='light'] .chat-reaction { background:rgba(0,0,0,0.06);color:#6b7280; }
+        .chat-system { font-size:11px;color:#6b7280;background:rgba(0,0,0,0.08);border-radius:20px;padding:4px 12px;text-align:center;margin:2px auto;max-width:280px; }
+        html[data-theme='light'] .chat-system { background:rgba(0,0,0,0.04); }
+        .chat-input-bar { background:#1a1a2e;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;margin:10px 14px; }
+        html[data-theme='light'] .chat-input-bar { background:#fff;border-color:rgba(0,0,0,0.1); }
+        .chat-send-btn { width:28px;height:28px;border-radius:50%;background:#6366f1;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0; }
+        .chat-reply-btn { background:none;border:none;font-size:10px;color:rgba(255,255,255,0.3);cursor:pointer;padding:2px 5px;border-radius:4px;display:inline-flex;align-items:center;gap:3px;margin-top:3px;transition:color 0.15s;font-family:inherit; }
+        .chat-reply-btn:hover { color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.06); }
+        html[data-theme='light'] .chat-reply-btn { color:rgba(0,0,0,0.3); }
+        html[data-theme='light'] .chat-reply-btn:hover { color:rgba(0,0,0,0.65);background:rgba(0,0,0,0.05); }
 
-        html[data-theme='light'] .nav-link-btn.active { 
-          background: rgba(99,102,241,0.08) !important; 
-          color: #4f46e5 !important; 
-          border-radius: 8px;
-          box-shadow: 0 0 0 1px rgba(99,102,241,0.1);
+        /* ── Chat light-mode overrides ── */
+        html[data-theme='light'] .chat-window-header { border-bottom-color:rgba(0,0,0,0.14) !important; }
+        .chat-header-title { color:#f1f5f9; }
+        html[data-theme='light'] .chat-header-title { color:#111827 !important; }
+        html[data-theme='light'] .chat-bubble-out { color:#fff !important; }
+        .chat-avatar { color:#fff !important; }
+        .chat-media-card { background:rgba(0,0,0,0.15);border-radius:10px;padding:10px;display:flex;gap:8px;align-items:center;max-width:200px; }
+        html[data-theme='light'] .chat-media-card { background:rgba(0,0,0,0.07) !important; }
+        .chat-media-name { font-size:12px;font-weight:600;color:#f1f5f9; }
+        html[data-theme='light'] .chat-media-name { color:#1f2937 !important; }
+        .chat-media-filesize { font-size:11px;color:#9ca3af; }
+        html[data-theme='light'] .chat-media-filesize { color:#6b7280 !important; }
+        .typing-dot { width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.4); }
+        html[data-theme='light'] .typing-dot { background:rgba(0,0,0,0.3) !important; }
+        .chat-typing-text { font-size:11px;color:rgba(255,255,255,0.4); }
+        html[data-theme='light'] .chat-typing-text { color:rgba(0,0,0,0.45) !important; }
+
+        /* ── Marquee ── */
+        .marquee-section { background:#13131f; }
+        html[data-theme='light'] .marquee-section { background:#f8f7ff; }
+
+        @keyframes marqueeLeft {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+        @keyframes marqueeRight {
+          0%   { transform: translateX(-33.333%); }
+          100% { transform: translateX(0); }
         }
 
-        html[data-theme='light'] .hero-badge { 
-          background: #fff; 
-          border-color: rgba(0,0,0,0.1); 
-          color: #000; 
-          box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          padding: 8px 20px;
+        /* ── FAQ ── */
+        .faq-section { background:#09090b; }
+        html[data-theme='light'] .faq-section { background:#ffffff; }
+        .faq-item { border:1px solid rgba(255,255,255,0.08);border-radius:12px;margin-bottom:8px;overflow:hidden;transition:border-color 0.25s; }
+        html[data-theme='light'] .faq-item { border-color:rgba(0,0,0,0.1); }
+        .faq-item.open { border-color:rgba(99,102,241,0.3); }
+        .faq-q { width:100%;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;background:none;border:none;cursor:pointer;text-align:left;font-size:15px;font-weight:600;color:#f9fafb;font-family:inherit; }
+        html[data-theme='light'] .faq-q { color:#111; }
+        .faq-a { padding:0 20px 18px;font-size:14px;color:#9ca3af;line-height:1.75;border-top:1px solid rgba(255,255,255,0.06);padding-top:14px; }
+        html[data-theme='light'] .faq-a { color:#4b5563;border-top-color:rgba(0,0,0,0.08); }
+
+        /* ── CTA ── */
+        .cta-btn { display:inline-flex;align-items:center;gap:10px;background:#fff;color:#4f46e5;border:none;padding:18px 44px;font-size:17px;font-weight:800;border-radius:16px;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;box-shadow:0 8px 24px rgba(0,0,0,0.25); }
+        .cta-btn:hover { transform:scale(1.04);box-shadow:0 20px 50px rgba(0,0,0,0.4); }
+
+        /* ── Section shared ── */
+        .section-alt { width:100%;background:rgba(255,255,255,0.02); }
+        html[data-theme='light'] .section-alt { background:#f9fafb !important; }
+        .section-heading { font-size:24px;font-weight:800;margin:0;color:#fff; }
+        html[data-theme='light'] .section-heading { color:#000 !important; }
+        .section-desc { color:#94a3b8; }
+        html[data-theme='light'] .section-desc { color:#6b7280 !important; }
+        .section-icon-badge { width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;color:#a0aab2; }
+        html[data-theme='light'] .section-icon-badge { background:#fff;border-color:rgba(0,0,0,0.1);color:#111;box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+
+        /* ── Pinned cards ── */
+        .pinned-card { border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
+        .pinned-card:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.5);border-color:rgba(99,102,241,0.5); }
+        .img-layer { height:130px;position:relative;overflow:hidden; }
+        .pinned-img { width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease; }
+        .pinned-card:hover .pinned-img { transform:scale(1.08); }
+        .cat-badge { position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0.5px;z-index:10; }
+        html[data-theme='light'] .cat-badge { color:#ffffff !important; background:rgba(0,0,0,0.6) !important; }
+        .unpin-btn { position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);color:#fff;width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);z-index:10; }
+        .unpin-btn:hover { background:rgba(239,68,68,0.2);color:#ef4444;border-color:rgba(239,68,68,0.4);box-shadow:0 0 20px rgba(239,68,68,0.3);transform:scale(1.1); }
+        .unpin-btn .unpin-icon { transition:fill 0.3s ease;fill:none; }
+        .unpin-btn:hover .unpin-icon { fill:currentColor; }
+        .footer-layer { background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(168,85,247,0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
+        .join-btn { background:linear-gradient(135deg,#6366f1,#a855f7);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
+        .pinned-card:hover .join-btn { transform:translateY(-2px); }
+        html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(0,0,0,0.08);box-shadow:0 4px 20px rgba(0,0,0,0.06); }
+        html[data-theme='light'] .pinned-card:hover { box-shadow:0 12px 30px rgba(0,0,0,0.12);border-color:rgba(99,102,241,0.3); }
+        html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
+        html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
+        html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
+        html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:#4f46e5 !important;color:#4f46e5 !important; }
+
+        /* ── Nav overrides ── */
+        .nav-link-btn { background:none;border:none;font-size:14px;font-weight:700;cursor:pointer;padding:10px 18px;border-radius:14px;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);color:#94a3b8; }
+        .nav-link-btn:hover { background:rgba(255,255,255,0.08);color:#fff; }
+        .nav-link-btn.active { background:rgba(99,102,241,0.12);color:#818cf8;box-shadow:0 0 0 1px rgba(99,102,241,0.2); }
+        html[data-theme='light'] .nav-link-btn { color:#555; }
+        html[data-theme='light'] .nav-link-btn:hover { background:rgba(0,0,0,0.06);color:#111; }
+        html[data-theme='light'] .nav-link-btn.active { background:rgba(99,102,241,0.08) !important;color:#4f46e5 !important;box-shadow:0 0 0 1px rgba(99,102,241,0.1); }
+        .nav-icon-btn { background:rgba(255,255,255,0.05);border:none;padding:8px;border-radius:50%;cursor:pointer;transition:background 0.2s,color 0.2s;display:flex;position:relative;color:#888; }
+        .nav-icon-btn:hover { background:rgba(255,255,255,0.12);color:#ccc; }
+        .nav-icon-btn.active { color:#6366f1;border-radius:12px;background:rgba(99,102,241,0.12); }
+        html[data-theme='light'] .nav-icon-btn.active { color:#6366f1 !important;background:rgba(99,102,241,0.1) !important; }
+        html[data-theme='light'] .nav-dropdown { background:#fff !important;border-color:rgba(0,0,0,0.1) !important;box-shadow:0 16px 48px rgba(0,0,0,0.15) !important; }
+        html[data-theme='light'] .nav-input { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#111 !important; }
+        .profile-pill { display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:6px 14px;font-size:14px;color:#ddd;cursor:pointer;transition:all 0.2s; }
+        html[data-theme='light'] .profile-pill { background:rgba(0,0,0,0.04) !important;border-color:rgba(0,0,0,0.08) !important;color:#111 !important; }
+        html[data-theme='light'] .profile-pill:hover { background:rgba(0,0,0,0.08) !important; }
+
+        /* ── Create room modal ── */
+        .cr-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);z-index:10000;overflow-y:auto;padding:40px 16px;animation:fadeIn 0.2s ease;overscroll-behavior:contain; }
+        @keyframes fadeIn { from{opacity:0}to{opacity:1} }
+        .cr-modal { background:#13131f;border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:32px;width:100%;max-width:480px;margin:0 auto;box-shadow:0 32px 80px rgba(0,0,0,0.8);animation:slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1);position:relative; }
+        @keyframes slideUp { from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1} }
+        .cr-close-btn { position:absolute;top:0;right:-56px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:50%;width:44px;height:44px;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;padding-bottom:2px;transition:all 0.2s; }
+        .cr-close-btn:hover { background:rgba(255,255,255,0.2);transform:scale(1.1); }
+        @media(max-width:600px){.cr-close-btn{top:-56px;right:0}}
+        .cr-input { width:100%;padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:#fff;font-size:15px;outline:none;transition:border-color 0.2s;box-sizing:border-box; }
+        .cr-input:focus { border-color:rgba(99,102,241,0.6); }
+        .cr-input option { background:#1a1a2e; }
+        .cr-cat-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px; }
+        .cr-cat-btn { padding:10px 6px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#aaa;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;text-align:center; }
+        .cr-cat-btn:hover { border-color:rgba(99,102,241,0.4);color:#fff; }
+        .cr-cat-btn.active { background:rgba(99,102,241,0.2);border-color:rgba(99,102,241,0.6);color:#a5b4fc; }
+        .cr-toggle-row { display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;border:1.5px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);cursor:pointer;transition:border-color 0.2s; }
+        .cr-toggle-row:hover { border-color:rgba(99,102,241,0.3); }
+        .cr-toggle-track { width:42px;height:24px;border-radius:999px;transition:background 0.3s;position:relative;flex-shrink:0; }
+        .cr-toggle-thumb { position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.3s; }
+        .cr-launch-btn { width:100%;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;letter-spacing:0.3px; }
+        .cr-launch-btn:hover { transform:scale(1.02);box-shadow:0 8px 24px rgba(168,85,247,0.45); }
+        .cr-copy-btn { margin-left:auto;flex-shrink:0;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;padding:4px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;letter-spacing:0.5px;transition:all 0.2s; }
+        .cr-copy-btn:hover { background:rgba(99,102,241,0.3); }
+        .cr-copy-btn.copied { background:rgba(16,185,129,0.2);border-color:rgba(16,185,129,0.4);color:#34d399; }
+        html[data-theme='light'] .cr-overlay { background:rgba(0,0,0,0.4);backdrop-filter:blur(4px); }
+        html[data-theme='light'] .cr-modal { background:#ffffff;border-color:rgba(0,0,0,0.1);box-shadow:0 32px 80px rgba(0,0,0,0.15); }
+        html[data-theme='light'] .cr-modal h2 { color:#0f172a !important; }
+        html[data-theme='light'] .cr-modal p { color:#334155 !important; }
+        html[data-theme='light'] .cr-modal label { color:#1e293b !important;font-weight:800 !important; }
+        html[data-theme='light'] .cr-input { background:#f8fafc;border-color:#e2e8f0;color:#0f172a; }
+        html[data-theme='light'] .cr-input:focus { border-color:#6366f1;background:#fff; }
+        html[data-theme='light'] .cr-cat-btn { background:#f1f5f9;border-color:#e2e8f0;color:#334155; }
+        html[data-theme='light'] .cr-cat-btn:hover { border-color:#6366f1;color:#6366f1; }
+        html[data-theme='light'] .cr-cat-btn.active { background:rgba(99,102,241,0.1);border-color:#6366f1;color:#4f46e5; }
+        html[data-theme='light'] .cr-toggle-row { background:#f8fafc;border-color:#e2e8f0; }
+        html[data-theme='light'] .cr-toggle-row .toggle-label { color:#0f172a !important; }
+        html[data-theme='light'] .cr-toggle-row .toggle-desc { color:#334155 !important; }
+        html[data-theme='light'] .cr-copy-btn { background:#f1f5f9;border-color:#cbd5e1;color:#4f46e5; }
+        html[data-theme='light'] .cr-copy-btn:hover { background:#e2e8f0; }
+        html[data-theme='light'] .cr-close-btn { background:#f1f5f9;border-color:#e2e8f0;color:#64748b; }
+        html[data-theme='light'] .cr-close-btn:hover { background:#e2e8f0;color:#1e293b; }
+        html[data-theme='light'] .create-room-hero-btn { color:#fff !important;-webkit-text-fill-color:#fff !important; }
+        html[data-theme='light'] .create-room-hero-btn span { color:#fff !important;-webkit-text-fill-color:#fff !important; }
+        html[data-theme='light'] .create-room-hero-btn svg { color:#fff !important;fill:#fff !important;stroke:none !important; }
+        html[data-theme='light'] .cr-launch-btn { box-shadow:none !important;color:#fff !important; }
+        html[data-theme='light'] .cr-launch-btn:hover { box-shadow:none !important; }
+
+        /* ── Responsive ── */
+        @media(max-width:960px){
+          .hero-split{flex-direction:column !important;align-items:center !important;text-align:center !important;}
+          .hero-card-wrapper{display:none !important;}
+          .hero-ctas{justify-content:center !important;}
+          .steps-row{flex-direction:column !important;align-items:stretch !important;}
+          .step-connector{display:none !important;}
+          .feat-grid{grid-template-columns:1fr 1fr !important;}
         }
-
-        html[data-theme='light'] .hiw-badge { 
-          background: rgba(99,102,241,0.08); 
-          border-color: rgba(99,102,241,0.2); 
-          color: #4f46e5; 
-          padding: 8px 24px;
-          font-size: 14px;
-          font-weight: 700;
+        @media(max-width:640px){
+          .feat-grid{grid-template-columns:1fr !important;}
+          .stats-row{flex-wrap:wrap !important;justify-content:center !important;}
+          .stat-sep{display:none !important;}
+          .plats-row{flex-wrap:wrap !important;justify-content:center !important;}
+          .pinned-grid{grid-template-columns:1fr !important;}
+          /* hero */
+          .hero-section-pad{ padding: 72px 16px 60px !important; }
+          /* hero join form — stack on tiny screens */
+          .hero-join-form{ flex-direction:column !important; border-radius:12px !important; }
+          .hero-join-input{ width:100% !important; padding:14px 16px !important; border-bottom:1px solid rgba(255,255,255,0.08); }
+          .hero-join-btn{ width:100% !important; padding:14px !important; justify-content:center !important; text-align:center; }
+          /* sections */
+          .home-section-pad{ padding-left:16px !important; padding-right:16px !important; }
+          .chat-demo-inner{ flex-direction:column !important; gap:32px !important; }
+          /* faq */
+          .faq-q{ font-size:14px !important; padding:14px 16px !important; }
         }
-
-        html[data-theme='light'] .pinned-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-        html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(99,102,241,0.3); }
-        html[data-theme='light'] .join-btn { background: linear-gradient(135deg, #8b5cf6, #d946ef); color: #fff !important; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); }
-        html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 6px 15px rgba(139, 92, 246, 0.4); }
-        html[data-theme='light'] .footer-layer { background: #fff !important; border-top: 1px solid rgba(0,0,0,0.04) !important; }
-        
-        html[data-theme='light'] .profile-pill { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #111 !important; }
-        html[data-theme='light'] .profile-pill:hover { background: rgba(0,0,0,0.08) !important; border-color: rgba(0,0,0,0.15) !important; }
-
-        html[data-theme='light'] .feature-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-        html[data-theme='light'] .feature-card h3 { color: #1a1a2e !important; }
-        html[data-theme='light'] .feature-card p { color: #4a5568 !important; }
-
-        html[data-theme='light'] .home-footer { background: #ffffff; border-top: 1px solid rgba(0,0,0,0.08); }
-        html[data-theme='light'] .home-footer h3, html[data-theme='light'] .home-footer h4 { color: #111 !important; }
-        html[data-theme='light'] .footer-link-btn { color: #6b7280; }
-        html[data-theme='light'] .footer-link-btn:hover { color: #6366f1; }
-        html[data-theme='light'] .footer-social-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: #555; }
-        html[data-theme='light'] .footer-social-btn:hover { color: #6366f1; background: rgba(99,102,241,0.08); }
-        html[data-theme='light'] .home-footer-bottom { color: #9ca3af !important; border-top-color: rgba(0,0,0,0.08) !important; }
-
-        /* ── Pinned Card Unpin Button ── */
-        html[data-theme='light'] .unpin-btn {
-          background: #f1f5f9 !important;
-          border-color: rgba(0,0,0,0.1) !important;
-          color: #475569 !important;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        html[data-theme='light'] .unpin-btn:hover {
-          background: #fff !important;
-          border-color: #4f46e5 !important;
-          color: #4f46e5 !important;
-        }
-
-        /* ── Hero Link ── */
-        html[data-theme='light'] .hero-link-btn { color: #4f46e5 !important; }
-        html[data-theme='light'] .hero-link-btn:hover { color: #3730a3 !important; text-decoration: underline; }
-
-        /* ── Section Alternation ── */
-        .section-alt { width: 100%; background: rgba(255,255,255,0.02); }
-        html[data-theme='light'] .section-alt { background: #f9fafb !important; }
-
-        /* ── Badges & Headings ── */
-        .section-icon-badge {
-          width: 40px;
-          height: 40px;
-          border-radius: 12px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #a0aab2;
-        }
-        html[data-theme='light'] .section-icon-badge {
-          background: #fff;
-          border-color: rgba(0,0,0,0.1);
-          color: #111;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        .section-heading {
-          font-size: 24px;
-          fontWeight: 800;
-          margin: 0;
-          color: #fff;
-        }
-        html[data-theme='light'] .section-heading { color: #000 !important; }
-
-        /* Create Room Modal Light Mode */
-        html[data-theme='light'] .cr-overlay { background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); }
-        html[data-theme='light'] .cr-modal { background: #ffffff; border-color: rgba(0,0,0,0.1); box-shadow: 0 32px 80px rgba(0,0,0,0.15); }
-        html[data-theme='light'] .cr-modal h2 { color: #0f172a !important; }
-        html[data-theme='light'] .cr-modal p { color: #334155 !important; }
-        html[data-theme='light'] .cr-modal label { color: #1e293b !important; font-weight: 800 !important; }
-        html[data-theme='light'] .cr-input { background: #f8fafc; border-color: #e2e8f0; color: #0f172a; }
-        html[data-theme='light'] .cr-input:focus { border-color: #6366f1; background: #fff; }
-        html[data-theme='light'] .cr-cat-btn { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
-        html[data-theme='light'] .cr-cat-btn:hover { border-color: #6366f1; color: #6366f1; }
-        html[data-theme='light'] .cr-cat-btn.active { background: rgba(99,102,241,0.1); border-color: #6366f1; color: #4f46e5; }
-        html[data-theme='light'] .cr-toggle-row { background: #f8fafc; border-color: #e2e8f0; }
-        html[data-theme='light'] .cr-toggle-row:hover { border-color: #cbd5e1; }
-        html[data-theme='light'] .cr-toggle-row .toggle-label { color: #0f172a !important; }
-        html[data-theme='light'] .cr-toggle-row .toggle-desc { color: #334155 !important; }
-        html[data-theme='light'] .cr-copy-btn { background: #f1f5f9; border-color: #cbd5e1; color: #4f46e5; }
-        html[data-theme='light'] .cr-copy-btn:hover { background: #e2e8f0; }
-        html[data-theme='light'] .cr-close-btn { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
-        html[data-theme='light'] .cr-close-btn:hover { background: #e2e8f0; color: #1e293b; }
-        html[data-theme='light'] .create-room-hero-btn { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-        html[data-theme='light'] .create-room-hero-btn span { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-        html[data-theme='light'] .create-room-hero-btn svg { color: #ffffff !important; fill: #ffffff !important; stroke: none !important; }
-        html[data-theme='light'] .cr-launch-btn { box-shadow: none !important; color: #ffffff !important; }
-        html[data-theme='light'] .cr-launch-btn:hover { box-shadow: none !important; }
-        html[data-theme='light'] .cr-launch-btn svg { color: #ffffff !important; fill: #ffffff !important; stroke: none !important; }
       `}</style>
 
-      {/* Create Room Modal */}
-      <CreateRoomModal 
-        isOpen={showCreateModal} 
-        onClose={() => setShowCreateModal(false)}
-        loggedInUsername={loggedInUsername} 
-      />
-
-      {/* Navbar */}
+      <CreateRoomModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} loggedInUsername={loggedInUsername} />
       <Navbar />
 
-      {/* Hero */}
-      <section style={{ textAlign: 'center', padding: '100px 0 80px', width: '100%' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 20px' }}>
-          <div className="hero-badge">
-            <Zap size={13} fill="currentColor" /> {t('zeroLatency', 'Zero-latency synchronization')}
-          </div>
+      {/* ─── SECTION 1: HERO ─── */}
+      <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflow: 'hidden' }}>
+        <div className="hero-orb orb-1" />
+        <div className="hero-orb orb-2" />
+        <div className="hero-orb orb-3" />
 
-          <h1 className="hero-title" style={{ fontSize: 'clamp(44px, 8vw, 84px)', fontWeight: 900, lineHeight: 1.05, margin: '0 0 24px', letterSpacing: '-2px' }}>
-            {t('watchWithFriends', 'WATCH WITH FRIENDS').split('WITH FRIENDS')[0]}
-            <span style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{'WITH FRIENDS'}</span>
-            <br />{t('anywhere', 'ANYWHERE.')}
-          </h1>
-
-          <p className="hero-desc" style={{ fontSize: '18px', lineHeight: 1.6, maxWidth: '580px', margin: '0 auto 48px' }}>
-            {t('heroDescription', 'Synchronize YouTube, Twitch, and Netflix with friends. Real-time chat, P2P screen sharing, and perfect media sync.')}
-          </p>
-
-          {/* CTA Row */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center', alignItems: 'center' }}>
-            {localStorage.getItem('watch_is_guest') !== 'true' && (
-              <button onClick={createRoom} className="create-room-hero-btn" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: '#fff', padding: '16px 32px', fontSize: '16px', borderRadius: '14px', fontWeight: 600, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(168,85,247,0.4)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
-              >
-                <Play size={18} fill="#fff" strokeWidth={0} style={{ color: '#fff' }} /> <span style={{ color: '#ffffff' }} className="stay-white">{t('createRoom', 'Create Room')}</span>
-              </button>
-            )}
-            <form onSubmit={handleJoin} className="hero-join-form" style={{ display: 'flex', alignItems: 'center', borderRadius: '14px', overflow: 'hidden' }}>
-              <input
-                type="text"
-                placeholder={t('enterRoomId', 'Enter Room ID...')}
-                value={roomId}
-                onChange={e => setRoomId(e.target.value)}
-                className="hero-join-input"
-                style={{ background: 'transparent', border: 'none', outline: 'none', padding: '16px 20px', fontSize: '15px', width: '220px' }}
-              />
-              <button type="submit" className="hero-join-btn"
-                style={{ border: 'none', padding: '16px 24px', fontWeight: 600, fontSize: '15px', cursor: 'pointer', transition: 'background 0.2s' }}
-              >
-                {t('join', 'Join')}
-              </button>
-            </form>
-          </div>
-          
-          <div style={{ marginTop: '32px', fontSize: '15px' }}>
-            <span className="hero-party-text">{t('lookingForParty', 'Looking for a party?')}</span>
-            <button className="hero-link-btn" onClick={() => navigate('/public')} style={{ background: 'none', border: 'none', color: '#a855f7', cursor: 'pointer', fontWeight: 600, padding: '0 6px', textDecoration: 'underline', transition: 'color 0.2s' }}>
-              {t('joinPublicRooms', 'Join public rooms')}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* How it Works */}
-      <section id="how-it-works" className="section-alt" style={{ padding: '120px 40px', width: '100%', position: 'relative' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 80 }}>
-            <div className="hiw-badge" style={{ padding: '8px 24px', borderRadius: 20, fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1 }}>⚡ {t('quickSetup', 'Quick Setup')}</div>
-            <h2 className="section-heading" style={{ fontSize: 'clamp(32px, 6vw, 52px)', marginBottom: 20, fontWeight: 900, letterSpacing: '-1.5px' }}>{t('startInSeconds', 'Start your watch party in seconds.')}</h2>
-            <p className="section-desc" style={{ fontSize: 19, color: '#94a3b8', maxWidth: 650, margin: '0 auto', lineHeight: 1.6 }}>{t('easiestWay', 'The easiest way to synchronize media with anyone on the planet.')}</p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 32 }}>
-            {[
-              { step: 1, emoji: '🎬', title: t('createARoom', 'Create a Room'), desc: t('createRoomDesc', 'Click the Create Room button to start your own private workspace.'), color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
-              { step: 2, emoji: '👥', title: t('inviteFriends', 'Invite Friends'), desc: t('inviteFriendsDesc', 'Copy the unique room link and share it via your favorite social apps.'), color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
-              { step: 3, emoji: '🍿', title: t('enjoyTogether', 'Enjoy Together'), desc: t('enjoyTogetherDesc', 'Paste a link, upload a video, or share your screen. Everything stays in sync!'), color: '#10b981', bg: 'rgba(16,185,129,0.12)' }
-            ].map(s => (
-              <div key={s.step} className="hiw-step-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <div style={{ marginBottom: 24 }}>
-                  <span className="hiw-step-num" style={{ color: s.color, fontSize: 14, fontWeight: 900, letterSpacing: 3, opacity: 0.8 }}>STEP {String(s.step).padStart(2,'0')}</span>
-                </div>
-                <div className="hiw-step-icon" style={{ background: s.bg, width: 90, height: 90, borderRadius: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px', fontSize: 36, border: `1px solid ${s.color}20`, boxShadow: `0 10px 30px ${s.color}15` }}>
-                  <span>{s.emoji}</span>
-                </div>
-                <h3 className="section-heading" style={{ fontSize: 24, marginBottom: 16, fontWeight: 800 }}>{s.title}</h3>
-                <p className="section-desc" style={{ fontSize: 16, lineHeight: 1.7, color: '#94a3b8' }}>{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pinned Rooms */}
-      {pinnedRooms.length > 0 && (
-        <section style={{ padding: '80px 40px' }}>
-          <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
-              <div className="section-icon-badge">
-                <Pin size={18} />
-              </div>
-              <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')} {pinnedRooms.length > 6 && <span style={{ fontSize: 13, background: 'rgba(255,255,255,0.1)', padding: '2px 8px', borderRadius: 10, marginLeft: 8 }}>{pinnedRooms.length} total</span>}</h2>
+        <div className="hero-split" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 60, position: 'relative', zIndex: 1 }}>
+          {/* Left */}
+          <div style={{ flex: '1 1 0', minWidth: 0 }}>
+            <div className="hero-badge">
+              <Zap size={13} fill="currentColor" /> {t('zeroLatency', 'Zero-latency synchronization')}
             </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-            {pinnedRooms.slice(0, 6).map(room => (
-              <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
-                <div className="img-layer">
-                  <img src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} alt="Room Cover" className="pinned-img"/>
-                  <div className="cat-badge pinned-tag">{getCategoryLabel(room.category, t)}</div>
-                  <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title={t('unpinRoom', 'Unpin Room')} style={{ right: 8, top: 8 }}>
-                    <Pin className="unpin-icon" size={16} />
-                  </button>
+            <h1 className="hero-title" style={{ fontSize: 'clamp(44px,7vw,80px)', fontWeight: 900, lineHeight: 1.05, margin: '0 0 24px', letterSpacing: '-2px' }}>
+              {t('watchWithFriends', 'WATCH WITH FRIENDS.')}
+              <br />
+              <span style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('anywhere', 'ANYWHERE.')}</span>
+            </h1>
+            <p className="hero-desc" style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 500, margin: '0 0 40px' }}>
+              {t('heroMainDesc', 'Synchronize YouTube, Twitch, and more with friends in real time. Live chat, P2P screen sharing, and perfect media sync — 100% free.')}
+            </p>
+            <div className="hero-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
+              {localStorage.getItem('watch_is_guest') !== 'true' && (
+                <button onClick={createRoom} className="create-room-hero-btn"
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '16px 32px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.45)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
+                </button>
+              )}
+              <form onSubmit={handleJoin} className="hero-join-form">
+                <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="hero-join-input" />
+                <button type="submit" className="hero-join-btn">{t('join', 'Join')}</button>
+              </form>
+            </div>
+            <div>
+              <span className="hero-party-text">{t('lookingForRoom', 'Looking for a room?')} </span>
+              <button className="hero-link-btn" onClick={() => navigate('/public')}>{t('browsePublicRooms', 'Browse public rooms')}</button>
+            </div>
+          </div>
+
+          {/* Right: clean single 3D app window */}
+          <div className="hero-card-wrapper" style={{ flex: '0 0 auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* Soft ambient glow */}
+            <div style={{ position:'absolute',inset:-40,background:'radial-gradient(ellipse at 55% 50%,rgba(99,102,241,0.26) 0%,rgba(168,85,247,0.12) 45%,transparent 70%)',filter:'blur(40px)',borderRadius:'50%',pointerEvents:'none' }} />
+
+            {/* ── The single rectangle card ── */}
+            <div style={{ position:'relative',zIndex:1,width:500,borderRadius:16,overflow:'hidden',background:'#0e0e20',border:'1px solid rgba(99,102,241,0.3)',boxShadow:'0 0 0 1px rgba(99,102,241,0.1),0 28px 70px -8px rgba(0,0,0,0.75),inset 0 1px 0 rgba(255,255,255,0.05)',transform:'perspective(1000px) rotateY(-10deg) rotateX(4deg)',animation:'cardFloat 6s ease-in-out infinite' }}>
+
+              {/* Title bar */}
+              <div style={{ height:40,background:'#12122a',borderBottom:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 14px' }}>
+                <div style={{ display:'flex',gap:6 }}>
+                  {['#ff5f57','#ffbd2e','#28c840'].map((c,i)=>(<div key={i} style={{ width:10,height:10,borderRadius:'50%',background:c }} />))}
                 </div>
-                <div className="footer-layer">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div className="pinned-id" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, letterSpacing: '0.5px' }}>
-                      <Hash size={10}/> {room.id}
+                <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+                  <span style={{ fontSize:12,color:'rgba(255,255,255,0.5)',fontWeight:600 }}>🎬 Movie Night</span>
+                  <div style={{ display:'flex' }}>
+                    {[['#6366f1','A'],['#a855f7','S'],['#10b981','V'],['#f59e0b','K']].map(([bg,l],i)=>(
+                      <div key={i} style={{ width:20,height:20,borderRadius:'50%',background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:800,marginLeft:i===0?0:-6,border:'1.5px solid #12122a' }}>{l}</div>
+                    ))}
+                    <span style={{ fontSize:10,color:'rgba(255,255,255,0.35)',marginLeft:5,alignSelf:'center' }}>+9</span>
+                  </div>
+                </div>
+                <div style={{ display:'flex',alignItems:'center',gap:5 }}>
+                  <span style={{ width:6,height:6,borderRadius:'50%',background:'#4eff9a',display:'inline-block',animation:'liveDot 1.5s ease-in-out infinite' }} />
+                  <span style={{ fontSize:10,color:'#4eff9a',fontWeight:700,letterSpacing:0.5 }}>LIVE</span>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ display:'flex',height:330 }}>
+
+                {/* LEFT: video */}
+                <div style={{ flex:'0 0 56%',position:'relative',overflow:'hidden',background:'linear-gradient(135deg,#0c0c22 0%,#16103a 50%,#0c1830 100%)',display:'flex',alignItems:'center',justifyContent:'center',borderRight:'1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ position:'absolute',inset:0,opacity:0.035,backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.7) 2px,rgba(255,255,255,0.7) 3px)',pointerEvents:'none' }} />
+                  <div style={{ position:'absolute',width:160,height:160,background:'radial-gradient(circle,rgba(99,102,241,0.22) 0%,transparent 70%)',borderRadius:'50%',filter:'blur(20px)' }} />
+                  <div style={{ width:52,height:52,borderRadius:'50%',background:'rgba(99,102,241,0.9)',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 0 13px rgba(99,102,241,0.12),0 0 44px rgba(99,102,241,0.45)',position:'relative',zIndex:1 }}>
+                    <Play fill="#fff" size={21} style={{ marginLeft:3 }} />
+                  </div>
+                  <div style={{ position:'absolute',top:10,left:12,background:'rgba(0,0,0,0.5)',backdropFilter:'blur(6px)',borderRadius:6,padding:'3px 8px',fontSize:10,color:'rgba(255,255,255,0.55)',fontWeight:600 }}>🎮 Gaming Room</div>
+                  <div style={{ position:'absolute',bottom:0,left:0,right:0 }}>
+                    <div style={{ padding:'0 12px 5px',display:'flex',justifyContent:'space-between' }}>
+                      <span style={{ fontSize:10,color:'rgba(255,255,255,0.4)',fontWeight:600 }}>01:26</span>
+                      <span style={{ fontSize:10,color:'rgba(255,255,255,0.25)' }}>03:48</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: '8px', color: '#10b981', fontSize: '11px', fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                      <Users size={12} /> {room.userCount}
+                    <div style={{ height:3,background:'rgba(255,255,255,0.07)' }}><div className="scene-progress-fill" /></div>
+                  </div>
+                </div>
+
+                {/* RIGHT: chat */}
+                <div style={{ flex:1,display:'flex',flexDirection:'column',overflow:'hidden' }}>
+                  {/* Tab bar */}
+                  <div style={{ height:34,borderBottom:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:4,padding:'0 10px' }}>
+                    {[['Group',true],['Private',false]].map(([label,active],i)=>(
+                      <div key={i} style={{ padding:'3px 9px',borderRadius:5,fontSize:11,fontWeight:700,cursor:'default',background:active?'rgba(99,102,241,0.2)':'transparent',color:active?'#a5b4fc':'rgba(255,255,255,0.3)',border:active?'1px solid rgba(99,102,241,0.3)':'1px solid transparent' }}>{label}</div>
+                    ))}
+                  </div>
+                  {/* Messages */}
+                  <div style={{ flex:1,padding:'8px 10px 4px',display:'flex',flexDirection:'column',gap:7,overflow:'hidden' }}>
+                    <div style={{ display:'flex',gap:6,alignItems:'flex-start' }}>
+                      <div style={{ width:22,height:22,borderRadius:'50%',background:'#6366f1',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:800,marginTop:1 }}>A</div>
+                      <div><div style={{ fontSize:9,color:'rgba(255,255,255,0.3)',marginBottom:2,fontWeight:600 }}>Alex</div><div className="chat-bubble-in" style={{ fontSize:11 }}>This scene is insane 🔥</div></div>
+                    </div>
+                    <div style={{ display:'flex',justifyContent:'flex-end' }}>
+                      <div className="chat-bubble-out" style={{ fontSize:11 }}>Who picked this? 😂</div>
+                    </div>
+                    <div style={{ display:'flex',gap:6,alignItems:'flex-start' }}>
+                      <div style={{ width:22,height:22,borderRadius:'50%',background:'#a855f7',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:800,marginTop:1 }}>S</div>
+                      <div><div style={{ fontSize:9,color:'rgba(255,255,255,0.3)',marginBottom:2,fontWeight:600 }}>Sam</div><div className="chat-bubble-in" style={{ fontSize:11 }}>omg I know!! 😭</div></div>
+                    </div>
+                    <div style={{ display:'flex',gap:6,alignItems:'flex-start' }}>
+                      <div style={{ width:22,height:22,borderRadius:'50%',background:'#f472b6',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#fff',fontWeight:800,marginTop:1 }}>M</div>
+                      <div><div style={{ fontSize:9,color:'rgba(255,255,255,0.3)',marginBottom:2,fontWeight:600 }}>Maya</div><div className="chat-bubble-in" style={{ fontSize:11 }}>Pause!! grabbing 🍿</div></div>
+                    </div>
+                    <div style={{ display:'flex',justifyContent:'flex-end' }}>
+                      <div className="chat-bubble-out" style={{ fontSize:11 }}>haha everyone hungry 😂</div>
+                    </div>
+                    <div style={{ display:'flex',alignItems:'center',gap:4 }}>
+                      {[0,0.2,0.4].map((d,i)=>(<div key={i} style={{ width:3,height:3,borderRadius:'50%',background:'rgba(255,255,255,0.3)',animation:`typingBounce 1.2s ease ${d}s infinite` }} />))}
+                      <span style={{ fontSize:9,color:'rgba(255,255,255,0.25)' }}>Sam is typing…</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 className="pinned-name" style={{ margin: 0, fontSize: '16px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{room.name}</h3>
-                    <button className="join-btn">{t('joinBtn', 'Join')}</button>
+                  {/* Input */}
+                  <div style={{ margin:'0 8px 8px',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:8,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between' }}>
+                    <span style={{ fontSize:11,color:'rgba(255,255,255,0.18)' }}>Message…</span>
+                    <div style={{ width:22,height:22,borderRadius:'50%',background:'linear-gradient(135deg,#6366f1,#a855f7)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                      <Send size={10} color="#fff" style={{ marginLeft:1 }} />
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
+           </div>
       </section>
+
+      {/* ─── PINNED ROOMS (if any) ─── */}
+
+      {isLoggedIn && pinnedRooms && pinnedRooms.length > 0 && (
+        <section className="home-section-pad" style={{ padding: '80px 40px' }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+              <div className="section-icon-badge"><Pin size={18} /></div>
+              <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
+            </div>
+            <div className="pinned-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+              {pinnedRooms.slice(0, 6).map(room => (
+                <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
+                  <div className="img-layer">
+                    <img src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} alt={t('roomCover', 'Room Cover')} className="pinned-img" />
+                    <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
+                    <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title="Unpin Room">
+                      <Pin className="unpin-icon" size={16} />
+                    </button>
+                  </div>
+                  <div className="footer-layer">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, letterSpacing: '0.5px', color: '#6b7280' }}>
+                        <Hash size={10} /> {room.id}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: 8, color: '#10b981', fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <Users size={12} /> {room.userCount}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{room.name}</h3>
+                      <button className="join-btn">{t('join', 'Join')}</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* Features Grid */}
-      <section id="features" className="section-alt" style={{ padding: '100px 40px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 60 }}>
-            <h2 className="section-heading" style={{ fontSize: 36, marginBottom: 16 }}>Premium Features</h2>
-            <p style={{ color: '#888', fontSize: 17 }}>Built with cutting-edge technology for the ultimate viewing experience.</p>
+      {/* ─── SECTION 3: HOW IT WORKS ─── */}
+      <section className="section-alt home-section-pad" id="how-it-works" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <div className="hero-badge" style={{ marginBottom: 20 }}>⚡ {t('quickSetup', 'Quick Setup')}</div>
+            <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,48px)', letterSpacing: '-1px' }}>{t('threeStepsSubtitle', "Three steps. That's it.")}</h2>
+            <p className="section-desc" style={{ fontSize: 17, marginTop: 16, maxWidth: 520, margin: '16px auto 0', lineHeight: 1.6 }}>{t('threeStepsNoSignup', 'No signup needed for guests. No downloads. No plugins. Just watch.')}</p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+          <div className="steps-row" style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative' }}>
+            {[
+              { n: '01', emoji: '🎬', color: '#6366f1', bg: 'rgba(99,102,241,0.12)', title: t('createARoom', 'Create a Room'), desc: t('step1HomeDesc', 'Click Create Room. Your private watch space is ready in under a second with a unique shareable link.'), tag: t('step1HomeTag', '⚡ Ready instantly') },
+              { n: '02', emoji: '👥', color: '#a855f7', bg: 'rgba(168,85,247,0.12)', title: t('inviteFriends', 'Invite Friends'), desc: t('step2HomeDesc', 'Share your room link. Friends join in one click — no account, no app, no hassle.'), tag: t('step2HomeTag', '🔗 One click to join') },
+              { n: '03', emoji: '🍿', color: '#10b981', bg: 'rgba(16,185,129,0.12)', title: t('watchSeamlessly', 'Watch Together'), desc: t('step3HomeDesc', 'Paste any video link or screenshare. Every play, pause, and seek syncs to everyone instantly.'), tag: t('step3HomeTag', '🎬 Always in sync') },
+            ].map((s, i) => (
+              <React.Fragment key={s.n}>
+                <div className="step-card" style={{ transition: 'all 0.25s ease' }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px) scale(1.01)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(99,102,241,0.15)'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; e.currentTarget.style.borderColor = ''; }}
+                >
+                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    <div style={{ width: 80, height: 80, borderRadius: 26, background: s.bg, border: `1px solid ${s.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, marginBottom: 24, boxShadow: `0 10px 30px ${s.color}15` }}>
+                      {s.emoji}
+                    </div>
+                    <h3 className="section-heading" style={{ fontSize: 22, marginBottom: 14, fontWeight: 800 }}>{s.title}</h3>
+                    <p className="section-desc" style={{ fontSize: 15, lineHeight: 1.7, maxWidth: 260 }}>{s.desc}</p>
+                    <span className="step-tag">{s.tag}</span>
+                  </div>
+                </div>
+                {i < 2 && <div className="step-connector" />}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SECTION 4: LIVE CHAT DEMO ─── */}
+      <section ref={chatSectionRef} className="chat-demo-section home-section-pad" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+            <h2 className="section-heading" style={{ fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, marginBottom: 14 }}>{t('seeItInActionTitle', 'See It in Action')}</h2>
+            <p className="section-desc" style={{ fontSize: 17, maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>{t('seeItInActionDesc', 'Real-time chat that feels alive — reactions, media, replies, all in sync.')}</p>
+          </div>
+          <div className="chat-demo-inner" style={{ display: 'flex', gap: 60, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            {/* LEFT: interactive chat demo */}
+            <div style={{ flex: '1 1 380px', minWidth: 0 }}>
+              {/* Tab row */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button className={`chat-tab${activeTab === 'group' ? ' active' : ''}`} onClick={() => setActiveTab('group')} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><MessageSquare size={13} /> {t('groupChat', 'Group Chat')}</button>
+                <button className={`chat-tab${activeTab === 'private' ? ' active' : ''}`} onClick={() => setActiveTab('private')} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Lock size={13} /> {t('privateChat', 'Private Chat')}</button>
+              </div>
+              {/* Chat window */}
+              <div className="chat-window">
+                {/* Header */}
+                <div className="chat-window-header" style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="chat-header-title" style={{ fontSize: 14, fontWeight: 700 }}>{activeTab === 'group' ? '🎬 Movie Night Room' : '🔒 Sarah (Private)'}</span>
+                  <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>{activeTab === 'group' ? '● 3 watching' : '● Online'}</span>
+                </div>
+                {/* Messages */}
+                <div className="chat-msgs" ref={chatMsgsRef}>
+                  {visibleMessages.map((msg) => (
+                    <div key={msg._k}>
+                      {msg.type === 'banner' && (
+                        <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, padding: '8px 12px', marginBottom: 4, fontSize: 12, color: '#818cf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Lock size={12} /> End-to-end encrypted — only you two can read this
+                        </div>
+                      )}
+                      {msg.type === 'system' && <div className="chat-system">{msg.text}</div>}
+                      {msg.type === 'out' && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <div>
+                            <div className="chat-bubble-out" style={{ maxWidth: 220 }}>{msg.text}</div>
+                            {msg.reactions && (
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, marginTop: 5 }}>
+                                {msg.reactions.map(r => <span key={r} className="chat-reaction">{r}</span>)}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              <button className="chat-reply-btn"><CornerUpLeft size={9} /> Reply</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {(msg.type === 'in' || msg.type === 'media' || msg.type === 'image') && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <div className="chat-avatar" style={{ width: 28, height: 28, borderRadius: '50%', background: msg.color, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{msg.initial}</div>
+                          <div>
+                            <div style={{ fontSize: 11, marginBottom: 4 }}><span style={{ color: msg.color, fontWeight: 700 }}>{msg.user}</span></div>
+                            {msg.type === 'in' && (
+                              <>
+                                <div className="chat-bubble-in">{msg.text}</div>
+                                {msg.reactions && (
+                                  <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+                                    {msg.reactions.map(r => <span key={r} className="chat-reaction">{r}</span>)}
+                                  </div>
+                                )}
+                                <button className="chat-reply-btn"><CornerUpLeft size={9} /> Reply</button>
+                              </>
+                            )}
+                            {msg.type === 'media' && (
+                              <>
+                                <div className="chat-media-card">
+                                  <Paperclip size={18} color="#9ca3af" />
+                                  <div>
+                                    <div className="chat-media-name">{msg.filename}</div>
+                                    <div className="chat-media-filesize">{msg.size}</div>
+                                  </div>
+                                </div>
+                                <button className="chat-reply-btn"><CornerUpLeft size={9} /> Reply</button>
+                              </>
+                            )}
+                            {msg.type === 'image' && (
+                              <>
+                                <svg width="160" height="90" viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg" style={{ borderRadius: 10, display: 'block' }}>
+                                  <defs>
+                                    <linearGradient id="animesky" x1="0%" y1="0%" x2="0%" y2="100%">
+                                      <stop offset="0%" stopColor="#0f0c29" />
+                                      <stop offset="55%" stopColor="#c0392b" />
+                                      <stop offset="100%" stopColor="#f5af19" />
+                                    </linearGradient>
+                                  </defs>
+                                  <rect width="160" height="90" fill="url(#animesky)" />
+                                  <circle cx="80" cy="52" r="18" fill="#ffeaa0" opacity="0.92" />
+                                  <ellipse cx="20" cy="95" rx="50" ry="22" fill="#0a0a1a" />
+                                  <ellipse cx="140" cy="95" rx="50" ry="22" fill="#0a0a1a" />
+                                  <circle cx="18" cy="12" r="1" fill="white" opacity="0.85" />
+                                  <circle cx="48" cy="6" r="1.2" fill="white" opacity="0.7" />
+                                  <circle cx="118" cy="10" r="1.5" fill="white" opacity="0.9" />
+                                  <circle cx="148" cy="18" r="1" fill="white" opacity="0.75" />
+                                  <circle cx="135" cy="5" r="0.8" fill="white" opacity="0.6" />
+                                  <rect x="3" y="66" width="5" height="24" fill="#0a0a1a" />
+                                  <polygon points="5.5,50 -2,66 13,66" fill="#0a0a1a" />
+                                  <rect x="150" y="63" width="5" height="24" fill="#0a0a1a" />
+                                  <polygon points="152.5,47 145,63 160,63" fill="#0a0a1a" />
+                                  <path d="M0,72 Q40,60 80,68 Q120,76 160,65 L160,90 L0,90 Z" fill="#0a0a1a" opacity="0.6" />
+                                </svg>
+                                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{msg.caption}</div>
+                                <button className="chat-reply-btn"><CornerUpLeft size={9} /> Reply</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {typingUser && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
+                      <div className="chat-avatar" style={{ width: 22, height: 22, borderRadius: '50%', background: typingUser.color, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>{typingUser.initial}</div>
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {[0, 0.2, 0.4].map((d, i) => (
+                          <div key={i} className="typing-dot" style={{ animation: `typingBounce 1.2s ease ${d}s infinite` }} />
+                        ))}
+                      </div>
+                      <span className="chat-typing-text">{typingUser.user} is typing...</span>
+                    </div>
+                  )}
+                </div>
+                {/* Input bar */}
+                <div className="chat-input-bar">
+                  <Smile size={16} style={{ cursor: 'pointer', flexShrink: 0, color: '#9ca3af' }} />
+                  <Paperclip size={16} style={{ cursor: 'pointer', flexShrink: 0, color: '#9ca3af' }} />
+                  <span style={{ flex: 1, fontSize: 13, color: '#6b7280' }}>{activeTab === 'group' ? 'Message the room...' : 'Private message...'}</span>
+                  <button className="chat-send-btn"><Send size={13} color="#fff" /></button>
+                </div>
+              </div>
+            </div>
+            {/* RIGHT: feature highlights */}
+            <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+              {[
+                { icon: <MessageSquare size={22} color="#6366f1" />, bg: 'rgba(99,102,241,0.1)', title: t('groupRoomChatTitle', 'Group Room Chat'), body: t('groupRoomChatDesc', 'Everyone in the room chats together in real time with emoji reactions, replies, and media sharing.') },
+                { icon: <Lock size={22} color="#6366f1" />, bg: 'rgba(99,102,241,0.1)', title: t('privateEncryptedDMsTitle', 'Private Encrypted DMs'), body: t('privateEncryptedDMsDesc', 'Send private messages to anyone in the room. End-to-end encrypted — nobody else can read them.') },
+                { icon: <Paperclip size={22} color="#14b8a6" />, bg: 'rgba(20,184,166,0.1)', title: t('shareMediaFilesTitle', 'Share Media & Files'), body: t('shareMediaFilesDesc', 'Send images, videos, and files directly in chat without leaving the room.') },
+                { icon: <Heart size={22} color="#ef4444" />, bg: 'rgba(239,68,68,0.1)', title: t('reactToMessagesTitle', 'React to Messages'), body: t('reactToMessagesDesc', 'Emoji reactions on any message. Express yourself beyond words.') },
+                { icon: <CornerUpLeft size={22} color="#f59e0b" />, bg: 'rgba(245,158,11,0.1)', title: t('replyToMessagesTitle', 'Reply to Messages'), body: t('replyToMessagesDesc', 'Quote and reply to specific messages to keep conversations clear.') },
+              ].map(f => (
+                <div key={f.title} style={{ display: 'flex', gap: 16, marginBottom: 28, alignItems: 'flex-start' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 12, background: f.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{f.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }} className="feat-title">{f.title}</div>
+                    <div style={{ fontSize: 14, lineHeight: 1.6 }} className="feat-desc">{f.body}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SECTION 5: FEATURES (6 cards, 2 rows × 3) ─── */}
+      <section className="home-section-pad" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,46px)', letterSpacing: '-1px', marginBottom: 14 }}>{t('everythingYouNeedTitle', 'Everything you need to watch together.')}</h2>
+            <p className="section-desc" style={{ fontSize: 17, lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>{t('cuttingEdgeDesc', 'Built with cutting-edge technology for the ultimate viewing experience.')}</p>
+          </div>
+          <div className="feat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
             {features.map(f => (
-              <div key={f.title} className="feature-card"
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = `0 20px 40px rgba(0,0,0,0.4), 0 0 0 1px ${f.color}30`; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = ''; }}
+              <div key={f.title} className="feat-card" style={{ borderTop: `3px solid ${f.color}` }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px ${f.color}25`; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = ''; }}
               >
-                <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: `${f.color}18`, border: `1px solid ${f.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: f.color, marginBottom: '20px' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: `${f.color}18`, border: `1px solid ${f.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: f.color, marginBottom: 18 }}>
                   {f.icon}
                 </div>
-                <h3 style={{ fontWeight: 700, fontSize: '18px', marginBottom: '10px', color: '#fff' }}>{f.title}</h3>
-                <p style={{ color: '#a0aab2', fontSize: '14px', lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
+                <h3 className="feat-title">{f.title}</h3>
+                <p className="feat-desc">{f.desc}</p>
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ─── SECTION 6: PLATFORMS MARQUEE ─── */}
+      <section className="marquee-section" style={{ padding: '80px 0' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48, padding: '0 40px' }}>
+          <h2 className="section-heading" style={{ fontSize: 'clamp(24px,4vw,38px)', fontWeight: 800, marginBottom: 12 }}>
+            {t('worksWithFavoritesTitle', 'Works With Your Favorites')}
+          </h2>
+          <p className="section-desc" style={{ fontSize: 16 }}>
+            {t('worksWithFavoritesDesc', 'Paste any link and start watching — no extra setup needed.')}
+          </p>
+        </div>
+
+        {/* Row 1 — scrolls left */}
+        <div style={{
+          overflow: 'hidden',
+          width: '100%',
+          marginBottom: 28,
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+          maskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+        }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 56,
+              width: 'max-content',
+              alignItems: 'center',
+              animation: 'marqueeLeft 28s linear infinite',
+              padding: '10px 28px',
+            }}
+            onMouseEnter={e => e.currentTarget.style.animationPlayState = 'paused'}
+            onMouseLeave={e => e.currentTarget.style.animationPlayState = 'running'}
+          >
+            {[...PLATFORMS, ...PLATFORMS, ...PLATFORMS].map((p, i) => (
+              <img
+                key={`r1-${i}`}
+                src={isLight ? (p.logoLight || p.logo) : (p.logoDark || p.logo)}
+                alt={p.name}
+                title={p.name}
+                style={{
+                  height: 44,
+                  width: 'auto',
+                  maxWidth: 80,
+                  objectFit: 'contain',
+                  display: 'block',
+                  flexShrink: 0,
+                  opacity: 0.38,
+                  filter: 'grayscale(15%)',
+                  transition: 'opacity 0.2s ease, filter 0.2s ease',
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.filter = 'grayscale(0%) brightness(1.15)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.opacity = '0.38';
+                  e.currentTarget.style.filter = 'grayscale(15%)';
+                }}
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2 — scrolls right */}
+        <div style={{
+          overflow: 'hidden',
+          width: '100%',
+          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+          maskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+        }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 56,
+              width: 'max-content',
+              alignItems: 'center',
+              animation: 'marqueeRight 34s linear infinite',
+              padding: '10px 28px',
+            }}
+            onMouseEnter={e => e.currentTarget.style.animationPlayState = 'paused'}
+            onMouseLeave={e => e.currentTarget.style.animationPlayState = 'running'}
+          >
+            {[...[...PLATFORMS].reverse(), ...[...PLATFORMS].reverse(), ...[...PLATFORMS].reverse()].map((p, i) => (
+              <img
+                key={`r2-${i}`}
+                src={isLight ? (p.logoLight || p.logo) : (p.logoDark || p.logo)}
+                alt={p.name}
+                title={p.name}
+                style={{
+                  height: 44,
+                  width: 'auto',
+                  maxWidth: 80,
+                  objectFit: 'contain',
+                  display: 'block',
+                  flexShrink: 0,
+                  opacity: 0.38,
+                  filter: 'grayscale(15%)',
+                  transition: 'opacity 0.2s ease, filter 0.2s ease',
+                  cursor: 'default',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.opacity = '1';
+                  e.currentTarget.style.filter = 'grayscale(0%) brightness(1.15)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.opacity = '0.38';
+                  e.currentTarget.style.filter = 'grayscale(15%)';
+                }}
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SECTION 7: FAQ ─── */}
+      <section className="faq-section home-section-pad" style={{ padding: '100px 40px' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <h2 className="section-heading" style={{ fontSize: 'clamp(24px,3vw,36px)', fontWeight: 800, marginBottom: 12 }}>{t('faqSectionTitle', 'Frequently Asked Questions')}</h2>
+            <p className="section-desc" style={{ fontSize: 16 }}>{t('faqSectionDesc', 'Everything you need to know before you start.')}</p>
+          </div>
+          {[
+            { q: t('homeFaqQ1', 'How many languages does SahaPlay support?'), a: t('homeFaqA1', 'SahaPlay currently supports 20 languages: English, Spanish, French, German, Japanese, Korean, Chinese, Hindi, Portuguese, Arabic, Russian, Italian, Telugu, Tamil, Bengali, Marathi, Gujarati, Malayalam, Kannada, and Punjabi. You can change your language anytime from the Settings menu.') },
+            { q: t('homeFaqQ2', "Can I hide other people's videos when streaming in a room?"), a: t('homeFaqA2', 'Yes! When you are in a room and another member has their camera turned on, you can hide or unhide their video at any time. Simply click on their video feed and select "Hide Video". This only affects your own view — others in the room are not affected.') },
+            { q: t('homeFaqQ3', 'Can I watch Netflix or Prime Video with friends?'), a: t('homeFaqA3', 'Yes — using the Screenshare feature. The host shares their Netflix or Prime Video browser tab and everyone in the room sees it in real time. Only the host needs a subscription to those services. Screenshare works best in Chrome browser.') },
+            { q: t('homeFaqQ4', 'What happens if my internet drops during a watch party?'), a: t('homeFaqA4', 'SahaPlay automatically tries to reconnect you to the room. Once you are back online, it jumps you to exactly where the video is currently playing — so you never miss anything. Your chat history also reloads automatically.') },
+          ].map((item, i) => (
+            <div key={i} style={{
+              marginBottom: 8,
+              border: `1px solid ${openFaq === i ? 'rgba(99,102,241,0.35)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)')}`,
+              borderLeft: openFaq === i ? '4px solid #6366f1' : `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,
+              borderRadius: 12,
+              background: openFaq === i ? (isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.08)') : (isLight ? '#ffffff' : '#1e1e30'),
+              overflow: 'hidden',
+              transition: 'border-color 0.2s, background 0.2s',
+            }}>
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', gap: 16, fontFamily: 'inherit' }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 16, color: isLight ? '#111827' : '#f9fafb' }}>{item.q}</span>
+                {openFaq === i
+                  ? <ChevronUp size={18} color="#6366f1" style={{ flexShrink: 0 }} />
+                  : <ChevronDown size={18} color={isLight ? '#6b7280' : '#9ca3af'} style={{ flexShrink: 0 }} />
+                }
+              </button>
+              {openFaq === i && (
+                <div style={{ padding: '0 24px 18px', color: isLight ? '#374151' : '#9ca3af', lineHeight: 1.75, fontSize: 14 }}>
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -810,8 +1057,3 @@ const Home = () => {
 };
 
 export default Home;
-
-
-
-
-

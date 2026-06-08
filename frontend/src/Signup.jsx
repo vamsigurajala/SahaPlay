@@ -28,6 +28,8 @@ const Signup = () => {
   const [globalError, setGlobalError]       = useState('');
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [agreeTerms, setAgreeTerms]               = useState(false);
+  const [agreePrivacy, setAgreePrivacy]            = useState(false);
 
   const navigate       = useNavigate();
   const { t }          = useTranslation();
@@ -35,16 +37,16 @@ const Signup = () => {
 
   const validateForm = () => {
     const e = {};
-    if (!username.trim())          e.username = 'Username is required';
-    else if (username.length < 3)  e.username = 'At least 3 characters';
-    if (!email.trim())             e.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'Enter a valid email';
-    if (!password)                 e.password = 'Password is required';
-    else if (password.length < 8)  e.password = 'At least 8 characters';
-    else if (!/[A-Z]/.test(password))   e.password = 'Include at least 1 uppercase letter';
-    else if (!/[0-9]/.test(password))   e.password = 'Include at least 1 number';
-    else if (!/[^A-Za-z0-9]/.test(password)) e.password = 'Include at least 1 special character';
-    if (confirmPassword !== password) e.confirmPassword = 'Passwords do not match';
+    if (!username.trim())          e.username = t('usernameRequired', 'Username is required');
+    else if (username.length < 3)  e.username = t('usernameTooShort', 'At least 3 characters');
+    if (!email.trim())             e.email = t('emailRequired', 'Email is required');
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = t('emailInvalid', 'Enter a valid email');
+    if (!password)                 e.password = t('passwordRequired', 'Password is required');
+    else if (password.length < 8)  e.password = t('passwordTooShort', 'At least 8 characters');
+    else if (!/[A-Z]/.test(password))   e.password = t('passwordUpper', 'Include at least 1 uppercase letter');
+    else if (!/[0-9]/.test(password))   e.password = t('passwordNumber', 'Include at least 1 number');
+    else if (!/[^A-Za-z0-9]/.test(password)) e.password = t('passwordSpecial', 'Include at least 1 special character');
+    if (confirmPassword !== password) e.confirmPassword = t('passwordsMismatch', 'Passwords do not match');
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -61,7 +63,7 @@ const Signup = () => {
         body: JSON.stringify({ username, email, password })
       });
       const data = await response.json();
-      if (!response.ok) { setGlobalError(data.error || 'Signup failed'); return; }
+      if (!response.ok) { setGlobalError(data.error || t('signupFailed', 'Signup failed')); return; }
 
       // Generate a 24-letter recovery key
       const chars = 'abcdefghijklmnopqrstuvwxyz';
@@ -93,7 +95,7 @@ const Signup = () => {
       setShowRecoveryModal(true);
     } catch (err) {
       console.error('Signup error:', err);
-      setGlobalError('Network error. Please try again.');
+      setGlobalError(t('networkError', 'Network error. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -119,10 +121,10 @@ const Signup = () => {
         localStorage.setItem('watch_username', data.username);
         navigate('/');
       } else {
-        setGlobalError(data.error || 'Google Signup failed');
+        setGlobalError(data.error || t('googleSignupFailed', 'Google Signup failed'));
       }
     } catch {
-      setGlobalError('Network error during Google Auth');
+      setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
     } finally {
       setIsSubmitting(false);
     }
@@ -131,7 +133,7 @@ const Signup = () => {
   const handlePhraseConfirmed = () => {
     setShowRecoveryModal(false);
     setRecoveryPhrase('');
-    navigate('/login', { state: { message: 'Account created! Please check your email to verify your account.' } });
+    navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
   };
 
   return (
@@ -325,7 +327,7 @@ const Signup = () => {
             onClick={() => navigate('/')}
             className="back-box-btn"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', transition: 'all 0.2s', backdropFilter: 'blur(10px)' }}
-            title="Back to Home"
+            title={t('backToHome', 'Back to Home')}
           >
             <ArrowLeft size={20} />
           </button>
@@ -341,11 +343,10 @@ const Signup = () => {
               <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
             </div>
             <h1 className="login-left-text" style={{ fontSize: '56px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
-              Join the<br />future of<br />
-              <span className="login-left-gradient-text" style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>watching.</span>
+              {t('joinFutureWatching', 'Join the future of watching.')}
             </h1>
             <p className="login-left-text" style={{ fontSize: '18px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, maxWidth: '480px' }}>
-              Create your free account and start watching with friends in synchronized rooms — with end-to-end encrypted chat.
+              {t('signupSubtitle', 'Create your free account and start watching with friends in synchronized rooms — with end-to-end encrypted chat.')}
             </p>
           </div>
         </div>
@@ -353,9 +354,9 @@ const Signup = () => {
         {/* ── Right Panel ── */}
         <div className="login-right">
           <div className="login-card animated-fade-in">
-            <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>Create Account</h1>
+            <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('createAccount', 'Create Account')}</h1>
             <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
-              Already have one?{' '}
+              {t('alreadyHaveOne', 'Already have one?')}{' '}
               <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
             </p>
 
@@ -368,13 +369,13 @@ const Signup = () => {
             <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
               {/* Username */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Username</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('usernameLabel', 'Username')}</label>
                 <div style={{ position: 'relative' }}>
                   <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type="text" className="login-input"
                     style={{ borderColor: errors.username ? '#ef4444' : undefined }}
-                    placeholder="Username" value={username}
+                    placeholder={t('usernamePlaceholder', 'Username')} value={username}
                     onChange={e => { setUsername(e.target.value); if (errors.username) setErrors({ ...errors, username: null }); }}
                   />
                 </div>
@@ -383,13 +384,13 @@ const Signup = () => {
 
               {/* Email */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Email Address</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('emailAddressLabel', 'Email Address')}</label>
                 <div style={{ position: 'relative' }}>
                   <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type="email" className="login-input"
                     style={{ borderColor: errors.email ? '#ef4444' : undefined }}
-                    placeholder="name@example.com" value={email}
+                    placeholder={t('emailPlaceholder', 'name@example.com')} value={email}
                     onChange={e => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: null }); }}
                   />
                 </div>
@@ -398,13 +399,13 @@ const Signup = () => {
 
               {/* Password */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Password</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('passwordLabel', 'Password')}</label>
                 <div style={{ position: 'relative' }}>
                   <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type={showPassword ? 'text' : 'password'} className="login-input"
                     style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
-                    placeholder="Password" value={password}
+                    placeholder={t('passwordPlaceholder', 'Password')} value={password}
                     onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
                   />
                   <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
@@ -416,13 +417,13 @@ const Signup = () => {
 
               {/* Confirm Password */}
               <div>
-                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Confirm Password</label>
+                <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('confirmPasswordLabel', 'Confirm Password')}</label>
                 <div style={{ position: 'relative' }}>
                   <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type={showConfirmPassword ? 'text' : 'password'} className="login-input"
                     style={{ paddingRight: '48px', borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
-                    placeholder="Confirm your password" value={confirmPassword}
+                    placeholder={t('confirmPasswordPlaceholder', 'Confirm your password')} value={confirmPassword}
                     onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
                   />
                   <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
@@ -436,26 +437,59 @@ const Signup = () => {
               <div className="su-e2ee" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px', padding: '10px 14px', marginBottom: '24px' }}>
                 <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
                 <span className="su-e2ee-label" style={{ fontSize: '12px', color: '#a5b4fc', flex: 1 }}>
-                  <strong style={{ color: '#c7d2fe' }}>Save Recovery Phrase</strong>
+                  <strong style={{ color: '#c7d2fe' }}>{t('saveRecoveryPhrase', 'Save Recovery Phrase')}</strong>
                 </span>
                 <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
                   i
                   <span className="tooltip-text">
-                    After signup you'll receive a 24-letter recovery key. It's the only way to recover your encrypted messages if you forget your password or change your device. The server never sees your messages.
+                    {t('recoveryTooltip', "After signup you'll receive a 24-letter recovery key. It's the only way to recover your encrypted messages if you forget your password or change your device. The server never sees your messages.")}
                   </span>
                 </div>
               </div>
 
-              <button type="submit" disabled={isSubmitting} className="login-submit-btn">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: 'inherit' }}>
+                  <input
+                    type="checkbox"
+                    checked={agreeTerms}
+                    onChange={e => setAgreeTerms(e.target.checked)}
+                    required
+                    style={{ width: '16px', height: '16px', accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span>
+                    {t('agreeTermsPrefix', 'I agree to the')}{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'underline' }}>
+                      {t('termsAndConditions', 'Terms & Conditions')}
+                    </a>
+                  </span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', color: 'inherit' }}>
+                  <input
+                    type="checkbox"
+                    checked={agreePrivacy}
+                    onChange={e => setAgreePrivacy(e.target.checked)}
+                    required
+                    style={{ width: '16px', height: '16px', accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <span>
+                    {t('agreePrivacyPrefix', 'I agree to the')}{' '}
+                    <a href="https://www.iubenda.com/privacy-policy/25516226" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'underline' }}>
+                      {t('privacyPolicy', 'Privacy Policy')}
+                    </a>
+                  </span>
+                </label>
+              </div>
+
+              <button type="submit" disabled={isSubmitting || !agreeTerms || !agreePrivacy} className="login-submit-btn">
                 {isSubmitting
-                  ? <><div className="su-spinner" /><span>Creating account...</span></>
+                  ? <><div className="su-spinner" /><span>{t('creatingAccount', 'Creating account...')}</span></>
                   : <><UserPlus size={18} /><span>{t('signUp', 'Sign Up')}</span></>}
               </button>
             </form>
 
             <div style={{ margin: '28px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ flex: 1, height: '1px', background: 'rgba(150,150,150,0.15)' }} />
-              <span style={{ fontSize: '11px', color: '#888', letterSpacing: '1px', fontWeight: 700 }}>OR SIGN UP WITH</span>
+              <span style={{ fontSize: '11px', color: '#888', letterSpacing: '1px', fontWeight: 700 }}>{t('orSignUpWith', 'OR SIGN UP WITH')}</span>
               <div style={{ flex: 1, height: '1px', background: 'rgba(150,150,150,0.15)' }} />
             </div>
 
@@ -473,7 +507,7 @@ const Signup = () => {
                 <div style={{ position: 'absolute', inset: 0, opacity: 0.001, zIndex: 2 }}>
                   <GoogleLogin
                     onSuccess={handleGoogleSuccess}
-                    onError={() => setGlobalError('Google Signup was unsuccessful')}
+                    onError={() => setGlobalError(t('googleUnsuccessful', 'Google Signup was unsuccessful'))}
                     type="icon" shape="circle" size="large"
                   />
                 </div>
@@ -483,8 +517,8 @@ const Signup = () => {
               <button
                 type="button"
                 className="social-btn apple-btn"
-                onClick={() => setGlobalError('Apple Sign-In is not yet configured')}
-                title="Sign up with Apple"
+                onClick={() => setGlobalError(t('appleNotConfigured', 'Apple Sign-In is not yet configured'))}
+                title={t('appleNotConfigured', 'Apple Sign-In is not yet configured')}
                 style={{ width: '50px', height: '50px' }}
               >
                 <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">

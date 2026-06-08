@@ -2,9 +2,11 @@ import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Monitor, Link as LinkIcon, Upload, ChevronRight } from 'lucide-react';
 
-import { FaYoutube, FaTwitch, FaVimeo, FaInstagram, FaApple, FaSpotify, FaTiktok, FaSoundcloud } from 'react-icons/fa';
+import { FaYoutube, FaTwitch, FaVimeo, FaInstagram, FaApple, FaSpotify, FaTiktok, FaSoundcloud, FaFacebook } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
 import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv } from 'react-icons/si';
 import { GiGolfFlag, GiPoolTriangle, GiSnake, GiRaceCar, GiPistolGun } from 'react-icons/gi';
+import { MonitorPlay } from 'lucide-react';
 
 const OPTIONS = [
   // Quick Actions
@@ -23,6 +25,12 @@ const OPTIONS = [
   { id: 'hbomax', name: 'HBO MAX', category: 'Movies & Video', bgColor: '#18002a', color: '#fff', brandColor: '#991ef2', icon: SiHbomax, type: 'placeholder', url: 'https://max.com', isWide: true, image: '/images/apps/hbomax.jpg' },
   { id: 'hotstar', name: 'Disney+ Hotstar', category: 'Movies & Video', bgColor: '#040714', color: '#0063e5', brandColor: '#0063e5', type: 'placeholder', url: 'https://hotstar.com', isWide: true, image: '/images/apps/hotstar.jpg' },
   { id: 'crunchyroll', name: 'Crunchyroll', category: 'Movies & Video', bgColor: '#000', color: '#F47521', brandColor: '#F47521', icon: SiCrunchyroll, type: 'placeholder', url: 'https://crunchyroll.com', isWide: true, image: '/images/apps/crunchyroll.jpg' },
+  { id: 'zee5', name: 'ZEE5', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #1A0A3B 0%, #2D1B69 100%)', color: '#fff', brandColor: '#5E2A8C', icon: MonitorPlay, type: 'placeholder', url: 'https://zee5.com', isWide: true, image: '/platforms/zee5plt.jpg' },
+  { id: 'sonyliv', name: 'SonyLIV', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #0A0A14 0%, #1A0A1A 100%)', color: '#fff', brandColor: '#D50000', icon: MonitorPlay, type: 'placeholder', url: 'https://sonyliv.com', isWide: true, image: '/platforms/Sonylivplt.jpg' },
+  { id: 'peacocktv', name: 'Peacock', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #011825 0%, #022B3A 100%)', color: '#fff', brandColor: '#4FC3F7', icon: MonitorPlay, type: 'placeholder', url: 'https://peacocktv.com', isWide: true, image: '/platforms/Peacocktvplt.jpg' },
+  { id: 'viki', name: 'Rakuten Viki', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #0A1929 0%, #0D2137 100%)', color: '#fff', brandColor: '#00B8D4', icon: MonitorPlay, type: 'placeholder', url: 'https://viki.com', isWide: true, image: '/platforms/vikiplt.png' },
+  { id: 'mxplayer', name: 'MX Player', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #0A0A14 0%, #0F1020 100%)', color: '#fff', brandColor: '#FF6B35', icon: MonitorPlay, type: 'placeholder', url: 'https://mxplayer.in', isWide: true, image: '/platforms/MXplayerplt.jpg' },
+  { id: 'aha', name: 'aha', category: 'Movies & Video', bgColor: 'linear-gradient(135deg, #E8400A 0%, #FF6B1A 100%)', color: '#fff', brandColor: '#FF5722', icon: MonitorPlay, type: 'placeholder', url: 'https://aha.video', isWide: true, image: '/platforms/Ahaplt.png' },
 
   // Live Web Games
   { id: 'minigolf', name: 'Mini Golf', category: 'Web Games', bgColor: 'linear-gradient(135deg, #059669 0%, #064e3b 100%)', color: '#fff', brandColor: '#10b981', icon: GiGolfFlag, type: 'placeholder', url: 'https://games.crazygames.com/en_US/mini-golf-club/index.html', isWide: true, image: '/images/apps/minigolf.jpg' },
@@ -39,6 +47,8 @@ const OPTIONS = [
   // Social Media
   { id: 'tiktok', name: 'TikTok', category: 'Social Media', bgColor: '#000', color: '#fff', brandColor: '#EE1D52', icon: FaTiktok, type: 'placeholder', url: 'https://tiktok.com', isWide: true, image: '/images/apps/tiktok.jpg' },
   { id: 'instagram', name: 'Instagram', category: 'Social Media', bgColor: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', color: '#fff', brandColor: '#E1306C', icon: FaInstagram, type: 'placeholder', url: 'https://instagram.com', isWide: true, image: '/images/apps/instagram.jpg' },
+  { id: 'facebook', name: 'Facebook', category: 'Social Media', bgColor: 'linear-gradient(135deg, #0A3D91 0%, #1877F2 100%)', color: '#fff', brandColor: '#1877F2', icon: FaFacebook, type: 'placeholder', url: 'https://facebook.com', isWide: true, image: '/platforms/facebookplt.jpg' },
+  { id: 'xtwitter', name: 'X', category: 'Social Media', bgColor: 'linear-gradient(135deg, #000000 0%, #15202B 100%)', color: '#fff', brandColor: '#fff', icon: FaXTwitter, type: 'placeholder', url: 'https://x.com', isWide: true, image: '/platforms/xplt.png' },
 ];
 
 // Stateful card component — tracks whether background image loaded successfully

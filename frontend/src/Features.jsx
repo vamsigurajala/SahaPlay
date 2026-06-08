@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Zap, Globe, MessageSquare, Play, ArrowRight, Lock, Shield, Users,
   Smartphone, Moon, RefreshCw, Tv, Compass, Bell, Monitor, FolderOpen,
-  Activity, Check, X, Crown, ShieldAlert, Sparkles, Send, Volume2, ShieldCheck, Heart, Camera, Link2, ListVideo
+  Activity, Check, X, Crown, ShieldAlert, Sparkles, Send, Volume2, ShieldCheck, Heart, Camera, Link2, ListVideo, ChevronUp
 } from 'lucide-react';
 import { FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaWhatsapp, FaTelegramPlane, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP } from 'react-icons/fa';
 import { SiNetflix, SiAppletv, SiGmail } from 'react-icons/si';
@@ -48,9 +48,11 @@ const Features = () => {
   }, []);
   const isLight = theme === 'light';
 
-  // Scroll to top on mount
+  const [showBackToTop, setShowBackToTop] = useState(false);
   useEffect(() => {
-    window.scrollTo(0, 0);
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   // Simulate latency updates
@@ -98,7 +100,7 @@ const Features = () => {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -930,8 +932,8 @@ const Features = () => {
             <p className="section-body" style={{ color: 'var(--text-secondary)' }}>{t('howWeCompareDesc', 'See how WatchTogether compares to generic screensharing platforms.')}</p>
           </div>
 
-          <div className="glass-panel glow-border" style={{ overflowX: 'auto', background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.4)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 20 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 600 }}>
+          <div className="glass-panel glow-border" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.4)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 20 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 520 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14 }}>{t('featureMatrix', 'Feature Matrix')}</th>
@@ -1010,6 +1012,36 @@ const Features = () => {
       </section>
 
       <Footer />
+
+      {showBackToTop && (
+        <button
+          className="back-to-top-btn"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          style={{
+            position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 999,
+            padding: '10px 22px', borderRadius: 50,
+            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 8,
+            color: '#fff', fontSize: 14, fontWeight: 600,
+            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            whiteSpace: 'nowrap',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateX(-50%)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+          }}
+        >
+          <ChevronUp size={18} color="#fff" />
+          {t('termsBackToTop', 'Back to Top')}
+        </button>
+      )}
     </div>
   );
 };

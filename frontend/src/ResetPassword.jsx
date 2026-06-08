@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff, Key, Play, LogIn, CheckCircle, Shield } from 'lucide-react';
 import { mnemonicToSecretKey, encryptPrivateKey, hashRecoveryPhrase } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
@@ -21,6 +22,7 @@ const ResetPassword = () => {
 
   const navigate  = useNavigate();
   const location  = useLocation();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const params   = new URLSearchParams(location.search);
@@ -28,17 +30,17 @@ const ResetPassword = () => {
     if (urlToken) {
       setToken(urlToken);
     } else {
-      setGlobalError('Invalid or missing reset token. Please request a new reset link.');
+      setGlobalError(t('invalidResetToken', 'Invalid or missing reset token. Please request a new reset link.'));
     }
-  }, [location]);
+  }, [location, t]);
 
   const validate = () => {
     const errs = {};
-    if (!password) errs.password = 'Password is required';
-    else if (password.length < 8) errs.password = 'Must be at least 8 characters';
-    else if (!/(?=.*[A-Z])/.test(password)) errs.password = 'Must include at least one uppercase letter';
-    else if (!/(?=.*\d)/.test(password)) errs.password = 'Must include at least one number';
-    if (password !== confirmPassword) errs.confirmPassword = 'Passwords do not match';
+    if (!password) errs.password = t('passwordRequired', 'Password is required');
+    else if (password.length < 8) errs.password = t('resetPasswordMinLength', 'Must be at least 8 characters');
+    else if (!/(?=.*[A-Z])/.test(password)) errs.password = t('resetPasswordUppercase', 'Must include at least one uppercase letter');
+    else if (!/(?=.*\d)/.test(password)) errs.password = t('resetPasswordNumber', 'Must include at least one number');
+    if (password !== confirmPassword) errs.confirmPassword = t('passwordsMismatch', 'Passwords do not match');
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -46,7 +48,7 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setGlobalError('');
-    if (!token) { setGlobalError('Invalid reset token.'); return; }
+    if (!token) { setGlobalError(t('invalidResetTokenShort', 'Invalid reset token.')); return; }
     if (!validate()) return;
 
     setIsSubmitting(true);
@@ -68,7 +70,7 @@ const ResetPassword = () => {
           payload.recoveryKeyHash = recKeyHash;
         } catch (err) {
           console.error("Recovery key error:", err);
-          setGlobalError("Invalid recovery key format.");
+          setGlobalError(t('invalidRecoveryKey', 'Invalid recovery key format.'));
           setIsSubmitting(false);
           return;
         }
@@ -82,13 +84,25 @@ const ResetPassword = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        setGlobalError(data.error || 'Password reset failed. Please try again.');
+        let errorKey = 'passwordResetFailed';
+        let defaultMsg = 'Password reset failed. Please try again.';
+        if (data.error === 'Invalid or expired reset token') {
+          errorKey = 'invalidResetTokenShort';
+          defaultMsg = 'Invalid reset token.';
+        } else if (data.error === 'Reset token has expired. Please request a new one.') {
+          errorKey = 'invalidResetToken';
+          defaultMsg = 'Invalid or missing reset token. Please request a new reset link.';
+        } else if (data.error === 'Token and new password are required') {
+          errorKey = 'somethingWentWrongError';
+          defaultMsg = 'Something went wrong. Please try again.';
+        }
+        setGlobalError(t(errorKey, data.error || defaultMsg));
         return;
       }
 
-      setSuccessMsg(data.message || 'Password reset successfully!');
+      setSuccessMsg(data.message || t('passwordResetSuccessDesc', 'Your password has been updated successfully. You can now log in with your new password.'));
     } catch {
-      setGlobalError('Network error. Please try again later.');
+      setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -228,11 +242,11 @@ const ResetPassword = () => {
             <h2 className="login-left-text" style={{ fontSize: '24px', fontWeight: 800, color: '#fff', letterSpacing: '1px', margin: 0 }}>SahaPlay</h2>
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
-            Create your<br />new password.<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Stay secure.</span>
+            {t('createNewPassword', 'Create your new password.')}<br />
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('staySecure', 'Stay secure.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
-            Choose a strong password with at least 8 characters, one uppercase letter, and one number.
+            {t('resetPasswordLeftDesc', 'Choose a strong password with at least 8 characters, one uppercase letter, and one number.')}
           </p>
         </div>
       </div>
@@ -247,20 +261,20 @@ const ResetPassword = () => {
               <div style={{ width: '72px', height: '72px', borderRadius: '20px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', boxShadow: '0 0 40px rgba(16,185,129,0.15)' }}>
                 <CheckCircle size={36} color="#10b981" strokeWidth={1.5} />
               </div>
-              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px' }}>Password Reset!</h1>
+              <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#fff', margin: '0 0 10px' }}>{t('passwordResetSuccess', 'Password Reset!')}</h1>
               <p style={{ color: '#888', fontSize: '15px', lineHeight: 1.65, margin: '0 0 32px' }}>
-                Your password has been updated successfully. You can now log in with your new password.
+                {t('passwordResetSuccessDesc', 'Your password has been updated successfully. You can now log in with your new password.')}
               </p>
               <button onClick={() => navigate('/login')} className="login-submit-btn">
-                <LogIn size={18} /><span>Go to Login</span>
+                <LogIn size={18} /><span>{t('goToLogin', 'Go to Login')}</span>
               </button>
             </div>
           ) : (
             /* ── Form ── */
             <>
-              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>New Password</h1>
+              <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('newPasswordTitle', 'New Password')}</h1>
               <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
-                Choose a strong password for your account.
+                {t('newPasswordDesc', 'Choose a strong password for your account.')}
               </p>
 
               {globalError && (
@@ -269,7 +283,7 @@ const ResetPassword = () => {
                   {globalError.includes('expired') && (
                     <div style={{ marginTop: '10px' }}>
                       <Link to="/forgot-password" style={{ color: '#6366f1', fontWeight: 700, textDecoration: 'none' }}>
-                        Request a new reset link →
+                        {t('requestNewResetLink', 'Request a new reset link →')}
                       </Link>
                     </div>
                   )}
@@ -279,14 +293,14 @@ const ResetPassword = () => {
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
                 {/* New Password */}
                 <div>
-                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>New Password</label>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('newPasswordLabel', 'New Password')}</label>
                   <div style={{ position: 'relative' }}>
                     <Key size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       className="login-input"
                       style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
-                      placeholder="Min 8 chars, 1 uppercase, 1 number"
+                      placeholder={t('newPasswordPlaceholder', 'Min 8 chars, 1 uppercase, 1 number')}
                       value={password}
                       onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
                     />
@@ -303,14 +317,14 @@ const ResetPassword = () => {
 
                 {/* Confirm Password */}
                 <div>
-                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Confirm Password</label>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('confirmPasswordLabel', 'Confirm Password')}</label>
                   <div style={{ position: 'relative' }}>
                     <Key size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                     <input
                       type={showConfirm ? 'text' : 'password'}
                       className="login-input"
                       style={{ paddingRight: '48px', borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
-                      placeholder="Re-enter your new password"
+                      placeholder={t('reenterPasswordPlaceholder', 'Re-enter your new password')}
                       value={confirmPassword}
                       onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
                     />
@@ -327,13 +341,15 @@ const ResetPassword = () => {
 
                 {/* Recovery Key (Optional) */}
                 <div>
-                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>Recovery Key <span style={{ color: '#666', fontWeight: 400 }}>(Optional but recommended)</span></label>
+                  <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>
+                    {t('recoveryKeyLabel', 'Recovery Key')} <span style={{ color: '#666', fontWeight: 400 }}>{t('optionalRecommended', '(Optional but recommended)')}</span>
+                  </label>
                   <div style={{ position: 'relative' }}>
                     <Shield size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                     <input
                       type="text"
                       className="login-input"
-                      placeholder="e.g. ABCD EFGH IJKL MNOP QRST UVWX"
+                      placeholder={t('recoveryKeyPlaceholder', 'e.g. ABCD EFGH IJKL MNOP QRST UVWX')}
                       value={recoveryKey}
                       onChange={e => setRecoveryKey(e.target.value)}
                     />
@@ -341,20 +357,20 @@ const ResetPassword = () => {
                   <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(99,102,241,0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(99,102,241,0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
                     <p style={{ margin: 0, fontSize: '12px', color: '#a5b4fc', lineHeight: 1.5 }}>
-                      If you enter your recovery key, your password will be updated <strong>without losing any data</strong>. If you leave this blank, your old encrypted messages will be <strong>permanently erased</strong> for your security.
+                      {t('recoveryKeyInfoText', 'If you enter your recovery key, your password will be updated without losing any data. If you leave this blank, your old encrypted messages will be permanently erased for your security.')}
                     </p>
                   </div>
                 </div>
 
                 <button type="submit" disabled={isSubmitting || !token} className="login-submit-btn">
                   {isSubmitting
-                    ? <><div className="rp-spinner" /><span>Resetting...</span></>
-                    : <><LogIn size={18} /><span>Reset Password</span></>}
+                    ? <><div className="rp-spinner" /><span>{t('resettingText', 'Resetting...')}</span></>
+                    : <><LogIn size={18} /><span>{t('resetPasswordBtn', 'Reset Password')}</span></>}
                 </button>
               </form>
 
               <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
-                <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>← Back to Login</Link>
+                <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('backToLoginArrow', '← Back to Login')}</Link>
               </p>
             </>
           )}

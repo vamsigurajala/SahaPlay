@@ -20,6 +20,8 @@ const Navbar = () => {
   const loggedInUsername = localStorage.getItem('watch_username');
   const isLoggedIn = !!token;
 
+  const [scrolled, setScrolled] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,6 +44,12 @@ const Navbar = () => {
 
   const navIconsRef = useRef(null);
   const chatWidgetRef = useRef(null);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -226,7 +234,26 @@ const Navbar = () => {
 
   return (
     <>
-      <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
+      <style>{`
+        .main-nav {
+          position: sticky; top: 0; z-index: 1000;
+          transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+        .main-nav.scrolled {
+          background: rgba(9,9,11,0.85) !important;
+          backdrop-filter: blur(20px) !important;
+          -webkit-backdrop-filter: blur(20px) !important;
+          border-bottom-color: rgba(255,255,255,0.08) !important;
+          box-shadow: 0 2px 28px rgba(0,0,0,0.45) !important;
+        }
+        html[data-theme='light'] .main-nav.scrolled {
+          background: rgba(247,248,252,0.92) !important;
+          border-bottom-color: rgba(0,0,0,0.08) !important;
+          box-shadow: 0 2px 16px rgba(0,0,0,0.08) !important;
+        }
+      `}</style>
+      <nav className={`main-nav${scrolled ? ' scrolled' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="nav-bar-row">
         {/* Left: Logo */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
           <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
@@ -239,7 +266,7 @@ const Navbar = () => {
         <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
           <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>{t('home', 'Home')}</button>
           <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
-          <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'How it Works')}</button>
+          <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
           <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
         </div>
 
@@ -252,7 +279,7 @@ const Navbar = () => {
                 <div style={{ position: 'relative' }}>
                   <button 
                     className={`nav-icon-btn${showSearch ? ' active' : ''}`}
-                    title="Search"
+                    title={t('search', 'Search')}
                     onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
                   >
                     <Search size={18} />
@@ -261,7 +288,7 @@ const Navbar = () => {
                     <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
                       <input 
                         autoFocus
-                        placeholder="Search users..."
+                        placeholder={t('searchUsersPlaceholder', 'Search users...')}
                         className="nav-input"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -283,18 +310,18 @@ const Navbar = () => {
                             </div>
                           ))
                         ) : (
-                          searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
+                          searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
                         )}
                       </div>
                     </div>
                   )}
                 </div>
-
+ 
                 {/* Chats Trigger */}
                 <div style={{ position: 'relative' }}>
                   <button 
                     className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
-                    title="Chats"
+                    title={t('chats', 'Chats')}
                     onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
                   >
                     <MessageSquare size={18} />
@@ -305,10 +332,10 @@ const Navbar = () => {
                     )}
                   </button>
                 </div>
-
+ 
                 {/* Notifications */}
                 <div style={{ position: 'relative' }}>
-                  <button title="Notifications" onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                  <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                     <Bell size={18} />
                     {followRequests.filter(r => r.status === 'pending').length > 0 && (
                       <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -441,7 +468,39 @@ const Navbar = () => {
               </button>
             </div>
           )}
+          {/* Hamburger — hidden on desktop via CSS */}
+          <button
+            className="nav-hamburger-btn"
+            onClick={() => setShowMobileMenu(m => !m)}
+            aria-label="Toggle menu"
+          >
+            <div className="ham-line" style={{ transform: showMobileMenu ? 'rotate(45deg) translate(0, 7px)' : 'none' }} />
+            <div className="ham-line" style={{ opacity: showMobileMenu ? 0 : 1 }} />
+            <div className="ham-line" style={{ transform: showMobileMenu ? 'rotate(-45deg) translate(0, -7px)' : 'none' }} />
+          </button>
         </div>
+        </div>{/* end nav-bar-row */}
+
+        {/* Mobile menu panel */}
+        {showMobileMenu && (
+          <div className="mobile-nav-panel">
+            <button className={`mobile-nav-link${location.pathname === '/' ? ' active' : ''}`} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>{t('home', 'Home')}</button>
+            <button className={`mobile-nav-link${location.pathname === '/features' ? ' active' : ''}`} onClick={() => { navigate('/features'); setShowMobileMenu(false); }}>{t('features', 'Features')}</button>
+            <button className={`mobile-nav-link${location.pathname === '/how-it-works' ? ' active' : ''}`} onClick={() => { navigate('/how-it-works'); setShowMobileMenu(false); }}>{t('howItWorks', 'Guide')}</button>
+            <button className={`mobile-nav-link${location.pathname === '/public' ? ' active' : ''}`} onClick={() => { navigate('/public'); setShowMobileMenu(false); }}>{t('explore', 'Explore')}</button>
+            {!isLoggedIn && (
+              <>
+                <div className="mobile-nav-divider" />
+                <button className="mobile-nav-link" onClick={() => { navigate('/login'); setShowMobileMenu(false); }}>{t('logIn', 'Log In')}</button>
+                <button
+                  className="mobile-nav-link"
+                  style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontWeight: 700, borderRadius: 10 }}
+                  onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}
+                >{t('signUp', 'Sign Up')}</button>
+              </>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Guest Warning Marquee */}

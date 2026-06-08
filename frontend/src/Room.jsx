@@ -90,7 +90,7 @@ function Avatar({ name, size = 36, isHost = false, isAdmin = false, isMuted = fa
             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
           />
         ) : null}
-        <span style={{ display: imgUrl ? 'none' : 'flex' }}>{getInitials(name)}</span>
+        <span className="stay-white" style={{ display: imgUrl ? 'none' : 'flex', color: '#fff' }}>{getInitials(name)}</span>
       </div>
       {isMuted && <div className="stay-white" style={{ position: 'absolute', bottom: -2, right: -2, width: 14, height: 14, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #111' }}><MicOff size={8} color="#fff" /></div>}
     </div>
@@ -5027,7 +5027,7 @@ const Room = () => {
                 }}>
                   <MonitorPlay size={44} color={isLight ? '#6366f1' : '#fff'} strokeWidth={2} />
                 </div>
-                <h3 style={{ margin: '0 0 16px', color: isLight ? '#0f172a' : '#fff', fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
+                <h3 className={(isFullscreen || isTvMode) ? 'stay-white' : ''} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
                 {!isTvMode && (
                 <button 
                   onClick={() => setShowMediaSelector(true)} 
