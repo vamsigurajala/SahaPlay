@@ -188,16 +188,19 @@ const rooms = new Map();
 const connectedSockets = new Map();
 function registerSocket(username, socketId) {
   if (!username || username === 'Anonymous') return;
-  if (!connectedSockets.has(username)) connectedSockets.set(username, new Set());
-  connectedSockets.get(username).add(socketId);
+  const key = username.toLowerCase();
+  if (!connectedSockets.has(key)) connectedSockets.set(key, new Set());
+  connectedSockets.get(key).add(socketId);
 }
 function unregisterSocket(username, socketId) {
-  if (!username || !connectedSockets.has(username)) return;
-  connectedSockets.get(username).delete(socketId);
-  if (connectedSockets.get(username).size === 0) connectedSockets.delete(username);
+  if (!username) return;
+  const key = username.toLowerCase();
+  if (!connectedSockets.has(key)) return;
+  connectedSockets.get(key).delete(socketId);
+  if (connectedSockets.get(key).size === 0) connectedSockets.delete(key);
 }
 function emitToUser(username, event, data) {
-  const sids = connectedSockets.get(username);
+  const sids = connectedSockets.get((username || '').toLowerCase());
   if (!sids) return;
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
@@ -2113,7 +2116,7 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
     }
 
     // Now working with a DB message
-    if (action === 'local' || msg.senderName !== username) {
+    if (action === 'local' || (msg.senderName || '').toLowerCase() !== username) {
        // Local Hide Delete
        let hidden = [];
        try { hidden = JSON.parse(msg.hiddenFor || '[]'); } catch(e){}
@@ -3247,12 +3250,16 @@ io.on('connection', (socket) => {
     const nonceText = e2ee ? e2ee.nonce : null;
     const ephemText = e2ee && e2ee.keys ? JSON.stringify(e2ee.keys) : null;
 
-    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, message, timestamp, replyTo, mediaUrl, mediaType, nonce, "ephemeralPublicKey") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, message, timestamp, replyTo, mediaUrl, mediaType, nonce, "ephemeralPublicKey") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [roomId, 'group', socket.id, username, message || '', msg.timestamp, replyTo ? JSON.stringify(replyTo) : null, msg.mediaUrl, msg.mediaType, nonceText, ephemText], function(err) {
         if (err) { console.error('Error saving group message:', err); return; }
-        // Send the real DB id back to the sender so delete/unsend uses it reliably
-        if (this.lastID && tempId) {
-          socket.emit('chat:message_persisted', { tempId, dbId: String(this.lastID) });
+        const dbId = this.lastID;
+        if (dbId) {
+          // Swap optimistic id for real DB id on the sender side
+          if (tempId) socket.emit('chat:message_persisted', { tempId, dbId: String(dbId) });
+          // Also update in-memory id so delete works immediately
+          const inMem = room.groupMessages.find(m => m.tempId === tempId || m.id === msg.id);
+          if (inMem) inMem.dbId = String(dbId);
         }
       });
 
@@ -3640,9 +3647,12 @@ io.on('connection', (socket) => {
     const users = [socket.username, targetName].sort();
     const dmRoomId = 'dm-' + users.join('-');
 
-    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null], (err) => {
-        if (err) console.error('Error saving private message:', err);
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null], function(err) {
+        if (err) { console.error('Error saving private message:', err); return; }
+        if (this.lastID && tempId) {
+          socket.emit('chat:message_persisted', { tempId, dbId: String(this.lastID) });
+        }
       });
       
     broadcastMessage(null, payload, socket.id, socket.username);

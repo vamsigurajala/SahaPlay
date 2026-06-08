@@ -1149,7 +1149,10 @@ export default function RoomChatPanel({ p }) {
                     const lastMsg = p.groupMessages.length > 0 ? p.groupMessages[p.groupMessages.length-1] : null;
                     if (!lastMsg) return t('groupConv', 'Group conversation');
                     const sender = lastMsg.username || lastMsg.senderName;
-                    const preview = lastMsg.decryptedText || (lastMsg.mediaType ? (lastMsg.mediaType.startsWith('video') ? 'Video' : 'Photo') : (lastMsg.message && looksLikeCiphertext(lastMsg.message) ? 'Encrypted message' : (lastMsg.message?.slice(0,32) || '...')));
+                    const mt = lastMsg.mediaType;
+                    const preview = lastMsg.decryptedText
+                      || (mt ? (mt.startsWith('video') ? 'Video' : mt.startsWith('image') ? 'Photo' : mt.startsWith('audio') ? 'Voice Note' : 'File')
+                        : (lastMsg.message && looksLikeCiphertext(lastMsg.message) ? 'Message' : (lastMsg.message?.slice(0,32) || '...')));
                     return sender ? `${sender}: ${preview}` : preview;
                   })()}
                 </div>
@@ -1249,7 +1252,10 @@ export default function RoomChatPanel({ p }) {
                     </div>
                     <div style={{fontSize:11,color: isLight ? '#475569' : '#a1a1aa',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                       {last ? (() => {
-                        const preview = last.decryptedText || (last.mediaType ? (last.mediaType.startsWith('video') ? 'Video' : 'Photo') : (last.message && looksLikeCiphertext(last.message) ? 'Encrypted message' : (last.message?.slice(0,32) || '')));
+                        const lmt = last.mediaType;
+                        const preview = last.decryptedText
+                          || (lmt ? (lmt.startsWith('video') ? 'Video' : lmt.startsWith('image') ? 'Photo' : lmt.startsWith('audio') ? 'Voice Note' : 'File')
+                            : (last.message && looksLikeCiphertext(last.message) ? 'Message' : (last.message?.slice(0,32) || '')));
                         return last.isMe ? `You: ${preview}` : preview;
                       })() : 'Start a private chat'}
                     </div>
@@ -1355,9 +1361,9 @@ export default function RoomChatPanel({ p }) {
                         return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); 
                       })()}: </span>{(() => {
                         const raw = msg.replyTo.message || '';
-                        if (msg.replyTo.mediaType) return msg.replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                        if (msg.replyTo.mediaType) { const rmt=msg.replyTo.mediaType; return rmt.startsWith('video')?'Video':rmt.startsWith('image')?'Photo':rmt.startsWith('audio')?'Voice Note':'File'; }
                         if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
-                        if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Encrypted message';
+                        if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                         return raw.slice(0,60) || 'Message';
                       })()}
                     </div>
@@ -1421,10 +1427,10 @@ export default function RoomChatPanel({ p }) {
                           {msg.decryptedText !== null ? (
                             <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
                           ) : (
-                            (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message))) ? (
+                            (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                               <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                             ) : (
-                              msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
+                              !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                             )
                           )}
                           {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName)}
@@ -1523,10 +1529,10 @@ export default function RoomChatPanel({ p }) {
             <div style={{padding:'6px 12px',background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
               <span><span style={{color:'#6366f1',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
                 const r = p.groupReplyTo;
-                if (r.mediaType) return r.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                if (r.mediaType) { const rmt3=r.mediaType; return rmt3.startsWith('video')?'Video':rmt3.startsWith('image')?'Photo':rmt3.startsWith('audio')?'Voice Note':'File'; }
                 if (r.decryptedText) return r.decryptedText.slice(0,50);
                 const raw = r.message || '';
-                if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return "Encrypted message";
+                if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                 return raw.slice(0,50) || 'Message';
               })()}</span>
               <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
@@ -1769,9 +1775,9 @@ export default function RoomChatPanel({ p }) {
                               {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                             </span> {(() => {
                               const raw = msg.replyTo.message || '';
-                              if (msg.replyTo.mediaType) return msg.replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                              if (msg.replyTo.mediaType) { const rmt2=msg.replyTo.mediaType; return rmt2.startsWith('video')?'Video':rmt2.startsWith('image')?'Photo':rmt2.startsWith('audio')?'Voice Note':'File'; }
                               if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
-                              if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Encrypted message';
+                              if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                               return raw.slice(0,60) || 'Message';
                             })()}
                           </div>
@@ -1806,10 +1812,10 @@ export default function RoomChatPanel({ p }) {
                                 {msg.decryptedText !== null ? (
                                   <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
                                 ) : (
-                                  (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message))) ? (
+                                  (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                   ) : (
-                                    msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
+                                    !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                                   )
                                 )}
                                 {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName)}
@@ -1905,7 +1911,7 @@ export default function RoomChatPanel({ p }) {
                         {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                       </span> {(() => {
                         const r = p.dmReplyTo;
-                        if (r.mediaType) return r.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                        if (r.mediaType) { const rmt4=r.mediaType; return rmt4.startsWith('video')?'Video':rmt4.startsWith('image')?'Photo':rmt4.startsWith('audio')?'Voice Note':'File'; }
                         if (r.decryptedText) return r.decryptedText.slice(0,50);
                         return (r.message||'').slice(0,50) + ((r.message||'').length > 50 ? '...' : '');
                       })()}</span>

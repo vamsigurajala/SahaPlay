@@ -399,7 +399,7 @@ function resolveReplyMessages(messages) {
     if (!original) return m;
     const resolved =
       original.decryptedText ||
-      (original.mediaType ? (original.mediaType.startsWith('video') ? 'Video' : 'Photo') : '') ||
+      (original.mediaType ? (original.mediaType.startsWith('video') ? 'Video' : original.mediaType.startsWith('image') ? 'Photo' : original.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : '') ||
       (looksLikeCiphertext(original.message || '') ? '' : (original.message || ''));
     return { ...m, replyTo: { ...m.replyTo, message: resolved } };
   });
@@ -775,6 +775,7 @@ const GlobalChatWidget = forwardRef(({
     return () => observer.disconnect();
   }, []);
   const messagesEndRef = useRef(null);
+  const prevMsgCountRef = useRef(0);
   const inputRef = useRef(null);
   const socketRef = useRef(null);
   const activeChatRef = useRef(null);
@@ -1342,11 +1343,12 @@ const GlobalChatWidget = forwardRef(({
       const isViewingThis = currentView === 'chat' && (currentChat?.partner === partner || currentChat?.id === partner);
 
       // Compute a short preview text
-      const mediaPreview = msg.mediaUrl 
-        ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') 
+      const _mt0 = msg.mediaType;
+      const mediaPreview = (msg.mediaUrl || _mt0)
+        ? (_mt0?.startsWith('video') ? 'Video' : _mt0?.startsWith('image') ? 'Photo' : _mt0?.startsWith('audio') ? 'Voice Note' : 'File')
         : null;
-      const previewText = mediaPreview || 
-        (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Encrypted message') : (msg.message || 'New message'));
+      const previewText = mediaPreview ||
+        (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : (msg.message || 'New message'));
       
       // ─── E2EE Decryption ─── (uses keyPairRef.current to avoid stale closure)
       let decryptedMessage = msg.message;
@@ -1454,12 +1456,13 @@ const GlobalChatWidget = forwardRef(({
 
       // RE-COMPUTE PREVIEW TEXT AFTER DECRYPTION
       // This is what shows in the conversation list (sidebar) and toasts
-      const finalizedMediaPreview = (msg.mediaUrl || msg.mediaType)
-        ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo')
+      const _mt1 = msg.mediaType;
+      const finalizedMediaPreview = (msg.mediaUrl || _mt1)
+        ? (_mt1?.startsWith('video') ? 'Video' : _mt1?.startsWith('image') ? 'Photo' : _mt1?.startsWith('audio') ? 'Voice Note' : 'File')
         : null;
-      
-      const finalizedPreview = finalizedMediaPreview || 
-        (msg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Encrypted message') : (msg.message || 'New message')));
+
+      const finalizedPreview = finalizedMediaPreview ||
+        (msg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : (msg.message || 'New message')));
 
       // If this message belongs to the currently open chat, append it to the message list
       if (isViewingThis) {
@@ -1551,12 +1554,13 @@ const GlobalChatWidget = forwardRef(({
 
         let updatedList;
         if (exists) {
-          const convDecryptedText = msg.mediaType
-            ? (msg.mediaType.startsWith('video') ? 'Video' : 'Photo')
+          const _mt2 = msg.mediaType;
+          const convDecryptedText = _mt2
+            ? (_mt2.startsWith('video') ? 'Video' : _mt2.startsWith('image') ? 'Photo' : _mt2.startsWith('audio') ? 'Voice Note' : 'File')
             : (msg.decryptedText || null);
-          const updatedItem = { 
-            ...exists, 
-            message: finalizedPreview, 
+          const updatedItem = {
+            ...exists,
+            message: finalizedPreview,
             decryptedText: convDecryptedText,
             lastMediaType: msg.mediaType || null,
             lastTimestamp: msgTs, 
@@ -1574,8 +1578,9 @@ const GlobalChatWidget = forwardRef(({
           const others = conversations.filter(c => c.partner !== partner && c.id !== partner);
           updatedList = [updatedItem, ...others];
         } else {
-          const convDecryptedText = msg.mediaType
-            ? (msg.mediaType.startsWith('video') ? 'Video' : 'Photo')
+          const _mt3 = msg.mediaType;
+          const convDecryptedText = _mt3
+            ? (_mt3.startsWith('video') ? 'Video' : _mt3.startsWith('image') ? 'Photo' : _mt3.startsWith('audio') ? 'Voice Note' : 'File')
             : (msg.decryptedText || null);
           updatedList = [{
             id: isGroup ? partner : undefined,
@@ -1808,9 +1813,10 @@ const GlobalChatWidget = forwardRef(({
   }, [token, myUsername]);
 
   useLayoutEffect(() => {
-    if (messagesEndRef.current) {
+    if (messages.length > prevMsgCountRef.current && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
     }
+    prevMsgCountRef.current = messages.length;
   }, [messages]);
 
   // Autofocus input when opening a chat or replying
@@ -1854,13 +1860,15 @@ const GlobalChatWidget = forwardRef(({
                }
             }
             // For private media: attach lastMediaType so list can show "Photo"/"Video" regardless of decryption status
-            const privateMeta = c.mediaType ? { lastMediaType: c.mediaType, message: c.mediaType.startsWith('video') ? 'Video' : 'Photo' } : {};
+            const _pmt = c.mediaType;
+            const privateMeta = _pmt ? { lastMediaType: _pmt, message: _pmt.startsWith('video') ? 'Video' : _pmt.startsWith('image') ? 'Photo' : _pmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
             // Also normalize message to decrypted text for non-media so localStorage never stores ciphertext
             const msgNormalize = (!c.mediaType && plainText) ? { message: plainText } : {};
             return { ...c, ...privateMeta, ...msgNormalize, decryptedText: plainText };
           } else if (c.type === 'room') {
             // Always attach lastMediaType for room media so the list renderer never shows ciphertext
-            const mediaMeta = c.mediaType ? { lastMediaType: c.mediaType, message: c.mediaType.startsWith('video') ? 'Video' : 'Photo' } : {};
+            const _rmt = c.mediaType;
+            const mediaMeta = _rmt ? { lastMediaType: _rmt, message: _rmt.startsWith('video') ? 'Video' : _rmt.startsWith('image') ? 'Photo' : _rmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
             if (c.e2ee && c.nonce) {
               if (!kp) return { ...c, ...mediaMeta, decryptedText: null };
               try {
@@ -1871,7 +1879,7 @@ const GlobalChatWidget = forwardRef(({
                   const plain = decryptGroupMessage(c.message, c.nonce, myEncKey, senderPubKey, kp.secretKey);
                   if (plain !== null) {
                     if (c.mediaType) {
-                      const mediaLabel = c.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                      const mediaLabel = c.mediaType.startsWith('video') ? 'Video' : c.mediaType.startsWith('image') ? 'Photo' : c.mediaType.startsWith('audio') ? 'Voice Note' : 'File';
                       // Normalize message to readable label so localStorage never stores ciphertext
                       return { ...c, ...mediaMeta, message: mediaLabel, decryptedText: mediaLabel };
                     }
@@ -2278,7 +2286,7 @@ const GlobalChatWidget = forwardRef(({
       replyTo: replyToMsg ? {
         id: replyToMsg.id,
         username: replyToMsg.senderName || replyToMsg.username || activeChat?.displayName,
-        message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyToMsg.decryptedText || (looksLikeCiphertext(replyToMsg.message||'') ? '' : (replyToMsg.message||'')))
+        message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : replyToMsg.mediaType.startsWith('image') ? 'Photo' : replyToMsg.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : (replyToMsg.decryptedText || (looksLikeCiphertext(replyToMsg.message||'') ? '' : (replyToMsg.message||'')))
       } : null
     };
     const previousConversations = [...conversations];
@@ -2560,7 +2568,7 @@ const GlobalChatWidget = forwardRef(({
           replyTo: replyToMsg ? {
             id: replyToMsg.id,
             username: replyToMsg.senderName || replyToMsg.username || activeChat?.displayName,
-            message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyToMsg.decryptedText || replyToMsg.message)
+            message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : replyToMsg.mediaType.startsWith('image') ? 'Photo' : replyToMsg.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : (replyToMsg.decryptedText || replyToMsg.message)
           } : null,
           tempId: tempId
         })
@@ -3768,9 +3776,10 @@ const GlobalChatWidget = forwardRef(({
                                 if (chat.type === 'room' && (!chat.lastTimestamp || chat.lastTimestamp === 0)) {
                                   return <span style={{ color: 'var(--menu-icon)' }}>Start a conversation</span>;
                                 }
-                                const mediaLabel = chat.lastMediaType ? (chat.lastMediaType.startsWith('video') ? 'Video' : 'Photo') : null;
+                                const _lmt = chat.lastMediaType;
+                                const mediaLabel = _lmt ? (_lmt.startsWith('video') ? 'Video' : _lmt.startsWith('image') ? 'Photo' : _lmt.startsWith('audio') ? 'Voice Note' : 'File') : null;
                                 const rawMsg = chat.message || '';
-                                const msgLabel = mediaLabel || chat.decryptedText || (looksLikeCiphertext(rawMsg) ? (isMe ? 'Message sent' : 'Encrypted message') : (rawMsg || ''));
+                                const msgLabel = mediaLabel || chat.decryptedText || (looksLikeCiphertext(rawMsg) ? (isMe ? 'Message sent' : 'Message') : (rawMsg || ''));
                                 if (chat.type === 'room') {
                                   const senderLabel = isMe ? 'You' : (chat.lastSenderName || '');
                                   return senderLabel ? `${senderLabel}: ${msgLabel}` : msgLabel;
@@ -4051,7 +4060,7 @@ const GlobalChatWidget = forwardRef(({
                               {msg.decryptedText !== null ? (
                                 <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
                               ) : (
-                                (msg.message && looksLikeCiphertext(msg.message)) ? (
+                                (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (
                                   <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                 ) : (
                                   msg.message && !msg.mediaType && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
@@ -4270,7 +4279,7 @@ const GlobalChatWidget = forwardRef(({
                   <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
                     <span><span style={{color:'#6366f1',fontWeight:600}}>{replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}: </span>{(() => {
                       const r = replyToMsg;
-                      if (r.mediaType) return r.mediaType.startsWith('video') ? 'Video' : 'Photo';
+                      if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':'File'; }
                       if (r.decryptedText) return r.decryptedText.slice(0,50);
                       const raw = r.message || '';
                       if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
