@@ -1,0 +1,402 @@
+[
+  {
+    "key": "networkError",
+    "en": "Network error. Check connection."
+  },
+  {
+    "key": "neverSharePhrase",
+    "en": "Never share this phrase."
+  },
+  {
+    "key": "newPassword",
+    "en": "New Password"
+  },
+  {
+    "key": "newPinLabel",
+    "en": "New 6-digit PIN"
+  },
+  {
+    "key": "newRecoveryKey",
+    "en": "New Master Recovery Key"
+  },
+  {
+    "key": "newRecoveryKeyDesc",
+    "en": "Keep this new key safe. If you forget your PIN, this will be your only way to recover access. Previous keys will become invalid."
+  },
+  {
+    "key": "noBannedUsers",
+    "en": "No users are banned from this room."
+  },
+  {
+    "key": "noBlockedUsers",
+    "en": "No blocked users yet"
+  },
+  {
+    "key": "noFollowersYet",
+    "en": "No followers yet"
+  },
+  {
+    "key": "noLiveStreamsFound",
+    "en": "We couldn't find any live streams in this category. Try searching for something else!"
+  },
+  {
+    "key": "noMediaSelected",
+    "en": "No Media Selected"
+  },
+  {
+    "key": "noNewNotifications",
+    "en": "No new notifications"
+  },
+  {
+    "key": "noneLabel",
+    "en": "None"
+  },
+  {
+    "key": "notFollowingAnyoneYet",
+    "en": "Not following anyone yet"
+  },
+  {
+    "key": "notifDesc",
+    "en": "Control which notifications you receive across the app"
+  },
+  {
+    "key": "of",
+    "en": "of"
+  },
+  {
+    "key": "offlineMessage",
+    "en": "Offline message..."
+  },
+  {
+    "key": "onlyHostCanMessage",
+    "en": "Only the host can message..."
+  },
+  {
+    "key": "onlyHostRename",
+    "en": "Only host can rename room"
+  },
+  {
+    "key": "onlyWay",
+    "en": "only way"
+  },
+  {
+    "key": "openUrlInstruction",
+    "en": "Open this URL on your TV or phone"
+  },
+  {
+    "key": "orContinueWith",
+    "en": "OR CONTINUE WITH"
+  },
+  {
+    "key": "page",
+    "en": "Page"
+  },
+  {
+    "key": "password",
+    "en": "Password"
+  },
+  {
+    "key": "pasteUrl",
+    "en": "Paste a URL below or upload a local file"
+  },
+  {
+    "key": "pendingJoinRequests",
+    "en": "Pending Join Requests"
+  },
+  {
+    "key": "permissions",
+    "en": "Permissions"
+  },
+  {
+    "key": "permissionsTab",
+    "en": "Permissions"
+  },
+  {
+    "key": "pinChat",
+    "en": "Pin chat"
+  },
+  {
+    "key": "pinLengthError",
+    "en": "PIN must be exactly 6 digits"
+  },
+  {
+    "key": "pinPlaceholder",
+    "en": "6-digit PIN"
+  },
+  {
+    "key": "pinProtectionActive",
+    "en": "PIN protection is active"
+  },
+  {
+    "key": "pinProtectionDesc",
+    "en": "Protect specific chats with a PIN"
+  },
+  {
+    "key": "pinResetSuccess",
+    "en": "PIN reset successfully!"
+  },
+  {
+    "key": "pinRoom",
+    "en": "Pin Room"
+  },
+  {
+    "key": "pinUpdatedSuccess",
+    "en": "PIN updated successfully!"
+  },
+  {
+    "key": "pinnedRooms",
+    "en": "Pinned Rooms"
+  },
+  {
+    "key": "pinned_room_chats_updated",
+    "en": "pinned_room_chats_updated"
+  },
+  {
+    "key": "pinsDoNotMatch",
+    "en": "PINs do not match"
+  },
+  {
+    "key": "playVideo",
+    "en": "Play Video"
+  },
+  {
+    "key": "pleaseAcknowledge",
+    "en": "Please acknowledge above"
+  },
+  {
+    "key": "preparation",
+    "en": "Preparation"
+  },
+  {
+    "key": "preparationDesc",
+    "en": "Launch and log in to your account."
+  },
+  {
+    "key": "privacyPolicy",
+    "en": "Privacy Policy"
+  },
+  {
+    "key": "privateAccess",
+    "en": "Private Access"
+  },
+  {
+    "key": "privateMessage",
+    "en": "Private message..."
+  },
+  {
+    "key": "privateRoom",
+    "en": "🔒 Private Room"
+  },
+  {
+    "key": "privateRoomDesc",
+    "en": "Only people with the Room ID can join"
+  },
+  {
+    "key": "product",
+    "en": "Product"
+  },
+  {
+    "key": "profileEmailText",
+    "en": "Your registered email address"
+  },
+  {
+    "key": "profileOthersSee",
+    "en": "This is how others see you"
+  },
+  {
+    "key": "publicRoom",
+    "en": "🌐 Public Room"
+  },
+  {
+    "key": "publicRoomDesc",
+    "en": "Anyone can find and join this room"
+  },
+  {
+    "key": "pwChangedToast",
+    "en": "Password changed!"
+  },
+  {
+    "key": "quickControls",
+    "en": "Quick Controls"
+  },
+  {
+    "key": "quickSetup",
+    "en": "Quick Setup"
+  },
+  {
+    "key": "ready",
+    "en": "Ready!"
+  },
+  {
+    "key": "recommendedSizeInfo",
+    "en": "Recommended size: 1200x800px. JPG or PNG."
+  },
+  {
+    "key": "recoveryAcknowledge",
+    "en": "I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages."
+  },
+  {
+    "key": "recoveryFailed",
+    "en": "Recovery failed"
+  },
+  {
+    "key": "recoveryKeyDesc",
+    "en": "Use the 32-character key you saved during setup"
+  },
+  {
+    "key": "recoveryKeyFormat",
+    "en": "Recovery Key (XXXX-XXXX-XXXX-XXXX)"
+  },
+  {
+    "key": "recoveryKeyLabel",
+    "en": "Recovery Key"
+  },
+  {
+    "key": "recoveryKeyLengthError",
+    "en": "Recovery key must be 32 characters"
+  },
+  {
+    "key": "recoveryKeyMethod",
+    "en": "Recovery Key"
+  },
+  {
+    "key": "recoveryPhraseDesc1",
+    "en": "This 24-word phrase is the"
+  },
+  {
+    "key": "recoveryPhraseDesc2",
+    "en": "to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again."
+  },
+  {
+    "key": "recoveryPhraseTitle",
+    "en": "Your Recovery Phrase"
+  },
+  {
+    "key": "recoveryWarning1",
+    "en": "If you forget both your PIN and this key, all your"
+  },
+  {
+    "key": "recoveryWarning2",
+    "en": "chats, media, and data will be permanently deleted"
+  },
+  {
+    "key": "recoveryWarning3",
+    "en": "for security."
+  },
+  {
+    "key": "recoveryWarningText1",
+    "en": "Write these words down or store them in a password manager. Screenshots can be accessed by others."
+  },
+  {
+    "key": "refreshLabels",
+    "en": "Refresh Labels"
+  },
+  {
+    "key": "releaseNotes",
+    "en": "Release Notes"
+  },
+  {
+    "key": "removeAdmin",
+    "en": "Remove Admin"
+  },
+  {
+    "key": "renameRoomTitle",
+    "en": "Rename Room"
+  },
+  {
+    "key": "reportUser",
+    "en": "Report"
+  },
+  {
+    "key": "requestSent",
+    "en": "Request Sent"
+  },
+  {
+    "key": "resetCodeSent",
+    "en": "Reset code sent to your email"
+  },
+  {
+    "key": "resetFailed",
+    "en": "Reset failed"
+  },
+  {
+    "key": "resetPinBtn",
+    "en": "Reset PIN"
+  },
+  {
+    "key": "resetPinTitle",
+    "en": "Reset PIN"
+  },
+  {
+    "key": "resetting",
+    "en": "Resetting…"
+  },
+  {
+    "key": "resources",
+    "en": "Resources"
+  },
+  {
+    "key": "revealPhraseFirst",
+    "en": "Reveal phrase first"
+  },
+  {
+    "key": "roomChat",
+    "en": "Room Chat"
+  },
+  {
+    "key": "roomCreateFailed",
+    "en": "Failed to create room metadata"
+  },
+  {
+    "key": "roomCreateNetworkError",
+    "en": "Network error during room creation"
+  },
+  {
+    "key": "roomIdLabel",
+    "en": "Room ID (auto-generated)"
+  },
+  {
+    "key": "roomLabel",
+    "en": "Room:"
+  },
+  {
+    "key": "roomMadePrivate",
+    "en": "Room is now private!"
+  },
+  {
+    "key": "roomMembers",
+    "en": "Room Members"
+  },
+  {
+    "key": "roomNameLabel",
+    "en": "Room Name"
+  },
+  {
+    "key": "roomNamePlaceholder",
+    "en": "e.g. Friday Night Movies 🍿"
+  },
+  {
+    "key": "roomPinned",
+    "en": "Room pinned! 📌"
+  },
+  {
+    "key": "roomSettings",
+    "en": "Room Settings"
+  },
+  {
+    "key": "roomThumbnailLabel",
+    "en": "Room Thumbnail"
+  },
+  {
+    "key": "roomUnpinned",
+    "en": "Room unpinned"
+  },
+  {
+    "key": "sameWifiRequired",
+    "en": "Same WiFi network required"
+  },
+  {
+    "key": "save",
+    "en": "Save"
+  }
+]

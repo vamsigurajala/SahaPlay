@@ -1,0 +1,402 @@
+[
+  {
+    "key": "followingStatus",
+    "en": "Following"
+  },
+  {
+    "key": "followingTabTitle",
+    "en": "Following"
+  },
+  {
+    "key": "forgotPassword",
+    "en": "Forgot Password?"
+  },
+  {
+    "key": "frameRateLabel",
+    "en": "Frame rate"
+  },
+  {
+    "key": "friendRequestNotifications",
+    "en": "Friend Request Notifications"
+  },
+  {
+    "key": "friendshipRequired",
+    "en": "Friendship Required"
+  },
+  {
+    "key": "fullName",
+    "en": "Username"
+  },
+  {
+    "key": "generalTab",
+    "en": "General"
+  },
+  {
+    "key": "googleFailed",
+    "en": "Google Login was unsuccessful"
+  },
+  {
+    "key": "groupConv",
+    "en": "Group conversation"
+  },
+  {
+    "key": "groupMessage",
+    "en": "Message everyone..."
+  },
+  {
+    "key": "guestDisplayName",
+    "en": "Guest Display Name"
+  },
+  {
+    "key": "guestLimitations",
+    "en": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \\"
+  },
+  {
+    "key": "guestNameRequired",
+    "en": "Please enter a display name to join as guest"
+  },
+  {
+    "key": "guestsCannotChat",
+    "en": "Guests cannot chat"
+  },
+  {
+    "key": "helpCenter",
+    "en": "Help Center"
+  },
+  {
+    "key": "heroDescription",
+    "en": "Synchronize YouTube, Twitch, and Netflix with friends. Real-time chat, P2P screen sharing, and perfect media sync."
+  },
+  {
+    "key": "hidden",
+    "en": "Hidden"
+  },
+  {
+    "key": "hiddenChatsTitle",
+    "en": "Hidden chats"
+  },
+  {
+    "key": "hiddenFolder",
+    "en": "Hidden Folder"
+  },
+  {
+    "key": "hidden_chats_updated",
+    "en": "hidden_chats_updated"
+  },
+  {
+    "key": "hideChat",
+    "en": "Hide chat"
+  },
+  {
+    "key": "hostOnlyLabel",
+    "en": "HOST ONLY"
+  },
+  {
+    "key": "india",
+    "en": "India"
+  },
+  {
+    "key": "invalidMasterKey",
+    "en": "Invalid master key"
+  },
+  {
+    "key": "invalidTvCode",
+    "en": "Please enter a valid 6-character code."
+  },
+  {
+    "key": "invite",
+    "en": "Invite"
+  },
+  {
+    "key": "inviteFriends",
+    "en": "Invite Friends"
+  },
+  {
+    "key": "inviteFriendsDesc",
+    "en": "Copy the unique room link and share it via your favorite social apps."
+  },
+  {
+    "key": "join",
+    "en": "Join"
+  },
+  {
+    "key": "joinAsGuest",
+    "en": "Join as Guest"
+  },
+  {
+    "key": "joinNotifications",
+    "en": "Join Notifications"
+  },
+  {
+    "key": "joinPublicRooms",
+    "en": "Join public rooms"
+  },
+  {
+    "key": "joinReqNotifications",
+    "en": "Join Requests"
+  },
+  {
+    "key": "joinRequest",
+    "en": "JOIN REQUEST"
+  },
+  {
+    "key": "kickUser",
+    "en": "Kick User"
+  },
+  {
+    "key": "lanIpWarning",
+    "en": "Could not detect LAN IP. Make sure you're connected to a network."
+  },
+  {
+    "key": "language",
+    "en": "Language"
+  },
+  {
+    "key": "languageDesc",
+    "en": "Select your preferred language for the app interface"
+  },
+  {
+    "key": "lastAttemptWarning",
+    "en": "Last attempt. If incorrect, all locked chats will be deleted."
+  },
+  {
+    "key": "launchApp",
+    "en": "Launch App"
+  },
+  {
+    "key": "launchBtn",
+    "en": "Launch"
+  },
+  {
+    "key": "launchRoom",
+    "en": "Launch Room"
+  },
+  {
+    "key": "leaveNotifications",
+    "en": "Leave Notifications"
+  },
+  {
+    "key": "leaveRoom",
+    "en": "Leave Room"
+  },
+  {
+    "key": "legal",
+    "en": "Legal"
+  },
+  {
+    "key": "lightLabel",
+    "en": "Light"
+  },
+  {
+    "key": "lightMode",
+    "en": "Light Mode"
+  },
+  {
+    "key": "lightModeDesc",
+    "en": "Bright and clean"
+  },
+  {
+    "key": "link",
+    "en": "Link"
+  },
+  {
+    "key": "linking",
+    "en": "Linking…"
+  },
+  {
+    "key": "liveBadge",
+    "en": "LIVE"
+  },
+  {
+    "key": "liveChat",
+    "en": "Live Chat"
+  },
+  {
+    "key": "liveChatDesc",
+    "en": "Real-time chat with moderation tools, mute, kick, and ban."
+  },
+  {
+    "key": "liveDiscovery",
+    "en": "Live Discovery"
+  },
+  {
+    "key": "loading",
+    "en": "Loading…"
+  },
+  {
+    "key": "localFile",
+    "en": "Local File"
+  },
+  {
+    "key": "lockChat",
+    "en": "Lock chat"
+  },
+  {
+    "key": "lockRoom",
+    "en": "Lock Room"
+  },
+  {
+    "key": "lockRoomDesc",
+    "en": "Require host approval to join"
+  },
+  {
+    "key": "lockedChats",
+    "en": "locked chats"
+  },
+  {
+    "key": "lockedChatsTitle",
+    "en": "Locked chats"
+  },
+  {
+    "key": "locked_chats_updated",
+    "en": "locked_chats_updated"
+  },
+  {
+    "key": "logIn",
+    "en": "Log In"
+  },
+  {
+    "key": "logOut",
+    "en": "Log Out"
+  },
+  {
+    "key": "loginDesc",
+    "en": "Log in to access your encrypted chats"
+  },
+  {
+    "key": "loginSubtitle",
+    "en": "Experience the next generation of synchronized streaming. Crystal clear chat, zero-latency playback, and end-to-end encryption."
+  },
+  {
+    "key": "lookingForParty",
+    "en": "Looking for a party?"
+  },
+  {
+    "key": "lowResLabel",
+    "en": "Low Res"
+  },
+  {
+    "key": "makeAdmin",
+    "en": "Make Admin"
+  },
+  {
+    "key": "makePrivate",
+    "en": "Make this private"
+  },
+  {
+    "key": "makePublic",
+    "en": "Make this public"
+  },
+  {
+    "key": "makeSureNoOneWatching",
+    "en": "Make sure no one is watching your screen"
+  },
+  {
+    "key": "markAllAsRead",
+    "en": "Mark all as read"
+  },
+  {
+    "key": "markAsRead",
+    "en": "Mark as read"
+  },
+  {
+    "key": "masterNotifToggle",
+    "en": "Master toggle for all notifications"
+  },
+  {
+    "key": "masterRecovery",
+    "en": "Master Recovery"
+  },
+  {
+    "key": "mediaPlayerName",
+    "en": "Media Player Name"
+  },
+  {
+    "key": "mediaPlayerTab",
+    "en": "Media Player"
+  },
+  {
+    "key": "membersOnly",
+    "en": "Members Only"
+  },
+  {
+    "key": "membersOnlyDesc",
+    "en": "Only logged-in users enter"
+  },
+  {
+    "key": "message",
+    "en": "Message"
+  },
+  {
+    "key": "messagingControls",
+    "en": "Messaging Controls"
+  },
+  {
+    "key": "mic",
+    "en": "Microphone"
+  },
+  {
+    "key": "micControl",
+    "en": "Mic"
+  },
+  {
+    "key": "micDesc",
+    "en": "Test your microphone before joining a room"
+  },
+  {
+    "key": "microphone",
+    "en": "Microphone"
+  },
+  {
+    "key": "mode",
+    "en": "mode"
+  },
+  {
+    "key": "msgNotifications",
+    "en": "Message Notifications"
+  },
+  {
+    "key": "msgRoomPlace",
+    "en": "Message the room..."
+  },
+  {
+    "key": "multiPlatform",
+    "en": "Multi-Platform"
+  },
+  {
+    "key": "mute",
+    "en": "Mute"
+  },
+  {
+    "key": "muteAll",
+    "en": "Mute All"
+  },
+  {
+    "key": "muteNotifications",
+    "en": "Mute notifications"
+  },
+  {
+    "key": "muteUser",
+    "en": "Mute User"
+  },
+  {
+    "key": "mutedAlertToast",
+    "en": "Muted by host 🔇"
+  },
+  {
+    "key": "muted_chats_updated",
+    "en": "muted_chats_updated"
+  },
+  {
+    "key": "mutualFollowOnlyMsg",
+    "en": "You can only message users you mutually follow"
+  },
+  {
+    "key": "nativeCastOpened",
+    "en": "Native Cast picker opened in browser menu."
+  },
+  {
+    "key": "needMutualFollow",
+    "en": "You need to follow each other to start messaging."
+  }
+]

@@ -1,0 +1,310 @@
+[
+  {
+    "key": "saveChanges",
+    "en": "Save Changes"
+  },
+  {
+    "key": "savedContinue",
+    "en": "I've saved it — Continue →"
+  },
+  {
+    "key": "sayHi",
+    "en": "No messages yet. Say hi!"
+  },
+  {
+    "key": "scanQrInstruction",
+    "en": "Scan the QR code or type this URL:"
+  },
+  {
+    "key": "screenshare",
+    "en": "Screenshare"
+  },
+  {
+    "key": "search",
+    "en": "Search"
+  },
+  {
+    "key": "searchFailed",
+    "en": "Search failed. Please try again."
+  },
+  {
+    "key": "searchServiceError",
+    "en": "Could not reach search service. Check your connection."
+  },
+  {
+    "key": "searchTwitchPlaceholder",
+    "en": "Search for a streamer or paste a link..."
+  },
+  {
+    "key": "searchUsers",
+    "en": "Search users..."
+  },
+  {
+    "key": "searchVimeoPlaceholder",
+    "en": "Search cinematic films or paste a link..."
+  },
+  {
+    "key": "searchYouTubePlaceholder",
+    "en": "Search YouTube or paste a video link..."
+  },
+  {
+    "key": "secureChat",
+    "en": "Secure Chat"
+  },
+  {
+    "key": "secureVault",
+    "en": "Secure Your Vault"
+  },
+  {
+    "key": "secureVaultDesc",
+    "en": "This PIN will be set for every chat you choose to lock."
+  },
+  {
+    "key": "securityBannedUsers",
+    "en": "Security Banned Users"
+  },
+  {
+    "key": "securityLockoutActive",
+    "en": "Security lockout enabled"
+  },
+  {
+    "key": "securityTab",
+    "en": "Security"
+  },
+  {
+    "key": "selectChats",
+    "en": "Select chats"
+  },
+  {
+    "key": "selectMedia",
+    "en": "Select Media"
+  },
+  {
+    "key": "selected",
+    "en": "selected"
+  },
+  {
+    "key": "selfDestructDesc",
+    "en": "Too many failed attempts. For your security, all"
+  },
+  {
+    "key": "selfDestructDesc2",
+    "en": "are being permanently deleted."
+  },
+  {
+    "key": "selfDestructTriggered",
+    "en": "FINAL ATTEMPT FAILED: LOCKED CHATS WIPED"
+  },
+  {
+    "key": "sendMessageToUser",
+    "en": "Send a message to {{username}}"
+  },
+  {
+    "key": "sendResetCodeBtn",
+    "en": "Send Reset Code"
+  },
+  {
+    "key": "sending",
+    "en": "Sending…"
+  },
+  {
+    "key": "setLockPinBtn",
+    "en": "Set Lock PIN"
+  },
+  {
+    "key": "setPin",
+    "en": "Set 6-Digit PIN"
+  },
+  {
+    "key": "setupFailed",
+    "en": "Setup failed"
+  },
+  {
+    "key": "setupWatchPartyDesc",
+    "en": "Set up your watch party below"
+  },
+  {
+    "key": "shareProfileUrl",
+    "en": "Share Profile URL"
+  },
+  {
+    "key": "shareTab",
+    "en": "Discovery"
+  },
+  {
+    "key": "shareTabDesc",
+    "en": "Select quality and share tab."
+  },
+  {
+    "key": "showAllChats",
+    "en": "Show all chats"
+  },
+  {
+    "key": "signUp",
+    "en": "Sign Up"
+  },
+  {
+    "key": "smartTv",
+    "en": "Smart TV"
+  },
+  {
+    "key": "staffPicksAndFilms",
+    "en": "Staff Picks & Films"
+  },
+  {
+    "key": "startCamera",
+    "en": "Start Camera"
+  },
+  {
+    "key": "startInSeconds",
+    "en": "Start your watch party in seconds."
+  },
+  {
+    "key": "startRoom",
+    "en": "Start a Room"
+  },
+  {
+    "key": "startSharing",
+    "en": "Start Sharing"
+  },
+  {
+    "key": "startedFollowing",
+    "en": "{{username}} started following you"
+  },
+  {
+    "key": "starting",
+    "en": "Starting..."
+  },
+  {
+    "key": "stopCamera",
+    "en": "Stop Camera"
+  },
+  {
+    "key": "stopTest",
+    "en": "Stop Test"
+  },
+  {
+    "key": "storage",
+    "en": "storage"
+  },
+  {
+    "key": "streamSafelyNotice",
+    "en": "Stream safely. We never store or access your personal data."
+  },
+  {
+    "key": "streamTypeLabel",
+    "en": "Stream Type"
+  },
+  {
+    "key": "style",
+    "en": "style"
+  },
+  {
+    "key": "syncNow",
+    "en": "Sync Now"
+  },
+  {
+    "key": "syncPerfectly",
+    "en": "Sync perfectly."
+  },
+  {
+    "key": "tellOthersAboutYourself",
+    "en": "Tell others about yourself"
+  },
+  {
+    "key": "termsOfService",
+    "en": "Terms of Service"
+  },
+  {
+    "key": "testMic",
+    "en": "Test Mic"
+  },
+  {
+    "key": "theme_changed",
+    "en": "theme_changed"
+  },
+  {
+    "key": "token",
+    "en": "token"
+  },
+  {
+    "key": "tvCodePlaceholder",
+    "en": "e.g. A1B2C3"
+  },
+  {
+    "key": "tvLinkedSuccess",
+    "en": "TV linked! It will join the room shortly."
+  },
+  {
+    "key": "twitchBrowser",
+    "en": "Twitch Browser"
+  },
+  {
+    "key": "twoStepSetup",
+    "en": "Two Step Setup"
+  },
+  {
+    "key": "unban",
+    "en": "Unban"
+  },
+  {
+    "key": "unblock",
+    "en": "Unblock"
+  },
+  {
+    "key": "unblockUser",
+    "en": "Unblock User"
+  },
+  {
+    "key": "unhideAllChats",
+    "en": "Unhide all chats"
+  },
+  {
+    "key": "unhideChat",
+    "en": "Unhide chat"
+  },
+  {
+    "key": "unitedstates",
+    "en": "United States"
+  },
+  {
+    "key": "unknownCamera",
+    "en": "Unknown Camera"
+  },
+  {
+    "key": "unknownLabel",
+    "en": "Unknown"
+  },
+  {
+    "key": "unlockChat",
+    "en": "Unlock chat"
+  },
+  {
+    "key": "unlockChats",
+    "en": "Unlock Chats"
+  },
+  {
+    "key": "unlockVault",
+    "en": "Unlock Vault"
+  },
+  {
+    "key": "unlockingKeys",
+    "en": "Unlocking keys..."
+  },
+  {
+    "key": "unmute",
+    "en": "Unmute"
+  },
+  {
+    "key": "unmuteNotifications",
+    "en": "Unmute notifications"
+  },
+  {
+    "key": "unmutedToast",
+    "en": "Unmuted 🔊"
+  },
+  {
+    "key": "unpinChat",
+    "en": "Unpin chat"
+  }
+]
