@@ -2474,10 +2474,14 @@ const Room = () => {
 
     try {
       const qs = mode === 'local' ? '?action=local' : '';
-      await fetch(`http://${window.location.hostname}:3001/api/chats/message/${msgId}${qs}`, {
+      const resp = await fetch(`http://${window.location.hostname}:3001/api/chats/message/${msgId}${qs}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` }
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error('[Delete] failed:', resp.status, err);
+      }
     } catch (e) { console.error('Delete error', e); }
   };
 

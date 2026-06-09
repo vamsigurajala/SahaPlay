@@ -349,9 +349,12 @@ const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
   }
 })();
 
-// Run on startup: add media_expires_at column if it doesn't exist yet
+// Run on startup: add columns that may not exist in older DB schemas
 pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_expires_at TIMESTAMPTZ`).catch(e => {
   if (!e.message?.includes('already exists')) console.warn('[Migration] media_expires_at:', e.message);
+});
+pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS "senderMessage" TEXT`).catch(e => {
+  if (!e.message?.includes('already exists')) console.warn('[Migration] senderMessage:', e.message);
 });
 
 function computeMediaExpiry(mediaType) {
@@ -2064,7 +2067,8 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
   const messageId = req.params.id; // Could be database ID or timestamp (for optimistic messages)
   const username = req.user.username;
   const action = req.query.action; // 'local' or undefined
-  
+  console.log(`[DELETE] user=${username} msgId=${messageId} action=${action}`);
+
   try {
     const isIdNumeric = !isNaN(messageId) && !messageId.toString().includes('opt-') && !messageId.toString().includes('http-');
     
@@ -2083,16 +2087,30 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
           [messageId, messageId, Number(tsFromId) || 0]);
       }
 
+    console.log(`[DELETE] isIdNumeric=${isIdNumeric} msgFound=${!!msg}${msg ? ` msgId=${msg.id} senderName=${msg.senderName} type=${msg.type}` : ''}`);
+
     if (!msg) {
       // It might be a group message stored entirely in memory cache (volatile)
       let memoryMsgFound = false;
       for (const [roomId, room] of rooms.entries()) {
-        const idx = room.groupMessages.findIndex(m => m.id === messageId || m.timestamp.toString() === messageId || (m.id && m.id.toString()) === messageId);
+        const idx = room.groupMessages.findIndex(m =>
+          String(m.id) === String(messageId) ||
+          String(m.dbId) === String(messageId) ||
+          String(m.timestamp) === String(messageId) ||
+          (m.id && m.id.toString() === messageId)
+        );
         if (idx !== -1) {
           const m = room.groupMessages[idx];
-          if (m.senderName === username && action !== 'local') {
-             // Global Unsend
+          if ((m.senderName || '').toLowerCase() === username && action !== 'local') {
+             // Global Unsend — remove from memory AND delete from DB
              const removedMsg = room.groupMessages.splice(idx, 1)[0];
+             const dbIdForDelete = removedMsg.dbId || removedMsg.id;
+             // Best-effort DB delete
+             if (dbIdForDelete && !String(dbIdForDelete).includes('-')) {
+               pool.query('DELETE FROM messages WHERE id = $1', [dbIdForDelete]).catch(() => {});
+             } else {
+               pool.query('DELETE FROM messages WHERE "roomId" = $1 AND timestamp = $2', [roomId, removedMsg.timestamp]).catch(() => {});
+             }
              const deletePayload = { roomId, messageId: removedMsg.id.toString(), originalId: messageId, timestampId: removedMsg.timestamp.toString() };
              io.in(roomId).emit('chat:message_deleted', deletePayload);
              io.emit('chat:message_deleted', deletePayload);
@@ -2100,10 +2118,16 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
              memoryMsgFound = true;
              return res.json({ success: true, deletedId: removedMsg.id });
           } else {
-             // Local delete
+             // Local delete — update memory AND update DB
              m.hiddenFor = m.hiddenFor || [];
              if (!m.hiddenFor.includes(username)) m.hiddenFor.push(username);
-             emitToUser(username, 'chat:message_deleted', { messageId: m.id.toString(), originalId: messageId });
+             const dbIdForUpdate = m.dbId || m.id;
+             if (dbIdForUpdate && !String(dbIdForUpdate).includes('-')) {
+               pool.query('UPDATE messages SET "hiddenFor" = $1 WHERE id = $2', [JSON.stringify(m.hiddenFor), dbIdForUpdate]).catch(() => {});
+             } else {
+               pool.query('UPDATE messages SET "hiddenFor" = $1 WHERE "roomId" = $2 AND timestamp = $3', [JSON.stringify(m.hiddenFor), roomId, m.timestamp]).catch(() => {});
+             }
+             emitToUser(username, 'chat:message_deleted', { messageId: m.id.toString(), originalId: messageId, timestampId: m.timestamp.toString() });
              memoryMsgFound = true;
              return res.json({ success: true, hiddenId: m.id });
           }
@@ -3228,13 +3252,14 @@ io.on('connection', (socket) => {
        }
     }
 
+    const ts = Date.now();
     const msg = {
-      id: `${socket.id}-${Date.now()}`,
-      userId: socket.id, 
-      username, 
+      id: `${socket.id}-${ts}`,
+      userId: socket.id,
+      username,
       message: message || '',
-      timestamp: Date.now(), 
-      reactions: {}, 
+      timestamp: ts,
+      reactions: {},
       replyTo: replyTo || null,
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
@@ -3257,9 +3282,9 @@ io.on('connection', (socket) => {
         if (dbId) {
           // Swap optimistic id for real DB id on the sender side
           if (tempId) socket.emit('chat:message_persisted', { tempId, dbId: String(dbId) });
-          // Also update in-memory id so delete works immediately
+          // Update in-memory id to real DB id so delete/lookup works immediately
           const inMem = room.groupMessages.find(m => m.tempId === tempId || m.id === msg.id);
-          if (inMem) inMem.dbId = String(dbId);
+          if (inMem) { inMem.id = String(dbId); inMem.dbId = String(dbId); }
         }
       });
 

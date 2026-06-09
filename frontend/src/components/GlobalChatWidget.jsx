@@ -2703,10 +2703,14 @@ const GlobalChatWidget = forwardRef(({
     setMessages(prev => prev.filter(m => m.id !== msgId));
     try {
       const qs = mode === 'local' ? '?action=local' : '';
-      await fetch(`${API}/api/chats/message/${msgId}${qs}`, {
+      const resp = await fetch(`${API}/api/chats/message/${msgId}${qs}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error('[Delete] failed:', resp.status, err);
+      }
     } catch(e) { console.error('delete error', e); }
   };
 
