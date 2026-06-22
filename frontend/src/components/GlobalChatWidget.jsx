@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import PinSetupModal from './PinSetupModal';
@@ -41,32 +41,69 @@ function validateFile(file) {
   return { valid: true };
 }
 
-function FileTypeIcon({ mimeType, size = 20 }) {
-  if (!mimeType) return <Paperclip size={size} color="#888" />;
-  if (mimeType === 'application/pdf') return <FileText size={size} color="#ef4444" />;
-  if (mimeType.includes('word')) return <FileText size={size} color="#3b82f6" />;
-  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText size={size} color="#10b981" />;
-  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color="#f97316" />;
-  if (mimeType === 'application/zip') return <Paperclip size={size} color="#6b7280" />;
-  if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color="#6b7280" />;
-  if (mimeType.startsWith('audio/')) return <Music size={size} color="#a855f7" />;
-  if (mimeType.startsWith('video/')) return <Play size={size} color="#3b82f6" fill="#3b82f6" />;
-  return <Paperclip size={size} color="#888" />;
+function FileTypeIcon({ mimeType, size = 20, color }) {
+  const c = color || null;
+  if (!mimeType) return <Paperclip size={size} color={c || "#888"} />;
+  if (mimeType === 'application/pdf') return <FileText size={size} color={c || "#ef4444"} />;
+  if (mimeType.includes('word')) return <FileText size={size} color={c || "#3b82f6"} />;
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText size={size} color={c || "#10b981"} />;
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color={c || "#f97316"} />;
+  if (mimeType === 'application/zip') return <Paperclip size={size} color={c || "#6b7280"} />;
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color={c || "#6b7280"} />;
+  if (mimeType.startsWith('audio/')) return <Music size={size} color={c || "#a855f7"} />;
+  if (mimeType.startsWith('video/')) return <Play size={size} color={c || "#3b82f6"} fill={c || "#3b82f6"} />;
+  return <Paperclip size={size} color={c || "#888"} />;
 }
 
-function ExpiryLabel({ expiresAt }) {
-  if (!expiresAt) return null;
-  const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
-  if (daysLeft <= 0) return null;
-  if (daysLeft <= 7) return <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2 }}>⚠️ Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''} — save now</div>;
-  return <div style={{ fontSize: 10, color: '#666', marginTop: 2 }}>🕐 {daysLeft} days left</div>;
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FileCard({ url, type, fileName, isMe, isLight }) {
-  const typeName = type?.split('/').pop()?.toUpperCase() || 'FILE';
-  const isExpired = !url;
+function getFileTypeLabel(mimeType, fileName) {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType?.includes('word')) return 'Word';
+  if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return 'Excel';
+  if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return 'PowerPoint';
+  if (mimeType === 'text/plain') return 'Text';
+  if (mimeType === 'text/csv') return 'CSV';
+  if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'ZIP';
+  const ext = fileName?.split('.').pop()?.toUpperCase();
+  if (ext) return ext;
+  return 'File';
+}
 
-  const handleDownload = async () => {
+function getFileIconBg(mimeType) {
+  if (mimeType === 'application/pdf') return '#ef4444';
+  if (mimeType?.includes('word')) return '#3b82f6';
+  if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return '#10b981';
+  if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return '#f97316';
+  if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return '#6b7280';
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') return '#64748b';
+  return '#6366f1';
+}
+
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading }) {
+  const isLoading = loading && !url;
+  const isExpired = !url && !isLoading;
+  const typeLabel = getFileTypeLabel(type, fileName);
+  const sizeLabel = formatFileSize(fileSize);
+  const iconBg = getFileIconBg(type);
+  const subtitle = isLoading ? (isMe ? 'Sending…' : 'Loading…') : (isExpired ? 'Expired' : [typeLabel, sizeLabel].filter(Boolean).join(' • '));
+
+  let expiryLine = null;
+  if (expiresAt && !isExpired) {
+    const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+    if (daysLeft > 0) {
+      const expiryColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
+      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: expiryColor, WebkitTextFillColor: expiryColor, marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={expiryColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
+    }
+  }
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
@@ -77,87 +114,282 @@ function FileCard({ url, type, fileName, isMe, isLight }) {
     } catch { toast?.error?.('Download failed'); }
   };
 
-  const cardBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
-  const cardBorder = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.09)');
-  const fileNameColor = isMe ? '#fff' : (isLight ? '#1e293b' : '#e2e8f0');
-  const typeColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
-  const expiredColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  const dlBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(30,41,59,0.12)' : 'rgba(99,102,241,0.2)');
-  const dlBorder = isMe ? 'rgba(255,255,255,0.3)' : (isLight ? 'rgba(30,41,59,0.22)' : 'rgba(99,102,241,0.3)');
-  const dlColor = isMe ? '#fff' : (isLight ? '#334155' : '#a5b4fc');
+  const cardBg = isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)');
+  const cardBorder = isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)');
+  const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
+  const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
+  const dlColor = isLight ? '#6d28d9' : (isMe ? 'rgba(255,255,255,0.8)' : '#a5b4fc');
+  const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
+  const iconColor = isLight ? iconBg : '#fff';
 
   return (
-    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 14px', minWidth: 180, maxWidth: 240, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isExpired ? 0 : 8 }}>
-        <FileTypeIcon mimeType={type} size={22} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: fileNameColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isExpired ? <s style={{ color: expiredColor }}>{fileName || 'File'}</s> : (fileName || 'File')}
-          </div>
-          <div style={{ fontSize: 10, color: typeColor, marginTop: 1 }}>{typeName}</div>
+    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 12px', minWidth: 200, maxWidth: 250, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 38, height: 42, borderRadius: 8, background: iconCircleBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: (isExpired || isLoading) ? 0.5 : 1 }}>
+          {isLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: iconColor }} /> : <FileTypeIcon mimeType={type} size={18} color={iconColor} />}
         </div>
-      </div>
-      {isExpired
-        ? <div style={{ fontSize: 11, color: expiredColor, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Paperclip size={11} color={expiredColor} /> Expired</div>
-        : <button onClick={handleDownload} style={{ width: '100%', padding: '5px', borderRadius: 6, background: dlBg, border: `1px solid ${dlBorder}`, color: dlColor, fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-            <Download size={11} color={dlColor} /> Download
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="fc-name" style={{ fontSize: 11, fontWeight: 700, color: fileNameColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', WebkitTextFillColor: fileNameColor }}>
+            {fileName || 'File'}
+          </div>
+          <div className="fc-sub" style={{ fontSize: 10, fontWeight: 400, color: subtitleColor, marginTop: 2, WebkitTextFillColor: subtitleColor }}>{subtitle}</div>
+          {expiryLine}
+        </div>
+        {!isExpired && !isLoading && (
+          <button className="fc-dl" onClick={handleDownload} style={{ background: 'none', border: 'none', cursor: 'pointer', color: dlColor, padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <Download size={14} color={dlColor} />
           </button>
-      }
+        )}
+      </div>
     </div>
   );
 }
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight }) {
-  const [playing, setPlaying] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
+const _vnReg_gcw = { el: null, pauseFn: null };
+
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading }) {
   const [duration, setDuration] = React.useState(0);
+  const [playing, setPlaying] = React.useState(false);
+  const [currentTime, setCurrentTime] = React.useState(0);
+  const [progress, setProgress] = React.useState(0);
   const audioRef = React.useRef(null);
-  const isExpired = !url;
+  const rafRef = React.useRef(null);
+  const isPlayingRef = React.useRef(false);
+
+  const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s < 0) ? '0:00' :
+    `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  React.useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (_vnReg_gcw.el === audioRef.current) { _vnReg_gcw.el = null; _vnReg_gcw.pauseFn = null; }
+  }, []);
+
+  const BAR_COUNT = 30;
+  const bars = React.useMemo(() => {
+    const arr = []; let s = 42;
+    for (let i = 0; i < BAR_COUNT; i++) { s = (s * 9301 + 49297) % 233280; arr.push(3 + (s / 233280) * 18); }
+    return arr;
+  }, []);
+
+  const isLoading = loading && !url;
+  const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
+  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)');
+
+  if (isLoading) return (
+    <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMe ? 'rgba(255,255,255,0.12)' : (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 20, marginBottom: 4 }}>
+          {Array.from({length: 20}, (_, j) => (
+            <div key={j} style={{ width: 2, height: 4 + (j % 5) * 2, borderRadius: 1, background: isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)') }} />
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: expColor, WebkitTextFillColor: expColor }}>{isMe ? 'Sending…' : 'Loading…'}</div>
+      </div>
+    </div>
+  );
 
   if (isExpired) return (
-    <div style={{ padding: '8px 12px', background: isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)'), borderRadius: 10, fontSize: 12, color: expColor, display: 'flex', alignItems: 'center', gap: 6 }}>
-      <Music size={12} color={expColor} /> Voice note expired
+    <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, fontSize: 12, color: expColor, display: 'flex', alignItems: 'center', gap: 6 }}>
+      Voice note expired
     </div>
   );
 
-  const toggle = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause(); else audioRef.current.play();
-    setPlaying(p => !p);
+  const handleLoadedMetadata = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
+      setDuration(el.duration);
+    } else {
+      const waitForDuration = () => {
+        if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
+          el.removeEventListener('timeupdate', waitForDuration);
+          setDuration(el.duration);
+          if (!isPlayingRef.current) el.currentTime = 0;
+        }
+      };
+      el.addEventListener('timeupdate', waitForDuration);
+      el.currentTime = 1e9;
+    }
   };
 
-  const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s <= 0) ? null : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const handleEnded = () => {
+    isPlayingRef.current = false;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    setPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+    if (_vnReg_gcw.el === audioRef.current) { _vnReg_gcw.el = null; _vnReg_gcw.pauseFn = null; }
+  };
 
-  const bubbleBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
-  const trackBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.15)');
-  const metaColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
-  const durationStr = fmtDur(duration);
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.currentTime > 1e5) el.currentTime = 0;
+
+    if (isPlayingRef.current) {
+      el.pause();
+      isPlayingRef.current = false;
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      setPlaying(false);
+      if (_vnReg_gcw.el === el) { _vnReg_gcw.el = null; _vnReg_gcw.pauseFn = null; }
+    } else {
+      if (_vnReg_gcw.el && _vnReg_gcw.el !== el && _vnReg_gcw.pauseFn) {
+        _vnReg_gcw.pauseFn();
+        _vnReg_gcw.el.pause();
+      }
+      isPlayingRef.current = true;
+      setPlaying(true);
+      const tick = () => {
+        const a = audioRef.current;
+        if (!a || !isPlayingRef.current) return;
+        const ct = a.currentTime;
+        const dur = isFinite(a.duration) && a.duration > 0 && a.duration < 1e8 ? a.duration : 0;
+        setCurrentTime(ct);
+        setProgress(dur > 0 ? ct / dur : 0);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+      _vnReg_gcw.el = el;
+      _vnReg_gcw.pauseFn = () => {
+        isPlayingRef.current = false;
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        setPlaying(false);
+      };
+      el.play().catch(() => {
+        isPlayingRef.current = false;
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        setPlaying(false);
+        if (_vnReg_gcw.el === el) { _vnReg_gcw.el = null; _vnReg_gcw.pauseFn = null; }
+      });
+    }
+  };
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `voice_note_${Date.now()}.${ext}`;
+      a.click();
+    } catch { toast?.error?.('Download failed'); }
+  };
+
+  const bubbleBg = isMe
+    ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.15)')
+    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+  const playedColor = '#a855f7';
+  const unplayedColor = isMe
+    ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
+    : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
+  const timeColor = isMe
+    ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
+    : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
+  const dlColor = isMe
+    ? (isLight ? '#6366f1' : 'rgba(255,255,255,0.7)')
+    : (isLight ? '#7c3aed' : '#c084fc');
+  const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
 
   return (
-    <div style={{ background: bubbleBg, borderRadius: 10, padding: '10px 14px', minWidth: 200, marginTop: 2 }}>
-      <audio ref={audioRef} src={url}
-        onTimeUpdate={() => audioRef.current && setProgress(audioRef.current.currentTime / (audioRef.current.duration || 1))}
-        onLoadedMetadata={() => audioRef.current && setDuration(audioRef.current.duration)}
-        onEnded={() => { setPlaying(false); setProgress(0); }} />
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2 }}>
+      <audio ref={audioRef} src={url} preload="auto"
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Music size={16} color="#a855f7" style={{ flexShrink: 0 }} />
-        <button onClick={toggle} style={{ background: 'rgba(99,102,241,0.35)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-          {playing ? <Pause size={11} color="#fff" fill="#fff" /> : <Play size={11} color="#fff" fill="#fff" />}
+        <button onClick={toggle} style={{ background: '#a855f7', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+          {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ height: 3, background: trackBg, borderRadius: 2, overflow: 'hidden', cursor: 'pointer' }} onClick={e => { if (!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const pct = (e.clientX - rect.left) / rect.width; audioRef.current.currentTime = pct * (audioRef.current.duration || 0); }}>
-            <div style={{ height: '100%', width: `${progress * 100}%`, background: '#6366f1', transition: 'width 0.1s linear' }} />
-          </div>
-          <div style={{ fontSize: 10, color: metaColor, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Voice Note</span>
-            {durationStr && <span>{durationStr}</span>}
-          </div>
+        <div
+          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'pointer' }}
+          onClick={e => {
+            const el = audioRef.current;
+            if (!el) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
+            if (dur > 0) {
+              el.currentTime = pct * dur;
+              setProgress(pct);
+              setCurrentTime(pct * dur);
+            }
+          }}
+        >
+          {bars.map((h, i) => (
+            <div key={i} style={{ width: 2, height: h, borderRadius: 1, background: i / BAR_COUNT < progress ? playedColor : unplayedColor, flexShrink: 0 }} />
+          ))}
         </div>
+        <button onClick={handleDownload} title="Download voice note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <Download size={14} color={dlColor} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
+        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+        {expiresAt && (() => {
+          const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+          if (daysLeft <= 0) return null;
+          const expTc = daysLeft <= 7 ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.55)');
+          const expTxt = daysLeft <= 7 ? `⚠️ ${daysLeft}d left` : `${daysLeft}d left`;
+          return <span className="rcp-vn-expiry" style={{ fontSize: 10, color: expTc, WebkitTextFillColor: expTc }}>{expTxt}</span>;
+        })()}
       </div>
     </div>
   );
 }
+
+const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight) => {
+  if (!url && !type) return null;
+  const isImg = type?.startsWith('image/');
+  const isVid = type?.startsWith('video/');
+  const isAudio = type?.startsWith('audio/');
+
+  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} />;
+
+  if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} />;
+
+  if (!url) {
+    if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: '#6366f1', opacity: 0.6 }} /></div>;
+    return null;
+  }
+
+  return (
+    <div style={{ marginTop: 0, borderRadius: 10, overflow: 'hidden', background: '#000', maxWidth: 220, position: 'relative', cursor: 'pointer' }}>
+      {isImg ? (
+        <>
+          <img
+            src={url}
+            alt="Shared media"
+            style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+            onClick={() => onOpenLightbox(url, type)}
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.style.display = 'none';
+              e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
+            }}
+          />
+          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+        </>
+      ) : (
+        <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} muted />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,102,241,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(99,102,241,0.5)' }}>
+              <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
+            </div>
+          </div>
+          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+        </div>
+      )}
+    </div>
+  );
+};
+
 import { formatDistanceToNow } from 'date-fns';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useDebounce } from '../hooks/useDebounce';
@@ -469,59 +701,6 @@ function MediaLightbox({ url, type, onClose }) {
           />
         ) : null}
       </div>
-    </div>
-  );
-}
-
-// ———— Inline Media Bubble ————
-function MediaBubble({ url, type, onOpenLightbox, onMediaLoad }) {
-  const isImg = type?.startsWith('image/');
-  const isVid = type?.startsWith('video/');
-  if (!url) return null;
-  return (
-    <div
-      onClick={() => onOpenLightbox(url, type)}
-      style={{
-        marginTop: 0, borderRadius: 10, overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.07)',
-        background: '#000', cursor: 'pointer',
-        maxWidth: 220, position: 'relative',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-      }}
-    >
-      {isImg ? (
-        <img
-          src={url}
-          alt="Shared media"
-          onLoad={onMediaLoad}
-          style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
-          onError={(e) => {
-            e.target.onerror = null;
-            e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
-          }}
-        />
-      ) : isVid ? (
-        <div style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <video
-            src={url}
-            onLoadedData={onMediaLoad}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: 0.7 }}
-            muted
-          />
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: 'rgba(99,102,241,0.85)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 12px rgba(99,102,241,0.5)'
-            }}>
-              <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -4340,29 +4519,26 @@ const GlobalChatWidget = forwardRef(({
                                 const msgKey = String(msg.id || msg.timestamp);
                                 const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg.mediaUrl || null;
                                 const mt = msg.mediaType || '';
+                                if (!mt) return null;
+
                                 const isImg = mt.startsWith('image/');
                                 const isVid = mt.startsWith('video/');
                                 const isAudio = mt.startsWith('audio/');
                                 const isFile = mt && !isImg && !isVid && !isAudio;
 
-                                if (isAudio) {
-                                  return <AudioPlayerBubble url={resolvedUrl} expiresAt={msg.mediaExpiresAt} isMe={isMe} isLight={isLight} />;
-                                }
-                                if (isFile) {
-                                  return <FileCard url={resolvedUrl} type={mt} fileName={msg._fileName || msg.mediaFileName} isMe={isMe} isLight={isLight} />;
-                                }
-                                if (resolvedUrl && (isImg || isVid)) {
-                                  return <>
-                                    <MediaBubble url={resolvedUrl} type={mt} onOpenLightbox={openLightbox} onMediaLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })} />
-                                    <ExpiryLabel expiresAt={msg.mediaExpiresAt} />
-                                  </>;
-                                }
-                                if (!resolvedUrl && mt) {
-                                  return <div style={{ color: '#555', fontSize: 11, padding: '8px 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                    <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Decrypting media…
-                                  </div>;
-                                }
-                                return null;
+                                const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < 30000;
+
+                                return renderMedia(
+                                  resolvedUrl,
+                                  mt,
+                                  isMe,
+                                  msg._fileName || msg.mediaFileName,
+                                  msg._fileSize || msg.mediaFileSize,
+                                  msg.mediaExpiresAt,
+                                  isDecrypting,
+                                  openLightbox,
+                                  isLight
+                                );
                               })()}
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
