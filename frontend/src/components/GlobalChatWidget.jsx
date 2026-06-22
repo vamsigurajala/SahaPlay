@@ -170,6 +170,21 @@ const API = window.location.hostname === 'localhost' || window.location.hostname
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
+const resolveMediaUrl = (url, baseUrl) => {
+  if (!url) return '';
+  // Clean up any double-prepended URLs (e.g. "http://localhost:3001https://...")
+  if (url.includes('http://') || url.includes('https://')) {
+    const httpIdx = url.lastIndexOf('http');
+    if (httpIdx > 0) {
+      url = url.substring(httpIdx);
+    }
+  }
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 // CSS for typing indicators
 const typingCss = `
   @keyframes dot-wave {
@@ -1400,7 +1415,8 @@ const GlobalChatWidget = forwardRef(({
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(mediaKeyB64);
-                        const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -1432,7 +1448,8 @@ const GlobalChatWidget = forwardRef(({
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(plain);
-                        const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -1459,7 +1476,8 @@ const GlobalChatWidget = forwardRef(({
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(mediaKeyB64);
-                        const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2140,7 +2158,8 @@ const GlobalChatWidget = forwardRef(({
                 if (m.mediaType && m.mediaUrl) {
                   try {
                     const mediaKeyBytes = robustDecode(plainText);
-                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2157,7 +2176,8 @@ const GlobalChatWidget = forwardRef(({
                 if (mediaKeyB64) {
                   try {
                     const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2180,7 +2200,8 @@ const GlobalChatWidget = forwardRef(({
                 if (mediaKeyB64) {
                   try {
                     const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2710,7 +2731,7 @@ const GlobalChatWidget = forwardRef(({
       const uploadData = await uploadResp.json();
       if (!uploadData.url) throw new Error('Upload failed');
 
-      const fullUrl = `${API}${uploadData.url}`;
+      const fullUrl = resolveMediaUrl(uploadData.url, API);
 
       // ─── E2EE Encryption for Media ───
       let mediaNonce = null;

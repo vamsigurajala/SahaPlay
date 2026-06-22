@@ -54,6 +54,22 @@ import toast, { Toaster } from 'react-hot-toast';
 const SOCKET_SERVER_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
+
+const resolveMediaUrl = (url, baseUrl) => {
+  if (!url) return '';
+  // Clean up any double-prepended URLs (e.g. "http://localhost:3001https://...")
+  if (url.includes('http://') || url.includes('https://')) {
+    const httpIdx = url.lastIndexOf('http');
+    if (httpIdx > 0) {
+      url = url.substring(httpIdx);
+    }
+  }
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) {
+    return url;
+  }
+  return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const QUICK_EMOJIS = ['👍', '❤️', '😊', '😮', '😢'];
 const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '😂', '🤔', '😎', '😁', '😅', '✨', '🙏', '💚', '💛', '💝', '🤗', '😻', '🥰', '🎉', '😪', '😒', '✔️', '🤞', '😽', '😡', '🤢', '🤡', '🤫'];
 
@@ -900,7 +916,8 @@ const Room = () => {
                 if (msg.mediaUrl && msg.mediaUrl.length > 50) {
                   try {
                     const mediaKeyBytes = robustDecode(plain);
-                    const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                    const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                     const msgKey = String(msg.id || msg.timestamp);
@@ -969,7 +986,8 @@ const Room = () => {
                 const targetMediaType = msg.mediaType;
                 try {
                   const mediaKeyBytes = robustDecode(plain);
-                  const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                  const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                  const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                   const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                   const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                   dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -996,7 +1014,8 @@ const Room = () => {
               const targetMediaType = msg.mediaType;
               try {
                 const mediaKeyBytes = robustDecode(plain);
-                const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                 const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                 const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                 dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2029,7 +2048,8 @@ const Room = () => {
                     if (msg.mediaUrl && msg.mediaUrl.length > 50) {
                       try {
                         const mediaKeyBytes = robustDecode(plain);
-                        const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                         groupDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2153,7 +2173,8 @@ const Room = () => {
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(mediaKeyB64);
-                        const buff = await fetch(fileUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(fileUrl, SOCKET_SERVER_URL);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                         msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
@@ -2388,7 +2409,8 @@ const Room = () => {
                 (async () => {
                   try {
                     const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const buff = await fetch(fileUrl).then(r => r.arrayBuffer());
+                    const resolvedUrl = resolveMediaUrl(fileUrl, SOCKET_SERVER_URL);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                     // Store under all keys so lookup works regardless of id evolution
@@ -2848,7 +2870,8 @@ const Room = () => {
                    (async () => {
                      try {
                        const mediaKeyBytes = robustDecode(plain);
-                       const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                       const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                       const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                        dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -2876,7 +2899,8 @@ const Room = () => {
                  (async () => {
                    try {
                      const mediaKeyBytes = robustDecode(plain);
-                     const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                     const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                     const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                      dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -3008,7 +3032,8 @@ const Room = () => {
                      (async () => {
                        try {
                          const mediaKeyBytes = robustDecode(plain);
-                         const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                         const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                         const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                          const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                          const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                          dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -3037,7 +3062,8 @@ const Room = () => {
                    (async () => {
                      try {
                        const mediaKeyBytes = robustDecode(plain);
-                       const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                       const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                       const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                        dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -3572,7 +3598,8 @@ const Room = () => {
                 // Media: inline await to get objectUrl directly
                 try {
                   const mediaKeyBytes = robustDecode(plain);
-                  const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                  const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                  const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                   const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                   const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                   const msgKey = String(msg.id || msg.timestamp);
@@ -3620,7 +3647,8 @@ const Room = () => {
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(plain);
-                        const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                         dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -3639,7 +3667,8 @@ const Room = () => {
                     (async () => {
                       try {
                         const mediaKeyBytes = robustDecode(plain);
-                        const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                        const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                         dmDecryptedMediaUrls.current[msgKey] = objectUrl;
@@ -4206,7 +4235,7 @@ const Room = () => {
         const uploadData = await uploadResp.json();
         console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
-        finalUrl = uploadData.url;
+        finalUrl = resolveMediaUrl(uploadData.url, SOCKET_SERVER_URL);
 
         // Merge socket-based and DB-based public keys for recipients
         const mergedKeys = { ...dbPublicKeys.current };
@@ -4607,7 +4636,7 @@ const Room = () => {
         const uploadData = await uploadResp.json();
         console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
-        finalUrl = uploadData.url;
+        finalUrl = resolveMediaUrl(uploadData.url, SOCKET_SERVER_URL);
 
         // Encrypt AES key with DM E2EE (same as GCW)
         const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(myKeyPair.current.publicKey));
