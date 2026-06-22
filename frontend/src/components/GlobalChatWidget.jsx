@@ -373,7 +373,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
               e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
             }}
           />
-          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
         </>
       ) : (
         <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -383,7 +383,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
               <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
             </div>
           </div>
-          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+          {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
         </div>
       )}
     </div>
@@ -1699,7 +1699,18 @@ const GlobalChatWidget = forwardRef(({
               // If decryption failed (activeKey was null) but the optimistic bubble had good
               // plaintext, preserve it so we don't overwrite readable content with ciphertext.
               const safeDecryptedText = msg.decryptedText || (msg.nonce && !activeKey && optimistic.message && !optimistic.message.startsWith('\uD83D\uDD12') ? optimistic.message : null);
-              updated[optIdx] = { ...msg, tempId: optimistic.tempId, decryptedText: safeDecryptedText, mediaUrl: msg.mediaUrl, isMe: isMine, reactions: msg.reactions || {} };
+              updated[optIdx] = { 
+                ...msg, 
+                tempId: optimistic.tempId, 
+                decryptedText: safeDecryptedText, 
+                mediaUrl: msg.mediaUrl, 
+                _localMediaUrl: optimistic._localMediaUrl || optimistic.mediaUrl, 
+                _fileName: optimistic._fileName || msg.mediaFileName || null,
+                _fileSize: optimistic._fileSize || msg.mediaFileSize || null,
+                mediaDuration: msg.mediaDuration || optimistic.mediaDuration || null,
+                isMe: isMine, 
+                reactions: msg.reactions || {} 
+              };
               return resolveReplyMessages(updated);
             }
           }
@@ -4517,7 +4528,7 @@ const GlobalChatWidget = forwardRef(({
                               )}
                               {(() => {
                                 const msgKey = String(msg.id || msg.timestamp);
-                                const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg.mediaUrl || null;
+                                const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                                 const mt = msg.mediaType || '';
                                 if (!mt) return null;
 
@@ -4543,7 +4554,7 @@ const GlobalChatWidget = forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)'),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
@@ -4590,7 +4601,7 @@ const GlobalChatWidget = forwardRef(({
                                       {(QUICK_EMOJIS).map(em=>(
                                         <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                       ))}
-                                      <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14}/></button>
+                                      <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#000' : '#fff',WebkitTextFillColor: isLight ? '#000' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14} color={isLight ? '#000' : '#fff'} style={{ color: isLight ? '#000' : '#fff', WebkitTextFillColor: isLight ? '#000' : '#fff' }}/></button>
                                     </div>
                                   </div>
                                 )}
