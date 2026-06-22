@@ -1,0 +1,1 @@
+const { Pool } = require('pg'); require('dotenv').config(); const pool = new Pool({ connectionString: process.env.DATABASE_URL + '?sslmode=require' }); pool.query('ALTER TABLE messages ADD COLUMN IF NOT EXISTS "e2eeKeys" text;').then(() => { console.log('Done'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); });
