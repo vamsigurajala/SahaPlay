@@ -64,11 +64,11 @@ const HowItWorks = () => {
   }, []);
 
   const scrollNavItems = [
-    { id: 'steps',   label: t('theSteps', 'The Steps'),  Icon: ClipboardList },
-    { id: 'host',    label: t('asAHost', 'As a Host'),  Icon: Crown },
-    { id: 'join',    label: t('joining', 'Joining'),    Icon: Users },
-    { id: 'chat',    label: t('chat', 'Chat'),       Icon: MessageCircle },
-    { id: 'faq',     label: t('faq', 'FAQ'),        Icon: HelpCircle },
+    { id: 'steps', label: t('theSteps', 'The Steps'), Icon: ClipboardList },
+    { id: 'host', label: t('asAHost', 'As a Host'), Icon: Crown },
+    { id: 'join', label: t('joining', 'Joining'), Icon: Users },
+    { id: 'chat', label: t('chat', 'Chat'), Icon: MessageCircle },
+    { id: 'faq', label: t('faq', 'FAQ'), Icon: HelpCircle },
   ];
 
   const smoothScrollTo = (id) => {
@@ -240,7 +240,7 @@ const HowItWorks = () => {
   ];
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }}>
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -268,6 +268,49 @@ const HowItWorks = () => {
         @media (min-width: 769px) {
           .hiw-scroll-nav {
             display: flex;
+          }
+        }
+
+        /* Hero Trust Badges Single-Line styling */
+        .hero-trust-badges {
+          display: flex;
+          gap: 24px;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .trust-badge-item {
+          font-size: 14px;
+          color: var(--text-secondary);
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          white-space: nowrap;
+        }
+        .trust-badge-item svg {
+          width: 13px;
+          height: 13px;
+          flex-shrink: 0;
+        }
+        .trust-badge-separator {
+          font-size: 14px;
+          color: var(--text-secondary);
+        }
+        @media (max-width: 1024px) {
+          .hero-trust-badges {
+            gap: clamp(6px, 1.8vw, 16px) !important;
+            flex-wrap: nowrap !important;
+          }
+          .trust-badge-item {
+            font-size: clamp(9px, 1.8vw, 13px) !important;
+            gap: 4px !important;
+          }
+          .trust-badge-item svg {
+            width: clamp(9px, 1.8vw, 13px) !important;
+            height: clamp(9px, 1.8vw, 13px) !important;
+          }
+          .trust-badge-separator {
+            font-size: clamp(9px, 1.8vw, 13px) !important;
           }
         }
       `}</style>
@@ -337,7 +380,7 @@ const HowItWorks = () => {
             <button className="btn" onClick={createRoom}>
               {t('createANewRoom', 'Create a New Room →')}
             </button>
- 
+
             {/* Section jump pills */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
               {scrollNavItems.map(({ id, label, Icon }) => (
@@ -361,18 +404,18 @@ const HowItWorks = () => {
               ))}
             </div>
           </div>
- 
+
           {/* Trust stats */}
-          <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Zap size={13} /> {t('instantSetup', 'Instant Setup')}</span>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>|</span>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lock size={13} /> {t('encryptedChats', 'Encrypted Chats')}</span>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>|</span>
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Smartphone size={13} /> {t('worksOnMobile', 'Works on Mobile')}</span>
+          <div className="hero-trust-badges">
+            <span className="trust-badge-item"><Zap /> {t('instantSetup', 'Instant Setup')}</span>
+            <span className="trust-badge-separator">|</span>
+            <span className="trust-badge-item"><Lock /> {t('encryptedChats', 'Encrypted Chats')}</span>
+            <span className="trust-badge-separator">|</span>
+            <span className="trust-badge-item"><Smartphone /> {t('worksOnMobile', 'Works on Mobile')}</span>
           </div>
         </div>
       </section>
- 
+
       {/* ══════════════════════════════════════════
           SECTION 2 — THREE SIMPLE STEPS
       ══════════════════════════════════════════ */}
@@ -386,7 +429,7 @@ const HowItWorks = () => {
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 44px)', fontWeight: 800, textAlign: 'center', marginBottom: 56, color: isLight ? '#111' : '#f8f9fa' }}>
             {t('threeStepsTitle', 'Three Steps to Watch Together')}
           </h2>
- 
+
           {/* Steps with connectors */}
           <div style={{ display: 'flex', gap: 24, alignItems: 'stretch', flexWrap: 'wrap', justifyContent: 'center' }}>
             {/* Step 1 — icon LEFT, number circle RIGHT */}
@@ -403,7 +446,7 @@ const HowItWorks = () => {
               <h3 style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>{t('createARoom', 'Create a Room')}</h3>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: 15, margin: 0 }}>{t('createARoomDesc', 'Click Create Room — your private watch party is ready in seconds. No account needed for guests to join.')}</p>
             </div>
- 
+
             {/* Step 2 — icon LEFT, number circle RIGHT */}
             <div
               className="hiw-animate"
@@ -418,7 +461,7 @@ const HowItWorks = () => {
               <h3 style={{ fontWeight: 700, fontSize: 20, marginBottom: 12 }}>{t('inviteYourFriends', 'Invite Your Friends')}</h3>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: 15, margin: 0 }}>{t('inviteYourFriendsDesc', 'Share your unique room link via WhatsApp, Telegram, or just copy and paste it. Friends join instantly with one click.')}</p>
             </div>
- 
+
             {/* Step 3 — icon LEFT, number circle RIGHT */}
             <div
               className="hiw-animate"
@@ -724,8 +767,8 @@ const HowItWorks = () => {
                 const isGreen = tabContent[activeTab].note.type === 'green';
                 /* amber note → warm gold palette that reads well in both modes */
                 const noteColor = isGreen ? '#10b981' : (isLight ? '#92400e' : '#ca8a04');
-                const noteBg    = isGreen ? 'rgba(16,185,129,0.1)'  : 'rgba(250,204,21,0.1)';
-                const noteBorder= isGreen ? 'rgba(16,185,129,0.3)'  : 'rgba(250,204,21,0.3)';
+                const noteBg = isGreen ? 'rgba(16,185,129,0.1)' : 'rgba(250,204,21,0.1)';
+                const noteBorder = isGreen ? 'rgba(16,185,129,0.3)' : 'rgba(250,204,21,0.3)';
                 return (
                   <div style={{
                     marginTop: 24, padding: '12px 16px', borderRadius: 10,
@@ -773,7 +816,8 @@ const HowItWorks = () => {
                 t('groupChatF2', 'React to messages with emojis'),
                 t('groupChatF3', 'Reply to specific messages'),
                 t('groupChatF4', "See who's typing in real time"),
-                t('groupChatF5', 'Unread message badge counter')
+                t('groupChatF5', 'Unread message badge counter'),
+                t('groupChatF6', 'End-to-end encrypted — fully secure')
               ].map((f, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
                   <Check size={16} color="#10b981" />
@@ -810,10 +854,12 @@ const HowItWorks = () => {
 
               {[
                 t('privateChatF1', 'Private chats only you two can see'),
-                t('privateChatF2', 'End-to-end encrypted — fully secure'),
-                t('privateChatF3', 'Lock any chat with a PIN for extra privacy'),
-                t('privateChatF4', 'Media sharing — images and videos'),
-                t('privateChatF5', 'Messages saved even after room ends')
+                t('privateChatF2', 'React to messages with emojis'),
+                t('privateChatF3', 'End-to-end encrypted — fully secure'),
+                t('privateChatF4', 'Lock any chat with a PIN for extra privacy'),
+                t('privateChatF5', 'Media sharing — images and videos'),
+                t('privateChatF6', 'Reply to specific messages'),
+                t('privateChatF7', 'Unread message badge counter')
               ].map((f, i) => (
                 <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
                   <Check size={16} color="#10b981" />
@@ -846,7 +892,7 @@ const HowItWorks = () => {
           <div className="gcw-force-dark" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', borderRadius: 16, padding: '20px 32px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 900, margin: '0 auto' }}>
             <Lock size={20} color="#fff" style={{ flexShrink: 0 }} />
             <p className="stay-white" style={{ color: '#fff', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-              <strong>{t('e2eEncryptedBold', 'All private messages use end-to-end encryption.')}</strong> {t('notEvenWeRead', 'Not even we can read your conversations.')}
+              <strong>{t('e2eEncryptedBold', 'All Group & Private Chat messages use end-to-end encryption.')}</strong> {t('notEvenWeRead', 'Not even we can read your conversations.')}
             </p>
           </div>
         </div>

@@ -10,6 +10,7 @@ import PinSetupModal from './PinSetupModal';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
+import { mergeHistoryBatch } from '../utils/chatHelper.js';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -518,7 +519,9 @@ const GlobalChatWidget = forwardRef(({
   onNewMessage,
   activeRoomTab,
   activeRoomPartner,
-  transparentMode = false
+  transparentMode = false,
+  roomPermissions,
+  isRoomHost
 }, ref) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -585,6 +588,20 @@ const GlobalChatWidget = forwardRef(({
             const parsed = JSON.parse(cached);
             if (Array.isArray(parsed)) {
               setConversations(prev => {
+                // For guests: preserve in-memory unread counts that are ahead of localStorage,
+                // because Room.jsx writes localStorage without unread and fires conversations_updated
+                // right after guest_room_messages_updated — which would wipe any unread we just set.
+                if (localStorage.getItem('watch_is_guest') === 'true') {
+                  const prevUnread = new Map(
+                    (Array.isArray(prev) ? prev : []).map(c => [(c.partner || c.id || '').toLowerCase(), c.unread || 0])
+                  );
+                  const merged = parsed.map(c => {
+                    const key = (c.partner || c.id || '').toLowerCase();
+                    const memUnread = prevUnread.get(key) || 0;
+                    return memUnread > (c.unread || 0) ? { ...c, unread: memUnread } : c;
+                  });
+                  return JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged;
+                }
                 // Shallow equality check for the array itself is not enough due to JSON.parse,
                 // so we use stringify for a reliable check against the cached version.
                 return JSON.stringify(prev) === JSON.stringify(parsed) ? prev : parsed;
@@ -615,6 +632,10 @@ const GlobalChatWidget = forwardRef(({
   }, []);
   const [view, setView] = useState('list'); // 'list' or 'chat'
   const [activeChat, setActiveChat] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const paginationStateRef = useRef({});
+  const scrollContainerRef = useRef(null);
+  const scrollPosRef = useRef(null);
   const [conversations, setConversations] = useState(() => {
     try {
       const cached = localStorage.getItem('watch_recent_chats');
@@ -782,6 +803,7 @@ const GlobalChatWidget = forwardRef(({
   const viewRef = useRef('list');
   const containerRef = useRef(null);
   const processedMsgsRef = useRef(new Set());
+  const guestLastMsgCountRef = useRef({});
 
   const handleSilentLock = async (chat) => {
     if (!chat) return;
@@ -907,10 +929,14 @@ const GlobalChatWidget = forwardRef(({
 
     // Step 2: Emit socket event to update hiddenFor in Supabase and
     //         trigger dm_cleared / room_chat_cleared on all connected sessions
-    if (socketRef.current) {
-      if (chatType === 'room') {
+    if (chatType === 'room') {
+      if (socketRef.current) {
         socketRef.current.emit('clear_room_chat', { roomId: chatKey });
-      } else {
+      } else if (localStorage.getItem('watch_is_guest') === 'true') {
+        window.dispatchEvent(new CustomEvent('guest_widget_clear_room_chat', { detail: { roomId: chatKey } }));
+      }
+    } else {
+      if (socketRef.current) {
         // targetUsername is the partner's username
         const targetUsername = chat?.partner || chatKey;
         socketRef.current.emit('clear_dm', { targetUsername, clearForBoth: false });
@@ -1786,6 +1812,109 @@ const GlobalChatWidget = forwardRef(({
     }
   }, [activeChat, view, keyPair]);
 
+  // Guest Room Messages sync listener
+  useEffect(() => {
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    if (!isGuest || !activeChat || activeChat.type !== 'room') return;
+
+    const rid = (activeChat.partner || activeChat.id || '').toLowerCase();
+
+    const syncMessages = () => {
+      try {
+        const stored = sessionStorage.getItem(`guest_room_messages_${rid}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setMessages(parsed);
+          // Update baseline so the global unread listener doesn't re-count messages we're already viewing
+          guestLastMsgCountRef.current[rid] = parsed.length;
+        }
+        const hasMoreStored = sessionStorage.getItem(`guest_room_has_more_${rid}`);
+        if (hasMoreStored !== null) {
+          if (!paginationStateRef.current[rid]) {
+            paginationStateRef.current[rid] = { hasMore: true, isLoading: false };
+          }
+          paginationStateRef.current[rid].hasMore = hasMoreStored === 'true';
+        }
+      } catch (e) {
+        console.error('Error syncing guest room messages:', e);
+      }
+    };
+
+    // Sync once initially
+    syncMessages();
+
+    // Listen for updates from Room.jsx
+    const handler = (e) => {
+      if (e.detail?.roomId?.toLowerCase() === rid) {
+        syncMessages();
+        
+        // If we were waiting for scroll restoration
+        const el = scrollContainerRef.current;
+        const pos = scrollPosRef.current;
+        if (el && pos) {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              el.scrollTop = el.scrollHeight - pos.prevScrollHeight + pos.prevScrollTop;
+            }, 0);
+          });
+          scrollContainerRef.current = null;
+          scrollPosRef.current = null;
+        }
+
+        // Reset loading flags
+        if (paginationStateRef.current[rid]) {
+          paginationStateRef.current[rid].isLoading = false;
+        }
+        setHistoryLoading(false);
+      }
+    };
+
+    window.addEventListener('guest_room_messages_updated', handler);
+    return () => window.removeEventListener('guest_room_messages_updated', handler);
+  }, [activeChat, view]);
+
+  // Guest: global unread badge tracking for all room chats
+  useEffect(() => {
+    if (localStorage.getItem('watch_is_guest') !== 'true') return;
+    const handler = (e) => {
+      const rid = e.detail?.roomId?.toLowerCase();
+      if (!rid) return;
+      try {
+        const stored = sessionStorage.getItem(`guest_room_messages_${rid}`);
+        if (!stored) return;
+        const msgs = JSON.parse(stored);
+        if (!Array.isArray(msgs)) return;
+        const newCount = msgs.length;
+
+        if (guestLastMsgCountRef.current[rid] === undefined) {
+          // First event for this room — establish baseline, no badge
+          guestLastMsgCountRef.current[rid] = newCount;
+          return;
+        }
+
+        const prevCount = guestLastMsgCountRef.current[rid];
+        const isViewingThis = viewRef.current === 'chat' &&
+          activeChatRef.current &&
+          ((activeChatRef.current.partner || '').toLowerCase() === rid ||
+           (activeChatRef.current.id || '').toLowerCase() === rid);
+
+        if (newCount > prevCount && !isViewingThis) {
+          const newFromOthers = msgs.slice(prevCount).filter(m => !m.isMe);
+          if (newFromOthers.length > 0) {
+            setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+              ((c.partner || '').toLowerCase() === rid || (c.id || '').toLowerCase() === rid)
+                ? { ...c, unread: (c.unread || 0) + newFromOthers.length }
+                : c
+            ));
+          }
+        }
+        guestLastMsgCountRef.current[rid] = newCount;
+      } catch {}
+    };
+    window.addEventListener('guest_room_messages_updated', handler);
+    return () => window.removeEventListener('guest_room_messages_updated', handler);
+  }, []); // empty deps — reads activeChatRef/viewRef to avoid stale closures
+
   // Re-run fetchConversations when keyPair loads so list previews show decrypted text
   useEffect(() => {
     if (keyPair && view === 'list') {
@@ -1989,15 +2118,95 @@ const GlobalChatWidget = forwardRef(({
 
   const latestHistoryRequestRef = useRef(0);
   
+  const decryptGlobalChatMessages = async (fetched, type) => {
+    const kp = keyPairRef.current;
+    const decrypted = await Promise.all(fetched.map(async (m) => {
+      const mUserLower = myUsername?.toLowerCase();
+      const msgIsMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
+
+      if (!m.nonce) return { ...m, decryptedText: null }; 
+      if (!kp) return { ...m, decryptedText: null, mediaUrl: null }; 
+      const msgKey = String(m.id || m.timestamp);
+      let decryptedText = null;
+      let decryptedMediaUrl = m.mediaUrl;
+      try {
+        const isPrivateDM = m.type === 'private' || type === 'private';
+        const isGroupMsg  = m.type === 'group' || m.type === 'room' || type === 'room';
+        if (isPrivateDM) {
+          if (msgIsMe) {
+            if (m.senderMessage) {
+              const plainText = decryptDMSenderCopy(m.senderMessage, m.nonce, m.ephemeralPublicKey, encodeBase64(kp.secretKey));
+              if (plainText) {
+                if (m.mediaType && m.mediaUrl) {
+                  try {
+                    const mediaKeyBytes = robustDecode(plainText);
+                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
+                    decryptedMediaUrls.current[msgKey] = objectUrl;
+                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                  } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
+                } else { decryptedText = plainText; }
+              }
+            }
+          } else {
+            const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
+            if (senderPK) {
+              if (m.mediaType && m.mediaUrl) {
+                const mediaKeyB64 = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
+                if (mediaKeyB64) {
+                  try {
+                    const mediaKeyBytes = robustDecode(mediaKeyB64);
+                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
+                    decryptedMediaUrls.current[msgKey] = objectUrl;
+                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                  } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
+                }
+              } else if (m.message && m.message !== '') {
+                decryptedText = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
+              }
+            }
+          }
+        } else if (isGroupMsg) {
+          const e2eeData = m.e2ee;
+          if (e2eeData && e2eeData.keys && e2eeData.senderPublicKey) {
+            const senderPK = decodeBase64(e2eeData.senderPublicKey);
+            const userKeyWrap = e2eeData.keys[myUsername?.toLowerCase()];
+            if (userKeyWrap) {
+              if (m.mediaType && m.mediaUrl) {
+                const mediaKeyB64 = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
+                if (mediaKeyB64) {
+                  try {
+                    const mediaKeyBytes = robustDecode(mediaKeyB64);
+                    const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
+                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
+                    decryptedMediaUrls.current[msgKey] = objectUrl;
+                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                  } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
+                }
+              } else if (m.message && m.message !== '') {
+                decryptedText = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
+              }
+            }
+          }
+        }
+      } catch (e) { console.warn('[E2EE] History decryption error:', e); }
+      return { ...m, decryptedText, mediaUrl: decryptedMediaUrl };
+    }));
+    return decrypted;
+  };
+
   const fetchHistory = async (type, partner) => {
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    if (isGuest) return; // Guest history is managed via window events from Room.jsx
     if (!token) return;
     const requestId = ++latestHistoryRequestRef.current;
     
     // Normalize partner to lowercase for consistent lookup
     const cleanPartner = partner ? partner.toLowerCase() : '';
-    
-    // Always read from ref so we're never bound to stale render-cycle closures.
-    const kp = keyPairRef.current;
     
     // Only block UI if we don't have any messages yet
     setLoading(messages.length === 0);
@@ -2008,83 +2217,7 @@ const GlobalChatWidget = forwardRef(({
       const data = await res.json();
       const fetched = Array.isArray(data) ? data : [];
 
-      // ─── E2EE Decryption for History ───
-      const decrypted = await Promise.all(fetched.map(async (m) => {
-        const mUserLower = myUsername?.toLowerCase();
-        const msgIsMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
-
-        if (!m.nonce) return { ...m, decryptedText: null }; 
-        if (!kp) return { ...m, decryptedText: null, mediaUrl: null }; 
-        const msgKey = String(m.id || m.timestamp);
-        let decryptedText = null;
-        let decryptedMediaUrl = m.mediaUrl;
-        try {
-          const isPrivateDM = m.type === 'private' || type === 'private';
-          const isGroupMsg  = m.type === 'group' || m.type === 'room' || type === 'room';
-          if (isPrivateDM) {
-            if (msgIsMe) {
-              if (m.senderMessage) {
-                const plainText = decryptDMSenderCopy(m.senderMessage, m.nonce, m.ephemeralPublicKey, encodeBase64(kp.secretKey));
-                if (plainText) {
-                  if (m.mediaType && m.mediaUrl) {
-                    try {
-                      const mediaKeyBytes = robustDecode(plainText);
-                      const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
-                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                      decryptedMediaUrls.current[msgKey] = objectUrl;
-                      decryptedMediaUrl = objectUrl; decryptedText = '';
-                    } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
-                  } else { decryptedText = plainText; }
-                }
-              }
-            } else {
-              const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
-              if (senderPK) {
-                if (m.mediaType && m.mediaUrl) {
-                  const mediaKeyB64 = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
-                  if (mediaKeyB64) {
-                    try {
-                      const mediaKeyBytes = robustDecode(mediaKeyB64);
-                      const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
-                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                      decryptedMediaUrls.current[msgKey] = objectUrl;
-                      decryptedMediaUrl = objectUrl; decryptedText = '';
-                    } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
-                  }
-                } else if (m.message && m.message !== '') {
-                  decryptedText = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
-                }
-              }
-            }
-          } else if (isGroupMsg) {
-            const e2eeData = m.e2ee;
-            if (e2eeData && e2eeData.keys && e2eeData.senderPublicKey) {
-              const senderPK = decodeBase64(e2eeData.senderPublicKey);
-              const userKeyWrap = e2eeData.keys[myUsername?.toLowerCase()];
-              if (userKeyWrap) {
-                if (m.mediaType && m.mediaUrl) {
-                  const mediaKeyB64 = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
-                  if (mediaKeyB64) {
-                    try {
-                      const mediaKeyBytes = robustDecode(mediaKeyB64);
-                      const buff = await fetch(m.mediaUrl).then(r => r.arrayBuffer());
-                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                      decryptedMediaUrls.current[msgKey] = objectUrl;
-                      decryptedMediaUrl = objectUrl; decryptedText = '';
-                    } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
-                  }
-                } else if (m.message && m.message !== '') {
-                  decryptedText = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
-                }
-              }
-            }
-          }
-        } catch (e) { console.warn('[E2EE] History decryption error:', e); }
-        return { ...m, decryptedText, mediaUrl: decryptedMediaUrl };
-      }));
+      const decrypted = await decryptGlobalChatMessages(fetched, type);
 
       if (requestId !== latestHistoryRequestRef.current) return;
       
@@ -2094,6 +2227,96 @@ const GlobalChatWidget = forwardRef(({
       if (requestId === latestHistoryRequestRef.current) console.error(e);
     } finally {
       if (requestId === latestHistoryRequestRef.current) setLoading(false);
+    }
+  };
+
+  const loadMoreHistory = async (scrollEl) => {
+    if (!activeChat) return;
+    const type = activeChat.type;
+    const partner = activeChat.partner || activeChat.id;
+    const chatKey = partner.toLowerCase();
+
+    if (!paginationStateRef.current[chatKey]) {
+      paginationStateRef.current[chatKey] = {
+        hasMore: true,
+        isLoading: false
+      };
+    }
+
+    const state = paginationStateRef.current[chatKey];
+    
+    if (state.isLoading || !state.hasMore) return;
+    if (messages.length === 0) return;
+
+    const oldestMsg = messages[0];
+    const cursor = oldestMsg.timestamp;
+
+    state.isLoading = true;
+    setHistoryLoading(true);
+
+    const prevScrollHeight = scrollEl.scrollHeight;
+    const prevScrollTop = scrollEl.scrollTop;
+
+    const limit = 200;
+
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+
+    if (!isGuest && token) {
+      try {
+        const cleanPartner = partner.toLowerCase();
+        const res = await fetch(`${API}/api/chats/history?type=${type}&partner=${cleanPartner}&before=${cursor}&limit=${limit}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          state.isLoading = false;
+          setHistoryLoading(false);
+          return;
+        }
+        const data = await res.json();
+        const fetched = Array.isArray(data) ? data : [];
+
+        if (fetched.length === 0) {
+          state.hasMore = false;
+          state.isLoading = false;
+          setHistoryLoading(false);
+          return;
+        }
+
+        const processed = await decryptGlobalChatMessages(fetched, type);
+
+        setMessages(prev => {
+          return mergeHistoryBatch(prev, processed);
+        });
+
+        if (fetched.length < limit) {
+          state.hasMore = false;
+        }
+
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight + prevScrollTop;
+          }, 0);
+        });
+      } catch (err) {
+        console.error('[loadMoreHistory] Error:', err);
+      } finally {
+        state.isLoading = false;
+        setHistoryLoading(false);
+      }
+    } else if (isGuest) {
+      scrollContainerRef.current = scrollEl;
+      scrollPosRef.current = { prevScrollHeight, prevScrollTop };
+
+      window.dispatchEvent(new CustomEvent('guest_request_more_history', {
+        detail: {
+          roomId: partner,
+          cursor,
+          limit
+        }
+      }));
+    } else {
+      state.isLoading = false;
+      setHistoryLoading(false);
     }
   };
 
@@ -2136,6 +2359,10 @@ const GlobalChatWidget = forwardRef(({
     setView('chat');
     setActiveRelation(null); // Reset
     setMessages([]); // Clear previous chat context immediately
+    paginationStateRef.current[chatKey] = {
+      hasMore: true,
+      isLoading: false
+    };
 
     // For room chats: request a fresh permissions snapshot immediately.
     // This ensures the widget has current restrictions even if no messages have been exchanged recently.
@@ -2715,6 +2942,12 @@ const GlobalChatWidget = forwardRef(({
   };
 
   const openLightbox = (url, type) => setLightbox({ url, type });
+
+  const perms = activeChat?.permissions || roomPermissions;
+  const isHost = activeChat?.isHost || isRoomHost;
+  const chatLocked = perms?.chat === 'host';
+  const linksBlocked = perms?.allowLinks === false;
+  const mediaBlocked = perms?.allowMedia === false;
 
   if (!isOpen) return null;
 
@@ -3955,10 +4188,22 @@ const GlobalChatWidget = forwardRef(({
 
           {view === 'chat' && (
             <div 
-              onScroll={handleScroll}
+              ref={scrollContainerRef}
+              onScroll={(e) => {
+                handleScroll(e);
+                const el = e.currentTarget;
+                if (el.scrollTop < 50) {
+                  loadMoreHistory(el);
+                }
+              }}
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); }} 
               style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
             >
+              {historyLoading && (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
+                  <div style={{ width: 18, height: 18, border: '2px solid rgba(99,102,241,0.2)', borderTop: '2px solid #6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                </div>
+              )}
               {/* Media Policy Banner — shown once per user */}
               {showMediaPolicyBanner && (
                 <div style={{ margin: '0 0 10px', background: isLight ? '#f0f9ff' : 'rgba(99,102,241,0.1)', border: `1px solid ${isLight ? '#bae6fd' : 'rgba(99,102,241,0.25)'}`, borderRadius: 12, padding: '12px 14px', fontSize: 12, color: isLight ? '#0369a1' : '#93c5fd' }}>
@@ -4251,6 +4496,26 @@ const GlobalChatWidget = forwardRef(({
                   { (activeChat.isBlocked || blockedChats.some(u => u.toLowerCase() === activeChat.partner.toLowerCase())) ? 'Unblock them in your account settings to send messages.' : 'This user is currently unavailable.'}
                 </p>
               </div>
+            ) : (activeChat.type === 'private' && localStorage.getItem('watch_is_guest') === 'true') ? (
+              <div className="blocked-banner-v2" onClick={() => navigate('/login')} style={{
+                background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.03)', 
+                border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', 
+                borderRadius: 16, 
+                padding: '16px 20px', 
+                textAlign: 'center',
+                marginBottom: 4,
+                cursor: 'pointer'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#1e293b' : '#fff', marginBottom: 4 }}>
+                  {t('loginRequired', 'Login Required')}
+                </div>
+                <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
+                  {t('loginToMessage', 'You need to be logged in to send private messages.')}
+                </p>
+                <a className="stay-white" href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }}>
+                  {t('logIn', 'Log In')}
+                </a>
+              </div>
             ) : activeChat.type === 'private' && activeRelation && !(activeRelation.followStatus === 'accepted' && activeRelation.isFollowingMe) ? (
               <div style={{ 
                 background: 'rgba(255,255,255,0.03)', 
@@ -4332,40 +4597,31 @@ const GlobalChatWidget = forwardRef(({
                 }} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
 
                   {/* Room restriction banners */}
-                  {activeChat?.type === 'room' && (() => {
-                    const perms = activeChat.permissions;
-                    const isHost = activeChat.isHost;
-                    if (!perms || isHost) return null;
-                    const chatLocked = perms.chat === 'host';
-                    const linksBlocked = perms.allowLinks === false;
-                    const mediaBlocked = perms.allowMedia === false;
-                    if (!chatLocked && !linksBlocked && !mediaBlocked) return null;
-                    return (
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                        {chatLocked && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, color: '#ef4444',
-                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-                            borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
-                          }}>🔒 Host-only messaging</span>
-                        )}
-                        {linksBlocked && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, color: '#ef4444',
-                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-                            borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
-                          }}>🔗 Links Disabled</span>
-                        )}
-                        {mediaBlocked && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, color: '#ef4444',
-                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
-                            borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
-                          }}>📷 Media Disabled</span>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  {activeChat?.type === 'room' && !isHost && (chatLocked || linksBlocked || mediaBlocked) && (
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                      {chatLocked && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, color: '#ef4444',
+                          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                          borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
+                        }}>🔒 Host-only messaging</span>
+                      )}
+                      {linksBlocked && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, color: '#ef4444',
+                          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                          borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
+                        }}>🔗 Links Disabled</span>
+                      )}
+                      {mediaBlocked && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 600, color: '#ef4444',
+                          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+                          borderRadius: 6, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 3
+                        }}>📷 Media Disabled</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* ── Voice recording UI ── */}
                   {isRecording && (
@@ -4402,23 +4658,23 @@ const GlobalChatWidget = forwardRef(({
                         <input
                           ref={inputRef}
                           type="text"
-                          placeholder={activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
-                          disabled={!!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)}
+                          placeholder={activeChat?.type === 'room' && chatLocked && !isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
+                          disabled={!!(activeChat?.type === 'room' && chatLocked && !isHost)}
                           value={inputValue}
                           onChange={e => {
                             setInputValue(e.target.value);
                             if (socketRef.current && activeChat) {
-                              socketRef.current.emit('chat:typing', {
-                                partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
-                                type: activeChat.type
-                              });
-                              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                              typingTimeoutRef.current = setTimeout(() => {
-                                socketRef.current.emit('chat:stop_typing', {
-                                  partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
-                                  type: activeChat.type
-                                });
-                              }, 3000);
+                               socketRef.current.emit('chat:typing', {
+                                 partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                                 type: activeChat.type
+                               });
+                               if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                               typingTimeoutRef.current = setTimeout(() => {
+                                 socketRef.current.emit('chat:stop_typing', {
+                                   partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                                   type: activeChat.type
+                                 });
+                               }, 3000);
                             }
                           }}
                           style={{
@@ -4445,16 +4701,16 @@ const GlobalChatWidget = forwardRef(({
                             {/* Attachment button — opens unified file picker */}
                             <button
                               type="button"
-                              disabled={isUploading || !!(activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost)}
+                              disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
                               onClick={() => {
-                                if (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) {
+                                if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
                                   toast.error('📷 Media sharing is not allowed in this room.');
                                   return;
                                 }
                                 fileInputRef.current?.click();
                               }}
                               title="Attach image, video, document or file"
-                              style={{ background:'transparent', border:'none', color: isUploading ? '#6366f1' : '#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) ? 0.4 : 1 }}
+                              style={{ background:'transparent', border:'none', color: isUploading ? '#6366f1' : '#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
                             >
                               <Paperclip size={18} />
                             </button>
@@ -4477,8 +4733,8 @@ const GlobalChatWidget = forwardRef(({
                         )}
                       </div>
 
-                      <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost)} style={{
-                        width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', cursor: (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && activeChat.permissions?.chat === 'host' && !activeChat.isHost))?0.5:1, flexShrink: 0
+                      <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && chatLocked && !isHost)} style={{
+                        width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', cursor: (activeChat?.type === 'room' && chatLocked && !isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && chatLocked && !isHost))?0.5:1, flexShrink: 0
                       }}>
                         <Send size={18} color="#fff" />
                       </button>
@@ -4570,9 +4826,16 @@ const GlobalChatWidget = forwardRef(({
               <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:24,lineHeight:1.4}}>Are you sure you want to clear your chat history with <strong>{clearGroupChatModalOpen.displayName || clearGroupChatModalOpen.partner}</strong>?</p>
               <div style={{display:'flex',gap:14,justifyContent:'flex-end'}}>
                 <button onClick={()=>setClearGroupChatModalOpen(false)} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
-                <button onClick={()=>{ 
-                  if (socketRef.current) socketRef.current.emit('clear_room_chat', { roomId: clearGroupChatModalOpen.partner }); 
-                  setClearGroupChatModalOpen(false); 
+                <button onClick={()=>{
+                  const rid = (clearGroupChatModalOpen.partner || '').toLowerCase();
+                  if (socketRef.current) {
+                    socketRef.current.emit('clear_room_chat', { roomId: clearGroupChatModalOpen.partner });
+                  } else if (localStorage.getItem('watch_is_guest') === 'true') {
+                    window.dispatchEvent(new CustomEvent('guest_widget_clear_room_chat', { detail: { roomId: rid } }));
+                    try { sessionStorage.setItem(`guest_room_messages_${rid}`, '[]'); } catch {}
+                    window.dispatchEvent(new CustomEvent('guest_room_messages_updated', { detail: { roomId: rid } }));
+                  }
+                  setClearGroupChatModalOpen(false);
                   toast.success('Chat history cleared');
                 }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>
                   <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
@@ -4601,6 +4864,13 @@ const GlobalChatWidget = forwardRef(({
                 if(renameInput.trim()){ 
                   if (socketRef.current) {
                     socketRef.current.emit('mod_rename_room',{roomId: activeChat.partner, newName: renameInput.trim()});
+                    setActiveChat(prev => ({ ...prev, displayName: renameInput.trim() }));
+                    setConversations(prev => prev.map(c => c.partner === activeChat.partner ? { ...c, displayName: renameInput.trim() } : c));
+                    toast.success('Room name updated successfully');
+                  } else if (localStorage.getItem('watch_is_guest') === 'true') {
+                    window.dispatchEvent(new CustomEvent('guest_widget_rename_room', { 
+                      detail: { roomId: activeChat.partner, newName: renameInput.trim() } 
+                    }));
                     setActiveChat(prev => ({ ...prev, displayName: renameInput.trim() }));
                     setConversations(prev => prev.map(c => c.partner === activeChat.partner ? { ...c, displayName: renameInput.trim() } : c));
                     toast.success('Room name updated successfully');

@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
+import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -15,6 +16,10 @@ import VimeoBrowserModal from './components/VimeoBrowserModal';
 import MediaSelectorModal from './components/MediaSelectorModal';
 import GuidedShareModal from './components/GuidedShareModal';
 import BanConfirmModal from './components/BanConfirmModal';
+import StreamUploadProgress from './components/StreamUploadProgress';
+import SubtitleSettingsModal from './components/SubtitleSettingsModal';
+import { useVideoUpload } from './hooks/useVideoUpload';
+import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import ReactPlayerRaw from 'react-player/lazy';
 const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
@@ -22,7 +27,23 @@ import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-ut
 import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast } from 'lucide-react';
+import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+
+function normalizeUrl(input) {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    new URL(withProto);
+    return withProto;
+  } catch {
+    return null;
+  }
+}
+import CustomizeRoomModal from './components/CustomizeRoomModal';
+import { ROOM_THEMES } from './data/roomThemes';
 import { FaWhatsapp, FaTelegramPlane, FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP, FaApple, FaSpotify, FaTiktok } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv, SiGmail } from 'react-icons/si';
@@ -30,11 +51,20 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Always connect to port 3001 via HTTP — works for both localhost and LAN IPs (e.g. 192.168.x.x)
 // LAN mode is used when the TV/phone opens the app from the Cast URL on the same WiFi network
-const SOCKET_SERVER_URL = `http://${window.location.hostname}:3001`;
+const SOCKET_SERVER_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 const QUICK_EMOJIS = ['👍', '❤️', '😊', '😮', '😢'];
 const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '😂', '🤔', '😎', '😁', '😅', '✨', '🙏', '💚', '💛', '💝', '🤗', '😻', '🥰', '🎉', '😪', '😒', '✔️', '🤞', '😽', '😡', '🤢', '🤡', '🤫'];
 
 // -------------------------------- Helpers --------------------------------
+function formatUsername(name) {
+  if (!name) return '';
+  if (name.toLowerCase().startsWith('guest_')) {
+    return name.slice(6);
+  }
+  return name;
+}
 function getInitials(name) { return (name || '?').slice(0, 2).toUpperCase(); }
 function getAvatarColor(name) {
   const colors = ['#6366f1', '#a855f7', '#ec4899', '#ef4444', '#f97316', '#10b981', '#3b82f6', '#06b6d4'];
@@ -56,6 +86,7 @@ function playPing() {
     o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.4);
   } catch (e) { }
 }
+
 
 // -------------------------------- Avatar --------------------------------
 function Avatar({ name, size = 36, isHost = false, isAdmin = false, isMuted = false, src, avatarPath, style = {} }) {
@@ -210,6 +241,7 @@ const Room = () => {
   const [hasStartedCamOnce, setHasStartedCamOnce] = useState(false);
   const [hiddenCams, setHiddenCams] = useState(new Set());
   const [isDraggingCam, setIsDraggingCam] = useState(false);
+  const [isResizingCam, setIsResizingCam] = useState(false);
   const [isOverRemoveZone, setIsOverRemoveZone] = useState(false);
   const isOverRemoveRef = useRef(false);
   const [renameModalOpen, setRenameModalOpen] = useState(false);
@@ -277,10 +309,102 @@ const Room = () => {
   const [roomSettingsModalOpen, setRoomSettingsModalOpen] = useState(false);
   const [room, setRoom] = useState(null);
   const [roomNotFound, setRoomNotFound] = useState(false);
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [roomTheme, setRoomTheme] = useState('default');
   const [isPublic, setIsPublic] = useState(true);
   const settingsRef = useRef(null);
+  const themeChangeInFlightRef = useRef(false);
 
   const [mediaUrl, setMediaUrl] = useState('');
+  const mediaUrlRef = useRef(mediaUrl);
+  useEffect(() => {
+    mediaUrlRef.current = mediaUrl;
+  }, [mediaUrl]);
+  const [subtitlesUrl, setSubtitlesUrl] = useState(null);
+  const [subtitlesVisible, setSubtitlesVisible] = useState(true);
+  const subtitleInputRef = useRef(null);
+  const [subtitleVttText, setSubtitleVttText] = useState(null);
+  const subtitleCuesRef = useRef([]);
+  const [activeCue, setActiveCue] = useState(null);
+  const [showSubtitleSettingsModal, setShowSubtitleSettingsModal] = useState(false);
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const subtitleMenuRef = useRef(null);
+  const [subtitleSettings, setSubtitleSettings] = useState(() => {
+    try {
+      const key = `subtitleSettings_${localStorage.getItem('watch_username') || 'guest'}`;
+      const saved = localStorage.getItem(key);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { delay: 0, speed: 1.0, fontSize: 'medium', textColor: 'white', bgColor: 'black', opacity: 1.0, position: 'bottom' };
+  });
+  function convertSrtToVtt(srtText) {
+    let text = srtText.trim().replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (text.startsWith('WEBVTT')) {
+      return text;
+    }
+    const lines = text.split('\n');
+    const vttLines = ['WEBVTT', ''];
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      if (line.includes('-->')) {
+        line = line.replace(/,/g, '.');
+      }
+      vttLines.push(line);
+    }
+    return vttLines.join('\n');
+  }
+  function parseVttCues(vttText) {
+    const cues = [];
+    const lines = (vttText || '').split('\n');
+    let i = 0;
+    while (i < lines.length) {
+      if (lines[i].includes('-->')) {
+        const m = lines[i].match(/^([\d:,.]+)\s+-->\s+([\d:,.]+)/);
+        if (m) {
+          const parseT = t => {
+            const p = t.replace(',', '.').split(':');
+            return p.length === 3 ? +p[0] * 3600 + +p[1] * 60 + +p[2]
+              : p.length === 2 ? +p[0] * 60 + +p[1]
+              : +p[0];
+          };
+          const start = parseT(m[1]);
+          const end = parseT(m[2]);
+          i++;
+          const textLines = [];
+          while (i < lines.length && lines[i].trim() !== '') {
+            textLines.push(lines[i]);
+            i++;
+          }
+          if (textLines.length) {
+            cues.push({ start, end, text: textLines.join('\n').replace(/<[^>]+>/g, '') });
+          }
+        }
+      }
+      i++;
+    }
+    return cues;
+  }
+  const [iframeLoading, setIframeLoading] = useState(false);
+  const [iframeError, setIframeError] = useState(false); // true when iframe is blocked/X-Frame-Options denied
+  const [iframeBlockSuspected, setIframeBlockSuspected] = useState(false); // true when page loaded but may be a block page (soft block)
+  const iframeBlockTimeoutRef = useRef(null);
+  const [showGlobePopup, setShowGlobePopup] = useState(false);
+  const globePopupRef = useRef(null);
+  const [hbSessionId, setHbSessionId] = useState(null);
+  const [browserDisplayUrl, setBrowserDisplayUrl] = useState('');
+  const [browserBarInput, setBrowserBarInput] = useState('');
+  // ─── Hyperbeam Cloud Browser fallback state ───────────────────────────────
+  // loadFailed: set to true when ReactPlayer errors or 10s timeout fires
+  // hyperbeamSession: { session_id, embed_url } when cloud browser is active
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [failedPlaybackUrl, setFailedPlaybackUrl] = useState('');
+  const [hyperbeamSession, setHyperbeamSession] = useState(null);
+  const [hbNavStatus, setHbNavStatus] = useState(null); // null | 'navigating' | 'failed'
+  const hyperbeamContainerRef = useRef(null);
+  const hyperbeamInstanceRef = useRef(null);
+  const hyperbeamTargetUrlRef = useRef(null);
+  const hbAdminTokenRef = useRef(null);
+  const loadTimeoutRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [inputUrl, setInputUrl] = useState('');
   const [videoPlatform, setVideoPlatform] = useState('direct');
@@ -294,7 +418,10 @@ const Room = () => {
   const lastPrepUrl = useRef('');
 
   const containerRef = useRef(null);
+  const videoFileInputRef = useRef(null); // persistent file input outside any modal
   const [isUploading, setIsUploading] = useState(false);
+  const [streamPending, setStreamPending] = useState(null); // { streamKey, filename } while host uploads
+  const { uploadState, uploadFile, cancelUpload } = useVideoUpload({ socket, roomId, serverUrl: SOCKET_SERVER_URL });
   const [hasMounted, setHasMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isWaitingApproval, setIsWaitingApproval] = useState(() => sessionStorage.getItem(`lobby_waiting_${roomId}`) === 'true');
@@ -455,8 +582,13 @@ const Room = () => {
         let loadedSeconds = 0;
 
         if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) {
-          const fraction = playerRef.current.getInternalPlayer()?.getVideoLoadedFraction() || 0;
-          loadedSeconds = fraction * duration;
+          try {
+            const ytPlayer = playerRef.current.getInternalPlayer();
+            const fraction = (typeof ytPlayer?.getVideoLoadedFraction === 'function')
+              ? ytPlayer.getVideoLoadedFraction()
+              : 0;
+            loadedSeconds = fraction * duration;
+          } catch (_e) { loadedSeconds = 0; }
         } else if (internal?.buffered && internal.buffered.length > 0) {
           const buffered = internal.buffered;
           const current = playerRef.current.getCurrentTime() || 0;
@@ -469,18 +601,19 @@ const Room = () => {
         }
 
         setBufferedSeconds(Math.floor(loadedSeconds));
-        // Progress toward 25s goal
-        const progress = Math.min((loadedSeconds / 25) * 100, 100);
+        // Progress toward buffering goal
+        const isEmbed = mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || mediaUrl.includes('twitch.tv') || mediaUrl.includes('vimeo.com');
+        const bufferGoal = isEmbed ? 1 : 25;
+        const progress = Math.min((loadedSeconds / bufferGoal) * 100, 100);
         setPrepProgress(progress);
 
         // --- Gate Check ---
-        if (loadedSeconds >= 25 || (duration > 0 && Math.abs(duration - playerRef.current.getCurrentTime()) < 1.0)) {
-          console.log('[SMOOTHING] Ready. Resetting to start.');
+        if (loadedSeconds >= bufferGoal || (duration > 0 && Math.abs(duration - playerRef.current.getCurrentTime()) < 1.0)) {
           setIsPreparing(false);
           setBufferedSeconds(0);
           clearTimeout(safetyTimeout);
-          // Jump back to start so user doesn't miss the beginning while ghost-buffering
-          playerRef.current.seekTo(0);
+          lastExternalUpdate.current = Date.now() + 1500;
+          playerRef.current.seekTo(prepTargetTimeRef.current || 0, 'seconds');
         }
       }, 500);
     }
@@ -497,8 +630,22 @@ const Room = () => {
       setIsPreparing(true);
       setPrepProgress(0);
       setBufferedSeconds(0);
+      if (!ReactPlayer.canPlay(mediaUrl) && !mediaUrl.includes('/api/stream/') && !mediaUrl.startsWith('blob:')) {
+        setIframeLoading(true);
+      }
     }
   }, [mediaUrl]);
+
+  useEffect(() => {
+    if (!mediaUrl?.includes('/api/stream/') && !mediaUrl?.startsWith('blob:')) return
+    // Force dismiss after 3 seconds max
+    const timer = setTimeout(() => {
+      console.log('[OVERLAY] Force dismissing after 3s')
+      setIsPreparing(false)
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [mediaUrl]);
+
   const [useCustomTwitchControls, setUseCustomTwitchControls] = useState(true);
   const [useCustomVimeoControls, setUseCustomVimeoControls] = useState(true);
   const [uiVisible, setUiVisible] = useState(true);
@@ -509,13 +656,18 @@ const Room = () => {
   const [banConfirmTarget, setBanConfirmTarget] = useState(null);
   const [isFloatingBarMinimized, setIsFloatingBarMinimized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isAppFullscreen, setIsAppFullscreen] = useState(false);
+  const [isMobileFsMode, setIsMobileFsMode] = useState(false);
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
   useEffect(() => {
     const onFullscreenChange = () => {
-      const entering = !!document.fullscreenElement;
-      setIsFullscreen(entering);
+      const fsEl = document.fullscreenElement;
+      const entering = !!fsEl;
+      const isDoc = fsEl === document.documentElement;
+      setIsAppFullscreen(isDoc && entering);
+      setIsFullscreen(entering && !isDoc);
       // Auto-close global chat when exiting fullscreen so it doesn't
       // unexpectedly reappear as a normal-mode panel.
       if (!entering) setShowRecentChats(false);
@@ -555,15 +707,21 @@ const Room = () => {
     return /youtube\.com|youtu\.be|twitch\.tv|vimeo\.com|soundcloud\.com/i.test(url);
   }
 
-  function isNSFWUrl(url) {
-    if (!url) return false;
-    const nsfwKeywords = ['porn', 'xxx', 'sex', 'xrated', 'nsfw', 'adult', 'erotic', 'brazers', 'redtube', 'xvideos', 'pornhub', 'youporn'];
-    const nsfwDomains = ['pornhub.com', 'xvideos.com', 'redtube.com', 'youporn.com', 'xnxx.com', 'brazzers.com', 'xhamster.com', 'chaturbate.com', 'bongacams.com'];
-    const lowerUrl = url.toLowerCase();
-    return nsfwKeywords.some(k => lowerUrl.includes(k)) || nsfwDomains.some(d => lowerUrl.includes(d));
+  function isNSFWUrl(_url) {
+    return false; // No content restrictions
   }
 
   const handleFullscreen = () => {
+    if (isMobile) {
+      if (isMobileFsMode) {
+        setIsMobileFsMode(false);
+        if (screen?.orientation?.unlock) screen.orientation.unlock();
+      } else {
+        setIsMobileFsMode(true);
+        if (screen?.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+      }
+      return;
+    }
     if (!document.fullscreenElement) {
       if (playerWrapRef.current?.requestFullscreen) {
         playerWrapRef.current.requestFullscreen().catch(err => {
@@ -586,23 +744,65 @@ const Room = () => {
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
+  function detectMediaType(url) {
+    if (!url) return null;
+    if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+    if (url.includes('twitch.tv/videos')) return 'twitch_vod';
+    if (/\.(mp4|webm|mkv|m3u8|avi|mov)(\?|$)/i.test(url)) return 'direct';
+    return null;
+  }
+
+  function getPlayerPosition() {
+    if (localVideoRef.current) return localVideoRef.current.currentTime || 0;
+    if (playerRef.current?.getCurrentTime) return playerRef.current.getCurrentTime() || 0;
+    if (playerRef.current?.currentTime !== undefined) return playerRef.current.currentTime || 0;
+    return currentTime || 0;
+  }
+
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playerVolume, setPlayerVolume] = useState(1);
-  const [lastNonDuckedVolume, setLastNonDuckedVolume] = useState(1);
-  const [isDucking, setIsDucking] = useState(false);
+  const playerVolumeRef = useRef(1); // mirrors playerVolume for reading inside closures without stale state
+  const [isDucked, setIsDucked] = useState(false);
+  const [duckingNotice, setDuckingNotice] = useState(null);
+  const preDuckVolumeRef = useRef(null);
   const audioContextRef = useRef(null);
   const analyzersRef = useRef(new Map());
+  const hasAutoResumedRef = useRef(false);
+  const savePositionStateRef = useRef({ isEffectiveHost: false, mediaUrl: '', roomId: '' });
+  const prepTargetTimeRef = useRef(0);
   const [playerMuted, setPlayerMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
   const playerWrapRef = useRef(null);
+  // Responsive breakpoints
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  const [showTopRestoreBtn, setShowTopRestoreBtn] = useState(false);
+  const topRestoreTimerRef = useRef(null);
+
+  const resetTopRestoreTimer = () => {
+    setShowTopRestoreBtn(true);
+    clearTimeout(topRestoreTimerRef.current);
+    topRestoreTimerRef.current = setTimeout(() => {
+      setShowTopRestoreBtn(false);
+    }, 1500);
+  };
 
   const resetControlsTimer = () => {
     setShowControls(true);
     clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+    resetTopRestoreTimer();
   };
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(controlsTimerRef.current);
+      clearTimeout(topRestoreTimerRef.current);
+    };
+  }, []);
 
   // Tracking intentional navigation vs page refresh
   const isUnloadingRef = useRef(false);
@@ -618,6 +818,7 @@ const Room = () => {
   const [dmTarget, setDmTarget] = useState(null);
   const dmTargetRef = useRef(null);
   const [dmThreads, setDmThreads] = useState({});
+  const dmClearedTsRef = useRef({});
   const [dmUnread, setDmUnread] = useState({});
   const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
@@ -625,6 +826,9 @@ const Room = () => {
   const [dmMediaUrlVersion, setDmMediaUrlVersion] = useState(0);
   const groupDecryptedMediaUrls = useRef({});
   const [groupMediaUrlVersion, setGroupMediaUrlVersion] = useState(0);
+  // reaction preview overrides: key → previewText, shown in chat list until user opens that chat
+  const [reactionPreviews, setReactionPreviews] = useState({});
+
   const [groupUnread, setGroupUnread] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('chat_group_unread') || '{}');
@@ -646,8 +850,321 @@ const Room = () => {
   const [showGroupEmojiPicker, setShowGroupEmojiPicker] = useState(false);
   const [showDmEmojiPicker, setShowDmEmojiPicker] = useState(false);
   const [typingUsers, setTypingUsers] = useState({});
+  const [typingStatuses, setTypingStatuses] = useState({}); // chatKey -> Array of usernames typing
   const typingTimer = useRef(null);
+  const lastTypingSent = useRef(0);
   const messagesEndRef = useRef(null);
+
+  // ─── Scoped Chat History Pagination State Ref (Additions 1, 3, 4) ───
+  const [groupHistoryLoading, setGroupHistoryLoading] = useState(false);
+  const [dmHistoryLoading, setDmHistoryLoading] = useState(false);
+  const [hasMoreGroupHistory, setHasMoreGroupHistory] = useState(true);
+  const [hasMoreDmHistory, setHasMoreDmHistory] = useState({}); // keyed by partnerUsername.toLowerCase()
+
+  const paginationStateRef = useRef({
+    group: {
+      hasMore: true,
+      isLoading: false
+    }
+  });
+
+  const groupScrollElRef = useRef(null);
+  const groupScrollPosRef = useRef(null);
+  const dmScrollElRef = useRef(null);
+  const dmScrollPosRef = useRef(null);
+
+  // ─── E2EE Decryption & Scoped Pagination Loaders (Additions 1, 2, 3, 4) ───
+  const decryptRoomGroupMessages = async (msgs) => {
+    const kp = myKeyPair.current;
+    const myUserLower = username?.toLowerCase();
+
+    const processed = await Promise.all(msgs.map(async (msg) => {
+      try {
+        const isMine = msg.isMe !== undefined ? msg.isMe
+          : ((msg.username && msg.username.toLowerCase() === username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username?.toLowerCase()));
+        const safeReactions = (() => { try { return fixReactions(msg.reactions); } catch { return {}; } })();
+        
+        let displayMediaUrl = msg.mediaUrl;
+        let decryptedText = msg.decryptedText !== undefined ? msg.decryptedText : null;
+
+        if (msg.e2ee && msg.e2ee.keys && kp) {
+          try {
+            const myEncKey = msg.e2ee.keys[myUserLower]
+              || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myUserLower)?.[1];
+            const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
+            
+            if (myEncKey && resolvedSenderKey) {
+              const senderPubKey = decodeBase64(resolvedSenderKey);
+              const plain = decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPubKey, kp.secretKey);
+              if (plain !== null) {
+                if (msg.mediaUrl && msg.mediaUrl.length > 50) {
+                  try {
+                    const mediaKeyBytes = robustDecode(plain);
+                    const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
+                    const msgKey = String(msg.id || msg.timestamp);
+                    groupDecryptedMediaUrls.current[msgKey] = objectUrl;
+                    
+                    const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
+                    msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
+                    
+                    decryptedText = '';
+                    displayMediaUrl = objectUrl;
+                  } catch (e) {
+                    console.warn('[E2EE] Group messages media decrypt failed:', e);
+                    displayMediaUrl = null;
+                  }
+                } else {
+                  decryptedText = plain;
+                }
+              }
+            }
+          } catch (e2eeErr) {
+            console.warn('[E2EE] Group messages decrypt failed:', e2eeErr);
+          }
+          if (msg.mediaUrl && msg.mediaUrl.length > 50 && !decryptedText && decryptedText !== '') {
+            displayMediaUrl = null;
+          }
+        }
+
+        return { 
+          ...msg, 
+          mediaUrl: displayMediaUrl, 
+          isMe: isMine, 
+          reactions: safeReactions, 
+          decryptedText: decryptedText !== null ? decryptedText : msg.decryptedText 
+        };
+      } catch (itemErr) {
+        console.warn('[decryptRoomGroupMessages] item process error:', itemErr);
+        const isMine = (msg.username && msg.username.toLowerCase() === username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username?.toLowerCase());
+        return { ...msg, isMe: isMine, reactions: {} };
+      }
+    }));
+    
+    try {
+      return resolveReplyMessages(processed);
+    } catch {
+      return processed;
+    }
+  };
+
+  const decryptDmMessages = async (msgs) => {
+    const kp = myKeyPair.current;
+    const processed = await Promise.all(msgs.map(async (msg) => {
+      let decryptedText = null;
+      let decryptedMediaUrl = msg.mediaUrl;
+      let _encryptedOwn = false;
+      
+      if (msg.nonce && kp) {
+        if (msg.isMe) {
+          if (msg.senderMessage) {
+            const plain = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+            if (plain) {
+              if (msg.mediaType && msg.mediaUrl) {
+                decryptedText = '';
+                decryptedMediaUrl = null;
+                const msgKey = msg.id || String(msg.timestamp);
+                const targetMediaUrl = msg.mediaUrl;
+                const targetMediaType = msg.mediaType;
+                try {
+                  const mediaKeyBytes = robustDecode(plain);
+                  const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                  const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                  const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                  dmDecryptedMediaUrls.current[msgKey] = objectUrl;
+                  setDmMediaUrlVersion(v => v + 1);
+                } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+              } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
+                decryptedMediaUrl = plain; decryptedText = '';
+              } else { decryptedText = plain; }
+            } else if (msg.mediaType) {
+              decryptedText = '';
+            }
+          } else {
+            _encryptedOwn = true;
+            if (msg.mediaType) decryptedText = '';
+          }
+        } else if (msg.ephemeralPublicKey) {
+          const plain = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+          if (plain) {
+            if (msg.mediaType && msg.mediaUrl) {
+              decryptedText = '';
+              decryptedMediaUrl = null;
+              const msgKey = msg.id || String(msg.timestamp);
+              const targetMediaUrl = msg.mediaUrl;
+              const targetMediaType = msg.mediaType;
+              try {
+                const mediaKeyBytes = robustDecode(plain);
+                const buff = await fetch(targetMediaUrl).then(r => r.arrayBuffer());
+                const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                dmDecryptedMediaUrls.current[msgKey] = objectUrl;
+                setDmMediaUrlVersion(v => v + 1);
+              } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+            } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
+              decryptedMediaUrl = plain; decryptedText = '';
+            } else { decryptedText = plain; }
+          } else if (msg.mediaType) {
+            decryptedText = '';
+          }
+        }
+      } else if (msg.mediaType) {
+        decryptedText = msg.message || '';
+      }
+      return { ...msg, decryptedText, mediaUrl: decryptedMediaUrl, _encryptedOwn };
+    }));
+
+    try {
+      return resolveReplyMessages(processed);
+    } catch {
+      return processed;
+    }
+  };
+
+  const loadMoreGroupHistory = async (scrollEl) => {
+    const state = paginationStateRef.current.group;
+    if (state.isLoading || !state.hasMore || !roomId) return;
+
+    if (groupMessages.length === 0) return;
+    const oldestMsg = groupMessages[0];
+    const cursor = oldestMsg.timestamp;
+
+    state.isLoading = true;
+    setGroupHistoryLoading(true);
+
+    const prevScrollHeight = scrollEl.scrollHeight;
+    const prevScrollTop = scrollEl.scrollTop;
+
+    const limit = 200;
+    const token = localStorage.getItem('watch_token');
+
+    if (token) {
+      try {
+        const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/history?type=room&partner=${encodeURIComponent(roomId)}&before=${cursor}&limit=${limit}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          state.isLoading = false;
+          setGroupHistoryLoading(false);
+          return;
+        }
+        const msgs = await res.json();
+        const fetched = Array.isArray(msgs) ? msgs : [];
+
+        if (fetched.length === 0) {
+          state.hasMore = false;
+          setHasMoreGroupHistory(false);
+          state.isLoading = false;
+          setGroupHistoryLoading(false);
+          return;
+        }
+
+        const processed = await decryptRoomGroupMessages(fetched);
+
+        setGroupMessages(prev => {
+          return mergeHistoryBatch(prev, processed);
+        });
+
+        if (fetched.length < limit) {
+          state.hasMore = false;
+          setHasMoreGroupHistory(false);
+        }
+
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight + prevScrollTop;
+          }, 0);
+        });
+      } catch (err) {
+        console.error('[loadMoreGroupHistory] Error:', err);
+      } finally {
+        state.isLoading = false;
+        setGroupHistoryLoading(false);
+      }
+    } else {
+      groupScrollElRef.current = scrollEl;
+      groupScrollPosRef.current = { prevScrollHeight, prevScrollTop };
+      socket.emit('chat:request_history', { roomId, before: cursor, limit });
+    }
+  };
+
+  const loadMoreDmHistory = async (scrollEl) => {
+    if (!dmTarget) return;
+    const partnerKey = dmTarget.toLowerCase();
+    
+    if (!paginationStateRef.current[partnerKey]) {
+      paginationStateRef.current[partnerKey] = {
+        hasMore: true,
+        isLoading: false
+      };
+    }
+    
+    const state = paginationStateRef.current[partnerKey];
+    if (state.isLoading || !state.hasMore) return;
+
+    const thread = dmThreads[partnerKey] || [];
+    if (thread.length === 0) return;
+
+    const cursor = thread[0].timestamp;
+    state.isLoading = true;
+    setDmHistoryLoading(true);
+
+    const prevScrollHeight = scrollEl.scrollHeight;
+    const prevScrollTop = scrollEl.scrollTop;
+
+    dmScrollElRef.current = scrollEl;
+    dmScrollPosRef.current = { prevScrollHeight, prevScrollTop };
+
+    const limit = 200;
+    socket.emit('chat:request_history', { type: 'private', partner: dmTarget, before: cursor, limit });
+  };
+
+
+
+  useEffect(() => {
+    chatTabRef.current = chatTab;
+  }, [chatTab]);
+
+  useEffect(() => {
+    dmTargetRef.current = dmTarget;
+  }, [dmTarget]);
+
+  const handleTypingStatus = (data, isStarting) => {
+    const { partner, username, type, roomId: payloadRoomId, isTyping } = data;
+    const isActuallyStarting = isStarting && isTyping !== false;
+    
+    let chatKey = null;
+    if (type === 'room') {
+      chatKey = (partner || roomId || payloadRoomId || '').toLowerCase();
+    } else if (type === 'private') {
+      chatKey = (username || partner || '').toLowerCase();
+    }
+    
+    if (!chatKey || !username) return;
+
+    setTypingStatuses(prev => {
+      const next = { ...prev };
+      const currentList = next[chatKey] || [];
+      if (isActuallyStarting) {
+        if (!currentList.includes(username)) {
+          next[chatKey] = [...currentList, username];
+        }
+      } else {
+        next[chatKey] = currentList.filter(u => u !== username);
+        if (next[chatKey].length === 0) {
+          delete next[chatKey];
+        }
+      }
+      return next;
+    });
+
+    if (isActuallyStarting) {
+      setTimeout(() => {
+        handleTypingStatus({ ...data, isTyping: false }, false);
+      }, 5000);
+    }
+  };
   const groupMessagesRef = useRef([]);
   const dmInputRef = useRef(null);
   const groupInputRef = useRef(null);
@@ -656,6 +1173,16 @@ const Room = () => {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
+      // Close emoji pickers & reaction bars on clicking outside
+      const isEmojiPicker = e.target.closest('.emoji-picker-container') || e.target.closest('.emoji-picker-btn') || e.target.closest('.emoji-picker') || e.target.closest('[class*="emoji-picker"]') || e.target.closest('.input-emoji-picker-wrapper') || e.target.closest('.reaction-emoji-picker-wrapper');
+      const isEmojiTrigger = e.target.closest('.emoji-btn-group') || e.target.closest('.emoji-btn-dm') || e.target.closest('.react-btn') || e.target.closest('.react-btn-container') || e.target.closest('.input-emoji-trigger') || e.target.closest('.reaction-smile-trigger') || e.target.closest('.reaction-plus-trigger');
+      if (!isEmojiPicker && !isEmojiTrigger) {
+        setShowGroupEmojiPicker(false);
+        setShowDmEmojiPicker(false);
+        setActiveReactionMsg(null);
+        setShowAllEmojis(false);
+      }
+
       const inNavArea = navIconsRef.current && navIconsRef.current.contains(e.target);
       const inChatWidget = chatWidgetRef.current && chatWidgetRef.current.contains(e.target);
       // Also exclude the fullscreen chat toggle button itself so mousedown doesn't
@@ -673,7 +1200,9 @@ const Room = () => {
         setShowSettings(false);
       }
       if (showRecentChats && chatWidgetRef.current && !chatWidgetRef.current.contains(e.target)) {
-        if (!inNavArea && !inFsGlobalChatBtn) setShowRecentChats(false);
+        // Lightbox is portalled to document.body — don't treat those clicks as "outside"
+        const inLightbox = !!e.target.closest?.('.media-lightbox-overlay');
+        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox) setShowRecentChats(false);
       }
       // Close room menus if clicking outside
       if (showGroupMenu && groupMenuRef.current && !groupMenuRef.current.contains(e.target)) {
@@ -682,14 +1211,6 @@ const Room = () => {
       if (showDmMenu && dmMenuRef.current && !dmMenuRef.current.contains(e.target)) {
         setShowDmMenu(null);
       }
-      // Also close reaction pickers
-      if (activeReactionMsg || showAllEmojis) {
-        const isPicker = e.target.closest('.emoji-picker-container') || e.target.closest('.react-btn-container');
-        if (!isPicker) {
-          setActiveReactionMsg(null);
-          setShowAllEmojis(false);
-        }
-      }
       if ((modMenuTarget || showHeaderModMenu) && !e.target.closest('.mod-menu-container') && !e.target.closest('.mod-btn')) {
         setModMenuTarget(null);
         setShowHeaderModMenu(false);
@@ -697,7 +1218,7 @@ const Room = () => {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget, showHeaderModMenu]);
+  }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget, showHeaderModMenu, showGroupEmojiPicker, showDmEmojiPicker]);
 
   useEffect(() => {
     if (chatTab === 'group') {
@@ -724,7 +1245,7 @@ const Room = () => {
         const serverCounts = {};
         let total = 0;
         data.forEach(chat => {
-          const chatKey = chat.id || chat.partner;
+          const chatKey = (chat.id || chat.partner || '').toLowerCase();
           if (chat.unread && chat.unread > 0) {
             serverCounts[chatKey] = chat.unread;
             total += chat.unread;
@@ -788,18 +1309,15 @@ const Room = () => {
   }, []);
 
   const handleNewMessage = useCallback((partner, msg) => {
-    const chatKey = partner;
     if (showRecentChats && chatWidgetRef.current?.activeChat?.partner === partner) return;
-    if (partner === roomId && chatTabRef.current === 'group') return;
 
-    // Check if muted before playing sound
+    // Play notification sound (only place audio plays in Room.jsx for incoming messages)
     const myUsername = localStorage.getItem('watch_username') || '';
     let isMuted = false;
     try {
       const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
       if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
     } catch {}
-
     if (!isMuted) {
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
@@ -808,11 +1326,19 @@ const Room = () => {
       } catch(e){}
     }
 
-    const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-    localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
-    localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+    // Room.jsx's own socket already counts:
+    //   (1) current room's group messages (via new_chat_message handler)
+    //   (2) all incoming DMs (via private_message handler)
+    // Only update counts here for cross-room group messages that Room.jsx's socket never sees.
+    const isGroupMsg = msg?.type === 'group' || msg?.type === 'room' || !!msg?.roomId;
+    const isCurrentRoom = isGroupMsg && partner.toLowerCase() === roomId.toLowerCase();
+    if (!isGroupMsg || isCurrentRoom) return; // already counted by Room.jsx socket
 
-    setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
+    // Cross-room group message: only GCW's socket sees it, so count it here
+    const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+    localCounts[partner] = (localCounts[partner] || 0) + 1;
+    localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+    setUnreadCounts(prev => ({ ...prev, [partner]: (prev[partner] || 0) + 1 }));
     setTotalUnread(prev => prev + 1);
   }, [roomId, showRecentChats]);
 
@@ -920,6 +1446,7 @@ const Room = () => {
   const publicKeySentRef = useRef(false);
 
   const playerRef = useRef(null);
+  const localVideoRef = useRef(null); // <video> element for local stream playback
   const appWindowRef = useRef(null);
   const lastExternalUpdate = useRef(0);
   const videoRef = useRef(null);
@@ -939,10 +1466,16 @@ const Room = () => {
   const cameraPcRefs = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
 
+  const [hideCustomControls, setHideCustomControls] = useState(false);
+
   const isWebIframe = (url) => {
     if (!url) return false;
-    return url.includes('crazygames.com') || url.includes('slither.io') || url.includes('krunker.io') || url.includes('smashkarts.io');
+    if (url.includes('/api/stream/') || url.startsWith('blob:')) return false; // local streams bypass iframe check
+    // Any URL ReactPlayer can't embed is opened as a browser iframe
+    return !ReactPlayer.canPlay(url);
   };
+  const isLocalStream = mediaUrl?.includes('/api/stream/') || mediaUrl?.startsWith('blob:');
+  const effectiveIsPreparing = isLocalStream ? false : isPreparing;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -951,16 +1484,21 @@ const Room = () => {
     if (chatTab === 'dm' && dmTarget) {
       setDmUnread(prev => {
         const next = { ...prev };
-        const oldVal = next[dmTarget] || 0;
-        delete next[dmTarget];
+        const key = dmTarget.toLowerCase();
+        const oldVal = next[key] || 0;
+        delete next[key];
         setTotalUnread(t => Math.max(0, t - oldVal));
         return next;
       });
+      if (dmUnreadRef.current) {
+        dmUnreadRef.current[dmTarget.toLowerCase()] = 0;
+      }
       try {
         const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
-        lastSeen[dmTarget] = Date.now();
+        lastSeen[dmTarget.toLowerCase()] = Date.now();
         localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
       } catch { }
+      if (socket) socket.emit('chat:mark_read', { chatId: dmTarget.toLowerCase(), timestamp: Date.now(), isDm: true, userRead: true });
     } else if (chatTab === 'group') {
       setTotalUnread(t => Math.max(0, t - groupUnread));
       setGroupUnread(0);
@@ -979,34 +1517,109 @@ const Room = () => {
         localStorage.setItem('chat_group_unread', JSON.stringify(groupUnreadStore));
       } catch { }
       // Also emit mark_read to sync across all tabs and devices
-      if (socket) socket.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now() });
+      if (socket) socket.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false, userRead: true });
     }
-  }, [chatTab, dmTarget, roomId]);
+  }, [chatTab, dmTarget, roomId, socket]);
 
+  useEffect(() => {
+    setHideCustomControls(false);
+  }, [mediaUrl]);
+
+  // Guest-only: bridge groupMessages to GlobalChatWidget (which has no socket/token for guests)
+  // via sessionStorage. Also keeps the conversation list preview text up to date.
+  useEffect(() => {
+    if (localStorage.getItem('watch_is_guest') !== 'true') return;
+    if (!roomId || !groupMessages.length) return;
+    const rid = roomId.toLowerCase();
+    try {
+      sessionStorage.setItem(
+        `guest_room_messages_${rid}`,
+        JSON.stringify(groupMessages)
+      );
+      sessionStorage.setItem(
+        `guest_room_has_more_${rid}`,
+        String(hasMoreGroupHistory)
+      );
+      window.dispatchEvent(new CustomEvent('guest_room_messages_updated', { detail: { roomId: rid } }));
+      const cached = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+      const lastMsg = groupMessages[groupMessages.length - 1];
+      const preview = lastMsg?.decryptedText || (lastMsg?.mediaType ? '📎 Media' : '');
+      const lastSender = lastMsg?.senderName || lastMsg?.username || '';
+      const isMyLast = lastMsg?.isMe || (lastSender && username && lastSender.toLowerCase() === username.toLowerCase());
+
+      // Deduplicate by (type+partner) key before writing back, in case old duplicates remain
+      const seen = new Set();
+      const deduped = cached.filter(c => {
+        const k = `${c.type}:${(c.partner || c.id || '').toLowerCase()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      const updatedCache = deduped.map(c =>
+        (c.type === 'room' && c.partner?.toLowerCase() === rid)
+          ? { 
+              ...c, 
+              message: preview, 
+              decryptedText: lastMsg?.decryptedText || null,
+              lastTimestamp: lastMsg?.timestamp || c.lastTimestamp,
+              lastSenderName: lastSender,
+              isMyLastMessage: isMyLast,
+              lastMediaType: lastMsg?.mediaType || null,
+              mediaType: lastMsg?.mediaType || null,
+              lastMediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+              mediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+              lastMediaDuration: lastMsg?.mediaDuration || null,
+              mediaDuration: lastMsg?.mediaDuration || null
+            }
+          : c
+      );
+      localStorage.setItem('watch_recent_chats', JSON.stringify(updatedCache));
+      window.dispatchEvent(new Event('conversations_updated'));
+    } catch (e) {}
+  }, [groupMessages, roomId, username]);
+
+  // Stale scroll effects commented out: RoomChatPanel.jsx now manages all scroll restoration and scrolling behaviors.
+  /*
   const prevGroupLen = useRef(groupMessages.length);
-  const prevDmLen = useRef(dmThreads[dmTarget]?.length || 0);
+  const prevDmLen = useRef(dmTarget ? (dmThreads[dmTarget.toLowerCase()]?.length || 0) : 0);
   const prevDmTarget = useRef(dmTarget);
 
   useLayoutEffect(() => {
-    const dmLen = dmThreads[dmTarget]?.length || 0;
+    const dmLen = dmTarget ? (dmThreads[dmTarget.toLowerCase()]?.length || 0) : 0;
     if (groupMessages.length > prevGroupLen.current || dmLen > prevDmLen.current || dmTarget !== prevDmTarget.current) {
       if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
     }
     prevGroupLen.current = groupMessages.length;
     prevDmLen.current = dmLen;
     prevDmTarget.current = dmTarget;
-  }, [groupMessages.length, dmThreads[dmTarget]?.length, dmTarget]);
+  }, [groupMessages.length, dmTarget ? dmThreads[dmTarget.toLowerCase()]?.length : 0, dmTarget]);
 
   useLayoutEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
     }
   }, [chatTab]);
+  */
+
 
   useEffect(() => {
-    if (videoRef.current) {
-      if (isViewer && remoteStream) videoRef.current.srcObject = remoteStream;
-      else if (isScreensharing && localStreamRef.current) videoRef.current.srcObject = localStreamRef.current;
+    if (!videoRef.current) return;
+    if (isViewer && remoteStream) {
+      videoRef.current.srcObject = remoteStream;
+      videoRef.current.play().catch(() => {
+        // Retry muted if autoplay is blocked
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(console.error);
+      });
+    } else if (isScreensharing && localStreamRef.current) {
+      videoRef.current.srcObject = localStreamRef.current;
+      videoRef.current.muted = true; // sharer sees their own share muted to avoid feedback
+      videoRef.current.play().catch(console.error);
+    } else {
+      // Clear screenshare/remote stream when neither is active
+      if (!videoRef.current.srcObject?.active) {
+        videoRef.current.srcObject = null;
+      }
     }
   }, [remoteStream, isViewer, isScreensharing]);
 
@@ -1048,13 +1661,33 @@ const Room = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <div style={{ fontWeight: 800, fontSize: 14 }}>Welcome, Guest! 👋</div>
             <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
-              Guests have restricted access. You cannot send messages, use media controls, or create rooms. Please log in to unlock all features.
+              Enjoy watching together with friends!
             </div>
           </div>
-        ), { duration: 8000, style: { background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#e0f2fe' }});
+        ), { duration: 6000, icon: '👋' });
       }
     }
   }, [room, isWaitingApproval, roomNotFound, kickedReason, roomId]);
+
+  const handleSelectTheme = (themeId) => {
+    if (isEffectiveHost) {
+      // Host: change for everyone — DB write + broadcast
+      themeChangeInFlightRef.current = true;
+      setRoomTheme(themeId);
+      socket?.emit('change_room_theme', { roomId, themeId });
+      setTimeout(() => { themeChangeInFlightRef.current = false; }, 2000);
+    } else {
+      // Non-host: personal override only — localStorage, no socket
+      localStorage.setItem(`wt-personal-theme-${roomId}`, themeId);
+      setRoomTheme(themeId);
+    }
+    setShowCustomizeModal(false);
+  };
+
+  const handleClearPersonalTheme = useCallback(() => {
+    localStorage.removeItem(`wt-personal-theme-${roomId}`);
+    setRoomTheme(room?.roomTheme || 'default');
+  }, [roomId, room]);
 
   const handleLeaveRoom = useCallback(() => {
     toast.remove(); // Immediately purge ALL toasts from the global store (no replay on next page)
@@ -1088,10 +1721,30 @@ const Room = () => {
       if (myKeyPair.current && myKeyPair.current.publicKey) {
         sock.emit('chat:publicKey', { roomId: (roomId || '').toLowerCase(), publicKey: encodeBase64(myKeyPair.current.publicKey) });
       }
+      if (chatTabRef.current === 'dm' && dmTargetRef.current) {
+        sock.emit('chat:mark_read', { chatId: dmTargetRef.current.toLowerCase(), timestamp: Date.now(), isDm: true, userRead: true });
+      } else if (chatTabRef.current === 'group') {
+        sock.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false, userRead: true });
+      }
     });
 
     sock.on('disconnect', (reason) => console.log('[SOCKET] Disconnected:', reason));
     sock.on('connect_error', err => console.error('[SOCKET] Connection error:', err));
+
+    // ─── Hyperbeam cloud browser sync (non-host clients follow host) ───
+    sock.on('hyperbeam_opened', ({ session_id, embed_url, targetUrl }) => {
+      if (targetUrl) hyperbeamTargetUrlRef.current = targetUrl;
+      setHbNavStatus('connecting');
+      setHyperbeamSession({ session_id, embed_url });
+      setHbSessionId(session_id);
+      setLoadFailed(false);
+    });
+    sock.on('hyperbeam_closed', () => {
+      setHyperbeamSession(null);
+      setHbSessionId(null);
+      setLoadFailed(false);
+      setHbNavStatus(null);
+    });
 
     sock.on('waiting_for_approval', () => {
       sessionStorage.setItem(lobbyKey, 'true');
@@ -1166,9 +1819,18 @@ const Room = () => {
       syncRecentChat({ roomName: name });
     });
     sock.on('dm_cleared', ({ userA, userB, clearedBy, clearForBoth }) => {
-      if (!clearForBoth && username !== clearedBy) return;
-      const otherUser = userA === username ? userB : userA;
-      setDmThreads(prev => ({ ...prev, [otherUser]: [] }));
+      if (!clearForBoth && (username || '').toLowerCase() !== (clearedBy || '').toLowerCase()) return;
+      const otherUser = (userA || '').toLowerCase() === (username || '').toLowerCase() ? userB : userA;
+      const otherUserLow = otherUser.toLowerCase();
+      setDmThreads(prev => {
+        const thread = prev[otherUserLow] || [];
+        const lastMsg = thread[thread.length - 1];
+        if (lastMsg) {
+          const ts = Number(lastMsg.timestamp || lastMsg.createdAt || 0);
+          if (ts > 0) dmClearedTsRef.current = { ...dmClearedTsRef.current, [otherUserLow]: ts };
+        }
+        return { ...prev, [otherUserLow]: [] };
+      });
       if (clearForBoth) {
         sock.emit('request_dm_history', roomId);
       }
@@ -1194,6 +1856,14 @@ const Room = () => {
           }
           return c;
         });
+        // Guests: fetchConversations skips (no token), so the room is never seeded into
+        // watch_recent_chats from the API. Insert it here on first join so the
+        // Conversations panel shows the room chat for guests too.
+        const alreadyExists = cached.some(c => c.type === 'room' && c.partner?.toLowerCase() === rid);
+        if (!alreadyExists && localStorage.getItem('watch_is_guest') === 'true') {
+          updated.push({ type: 'room', id: rid, partner: rid, displayName: data.roomName || rid, partnerAvatar: data.thumbnailPath || null, message: '', unread: 0, lastTimestamp: Date.now() });
+          changed = true;
+        }
         if (changed) {
           localStorage.setItem('watch_recent_chats', JSON.stringify(updated));
           window.dispatchEvent(new Event('conversations_updated'));
@@ -1220,8 +1890,38 @@ const Room = () => {
       }
 
       setRoom(state);
+      if (!themeChangeInFlightRef.current) {
+        const hostTheme = state.roomTheme || 'default';
+        const personalTheme = localStorage.getItem(`wt-personal-theme-${roomId}`);
+        setRoomTheme(personalTheme || hostTheme);
+      }
       if (state.roomName) setRoomName(state.roomName);
-      if (state.currentMedia) setMediaUrl(state.currentMedia);
+      if (state.currentMedia) {
+        setMediaUrl(state.currentMedia);
+        // Set seek target SYNCHRONOUSLY so onLoadedMetadata can seek immediately
+        // (the 500ms timeout below runs after onLoadedMetadata fires, so it was too late)
+        if (state.currentTime > 0) prepTargetTimeRef.current = state.currentTime;
+      }
+      if (state.streamPending) {
+        setStreamPending(state.streamPending);
+      } else {
+        setStreamPending(null);
+      }
+      if (state.subtitles) {
+        setSubtitleVttText(state.subtitles);
+        setSubtitlesUrl(oldUrl => {
+          if (oldUrl) URL.revokeObjectURL(oldUrl);
+          const blob = new Blob([state.subtitles], { type: 'text/vtt' });
+          return URL.createObjectURL(blob);
+        });
+        setSubtitlesVisible(true);
+      } else {
+        setSubtitleVttText(null);
+        setSubtitlesUrl(oldUrl => {
+          if (oldUrl) URL.revokeObjectURL(oldUrl);
+          return null;
+        });
+      }
       if (state.isPublic !== undefined) setIsPublic(state.isPublic);
       if (state.activeExternalApp) setActiveExternalApp(state.activeExternalApp);
       
@@ -1244,9 +1944,16 @@ const Room = () => {
       }
 
       setTimeout(() => {
-        if (playerRef.current && state.currentTime > 0) { lastExternalUpdate.current = Date.now(); playerRef.current.seekTo(state.currentTime, 'seconds'); }
+        lastExternalUpdate.current = Date.now() + 3000;
+        if (playerRef.current && state.currentTime > 0) playerRef.current.seekTo(state.currentTime, 'seconds');
+        if (localVideoRef.current && state.currentTime > 0) localVideoRef.current.currentTime = state.currentTime;
         setIsPlaying(state.isPlaying);
       }, 500);
+    });
+
+    sock.on('room_theme_changed', ({ themeId }) => {
+      setRoomTheme(themeId || 'default');
+      localStorage.removeItem(`wt-personal-theme-${roomId}`);
     });
 
     sock.on('room_settings_updated', (updatedData) => {
@@ -1287,24 +1994,140 @@ const Room = () => {
       toast.success(`Room is now ${data.isPublic ? 'public' : 'private'}`);
     });
 
-    sock.on('chat_history', async (msgs) => {
-      // Always read from ref — immune to stale closure race with CryptoContext initialization
-      const kp = myKeyPair.current;
-      const myUserLower = username?.toLowerCase();
+    // ── Group chat history: use HTTP fetch (same as GlobalChatWidget) for reliability ──
+    // The socket 'chat_history' event acts as the trigger; actual data comes via HTTP.
+    const loadGroupHistory = async () => {
+      const token = localStorage.getItem('watch_token');
+      if (!token || !roomId) return;
+      try {
+        const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/history?type=room&partner=${encodeURIComponent(roomId)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const msgs = await res.json();
+        if (!Array.isArray(msgs)) return;
 
-      const decryptedMsgs = await Promise.all(msgs.map(async (msg) => {
-        const isMine = msg.isMe !== undefined ? msg.isMe : ((msg.username && msg.username === username) || (msg.senderName && msg.senderName === username));
-        let displayMessage = msg.message;
-        let displayMediaUrl = msg.mediaUrl;
-        const msgKey = String(msg.id || msg.timestamp);
+        const kp = myKeyPair.current;
+        const myUserLower = username?.toLowerCase();
 
-        if (msg.e2ee && msg.e2ee.keys) {
-          if (kp) {
+        const processedMsgs = await Promise.all(msgs.map(async (msg) => {
+          try {
+            const isMine = msg.isMe !== undefined ? msg.isMe
+              : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
+            let displayMediaUrl = msg.mediaUrl;
+
+            if (msg.e2ee && msg.e2ee.keys && kp) {
+              try {
+                const msgKey = String(msg.id || msg.timestamp);
+                const myEncKey = msg.e2ee.keys[myUserLower]
+                  || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myUserLower)?.[1];
+                const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
+                if (myEncKey && resolvedSenderKey) {
+                  const senderPubKey = decodeBase64(resolvedSenderKey);
+                  const plain = decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPubKey, kp.secretKey);
+                  if (plain !== null) {
+                    if (msg.mediaUrl && msg.mediaUrl.length > 50) {
+                      try {
+                        const mediaKeyBytes = robustDecode(plain);
+                        const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
+                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
+                        groupDecryptedMediaUrls.current[msgKey] = objectUrl;
+                        msg.decryptedText = '';
+                        displayMediaUrl = objectUrl;
+                      } catch (e) {
+                        console.warn('[E2EE] Group history media decrypt failed:', e);
+                        displayMediaUrl = null;
+                      }
+                    } else {
+                      msg.decryptedText = plain;
+                    }
+                  }
+                }
+              } catch (e2eeErr) {
+                console.warn('[E2EE] Group history decrypt failed:', e2eeErr);
+              }
+              // Hide ciphertext media URLs that weren't decrypted
+              if (msg.mediaUrl && msg.mediaUrl.length > 50 && !msg.decryptedText && msg.decryptedText !== '') {
+                displayMediaUrl = null;
+              }
+            }
+
+            const safeReactions = (() => {
+              try { return fixReactions(msg.reactions); } catch { return {}; }
+            })();
+            return { ...msg, mediaUrl: displayMediaUrl, isMe: isMine, reactions: safeReactions };
+          } catch (itemErr) {
+            console.warn('[chat_history] item process error:', itemErr);
+            const isMine = (msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
+            return { ...msg, isMe: isMine, reactions: {} };
+          }
+        }));
+
+        const resolvedMsgs = (() => {
+          try { return resolveReplyMessages(processedMsgs); } catch { return processedMsgs; }
+        })();
+
+        setGroupMessages(resolvedMsgs);
+        groupMessagesRef.current = resolvedMsgs;
+        setGroupMediaUrlVersion(v => v + 1);
+        // Mark all loaded messages as seen (triggers seen receipts for the sender)
+        sock.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false });
+      } catch (err) {
+        console.error('[chat_history] HTTP fetch failed:', err);
+      }
+    };
+
+    sock.on('chat_history', async (socketMsgs) => {
+      const token = localStorage.getItem('watch_token');
+      if (token) {
+        // Authenticated users: use reliable HTTP fetch (same as GlobalChatWidget)
+        loadGroupHistory();
+      } else {
+        // Guest users (no token): process socket payload directly with E2EE decrypt fallback
+
+        // ── DIAGNOSTIC: identity + keypair stability ──────────────────────────
+        const _diagUser = username;
+        const _diagUserLs = localStorage.getItem('watch_username');
+        const _diagKpKey = `wt_guest_kp_${(_diagUser || '').toLowerCase()}`;
+        const _diagKpRaw = localStorage.getItem(_diagKpKey);
+        const _diagKp = myKeyPair.current;
+        console.group('[GUEST DEBUG] chat_history fired');
+        console.log('[GUEST DEBUG] username (state):', _diagUser);
+        console.log('[GUEST DEBUG] username (localStorage):', _diagUserLs);
+        console.log('[GUEST DEBUG] keypair localStorage key:', _diagKpKey);
+        console.log('[GUEST DEBUG] keypair found in localStorage:', !!_diagKpRaw);
+        console.log('[GUEST DEBUG] myKeyPair.current ready:', !!_diagKp);
+        console.log('[GUEST DEBUG] raw socketMsgs length:', Array.isArray(socketMsgs) ? socketMsgs.length : 'NOT AN ARRAY');
+        console.groupEnd();
+        // ─────────────────────────────────────────────────────────────────────
+
+        if (!Array.isArray(socketMsgs) || socketMsgs.length === 0) return;
+        const processedMsgs = await Promise.all(socketMsgs.map(async (msg) => {
+          const isMine = msg.isMe !== undefined ? msg.isMe
+            : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
+          const safeReactions = (() => { try { return fixReactions(msg.reactions); } catch { return {}; } })();
+
+          let decryptedText = null;
+          const kp = myKeyPair.current;
+          const myUserLower = username?.toLowerCase();
+
+          if (msg.e2ee && msg.e2ee.keys && kp) {
             try {
               const myEncKey = msg.e2ee.keys[myUserLower] || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myUserLower)?.[1];
-              const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
-              if (myEncKey && resolvedSenderKey) {
-                const senderPubKey = decodeBase64(resolvedSenderKey);
+
+              // ── DIAGNOSTIC: per-message decrypt attempt ───────────────────
+              console.log(
+                '[GUEST DEBUG] msg', msg.id, '|',
+                'sender:', msg.senderName || msg.username, '|',
+                'has e2ee.keys:', !!msg.e2ee?.keys, '|',
+                'myEncKey found:', !!myEncKey, '|',
+                'senderPublicKey:', msg.e2ee?.senderPublicKey ? msg.e2ee.senderPublicKey.slice(0, 12) + '…' : 'MISSING'
+              );
+              // ─────────────────────────────────────────────────────────────
+
+              if (myEncKey) {
+                const senderPubKey = decodeBase64(msg.e2ee.senderPublicKey);
                 const plain = decryptGroupMessage(
                   msg.message,
                   msg.e2ee.nonce,
@@ -1312,45 +2135,162 @@ const Room = () => {
                   senderPubKey,
                   kp.secretKey
                 );
+
+                // ── DIAGNOSTIC: decrypt result ────────────────────────────
+                console.log('[GUEST DEBUG] msg', msg.id, '→ decrypt', plain !== null ? '✅ OK: ' + String(plain).slice(0, 30) : '❌ FAILED (null)');
+                // ─────────────────────────────────────────────────────────
+
                 if (plain !== null) {
                   if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                    try {
-                      const mediaKeyBytes = robustDecode(plain);
-                      const buff = await fetch(msg.mediaUrl).then(r => r.arrayBuffer());
-                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
-                      groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-                      msg.decryptedText = '';
-                      displayMediaUrl = objectUrl;
-                    } catch (e) {
-                      console.warn('[E2EE] Group history media decrypt failed:', e);
-                      displayMediaUrl = null;
-                    }
+                    const mediaKeyB64 = plain;
+                    const fileUrl = msg.mediaUrl;
+                    const msgKeys = [
+                      String(msg.id || ''),
+                      String(msg.tempId || ''),
+                      String(msg.timestamp || '')
+                    ].filter(Boolean);
+
+                    (async () => {
+                      try {
+                        const mediaKeyBytes = robustDecode(mediaKeyB64);
+                        const buff = await fetch(fileUrl).then(r => r.arrayBuffer());
+                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
+                        msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
+                        setGroupMediaUrlVersion(v => v + 1);
+                      } catch (e) {
+                        console.warn('[E2EE] Guest history media decrypt failed:', e);
+                      }
+                    })();
                   } else {
-                    msg.decryptedText = plain;
-                    displayMediaUrl = msg.mediaUrl;
+                    decryptedText = plain;
                   }
                 }
+              } else {
+                // ── DIAGNOSTIC: no key found for this user ────────────────
+                console.log('[GUEST DEBUG] msg', msg.id, '→ no key for user "' + myUserLower + '" in keys:', Object.keys(msg.e2ee?.keys || {}));
+                // ─────────────────────────────────────────────────────────
               }
             } catch (err) {
-              console.warn('[E2EE] Group history decrypt failed:', err);
+              console.warn('[E2EE] Guest history decrypt error:', err);
             }
+          } else {
+            // ── DIAGNOSTIC: why decrypt was skipped ──────────────────────
+            console.log(
+              '[GUEST DEBUG] msg', msg.id, '→ decrypt SKIPPED:',
+              !msg.e2ee ? 'no e2ee (plaintext or old message)' : !msg.e2ee.keys ? 'e2ee.keys missing' : !kp ? 'keypair not ready' : 'unknown'
+            );
+            // ─────────────────────────────────────────────────────────────
           }
-          // If media URL is ciphertext, hide it until decrypted
-          if (msg.mediaUrl && msg.mediaUrl.length > 50 && !msg.decryptedText && msg.decryptedText !== '') {
-            displayMediaUrl = null;
-          }
-        }
 
-        return { ...msg, mediaUrl: displayMediaUrl, isMe: isMine, reactions: fixReactions(msg.reactions) };
-      }));
+          return { ...msg, isMe: isMine, reactions: safeReactions, decryptedText };
+        }));
+        const resolvedMsgs = (() => { try { return resolveReplyMessages(processedMsgs); } catch { return processedMsgs; } })();
 
-      const resolvedMsgs = resolveReplyMessages(decryptedMsgs);
-      setGroupMessages(resolvedMsgs);
-      groupMessagesRef.current = resolvedMsgs;
-      // Trigger a re-render so async-set objectUrls in groupDecryptedMediaUrls are picked up
-      setGroupMediaUrlVersion(v => v + 1);
+        // ── DIAGNOSTIC: final summary ─────────────────────────────────────
+        const _decOk  = resolvedMsgs.filter(m => m.decryptedText !== null).length;
+        const _decFail = resolvedMsgs.filter(m => m.e2ee && m.decryptedText === null).length;
+        const _plain  = resolvedMsgs.filter(m => !m.e2ee && m.decryptedText === null).length;
+        console.log(`[GUEST DEBUG] SUMMARY: ${resolvedMsgs.length} total | ${_decOk} decrypted OK | ${_decFail} decrypt FAILED | ${_plain} plaintext (no e2ee)`);
+        // ─────────────────────────────────────────────────────────────────
+
+        setGroupMessages(resolvedMsgs);
+        groupMessagesRef.current = resolvedMsgs;
+      }
     });
+
+    sock.on('chat_history_more', async ({ roomId: respRoomId, messages: msgs, before }) => {
+      if (respRoomId?.toLowerCase() !== roomId?.toLowerCase()) return;
+      
+      const state = paginationStateRef.current.group;
+      if (!Array.isArray(msgs) || msgs.length === 0) {
+        state.hasMore = false;
+        setHasMoreGroupHistory(false);
+        state.isLoading = false;
+        setGroupHistoryLoading(false);
+        return;
+      }
+
+      const processed = await decryptRoomGroupMessages(msgs);
+
+      setGroupMessages(prev => {
+        return mergeHistoryBatch(prev, processed);
+      });
+
+      if (msgs.length < 200) {
+        state.hasMore = false;
+        setHasMoreGroupHistory(false);
+      }
+
+      state.isLoading = false;
+      setGroupHistoryLoading(false);
+
+      const scrollEl = groupScrollElRef.current;
+      const scrollPos = groupScrollPosRef.current;
+      if (scrollEl && scrollPos) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollEl.scrollTop = scrollEl.scrollHeight - scrollPos.prevScrollHeight + scrollPos.prevScrollTop;
+          }, 0);
+        });
+      }
+    });
+
+    sock.on('chat_history_more_dm', async ({ partner, messages: msgs, before }) => {
+      const partnerKey = partner.toLowerCase();
+      if (dmTargetRef.current?.toLowerCase() !== partnerKey) {
+        if (paginationStateRef.current[partnerKey]) {
+          paginationStateRef.current[partnerKey].isLoading = false;
+        }
+        setDmHistoryLoading(false);
+        return;
+      }
+
+      if (!paginationStateRef.current[partnerKey]) {
+        paginationStateRef.current[partnerKey] = {
+          hasMore: true,
+          isLoading: false
+        };
+      }
+      const state = paginationStateRef.current[partnerKey];
+      if (!Array.isArray(msgs) || msgs.length === 0) {
+        state.hasMore = false;
+        setHasMoreDmHistory(prev => ({ ...prev, [partnerKey]: false }));
+        state.isLoading = false;
+        setDmHistoryLoading(false);
+        return;
+      }
+
+      const processed = await decryptDmMessages(msgs);
+
+      setDmThreads(prev => {
+        const existing = prev[partnerKey] || [];
+        return {
+          ...prev,
+          [partnerKey]: mergeHistoryBatch(existing, processed)
+        };
+      });
+
+      if (msgs.length < 200) {
+        state.hasMore = false;
+        setHasMoreDmHistory(prev => ({ ...prev, [partnerKey]: false }));
+      }
+
+      state.isLoading = false;
+      setDmHistoryLoading(false);
+
+      const scrollEl = dmScrollElRef.current;
+      const scrollPos = dmScrollPosRef.current;
+      if (scrollEl && scrollPos) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            scrollEl.scrollTop = scrollEl.scrollHeight - scrollPos.prevScrollHeight + scrollPos.prevScrollTop;
+          }, 0);
+        });
+      }
+    });
+
+
 
     sock.on('user_list', ({ users, hostId: hid }) => {
       setUserList(users);
@@ -1413,7 +2353,7 @@ const Room = () => {
     });
 
     sock.on('chat_message', msg => {
-      const isMine = msg.isMe !== undefined ? msg.isMe : ((msg.username && msg.username === username) || (msg.senderName && msg.senderName === username));
+      const isMine = msg.isMe !== undefined ? msg.isMe : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
 
       // ─── E2EE: Decrypt group message if encrypted payload is present ──────────────────
       let decryptedText = null;
@@ -1435,7 +2375,14 @@ const Room = () => {
                 // 'plain' is the AES symmetric key for the media blob.
                 const mediaKeyB64 = plain;
                 const fileUrl = msg.mediaUrl;
-                const msgKey = String(msg.id || msg.timestamp);
+                // Store under ALL possible keys: socket id, tempId, timestamp.
+                // The msg.id changes from socket-assigned ("socketId-ts") to real DB id
+                // after persistence, so we must cover every key the renderer might use.
+                const msgKeys = [
+                  String(msg.id || ''),
+                  String(msg.tempId || ''),
+                  String(msg.timestamp || '')
+                ].filter(Boolean);
                 
                 // Do not block rendering, do async decryption
                 (async () => {
@@ -1444,7 +2391,8 @@ const Room = () => {
                     const buff = await fetch(fileUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
-                    groupDecryptedMediaUrls.current[msgKey] = objectUrl;
+                    // Store under all keys so lookup works regardless of id evolution
+                    msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
                     setGroupMediaUrlVersion(v => v + 1);
                   } catch (e) {
                     console.warn('[E2EE] Group media decrypt (recipient) failed:', e);
@@ -1476,7 +2424,7 @@ const Room = () => {
             // CRITICAL SENDER FIX: If decryption failed (e.g. key mismatch or late key),
             // PRESERVE the optimistic plaintext instead of overwriting with ciphertext or null.
             const safeDecryptedText = fixed.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
-            next[optIdx] = { ...fixed, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl };
+            next[optIdx] = { ...fixed, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || fixed.mediaFileName || null, _fileSize: oldMsg._fileSize || fixed.mediaFileSize || null, mediaDuration: fixed.mediaDuration || oldMsg.mediaDuration || null };
             const resolved = resolveReplyMessages(next);
             groupMessagesRef.current = resolved;
             return resolved;
@@ -1554,7 +2502,7 @@ const Room = () => {
         }
       } else if (chatTabRef.current === 'group' && !isMine) {
         // We are already looking at group chat, but another tab might need to know we saw this
-        if (socket) socket.emit('chat:mark_read', { chatId: roomId, timestamp: msg.timestamp });
+        sock.emit('chat:mark_read', { chatId: roomId, timestamp: msg.timestamp, isDm: false });
         // Also update local storage timestamp for refresh persistence
         try {
           const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
@@ -1581,12 +2529,14 @@ const Room = () => {
       } else {
         setDmUnread(prev => {
           const next = { ...prev };
-          delete next[chatId];
+          const key = chatId.toLowerCase();
+          delete next[key];
+          if (dmUnreadRef.current) delete dmUnreadRef.current[key];
           return next;
         });
         setUnreadCounts(prev => {
           const next = { ...prev };
-          delete next[chatId];
+          delete next[chatId.toLowerCase()];
           return next;
         });
       }
@@ -1598,11 +2548,88 @@ const Room = () => {
       });
     });
 
-    sock.on('chat:private_reaction', ({ messageId, timestampId, senderName, emoji, targetName, reactions }) => {
+    sock.on('chat:messages_seen', ({ roomId: eventRoomId, username: readerName, messageIds, seenAt, avatar }) => {
+      if (eventRoomId === roomId) {
+        setGroupMessages(prev => {
+          const next = prev.map(m => {
+            if (m.id && messageIds.some(id => String(id) === String(m.id))) {
+              const seenBy = m.seenBy ? [...m.seenBy] : [];
+              if (!seenBy.some(u => u.username.toLowerCase() === readerName.toLowerCase())) {
+                seenBy.push({ username: readerName, seenAt, avatar });
+              }
+              return { ...m, seenBy };
+            }
+            return m;
+          });
+          groupMessagesRef.current = next;
+          return next;
+        });
+      }
+
+      if (eventRoomId.startsWith('dm-')) {
+        // Parse partner from dm-roomId (e.g. "dm-alice-bob"). Usernames may contain hyphens,
+        // so we try prefix splits until one half matches the current user (sorted alphabetically).
+        const dmBody = eventRoomId.slice(3); // strip leading "dm-"
+        const userLower = username.toLowerCase();
+        let partner = null;
+        const dmParts = dmBody.split('-');
+        for (let i = 1; i < dmParts.length; i++) {
+          const left = dmParts.slice(0, i).join('-');
+          const right = dmParts.slice(i).join('-');
+          if (left.toLowerCase() === userLower) { partner = right; break; }
+          if (right.toLowerCase() === userLower) { partner = left; break; }
+        }
+        if (partner) {
+          const partnerLower = partner.toLowerCase();
+          setDmThreads(prev => {
+            const next = { ...prev };
+            if (next[partnerLower]) {
+              next[partnerLower] = next[partnerLower].map(m => {
+                if (m.id && messageIds.some(id => String(id) === String(m.id))) {
+                  const seenBy = m.seenBy ? [...m.seenBy] : [];
+                  if (!seenBy.some(u => u.username.toLowerCase() === readerName.toLowerCase())) {
+                    seenBy.push({ username: readerName, seenAt, avatar });
+                  }
+                  return { ...m, seenBy };
+                }
+                return m;
+              });
+            }
+            return next;
+          });
+        }
+      }
+    });
+
+    sock.on('chat:private_reaction', ({ messageId, timestampId, senderName, emoji, targetName, reactions, originalSenderName }) => {
+      // Notification: someone reacted to MY message in DM
+      if (emoji && senderName && senderName.toLowerCase() !== (username || '').toLowerCase() &&
+          originalSenderName && originalSenderName.toLowerCase() === (username || '').toLowerCase()) {
+        const isViewingThisDm = chatTabRef.current === 'dm' && dmTargetRef.current &&
+          dmTargetRef.current.toLowerCase() === senderName.toLowerCase();
+        if (!isViewingThisDm) {
+          toast(`${senderName} reacted ${emoji} to your message`, {
+            id: `rxn-dm-${messageId}-${senderName}`,
+            duration: 4000
+          });
+          // Increment DM unread badge
+          const otherNameLower = senderName.toLowerCase();
+          const storedCounts = (() => { try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; } })();
+          const newCount = Math.max(storedCounts[otherNameLower] || 0, dmUnreadRef.current[otherNameLower] || 0) + 1;
+          dmUnreadRef.current[otherNameLower] = newCount;
+          setDmUnread(prev => ({ ...prev, [otherNameLower]: newCount }));
+          setTotalUnread(p => p + 1);
+          // Update Room panel preview + push to GCW
+          setReactionPreviews(prev => ({ ...prev, [otherNameLower]: `Reacted ${emoji} to your message` }));
+          chatWidgetRef.current?.updateConversationPreview?.(senderName, `Reacted ${emoji} to your message`, 'private');
+        }
+      }
+
       // If this is an echo of our own reaction (we already optimistically updated), let's still apply the server's definitive truth.
-      const otherUser = senderName === username ? targetName : senderName;
+      const otherUser = (senderName || '').toLowerCase() === (username || '').toLowerCase() ? targetName : senderName;
       setDmThreads(prev => {
-        const thread = prev[otherUser];
+        const key = otherUser.toLowerCase();
+        const thread = prev[key];
         if (!thread) return prev;
         const mapped = thread.map(m => {
           const matchById = String(m.id) === String(messageId) || String(m.timestamp) === String(messageId);
@@ -1622,7 +2649,7 @@ const Room = () => {
           }
           return m;
         });
-        return { ...prev, [otherUser]: mapped };
+        return { ...prev, [key]: mapped };
       });
     });
 
@@ -1644,14 +2671,16 @@ const Room = () => {
     });
 
     sock.on('chat:typing', (data) => {
-      if (data.isTyping === false) return;
-      const uname = data.username || data.userA;
-      if (uname) {
-        setTypingUsers(prev => ({ ...prev, [uname]: uname }));
+      const isStarting = data.isTyping !== false;
+      handleTypingStatus(data, isStarting);
+      if (isStarting) {
+        const uname = data.username || data.userA;
+        if (uname) setTypingUsers(prev => ({ ...prev, [uname]: uname }));
       }
     });
 
     sock.on('chat:stop_typing', (data) => {
+      handleTypingStatus(data, false);
       const uname = data.username || data.userA;
       if (uname) {
         setTypingUsers(prev => {
@@ -1662,8 +2691,33 @@ const Room = () => {
       }
     });
 
-    sock.on('chat:reaction', ({ messageId, timestampId, reactions, senderUsername }) => {
-      // Always apply server's definitive reaction state (enables multi-tab sync for own reactions too)
+    sock.on('chat:reaction', ({ messageId, timestampId, reactions, senderUsername, emoji, originalSenderName }) => {
+      // Notification: someone reacted to MY message in group chat
+      if (emoji && senderUsername && senderUsername.toLowerCase() !== (username || '').toLowerCase() &&
+          originalSenderName && originalSenderName.toLowerCase() === (username || '').toLowerCase()) {
+        if (chatTabRef.current !== 'group') {
+          toast(`${senderUsername} reacted ${emoji} to your message`, {
+            id: `rxn-grp-${messageId}-${senderUsername}`,
+            duration: 4000
+          });
+          // Increment group unread badge
+          setGroupUnread(p => {
+            const newVal = p + 1;
+            try {
+              const stored = JSON.parse(localStorage.getItem('chat_group_unread') || '{}');
+              stored[roomId] = newVal;
+              localStorage.setItem('chat_group_unread', JSON.stringify(stored));
+            } catch {}
+            return newVal;
+          });
+          setTotalUnread(p => p + 1);
+          // Update Room panel preview + push to GCW
+          setReactionPreviews(prev => ({ ...prev, [roomId.toLowerCase()]: `${senderUsername} reacted ${emoji} to your message` }));
+          chatWidgetRef.current?.updateConversationPreview?.(roomId, `${senderUsername} reacted ${emoji} to your message`, 'room');
+        }
+      }
+
+      // Group reactions only update groupMessages — never DM threads (separate event: chat:private_reaction)
       const fixed = fixReactions(reactions);
       setGroupMessages(prev => {
         const next = prev.map(m =>
@@ -1672,17 +2726,6 @@ const Room = () => {
             ? { ...m, reactions: fixed } : m
         );
         groupMessagesRef.current = next;
-        return next;
-      });
-      setDmThreads(prev => {
-        const next = { ...prev };
-        for (const user in next) {
-          next[user] = next[user].map(m =>
-            (String(m.id) === String(messageId) || String(m.timestamp) === String(messageId) ||
-             (timestampId && (String(m.id) === String(timestampId) || String(m.timestamp) === String(timestampId))))
-              ? { ...m, reactions: fixed } : m
-          );
-        }
         return next;
       });
     });
@@ -1694,13 +2737,22 @@ const Room = () => {
         groupMessagesRef.current = next;
         return next;
       });
+      setDmThreads(prev => {
+        const next = { ...prev };
+        for (const user in next) {
+          if (Array.isArray(next[user])) {
+            next[user] = next[user].map(m => (String(m.id) === String(tempId) || String(m.tempId) === String(tempId)) ? { ...m, id: dbId } : m);
+          }
+        }
+        return next;
+      });
     });
 
     sock.on('chat:message_deleted', ({ messageId, originalId, timestampId }) => {
       setGroupMessages(prev => {
-        const next = prev.filter(m => 
-          String(m.id) !== String(messageId) && 
-          String(m.id) !== String(originalId) && 
+        const next = prev.filter(m =>
+          String(m.id) !== String(messageId) &&
+          String(m.id) !== String(originalId) &&
           (!timestampId || String(m.timestamp) !== String(timestampId))
         );
         groupMessagesRef.current = next;
@@ -1709,9 +2761,9 @@ const Room = () => {
       setDmThreads(prev => {
         const next = { ...prev };
         for (const user in next) {
-          next[user] = next[user].filter(m => 
-            String(m.id) !== String(messageId) && 
-            String(m.id) !== String(originalId) && 
+          next[user] = next[user].filter(m =>
+            String(m.id) !== String(messageId) &&
+            String(m.id) !== String(originalId) &&
             (!timestampId || String(m.timestamp) !== String(timestampId))
           );
         }
@@ -1719,8 +2771,54 @@ const Room = () => {
       });
     });
 
+    sock.on('message:unsent', ({ messageId, timestampId }) => {
+      setGroupMessages(prev => {
+        const next = prev.filter(m =>
+          String(m.id) !== String(messageId) &&
+          !(timestampId && String(m.timestamp) === String(timestampId))
+        );
+        groupMessagesRef.current = next;
+        return next;
+      });
+      setDmThreads(prev => {
+        const next = { ...prev };
+        for (const user in next) {
+          next[user] = next[user].filter(m =>
+            String(m.id) !== String(messageId) &&
+            !(timestampId && String(m.timestamp) === String(timestampId))
+          );
+        }
+        return next;
+      });
+    });
+
+    // "Delete for me" performed in another component/tab (e.g. Global Chat) —
+    // the server broadcasts message:removed-for-me to ALL of this user's sockets.
+    sock.on('message:removed-for-me', ({ messageId, originalId, timestampId }) => {
+      setGroupMessages(prev => {
+        const next = prev.filter(m =>
+          String(m.id) !== String(messageId) &&
+          !(originalId && String(m.id) === String(originalId)) &&
+          !(timestampId && String(m.timestamp) === String(timestampId))
+        );
+        groupMessagesRef.current = next;
+        return next;
+      });
+      setDmThreads(prev => {
+        const next = { ...prev };
+        for (const user in next) {
+          next[user] = next[user].filter(m =>
+            String(m.id) !== String(messageId) &&
+            !(originalId && String(m.id) === String(originalId)) &&
+            !(timestampId && String(m.timestamp) === String(timestampId))
+          );
+        }
+        return next;
+      });
+    });
+
     sock.on('private_message', msg => {
-      const isMine = msg.isMe || (msg.senderName && msg.senderName === username);
+      const isMine = msg.isMe || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
       const otherName = isMine ? msg.targetName : msg.senderName;
       
       // Block Check
@@ -1810,7 +2908,8 @@ const Room = () => {
       };
 
       setDmThreads(prev => {
-        const thread = [...(prev[otherName] || [])];
+        const key = otherName.toLowerCase();
+        const thread = [...(prev[key] || [])];
         
         // Reconciliation: If an optimistic message matches, replace it
         if (msg.tempId) {
@@ -1818,8 +2917,8 @@ const Room = () => {
           if (optIdx !== -1) {
             const oldMsg = thread[optIdx];
             const safeDecryptedText = newMsg.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
-            thread[optIdx] = { ...newMsg, decryptedText: safeDecryptedText };
-            return { ...prev, [otherName]: resolveReplyMessages(thread) };
+            thread[optIdx] = { ...newMsg, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl || newMsg.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || newMsg.mediaFileName || null, _fileSize: oldMsg._fileSize || newMsg.mediaFileSize || null, mediaDuration: newMsg.mediaDuration || oldMsg.mediaDuration || null };
+            return { ...prev, [key]: resolveReplyMessages(thread) };
           }
         }
 
@@ -1828,17 +2927,18 @@ const Room = () => {
           return prev;
         }
 
-        return { ...prev, [otherName]: resolveReplyMessages([...thread, newMsg]) };
+        return { ...prev, [key]: resolveReplyMessages([...thread, newMsg]) };
       });
 
-      if (chatTabRef.current !== 'dm' || dmTargetRef.current !== otherName) {
+      const otherNameLower = otherName.toLowerCase();
+      if (chatTabRef.current !== 'dm' || (dmTargetRef.current && dmTargetRef.current.toLowerCase() !== otherNameLower)) {
         if (!isMine) {
           const storedCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-          const currentCount = Math.max(storedCounts[otherName] || 0, dmUnreadRef.current[otherName] || 0);
+          const currentCount = Math.max(storedCounts[otherNameLower] || 0, dmUnreadRef.current[otherNameLower] || 0);
           const newDmCount = currentCount + 1;
-          dmUnreadRef.current[otherName] = newDmCount;
+          dmUnreadRef.current[otherNameLower] = newDmCount;
           
-          setDmUnread(prev => ({ ...prev, [otherName]: newDmCount }));
+          setDmUnread(prev => ({ ...prev, [otherNameLower]: newDmCount }));
           setTotalUnread(p => p + 1);
           if (notifSettingsRef.current.app && notifSettingsRef.current.messages) {
             const gcwActive = chatWidgetRef.current?.getActiveChat?.() || {};
@@ -1873,10 +2973,10 @@ const Room = () => {
         }
       } else {
         if (!isMine) {
-          if (socket) socket.emit('chat:mark_read', { chatId: otherName, timestamp: msg.timestamp });
+          sock.emit('chat:mark_read', { chatId: otherName.toLowerCase(), timestamp: msg.timestamp, isDm: true });
           try {
             const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
-            lastSeen[otherName] = Date.now();
+            lastSeen[otherName.toLowerCase()] = Date.now();
             localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
           } catch { }
         }
@@ -1888,7 +2988,8 @@ const Room = () => {
       const threads = {};
 
       for (const [otherName, messages] of Object.entries(dmHistory)) {
-         threads[otherName] = messages.map(msg => {
+         const key = otherName.toLowerCase();
+         threads[key] = messages.map(msg => {
           let decryptedText = null;
           let decryptedMediaUrl = msg.mediaUrl;
           let _encryptedOwn = false;
@@ -1955,13 +3056,13 @@ const Room = () => {
           }
           return { ...msg, message: msg.message, decryptedText, mediaUrl: decryptedMediaUrl, _encryptedOwn };
         });
-        threads[otherName] = resolveReplyMessages(threads[otherName]);
+         threads[key] = resolveReplyMessages(threads[key]);
       }
 
       setDmThreads(prev => {
         const merged = { ...prev };
         for (const [name, msgs] of Object.entries(threads)) {
-          merged[name] = msgs;
+          merged[name.toLowerCase()] = msgs;
         }
         return merged;
       });
@@ -1973,31 +3074,120 @@ const Room = () => {
       setBufferedSeconds(0);
       setIsPreparing(false);
       setActiveExternalApp(null);
+      setSubtitlesUrl(oldUrl => {
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        return null;
+      });
     });
 
-    sock.on('media_changed', url => { 
+    sock.on('stream_started', (data) => {
+      setStreamPending({ streamKey: data.streamKey, filename: data.filename, progress: 0 });
+    });
+
+    sock.on('stream_progress', (data) => {
+      setStreamPending(prev => {
+        if (!prev || prev.streamKey !== data.streamKey) return prev;
+        return { ...prev, progress: data.progress };
+      });
+    });
+
+    sock.on('stream_cancelled', () => {
+      setStreamPending(null);
+    });
+
+    sock.on('stream_ready', (data) => {
+      if (!data?.streamKey) return;
+      setStreamPending(null);
+
+      // If we are playing locally via blob URL, do not overwrite it
+      if (mediaUrlRef.current?.startsWith('blob:')) {
+        console.log('[SOCKET] Ignoring stream_ready because we are playing locally');
+        return;
+      }
+
+      const streamUrl = `${SOCKET_SERVER_URL}/api/stream/${data.streamKey}/video`;
+      setMediaUrl(streamUrl);
+      setIsPlaying(false);
+      prepTargetTimeRef.current = 0;
+      if (playerRef.current) playerRef.current.seekTo(0);
+    });
+
+    sock.on('media_changed', url => {
+      // If we are playing locally via blob URL, do not overwrite it with the stream URL
+      if (url.includes('/api/stream/') && mediaUrlRef.current?.startsWith('blob:')) {
+        console.log('[SOCKET] Ignoring media_changed because we are playing locally');
+        return;
+      }
+      if (url === mediaUrlRef.current) return;
+      setSubtitlesUrl(oldUrl => {
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        return null;
+      });
       // PRIORITY RESET: When media changes, stop all interfering processes
-      setMediaUrl(url); 
-      setIsPlaying(false); 
-      playerRef.current?.seekTo(0); 
+      setMediaUrl(url);
+      setIsPlaying(false);
+      playerRef.current?.seekTo(0);
 
       // Clear all embedded browsers
       setShowYtBrowser(false);
       setShowTwitchBrowser(false);
       setShowVimeoBrowser(false);
-      
+
       // Stop screen sharing for this user (they are now viewing the new media)
       if (isScreensharing) {
         stopScreenshare();
         toast('New media shared! Stopping screenshare...');
       }
-      setIsViewer(false); 
+      setIsViewer(false);
     });
-    sock.on('action_play', t => { lastExternalUpdate.current = Date.now(); if (playerRef.current && Math.abs(playerRef.current.getCurrentTime() - t) > 2) playerRef.current.seekTo(t, 'seconds'); setIsPlaying(true); });
-    sock.on('action_pause', t => { lastExternalUpdate.current = Date.now(); playerRef.current?.seekTo(t, 'seconds'); setIsPlaying(false); });
-    sock.on('action_seek', t => { lastExternalUpdate.current = Date.now(); playerRef.current?.seekTo(t, 'seconds'); });
+    sock.on('browser_url_changed', url => {
+      setBrowserDisplayUrl(url);
+      setBrowserBarInput(url);
+    });
+    sock.on('action_play', t => { lastExternalUpdate.current = Date.now() + 3000; if (playerRef.current && Math.abs(playerRef.current.getCurrentTime() - t) > 2) playerRef.current.seekTo(t, 'seconds'); if (localVideoRef.current && Math.abs(localVideoRef.current.currentTime - t) > 2) localVideoRef.current.currentTime = t; setIsPlaying(true); });
+    sock.on('action_pause', t => { lastExternalUpdate.current = Date.now() + 3000; playerRef.current?.seekTo(t, 'seconds'); if (localVideoRef.current) localVideoRef.current.currentTime = t; setIsPlaying(false); });
+    sock.on('action_seek', t => { lastExternalUpdate.current = Date.now() + 3000; playerRef.current?.seekTo(t, 'seconds'); if (localVideoRef.current) localVideoRef.current.currentTime = t; });
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Camera p2p listeners Ã¢â€â‚¬Ã¢â€â‚¬
+    // ── Audio Ducking room-wide events ──
+    sock.on('audio_ducking_duck', ({ username }) => {
+      if (preDuckVolumeRef.current === null) {
+        preDuckVolumeRef.current = playerVolumeRef.current;
+      }
+      fadeVolume(playerVolumeRef.current, 0.35, 250);
+      setIsDucked(true);
+      setDuckingNotice(username || 'Someone');
+    });
+    sock.on('audio_ducking_restore', () => {
+      const restoreTo = preDuckVolumeRef.current ?? playerVolumeRef.current;
+      preDuckVolumeRef.current = null;
+      fadeVolume(playerVolumeRef.current, restoreTo, 350);
+      setIsDucked(false);
+      setDuckingNotice(null);
+    });
+    sock.on('action_subtitles_load', (text) => {
+      setSubtitleVttText(text || null);
+      setSubtitlesUrl(oldUrl => {
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        if (!text) return null;
+        const blob = new Blob([text], { type: 'text/vtt' });
+        return URL.createObjectURL(blob);
+      });
+      setSubtitlesVisible(true);
+    });
+
+    const camIsLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
+    const CAM_RTC_CONFIG = camIsLocalhost
+      ? { iceServers: [] }
+      : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+    const camIceCandidateBuffer = {}; // { socketId: RTCIceCandidateInit[] }
+    const drainCamIceCandidates = async (pc, sid) => {
+      if (!camIceCandidateBuffer[sid]) return;
+      for (const c of camIceCandidateBuffer[sid]) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e) { console.warn('[CAM RTC] Buffered ICE add failed', e); }
+      }
+      delete camIceCandidateBuffer[sid];
+    };
+
     sock.on('webrtc_cam_ping', ({ requesterId }) => {
       if (isCamOnRef.current) {
         sock.emit('webrtc_cam_pong', { targetSocketId: requesterId });
@@ -2009,7 +3199,7 @@ const Room = () => {
       if (cameraPcRefs.current[socketId]) {
         cameraPcRefs.current[socketId].close();
       }
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const pc = new RTCPeerConnection(CAM_RTC_CONFIG);
       cameraPcRefs.current[socketId] = pc;
       pc.onicecandidate = e => { if (e.candidate) sock.emit('cam_ice', { targetSocketId: socketId, candidate: e.candidate }); };
       pc.ontrack = e => {
@@ -2055,7 +3245,7 @@ const Room = () => {
       if (cameraPcRefs.current[senderSocketId]) {
         cameraPcRefs.current[senderSocketId].close();
       }
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const pc = new RTCPeerConnection(CAM_RTC_CONFIG);
       cameraPcRefs.current[senderSocketId] = pc;
       pc.onicecandidate = e => { if (e.candidate) sock.emit('cam_ice', { targetSocketId: senderSocketId, candidate: e.candidate }); };
       pc.ontrack = e => {
@@ -2082,6 +3272,8 @@ const Room = () => {
       }
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        // Drain any ICE candidates that arrived before setRemoteDescription
+        await drainCamIceCandidates(pc, senderSocketId);
         const ans = await pc.createAnswer();
         await pc.setLocalDescription(ans);
         console.log('Sending cam_answer back to', senderName);
@@ -2096,15 +3288,24 @@ const Room = () => {
         console.warn('[RTC] Ignoring answer: PC is in state', pc.signalingState);
         return;
       }
-      try { 
-        await pc.setRemoteDescription(new RTCSessionDescription(answer)); 
-      } catch (err) { 
-        console.error('Error handling answer', err); 
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        // Drain any ICE candidates buffered before this answer arrived
+        await drainCamIceCandidates(pc, senderSocketId);
+      } catch (err) {
+        console.error('Error handling cam answer', err);
       }
     });
     sock.on('cam_ice', async ({ senderSocketId, candidate }) => {
-      try { await cameraPcRefs.current[senderSocketId]?.addIceCandidate(new RTCIceCandidate(candidate)); }
-      catch (err) { console.error('Error adding ICE candidate', err); }
+      const pc = cameraPcRefs.current[senderSocketId];
+      if (!pc || !pc.remoteDescription) {
+        // Buffer the candidate until remote description is ready
+        if (!camIceCandidateBuffer[senderSocketId]) camIceCandidateBuffer[senderSocketId] = [];
+        camIceCandidateBuffer[senderSocketId].push(candidate);
+        return;
+      }
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+      catch (err) { console.warn('[CAM RTC] addIceCandidate failed:', err); }
     });
 
     sock.on('kicked_out', ({ reason }) => {
@@ -2161,33 +3362,69 @@ const Room = () => {
       Object.values(peerConnectionsRef.current).forEach(p => p.close()); 
       peerConnectionsRef.current = {}; 
     });
+    // ── ICE candidate buffer: candidates can arrive before setRemoteDescription() ──
+    // completes (especially on localhost where signalling is near-instant).
+    // We buffer them and drain the queue as soon as the remote description is set.
+    const iceCandidateBuffer = {}; // { senderSocketId: RTCIceCandidateInit[] }
+
+    // Shared ICE config — skip Google STUN on localhost (causes ~3 s timeout delay)
+    const isLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
+    const RTC_CONFIG = isLocalhost
+      ? { iceServers: [] } // host candidates only — fastest for same-machine
+      : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+
+    // Helper: apply buffered ICE candidates once remote description is ready
+    const drainIceCandidates = async (pc, sid) => {
+      if (!iceCandidateBuffer[sid]) return;
+      for (const c of iceCandidateBuffer[sid]) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch(e) { console.warn('[RTC] Buffered ICE add failed', e); }
+      }
+      delete iceCandidateBuffer[sid];
+    };
+
     sock.on('webrtc_viewer_joined', async vid => {
       if (!localStreamRef.current) return;
-      const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const peer = new RTCPeerConnection(RTC_CONFIG);
       peerConnectionsRef.current[vid] = peer;
+
       localStreamRef.current.getTracks().forEach(t => peer.addTrack(t, localStreamRef.current));
-      peer.onicecandidate = e => { if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: vid, candidate: e.candidate }); };
-      const offer = await peer.createOffer(); await peer.setLocalDescription(offer);
+      peer.onicecandidate = e => {
+        if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: vid, candidate: e.candidate });
+      };
+      peer.onconnectionstatechange = () => console.log(`[RTC host→${vid}] connection:`, peer.connectionState);
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
       sock.emit('webrtc_offer', { targetSocketId: vid, offer });
     });
+
     sock.on('webrtc_offer', async ({ senderSocketId, offer }) => {
-      const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const peer = new RTCPeerConnection(RTC_CONFIG);
       peerConnectionsRef.current[senderSocketId] = peer;
-      peer.ontrack = e => { 
+
+      peer.ontrack = e => {
         console.log('[RTC] Remote track received:', e.track.kind);
         if (e.streams && e.streams[0]) {
-          setRemoteStream(e.streams[0]); 
+          setRemoteStream(e.streams[0]);
         } else {
-          // Fallback for browsers that don't group tracks into streams automatically
           setRemoteStream(new MediaStream([e.track]));
         }
       };
-      peer.onicecandidate = e => { if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: senderSocketId, candidate: e.candidate }); };
+      peer.onicecandidate = e => {
+        if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: senderSocketId, candidate: e.candidate });
+      };
+      peer.onconnectionstatechange = () => console.log(`[RTC viewer←${senderSocketId}] connection:`, peer.connectionState);
+
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
-      const ans = await peer.createAnswer(); await peer.setLocalDescription(ans);
+      // Drain any ICE candidates that arrived before we set the remote description
+      await drainIceCandidates(peer, senderSocketId);
+
+      const ans = await peer.createAnswer();
+      await peer.setLocalDescription(ans);
       sock.emit('webrtc_answer', { targetSocketId: senderSocketId, answer: ans });
     });
-    sock.on('webrtc_answer', async ({ senderSocketId, answer }) => { 
+
+    sock.on('webrtc_answer', async ({ senderSocketId, answer }) => {
       const pc = peerConnectionsRef.current[senderSocketId];
       if (!pc) return;
       if (pc.signalingState !== 'have-local-offer') {
@@ -2195,17 +3432,53 @@ const Room = () => {
         return;
       }
       try {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer)); 
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        // Drain any candidates that were buffered before the answer was processed
+        await drainIceCandidates(pc, senderSocketId);
       } catch (e) {
         console.error('[RTC] Failed to set remote description for answer:', e);
       }
     });
-    sock.on('webrtc_ice_candidate', async ({ senderSocketId, candidate }) => { peerConnectionsRef.current[senderSocketId]?.addIceCandidate(new RTCIceCandidate(candidate)); });
 
-    const onVis = () => { if (!document.hidden && sock.connected) sock.emit('request_sync', roomId); };
+    sock.on('webrtc_ice_candidate', async ({ senderSocketId, candidate }) => {
+      const pc = peerConnectionsRef.current[senderSocketId];
+      if (!pc || !pc.remoteDescription) {
+        // Remote description not yet set — buffer the candidate
+        if (!iceCandidateBuffer[senderSocketId]) iceCandidateBuffer[senderSocketId] = [];
+        iceCandidateBuffer[senderSocketId].push(candidate);
+        return;
+      }
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch(e) {
+        console.warn('[RTC] addIceCandidate failed:', e);
+      }
+    });
+
+    const onVis = () => {
+      if (!document.hidden && sock.connected) {
+        sock.emit('request_sync', roomId);
+        if (chatTabRef.current === 'dm' && dmTargetRef.current) {
+          sock.emit('chat:mark_read', { chatId: dmTargetRef.current.toLowerCase(), timestamp: Date.now(), isDm: true, userRead: true });
+        } else if (chatTabRef.current === 'group') {
+          sock.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false, userRead: true });
+        }
+      }
+    };
+    const onFocus = () => {
+      if (!document.hidden && sock.connected) {
+        if (chatTabRef.current === 'dm' && dmTargetRef.current) {
+          sock.emit('chat:mark_read', { chatId: dmTargetRef.current.toLowerCase(), timestamp: Date.now(), isDm: true, userRead: true });
+        } else if (chatTabRef.current === 'group') {
+          sock.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false, userRead: true });
+        }
+      }
+    };
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
     return () => {
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
       appWindowRef.current?.close();
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(e => console.error('Error closing AudioContext:', e));
@@ -2328,7 +3601,11 @@ const Room = () => {
       let changed = false;
       const next = { ...prev };
       for (const [user, thread] of Object.entries(next)) {
-        next[user] = thread.map(msg => {
+        const lowerUser = user.toLowerCase();
+        if (lowerUser !== user) {
+          delete next[user];
+        }
+        next[lowerUser] = thread.map(msg => {
           if (msg.nonce && (looksLikeCiphertext(msg.message) || (msg.mediaUrl && msg.mediaUrl.length > 50))) {
             try {
               let decrypted = msg.message;
@@ -2384,13 +3661,72 @@ const Room = () => {
 
   // Sync volume state explicitly to WebRTC native video element
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = playerVolume;
-      videoRef.current.muted = isScreensharing ? true : playerMuted;
+    if (localVideoRef.current) {
+      localVideoRef.current.volume = playerVolume;
+      localVideoRef.current.muted = playerMuted;
     }
-  }, [playerVolume, playerMuted, isScreensharing]);
+  }, [playerVolume, playerMuted, mediaUrl, isLocalStream]);
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬
+  useEffect(() => {
+    if (localVideoRef.current && localVideoRef.current.textTracks.length > 0) {
+      localVideoRef.current.textTracks[0].mode = 'hidden';
+    }
+  }, [subtitlesVisible, subtitlesUrl]);
+
+  useEffect(() => {
+    if (!subtitleVttText) { subtitleCuesRef.current = []; return; }
+    subtitleCuesRef.current = parseVttCues(subtitleVttText);
+  }, [subtitleVttText]);
+
+  useEffect(() => {
+    if (!subtitleCuesRef.current.length || !subtitlesVisible) { setActiveCue(null); return; }
+    const adjTime = currentTime + subtitleSettings.delay;
+    const speed = subtitleSettings.speed || 1;
+    const found = subtitleCuesRef.current.find(c => {
+      const adjEnd = c.start + (c.end - c.start) / speed;
+      return adjTime >= c.start && adjTime <= adjEnd;
+    }) || null;
+    setActiveCue(found);
+  }, [currentTime, subtitlesVisible, subtitleSettings.delay, subtitleSettings.speed]);
+
+  useEffect(() => {
+    try {
+      const key = `subtitleSettings_${username || 'guest'}`;
+      localStorage.setItem(key, JSON.stringify(subtitleSettings));
+    } catch {}
+  }, [subtitleSettings, username]);
+
+  useEffect(() => {
+    if (!showSubtitleMenu) return;
+    const close = e => {
+      if (subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target)) {
+        setShowSubtitleMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showSubtitleMenu]);
+
+  // Close globe popup when clicking outside
+  useEffect(() => {
+    if (!showGlobePopup) return;
+    const close = e => {
+      if (globePopupRef.current && !globePopupRef.current.contains(e.target)) {
+        setShowGlobePopup(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showGlobePopup]);
+
+  // Reset iframe block state when URL changes so fresh load starts unblocked
+  useEffect(() => {
+    setIframeBlockSuspected(false);
+    setShowGlobePopup(false);
+    clearTimeout(iframeBlockTimeoutRef.current);
+  }, [mediaUrl]);
+
+  // Ã¢â€ â‚¬Ã¢â€ â‚¬ Helpers Ã¢â€ â‚¬Ã¢â€ â‚¬
   function fixReactions(r) {
     if (!r) return {};
     const out = {};
@@ -2403,94 +3739,324 @@ const Room = () => {
   // isAdmin is derived from the server-sent user list status
   const isAdmin = !!(myUserObj?.isAdmin);
   const isEffectiveHost = isHost || isAdmin; // use this everywhere host features are gated
-  const audioDuckingEnabled = room?.settings?.audioDucking;
 
+  // ── Audio Ducking — room-wide, socket-synced ──
 
-  // Audio Ducking Loop
-  useEffect(() => {
-    if (!audioDuckingEnabled) {
-      if (isDucking) {
-        setPlayerVolume(lastNonDuckedVolume);
-        setIsDucking(false);
-      }
-      return;
-    }
+  // Smooth volume fade — drives both ReactPlayer (via state prop) and localVideoRef (via existing effect)
+  function fadeVolume(from, to, durationMs) {
+    const steps = 12;
+    const stepTime = durationMs / steps;
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const value = Math.max(0, Math.min(1, from + (to - from) * (step / steps)));
+      playerVolumeRef.current = value;
+      setPlayerVolume(value);
+      if (step >= steps) clearInterval(interval);
+    }, stepTime);
+  }
 
-    const checkVolume = () => {
-      if (!audioDuckingEnabled) return;
-      let maxVol = 0;
-      analyzersRef.current.forEach(analyzer => {
-        const dataArray = new Uint8Array(analyzer.frequencyBinCount);
-        analyzer.getByteFrequencyData(dataArray);
-        const avg = dataArray.reduce((num, val) => num + val, 0) / dataArray.length;
-        if (avg > maxVol) maxVol = avg;
-      });
+  // VAD — only active when room audioDucking is on AND this user's mic is on
+  const audioDuckingEnabled = !!(room?.settings?.audioDucking && isMicOnCam);
 
-      const threshold = 15; // Speaking threshold
-      if (maxVol > threshold) {
-        if (!isDucking) {
-          setLastNonDuckedVolume(playerVolume);
-          setPlayerVolume(prev => prev * 0.35); // Duck to 35%
-          setIsDucking(true);
-        }
+  useVoiceActivityDetection({
+    micStream: localCamRef.current,
+    enabled: audioDuckingEnabled,
+    onSpeakingChange: useCallback((isSpeaking) => {
+      if (!socket || !roomId) return;
+      if (isSpeaking) {
+        socket.emit('audio_ducking_speaking', {
+          roomId: (roomId || '').toLowerCase(),
+          userId: mySocketIdRef.current,
+          username: usernameRef.current,
+        });
       } else {
-        if (isDucking) {
-          setPlayerVolume(lastNonDuckedVolume);
-          setIsDucking(false);
-        }
+        socket.emit('audio_ducking_stopped', {
+          roomId: (roomId || '').toLowerCase(),
+          userId: mySocketIdRef.current,
+        });
       }
-    };
+    }, [socket, roomId]), // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
-    const interval = setInterval(checkVolume, 250);
+  // ── Keep savePositionStateRef in sync for the beforeunload handler ──
+  useEffect(() => {
+    savePositionStateRef.current = { isEffectiveHost, mediaUrl, roomId };
+  }, [isEffectiveHost, mediaUrl, roomId]);
+
+  // ── Auto-resume: restore saved media when host re-enters an empty room ──
+  useEffect(() => {
+    if (!room?.lastMediaUrl || !isEffectiveHost || hasAutoResumedRef.current) return;
+    if (mediaUrl) return; // another media is already active
+    const mType = detectMediaType(room.lastMediaUrl);
+    if (!mType) return;
+
+    hasAutoResumedRef.current = true;
+    const savedUrl = room.lastMediaUrl;
+    const savedPos = room.lastMediaPosition || 0;
+    prepTargetTimeRef.current = savedPos;
+
+    // Update server state so new joiners also see the resumed URL
+    socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: savedUrl });
+    setMediaUrl(savedUrl);
+    setIsPlaying(true);
+
+    if (savedPos > 5) {
+      setTimeout(() => {
+        lastExternalUpdate.current = Date.now();
+        if (playerRef.current?.seekTo) {
+          playerRef.current.seekTo(savedPos, 'seconds');
+        }
+      }, 1500);
+    }
+  }, [room, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── When enough chunks are buffered, host emits change_media so the room + server are synced ──
+  const streamCanPlayFiredRef = useRef(false);
+  useEffect(() => {
+    console.log('[STREAM canPlay effect]', { canPlay: uploadState.canPlay, streamKey: uploadState.streamKey, isEffectiveHost, hasFired: streamCanPlayFiredRef.current });
+    if (!uploadState.canPlay || !uploadState.streamKey || !socket || !isEffectiveHost) return;
+    if (streamCanPlayFiredRef.current) return;
+    streamCanPlayFiredRef.current = true;
+    const streamUrl = `${SOCKET_SERVER_URL}/api/stream/${uploadState.streamKey}/video`;
+    console.log('[STREAM] Upload complete, emitting streamUrl:', streamUrl);
+
+    // Emit change_media to update database and broadcast streamUrl to viewers
+    socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: streamUrl });
+
+    // Host keeps watching the local blob URL. Seek/play viewers 1.5s later.
+    const currentPos = localVideoRef.current?.currentTime || 0;
+    setTimeout(() => {
+      if (socket) {
+        const freshPos = localVideoRef.current?.currentTime || currentPos;
+        console.log('[STREAM Sync] Syncing viewers to host time:', freshPos);
+        socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
+        socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
+      }
+    }, 1500);
+  }, [uploadState.canPlay, uploadState.streamKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset the fired-ref when a new upload starts
+  useEffect(() => {
+    if (uploadState.isUploading && !uploadState.canPlay) {
+      streamCanPlayFiredRef.current = false;
+    }
+  }, [uploadState.isUploading, uploadState.canPlay]);
+
+  // Sync isPlaying state → local <video> element for stream URLs
+  useEffect(() => {
+    if (!localVideoRef.current) return;
+    if (isPlaying) localVideoRef.current.play().catch(() => {});
+    else localVideoRef.current.pause();
+  }, [isPlaying]);
+
+  // ── 30-second auto-save interval while host is playing ──
+  useEffect(() => {
+    if (!isEffectiveHost || !isPlaying || !mediaUrl || !socket) return;
+    const mType = detectMediaType(mediaUrl);
+    if (!mType) return;
+
+    const interval = setInterval(() => {
+      const pos = getPlayerPosition();
+      if (pos > 0) {
+        socket.emit('media_position_save', {
+          roomId: (roomId || '').toLowerCase(),
+          url: mediaUrl,
+          position: pos,
+          mediaType: mType
+        });
+      }
+    }, 30000);
+
     return () => clearInterval(interval);
-  }, [audioDuckingEnabled, isDucking, playerVolume, lastNonDuckedVolume]);
+  }, [isEffectiveHost, isPlaying, mediaUrl, roomId, socket]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Chat typing Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Save position on page close via sendBeacon ──
+  useEffect(() => {
+    const handleUnload = () => {
+      const { isEffectiveHost: isH, mediaUrl: url, roomId: rid } = savePositionStateRef.current;
+      if (!isH || !url || !rid) return;
+      const mType = detectMediaType(url);
+      if (!mType) return;
+      const pos = getPlayerPosition();
+      if (pos <= 0) return;
+      navigator.sendBeacon(
+        `${SOCKET_SERVER_URL}/api/rooms/save-position`,
+        new Blob([JSON.stringify({ roomId: rid.toLowerCase(), url, position: pos, mediaType: mType })], { type: 'application/json' })
+      );
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ã¢â€ â‚¬Ã¢â€ â‚¬ Chat typing Ã¢â€ â‚¬Ã¢â€ â‚¬
   const handleChatInputChange = (val, chatType) => {
     if (socket && chatType) {
       const target = chatType === 'private' ? dmTarget : roomId;
-      socket.emit('chat:typing', { partner: target, type: chatType, roomId: (roomId || '').toLowerCase() });
+      if (Date.now() - lastTypingSent.current > 2000) {
+        socket.emit('chat:typing', { partner: target, type: chatType, roomId: (roomId || '').toLowerCase() });
+        lastTypingSent.current = Date.now();
+      }
       clearTimeout(typingTimer.current);
       typingTimer.current = setTimeout(() => {
         socket.emit('chat:stop_typing', { partner: target, type: chatType, roomId: (roomId || '').toLowerCase() });
+        lastTypingSent.current = 0;
       }, 2000);
     }
   };
 
-  const handleDeleteMessage = async (msgId, mode = 'global') => {
-    // optimistic delete
+  const handleDeleteMessage = (msgId, mode = 'global') => {
+    const idStr = String(msgId);
+    // Find the message to extract its timestamp as a fallback lookup key for the server.
+    // Pre-fix sessions may have stored socket-based ids instead of real DB ids; the server
+    // uses timestamp+senderName to locate the row if the primary id lookup misses.
+    const msgObj = groupMessagesRef.current.find(m => String(m.id) === idStr || String(m.timestamp) === idStr)
+      || Object.values(dmThreads).flat().find(m => String(m.id) === idStr || String(m.timestamp) === idStr);
+    const fallbackTs = msgObj?.timestamp ? String(msgObj.timestamp) : undefined;
+
+    // Optimistic: remove from UI immediately regardless of server response
     setGroupMessages(prev => {
-      const next = prev.filter(m => m.id !== msgId && m.timestamp !== msgId);
+      const next = prev.filter(m => String(m.id) !== idStr && String(m.timestamp) !== idStr);
       groupMessagesRef.current = next;
       return next;
     });
     setDmThreads(prev => {
       const next = { ...prev };
       for (const user in next) {
-        next[user] = next[user].filter(m => m.id !== msgId && m.timestamp !== msgId);
+        next[user] = next[user].filter(m => String(m.id) !== idStr && String(m.timestamp) !== idStr);
       }
       return next;
     });
 
-    try {
-      const qs = mode === 'local' ? '?action=local' : '';
-      const resp = await fetch(`http://${window.location.hostname}:3001/api/chats/message/${msgId}${qs}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` }
-      });
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        console.error('[Delete] failed:', resp.status, err);
-      }
-    } catch (e) { console.error('Delete error', e); }
+    if (!socket) return;
+    if (mode === 'global') {
+      // Unsend: deletes for everyone — server broadcasts message:unsent to all room sockets
+      socket.emit('message:unsend', { messageId: idStr, timestamp: fallbackTs });
+    } else {
+      // Delete for me: server updates hiddenFor and broadcasts message:removed-for-me via emitToUser
+      socket.emit('message:delete-for-me', { messageId: idStr, timestamp: fallbackTs });
+    }
   };
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Send message Ã¢â€â‚¬Ã¢â€â‚¬
+  // Ã¢â€ â‚¬Ã¢â€ â‚¬ Send message Ã¢â€ â‚¬Ã¢â€ â‚¬
+  // Ref holding the latest raw-send logic so the event listener always has fresh state.
+  const sendRawGroupChatRef = useRef(null);
+  const sendGroupMediaRef = useRef(null);
+  sendRawGroupChatRef.current = (msgText, replyTo) => {
+    if (!msgText || !socket) return;
+    const ts = Date.now();
+    const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
+    const optimisticMsg = {
+      id: tempId, username, message: msgText, decryptedText: msgText,
+      timestamp: ts, reactions: {}, replyTo: replyTo || null, _isOptimistic: true
+    };
+    setGroupMessages(prev => {
+      const next = [...prev, optimisticMsg];
+      groupMessagesRef.current = next;
+      return next;
+    });
+    let encryptedPayload = null;
+    if (myKeyPair.current && userList.length > 0) {
+      try {
+        const mergedKeys = { ...dbPublicKeys.current };
+        userList.forEach(u => {
+          if (u.socketId && peerPublicKeys.current[u.socketId]) mergedKeys[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
+        });
+        const recipients = userList
+          .filter(u => u.username.toLowerCase() !== username.toLowerCase())
+          .map(u => ({ username: u.username, publicKey: mergedKeys[u.username.toLowerCase()] || null }))
+          .filter(r => r.publicKey);
+        recipients.push({ username, publicKey: myKeyPair.current.publicKey });
+        encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
+      } catch (err) {
+        console.warn('[E2EE] Group encrypt failed, falling back to plaintext:', err);
+      }
+    }
+    socket.emit('chat_message', {
+      roomId: (roomId || '').toLowerCase(),
+      message: encryptedPayload ? encryptedPayload.ciphertext : msgText,
+      plaintextMessage: !encryptedPayload ? msgText : undefined,
+      e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,
+      username, tempId, replyTo: replyTo || null
+    });
+  };
+
+  // Guest bridge: GlobalChatWidget has no socket, so it delegates room sends here via event.
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { message, replyTo } = e.detail || {};
+      if (message && sendRawGroupChatRef.current) sendRawGroupChatRef.current(message, replyTo || null);
+    };
+    window.addEventListener('guest_widget_send_room_message', handler);
+    return () => window.removeEventListener('guest_widget_send_room_message', handler);
+  }, []);
+
+  // Guest bridge: media/voice/files from GlobalChatWidget delegate here (widget lacks upload auth for guests).
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { file, mediaDuration, replyTo } = e.detail || {};
+      if (file && sendGroupMediaRef.current) {
+        sendGroupMediaRef.current(null, file.type, replyTo || null, file, mediaDuration || null);
+      }
+    };
+    window.addEventListener('guest_widget_send_room_media', handler);
+    return () => window.removeEventListener('guest_widget_send_room_media', handler);
+  }, []);
+
+  // Guest bridge: GlobalChatWidget has no socket, so it delegates pagination requests here via event.
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { roomId: reqRoomId, before } = e.detail || {};
+      if (reqRoomId?.toLowerCase() !== roomId?.toLowerCase()) return;
+      
+      const state = paginationStateRef.current.group;
+      if (state.isLoading || !state.hasMore) return;
+
+      const cursor = before;
+      state.isLoading = true;
+      setGroupHistoryLoading(true);
+
+      if (socket) socket.emit('chat:request_history', { roomId, before: cursor, limit: 200 });
+    };
+    window.addEventListener('guest_request_more_history', handler);
+    return () => window.removeEventListener('guest_request_more_history', handler);
+  }, [roomId, socket]);
+
+  // Guest bridge: GlobalChatWidget has no socket, so it delegates clear room chat here via event.
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { roomId: reqRoomId } = e.detail || {};
+      if (reqRoomId?.toLowerCase() === roomId?.toLowerCase() && socket) {
+        socket.emit('clear_room_chat', { roomId });
+      }
+    };
+    window.addEventListener('guest_widget_clear_room_chat', handler);
+    return () => window.removeEventListener('guest_widget_clear_room_chat', handler);
+  }, [roomId, socket]);
+
+  // Guest bridge: GlobalChatWidget has no socket, so it delegates rename here via event.
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { roomId: reqRoomId, newName } = e.detail || {};
+      if (reqRoomId?.toLowerCase() === roomId?.toLowerCase() && socket) {
+        socket.emit('mod_rename_room', { roomId, newName });
+      }
+    };
+    window.addEventListener('guest_widget_rename_room', handler);
+    return () => window.removeEventListener('guest_widget_rename_room', handler);
+  }, [roomId, socket]);
+
+
   // Send message
   const sendGroupChat = (e) => {
     e.preventDefault();
     if (!groupChatInput.trim() || !socket) return;
-    
+
     const msgText = groupChatInput.trim();
     const ts = Date.now();
     const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2534,10 +4100,10 @@ const Room = () => {
             publicKey: mergedKeys[u.username.toLowerCase()] || null
           }))
           .filter(r => r.publicKey);
-          
+
         recipients.push({
           username: username,
-          publicKey: encodeBase64(myKeyPair.current.publicKey)
+          publicKey: myKeyPair.current.publicKey
         });
 
         encryptedPayload = encryptGroupMessage(
@@ -2568,8 +4134,12 @@ const Room = () => {
     
     setGroupReplyTo(null);
     setGroupChatInput('');
+    if (socket) {
+      socket.emit('chat:stop_typing', { partner: roomId, type: 'room', roomId: (roomId || '').toLowerCase() });
+    }
+    clearTimeout(typingTimer.current);
   };
-  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null) => {
+  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
     if (!socket) return;
     const ts = Date.now();
     const tempId = `opt-media-${ts}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2580,16 +4150,20 @@ const Room = () => {
       id: tempId,
       username,
       message: '',
-      decryptedText: type.startsWith('video') ? 'Video' : 'Photo',
+      decryptedText: '',
       timestamp: ts,
       mediaUrl: optimisticUrl,
+      _localMediaUrl: optimisticUrl,
       mediaType: type,
       isMe: true,
       reactions: {},
       replyTo: replyTo ? { id: replyTo.id, username: replyTo.username, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
-      _isOptimistic: true
+      _isOptimistic: true,
+      _fileName: rawFile?.name || null,
+      _fileSize: rawFile?.size || null,
+      mediaDuration: mediaDuration || null
     };
-    
+
     setGroupMessages(prev => {
       const next = [...prev, optimisticMsg];
       groupMessagesRef.current = next;
@@ -2602,25 +4176,37 @@ const Room = () => {
     const token = localStorage.getItem('watch_token');
 
     // ─── E2EE: AES blob encryption + metadata wrap ───
-    if (rawFile && myKeyPair.current && token && userList.length > 0) {
+    if (rawFile && myKeyPair.current && userList.length > 0) {
       try {
         const { encryptedBlob, mediaKeyBytes } = await encryptMedia(rawFile);
         const mediaKeyB64 = encodeBase64(mediaKeyBytes);
 
-        // Upload encrypted blob to authenticated endpoint
+        // Upload encrypted blob to endpoint
         const fd = new FormData();
-        fd.append('media', encryptedBlob, rawFile.name || 'media');
+        fd.append('file', encryptedBlob, rawFile.name || 'media');
         if (roomId) fd.append('roomId', roomId);
-        
+        console.log('[CLIENT UPLOAD] Sending file:', { name: rawFile.name, size: encryptedBlob.size, type: rawFile.type });
+        const uploadHeaders = {};
+        if (token) {
+          uploadHeaders['Authorization'] = `Bearer ${token}`;
+        }
         const uploadResp = await fetch(`${SOCKET_SERVER_URL}/api/upload/chat`, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
+          headers: uploadHeaders,
           body: fd
         });
-        if (!uploadResp.ok) throw new Error('Encrypted upload failed');
+        console.log('[CLIENT UPLOAD] Response status:', uploadResp.status);
+        if (!uploadResp.ok) {
+          const errText = await uploadResp.text();
+          console.error('[CLIENT UPLOAD] Error response:', errText);
+          let errData = {};
+          try { errData = JSON.parse(errText); } catch {}
+          throw new Error(errData.error || `Upload failed (${uploadResp.status}): ${errText}`);
+        }
         const uploadData = await uploadResp.json();
+        console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
-        finalUrl = `${SOCKET_SERVER_URL}${uploadData.url}`;
+        finalUrl = uploadData.url;
 
         // Merge socket-based and DB-based public keys for recipients
         const mergedKeys = { ...dbPublicKeys.current };
@@ -2640,14 +4226,35 @@ const Room = () => {
           
         recipients.push({
           username: username,
-          publicKey: encodeBase64(myKeyPair.current.publicKey)
+          publicKey: myKeyPair.current.publicKey
         });
 
         // Encrypt the AES key for group recipients
         encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
         isEncrypted = true;
       } catch (err) {
-        console.warn('[E2EE] Group media encrypt failed:', err);
+        console.error('[MEDIA] Error:', err);
+        const msg = (err.message || '').toLowerCase();
+        let toastMsg;
+        if (msg.includes('too large') || msg.includes('exceeded') || msg.includes('maximum') || msg.includes('size') || msg.includes('413')) {
+          toastMsg = 'Videos larger than 50MB cannot be sent in chat.';
+        } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+          toastMsg = 'Connection error. Please check your internet and try again.';
+        } else if (msg.includes('storage') || msg.includes('bucket') || msg.includes('500')) {
+          toastMsg = 'Unable to send file right now. Please try again.';
+        } else if (msg.includes('type') || msg.includes('format') || msg.includes('supported')) {
+          toastMsg = 'This file type cannot be sent.';
+        } else {
+          toastMsg = 'Failed to send. Please try again.';
+        }
+        toast.error(toastMsg, { duration: 4000 });
+        setGroupMessages(prev => {
+          const next = prev.filter(m => m.id !== tempId);
+          groupMessagesRef.current = next;
+          return next;
+        });
+        URL.revokeObjectURL(optimisticUrl);
+        return;
       }
     } else if (myKeyPair.current && userList.length > 0) {
       // Fallback: URL string encryption only
@@ -2668,7 +4275,7 @@ const Room = () => {
           
         recipients.push({
           username: username,
-          publicKey: encodeBase64(myKeyPair.current.publicKey)
+          publicKey: myKeyPair.current.publicKey
         });
         encryptedPayload = encryptGroupMessage(url, recipients, myKeyPair.current, username);
         finalUrl = encryptedPayload.ciphertext; // stored encrypted string
@@ -2695,11 +4302,14 @@ const Room = () => {
     const msgPayload = (rawFile && encryptedPayload) ? encryptedPayload.ciphertext : (encryptedPayload ? encryptedPayload.ciphertext : '');
 
     socket.emit('chat_message', {
-      roomId: (roomId || '').toLowerCase(), 
+      roomId: (roomId || '').toLowerCase(),
       message: msgPayload,
       username,
-      mediaUrl: finalUrl, 
+      mediaUrl: finalUrl,
       mediaType: type,
+      mediaFileName: rawFile?.name || null,
+      mediaFileSize: rawFile?.size || null,
+      mediaDuration: mediaDuration || null,
       tempId,
       e2ee: encryptedPayload ? {
         nonce: encryptedPayload.nonce,
@@ -2709,6 +4319,7 @@ const Room = () => {
       replyTo: optimisticMsg.replyTo
     });
   };
+  sendGroupMediaRef.current = sendMediaGroupChat;
 
   const sendDmChat = async (e) => {
     e.preventDefault();
@@ -2734,12 +4345,17 @@ const Room = () => {
     };
     setDmThreads(prev => {
       const next = { ...prev };
-      if (!next[dmTarget]) next[dmTarget] = [];
-      next[dmTarget] = [...next[dmTarget], optimisticMsg];
+      const key = dmTarget.toLowerCase();
+      if (!next[key]) next[key] = [];
+      next[key] = [...next[key], optimisticMsg];
       return next;
     });
     setDmReplyTo(null);
     setDmChatInput('');
+    if (socket) {
+      socket.emit('chat:stop_typing', { partner: dmTarget, type: 'private', roomId: (roomId || '').toLowerCase() });
+    }
+    clearTimeout(typingTimer.current);
 
     try {
       // ─── Phase 1: Sender Key Validation ───
@@ -2857,7 +4473,8 @@ const Room = () => {
         // Rollback optimistic message
         setDmThreads(prev => {
           const next = { ...prev };
-          if (next[dmTarget]) next[dmTarget] = next[dmTarget].filter(m => m.id !== tempId);
+          const key = dmTarget.toLowerCase();
+          if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
           return next;
         });
         return;
@@ -2886,7 +4503,8 @@ const Room = () => {
         // Rollback optimistic
         setDmThreads(prev => {
           const next = { ...prev };
-          if (next[dmTarget]) next[dmTarget] = next[dmTarget].filter(m => m.id !== tempId);
+          const key = dmTarget.toLowerCase();
+          if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
           return next;
         });
       }
@@ -2898,12 +4516,13 @@ const Room = () => {
       toast.error('Failed to send message.');
       setDmThreads(prev => {
         const next = { ...prev };
-        if (next[dmTarget]) next[dmTarget] = next[dmTarget].filter(m => m.id !== tempId);
+        const key = dmTarget.toLowerCase();
+        if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
         return next;
       });
     }
   };
-  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null) => {
+  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
     if (!socket || !dmTarget) return;
 
     const token = localStorage.getItem('watch_token');
@@ -2918,17 +4537,22 @@ const Room = () => {
       targetName: dmTarget,
       message: '',
       mediaUrl: optimisticUrl,
+      _localMediaUrl: optimisticUrl,
       mediaType: type,
       timestamp: ts,
       isMe: true,
       reactions: {},
       replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName || replyTo.targetName, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
-      _isOptimistic: true
+      _isOptimistic: true,
+      _fileName: rawFile?.name || null,
+      _fileSize: rawFile?.size || null,
+      mediaDuration: mediaDuration || null
     };
     setDmThreads(prev => {
       const next = { ...prev };
-      if (!next[dmTarget]) next[dmTarget] = [];
-      next[dmTarget] = [...next[dmTarget], optimisticMsg];
+      const key = dmTarget.toLowerCase();
+      if (!next[key]) next[key] = [];
+      next[key] = [...next[key], optimisticMsg];
       return next;
     });
 
@@ -2965,16 +4589,25 @@ const Room = () => {
 
         // Upload encrypted blob to authenticated endpoint
         const fd = new FormData();
-        fd.append('media', encryptedBlob, rawFile.name || 'media');
+        fd.append('file', encryptedBlob, rawFile.name || 'media');
+        console.log('[CLIENT UPLOAD] Sending file:', { name: rawFile.name, size: encryptedBlob.size, type: rawFile.type });
         const uploadResp = await fetch(`${SOCKET_SERVER_URL}/api/upload/chat`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: fd
         });
-        if (!uploadResp.ok) throw new Error('Encrypted upload failed');
+        console.log('[CLIENT UPLOAD] Response status:', uploadResp.status);
+        if (!uploadResp.ok) {
+          const errText = await uploadResp.text();
+          console.error('[CLIENT UPLOAD] Error response:', errText);
+          let errData = {};
+          try { errData = JSON.parse(errText); } catch {}
+          throw new Error(errData.error || `Upload failed (${uploadResp.status}): ${errText}`);
+        }
         const uploadData = await uploadResp.json();
+        console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
-        finalUrl = `${SOCKET_SERVER_URL}${uploadData.url}`;
+        finalUrl = uploadData.url;
 
         // Encrypt AES key with DM E2EE (same as GCW)
         const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(myKeyPair.current.publicKey));
@@ -3004,6 +4637,9 @@ const Room = () => {
           senderMessage: senderMsgPayload,
           mediaUrl: finalUrl,               // encrypted blob URL
           mediaType: type,
+          mediaFileName: rawFile?.name || null,
+          mediaFileSize: rawFile?.size || null,
+          mediaDuration: mediaDuration || null,
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: isEncrypted,
@@ -3017,28 +4653,43 @@ const Room = () => {
         toast.error(err.error || 'Media message failed to send.');
         setDmThreads(prev => {
           const next = { ...prev };
-          if (next[dmTarget]) next[dmTarget] = next[dmTarget].filter(m => m.id !== tempId);
+          const key = dmTarget.toLowerCase();
+          if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
           return next;
         });
       }
     } catch (err) {
-      console.error('[Room DM] sendMediaDmChat error:', err);
-      toast.error('Failed to send media.');
+      console.error('[MEDIA] Error:', err);
+      const msg = (err.message || '').toLowerCase();
+      let toastMsg;
+      if (msg.includes('too large') || msg.includes('exceeded') || msg.includes('maximum') || msg.includes('size') || msg.includes('413')) {
+        toastMsg = 'Videos larger than 50MB cannot be sent in chat.';
+      } else if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection')) {
+        toastMsg = 'Connection error. Please check your internet and try again.';
+      } else if (msg.includes('storage') || msg.includes('bucket') || msg.includes('500')) {
+        toastMsg = 'Unable to send file right now. Please try again.';
+      } else if (msg.includes('type') || msg.includes('format') || msg.includes('supported')) {
+        toastMsg = 'This file type cannot be sent.';
+      } else {
+        toastMsg = 'Failed to send. Please try again.';
+      }
+      toast.error(toastMsg, { duration: 4000 });
       setDmThreads(prev => {
         const next = { ...prev };
-        if (next[dmTarget]) next[dmTarget] = next[dmTarget].filter(m => m.id !== tempId);
+        const key = dmTarget.toLowerCase();
+        if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
         return next;
       });
     }
   };
-  const handleGroupReact = (msgId, emoji) => {
-    // Optimistic update — apply locally immediately
+  const handleGroupReact = async (msgId, emoji) => {
+    // Optimistic update — apply locally immediately (same pattern as GCW handleReact)
     setGroupMessages(prev => {
       const next = prev.map(m => {
         if (String(m.id) === String(msgId) || (m.timestamp && String(m.timestamp) === String(msgId))) {
           const rx = {};
           for (const [em, uids] of Object.entries(m.reactions || {})) {
-            const filtered = uids.filter(u => u !== username);
+            const filtered = (Array.isArray(uids) ? uids : []).filter(u => u !== username);
             if (filtered.length > 0) rx[em] = filtered;
           }
           const hadIt = (m.reactions?.[emoji] || []).includes(username);
@@ -3053,25 +4704,32 @@ const Room = () => {
       groupMessagesRef.current = next;
       return next;
     });
-
-    // Room group messages are stored in SQLite via the socket handler — so reactions MUST
-    // go through the socket chat:reaction event (which queries SQLite), NOT the HTTP
-    // /api/chats/react endpoint (which queries PostgreSQL and finds nothing).
-    if (socket && socket.connected) {
-      socket.emit('chat:reaction', {
-        roomId: (roomId || '').toLowerCase(),
-        messageId: String(msgId),
-        emoji
-      });
-    }
-    
     setActiveReactionMsg(null);
     setShowAllEmojis(false);
+
+    // Use socket communication directly to support reactions without HTTP auth token restrictions
+    if (socket) {
+      socket.emit('chat:reaction', { roomId: (roomId || '').toLowerCase(), messageId: String(msgId), emoji });
+    }
   };
   // Store username on socket for echo-skip
   if (socket) socket.__username = username;
 
   const handleStopMedia = useCallback(() => {
+    // Cleanup trigger (a): always end cloud browser session when host stops media
+    if (hbSessionId || hyperbeamSession) {
+      const rid = (roomId || '').toLowerCase();
+      const token = localStorage.getItem('watch_token');
+      fetch(`${SOCKET_SERVER_URL}/api/hyperbeam/session/${rid}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }).catch(() => {});
+      setHyperbeamSession(null);
+      setHbSessionId(null);
+      if (socket) socket.emit('hyperbeam_closed', { roomId: rid });
+    }
+    setLoadFailed(false);
+    clearTimeout(loadTimeoutRef.current);
     setMediaUrl('');
     setIsPlaying(false);
     setBufferedSeconds(0);
@@ -3079,21 +4737,23 @@ const Room = () => {
     setActiveExternalApp(null);
     setInputUrl('');
     if (socket) socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: '' });
-  }, [socket, roomId]);
+  }, [socket, roomId, hbSessionId, hyperbeamSession]);
 
   const handleCast = () => {
     setShowCastDiscovery(true);
   };
 
-  const handleDmReact = (msgId, emoji) => {
+  const handleDmReact = async (msgId, emoji) => {
+    // Optimistic update (same pattern as GCW handleReact)
     setDmThreads(prev => {
       const tb = { ...prev };
-      if (!tb[dmTarget]) return tb;
-      tb[dmTarget] = tb[dmTarget].map(m => {
-        if (m.id === msgId || (m.timestamp && m.timestamp === msgId)) {
+      const key = dmTarget.toLowerCase();
+      if (!tb[key]) return tb;
+      tb[key] = tb[key].map(m => {
+        if (String(m.id) === String(msgId) || (m.timestamp && String(m.timestamp) === String(msgId))) {
           const rx = {};
           for (const [em, uids] of Object.entries(m.reactions || {})) {
-            const filtered = uids.filter(u => u !== username);
+            const filtered = (Array.isArray(uids) ? uids : []).filter(u => u !== username);
             if (filtered.length > 0) rx[em] = filtered;
           }
           const hadIt = (m.reactions?.[emoji] || []).includes(username);
@@ -3107,95 +4767,294 @@ const Room = () => {
       });
       return tb;
     });
-    try {
-      fetch(`${SOCKET_SERVER_URL}/api/chats/react`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` },
-        body: JSON.stringify({ messageId: msgId, emoji })
-      });
-    } catch(e) { console.error('React error', e); }
-
     setActiveReactionMsg(null);
     setShowAllEmojis(false);
+
+    try {
+      await fetch(`${SOCKET_SERVER_URL}/api/chats/react`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` },
+        body: JSON.stringify({ messageId: String(msgId), emoji })
+      });
+    } catch(e) { console.error('[handleDmReact] react error', e); }
   };
 
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Media Ã¢â€â‚¬Ã¢â€â‚¬
-  const changeMedia = (url) => {
-    if (!url) { toast.error('Enter a URL first'); return; }
-    
-    // Safety Check: block 18+ content locally for immediate feedback
-    if (isNSFWUrl(url)) {
-      toast.error('18+ (NSFW) content is NOT allowed here!');
+  // Ã¢â€ â‚¬Ã¢â€ â‚¬ Media Ã¢â€ â‚¬Ã¢â€ â‚¬
+  const stopBrowser = () => {
+    if (hbSessionId) {
+      fetch(`${SOCKET_SERVER_URL}/api/browser/session/${hbSessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('watch_token')}` }
+      }).catch(() => {});
+      setHbSessionId(null);
+    }
+    setBrowserDisplayUrl('');
+    setBrowserBarInput('');
+  };
+
+  // ─── Hyperbeam Cloud Browser handlers ──────────────────────────────────────
+  // SECURITY: API key never touches the frontend. We only talk to our own backend.
+
+  const handleOpenCloudBrowser = async () => {
+    const rawUrl = failedPlaybackUrl || mediaUrl;
+    if (!rawUrl || !socket) return;
+
+    const targetUrl = normalizeUrl(rawUrl);
+    if (!targetUrl) {
+      toast.error('Invalid URL — cannot open Virtual Browser');
       return;
     }
+    console.log('[HYPERBEAM] normalizedUrl:', targetUrl);
 
-    if (!ReactPlayer.canPlay(url) && !isWebIframe(url)) { toast.error('Invalid URL'); return; }
+    const rid = (roomId || '').toLowerCase();
+    const token = localStorage.getItem('watch_token');
+    const authHeaders = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const loadingToast = toast.loading('Opening Virtual Browser…');
+    try {
+      console.log('[HYPERBEAM] Sending create-session with url:', targetUrl);
+      const res = await fetch(`${SOCKET_SERVER_URL}/api/hyperbeam/create-session`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ roomId: rid, url: targetUrl })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.session_id) throw new Error(data.error || 'Unknown error');
+      console.log('[HYPERBEAM] session_id received:', data.session_id);
+      console.log('[HYPERBEAM] targetUrl from backend:', data.targetUrl);
 
-    // Priority Shift: Stop all active processes before switching to new media
+      hyperbeamTargetUrlRef.current = data.targetUrl || targetUrl;
+      hbAdminTokenRef.current = data.admin_token || null;
+      setHbNavStatus('connecting');
+      toast.success('Virtual Browser ready!', { id: loadingToast, duration: 2000 });
+      setHyperbeamSession({ session_id: data.session_id, embed_url: data.embed_url });
+      setHbSessionId(data.session_id);
+      setLoadFailed(false);
+      clearTimeout(loadTimeoutRef.current);
+      socket.emit('hyperbeam_opened', {
+        roomId: rid,
+        session_id: data.session_id,
+        embed_url: data.embed_url,
+        targetUrl: data.targetUrl || targetUrl
+      });
+
+    } catch (err) {
+      console.error('[HYPERBEAM] Failed to open virtual browser:', err);
+      toast.error('Virtual Browser failed to start. Please try again.', { id: loadingToast });
+    }
+  };
+
+  const handleCloseCloudBrowser = async () => {
+    if (!hyperbeamSession && !hbSessionId) return;
+    const rid = (roomId || '').toLowerCase();
+    const token = localStorage.getItem('watch_token');
+    try {
+      await fetch(`${SOCKET_SERVER_URL}/api/hyperbeam/session/${rid}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+    } catch (e) {
+      console.warn('[HYPERBEAM] Close request error (session may already be gone):', e.message);
+    }
+    setHyperbeamSession(null);
+    setHbSessionId(null);
+    setLoadFailed(false);
+    setHbNavStatus(null);
+    hbAdminTokenRef.current = null;
+    hyperbeamTargetUrlRef.current = null;
+    if (socket) socket.emit('hyperbeam_closed', { roomId: rid });
+  };
+
+  // ─── Responsive breakpoint tracker ──────────────────────────────────────
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // ─── Hyperbeam SDK initialization ────────────────────────────────────────
+  // start_url (set at session creation) handles initial navigation.
+  // SDK is responsible for connecting the WebRTC stream and filling the container.
+  useEffect(() => {
+    const embedUrl = hyperbeamSession?.embed_url;
+    if (!embedUrl) return;
+
+    let hb = null;
+    let cancelled = false;
+    let ro = null;
+    let roDebounce = null;
+
+    // Resize the virtual browser to match the container exactly.
+    // SDK session is created at 1920×1080 so maxArea=2073600, enough for any typical player.
+    const syncResize = (el, inst) => {
+      if (cancelled || !el || !inst) return;
+      const w = Math.round(el.clientWidth);
+      const h = Math.round(el.clientHeight);
+      if (w < 256 || h < 256) return;
+      try {
+        inst.resize(w, h);
+        console.log('[HYPERBEAM] resize →', w, 'x', h);
+      } catch (e) {
+        console.warn('[HYPERBEAM] resize skipped:', e.message);
+      }
+    };
+
+    const init = async () => {
+      await new Promise(r => requestAnimationFrame(r));
+      if (cancelled || !hyperbeamContainerRef.current) return;
+      try {
+        const sdkOptions = {
+          onConnectionStateChange: ({ state }) => {
+            console.log('[HYPERBEAM] connectionState:', state);
+            if (!cancelled) setHbNavStatus(state === 'playing' ? null : 'connecting');
+          },
+        };
+        if (hbAdminTokenRef.current) {
+          sdkOptions.adminToken = hbAdminTokenRef.current;
+        }
+        hb = await Hyperbeam(hyperbeamContainerRef.current, embedUrl, sdkOptions);
+        if (cancelled) { hb.destroy(); return; }
+        hyperbeamInstanceRef.current = hb;
+        if (!cancelled) setHbNavStatus(null);
+
+        // Navigate to target URL. start_url covers new VM sessions; tabs.update covers
+        // cached/deduped sessions already running on a different (or blank) page.
+        const navUrl = hyperbeamTargetUrlRef.current;
+        if (navUrl && hbAdminTokenRef.current && !cancelled) {
+          try {
+            const activeTabs = await hb.tabs.query({ active: true, currentWindow: true });
+            if (activeTabs?.[0]?.id != null) {
+              await hb.tabs.update(activeTabs[0].id, { url: navUrl });
+              console.log('[HYPERBEAM] tabs.update →', navUrl);
+            }
+          } catch (navErr) {
+            console.warn('[HYPERBEAM] tabs.update skipped:', navErr.message);
+          }
+        }
+
+        // Initial resize to fill container exactly
+        syncResize(hyperbeamContainerRef.current, hb);
+
+        // Keep resize in sync when container dimensions change (sidebar, window resize, etc.)
+        if (window.ResizeObserver && hyperbeamContainerRef.current) {
+          ro = new ResizeObserver(() => {
+            clearTimeout(roDebounce);
+            roDebounce = setTimeout(() => syncResize(hyperbeamContainerRef.current, hyperbeamInstanceRef.current), 120);
+          });
+          ro.observe(hyperbeamContainerRef.current);
+        }
+      } catch (err) {
+        console.error('[HYPERBEAM SDK] Failed to initialize:', err);
+        if (!cancelled) setHbNavStatus(null);
+      }
+    };
+
+    init();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(roDebounce);
+      if (ro) ro.disconnect();
+      hyperbeamTargetUrlRef.current = null;
+      hbAdminTokenRef.current = null;
+      if (hb) { hb.destroy(); }
+      else if (hyperbeamInstanceRef.current) { hyperbeamInstanceRef.current.destroy(); }
+      hyperbeamInstanceRef.current = null;
+    };
+  }, [hyperbeamSession?.embed_url]);
+
+  // Cleanup trigger (d): end cloud browser session on component unmount
+  useEffect(() => {
+    return () => {
+      clearTimeout(loadTimeoutRef.current);
+    };
+  }, []);
+
+  const changeMedia = async (url) => {
+    if (!url) { toast.error('Enter a URL first'); return; }
+    try { new URL(url); } catch { toast.error('Invalid URL'); return; }
+
+    // Cleanup trigger (b): close any active cloud browser before loading new media
+    if (hyperbeamSession || hbSessionId) {
+      await handleCloseCloudBrowser();
+    }
+    setLoadFailed(false);
+    setIframeError(false);
+    setIframeLoading(true);
+    clearTimeout(loadTimeoutRef.current);
+
     if (isScreensharing) stopScreenshare();
     setShowYtBrowser(false);
     setShowTwitchBrowser(false);
     setShowVimeoBrowser(false);
 
+    if (!ReactPlayer.canPlay(url)) {
+      // Non-embeddable URL — show as iframe directly.
+      // User can manually click "🌐 Cloud Browser" if the page blocks iframes.
+      setBrowserDisplayUrl(url);
+      setBrowserBarInput(url);
+      socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: url, browserUrl: url });
+      return;
+    }
+
+    // ReactPlayer-compatible URL — start the 10s failure detection timer
+    setBrowserDisplayUrl('');
+    setBrowserBarInput('');
+    prepTargetTimeRef.current = 0;
     socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: url });
+
+    // Start load-failure timer: if ReactPlayer doesn't fire onReady within 10s, show fallback
+    loadTimeoutRef.current = setTimeout(() => {
+      console.warn('[PLAYBACK] Load timed out — showing Cloud Browser fallback for:', url);
+      setFailedPlaybackUrl(url);
+      setLoadFailed(true);
+    }, 10000);
+
+    // Reset saved position if host loads a new URL
+    if (isEffectiveHost) {
+      const mType = detectMediaType(url);
+      if (mType) {
+        socket.emit('media_position_save', { roomId: (roomId || '').toLowerCase(), url, position: 0, mediaType: mType });
+      }
+    }
   };
   const handleFileUpload = async (file) => {
-    if (!file) return;
-    
-    // LOGGING: See what the browser reports
-    console.log('[UPLOAD] File Name:', file.name);
-    console.log('[UPLOAD] File Type (MIME):', file.type);
-    console.log('[UPLOAD] File Size:', file.size);
-
-    // Relaxed Validation: Only block if we are CERTAIN it is NOT a video
-    // Browsers often report "" for files without extensions
+    console.log('[FILE] handleFileUpload called:', file?.name, 'type:', file?.type, 'size:', file?.size, 'roomId:', roomId, 'socket:', !!socket);
+    if (!file) { console.log('[FILE] Rejected: no file'); return; }
     if (file.type && !file.type.startsWith('video/')) {
-       toast.error('Only video files are allowed!');
-       return;
+      console.log('[FILE] Rejected: not a video type:', file.type);
+      toast.error('Only video files are allowed!');
+      return;
     }
+    // Stop any active screenshare/browsers before starting upload
+    if (isScreensharing) stopScreenshare();
+    setShowYtBrowser(false);
+    setShowTwitchBrowser(false);
+    setShowVimeoBrowser(false);
 
-    setIsUploading(true);
-    toast.loading(`Uploading "${file.name}"...`, { duration: 3000, icon: '⬆️' });
-    
-    const fd = new FormData(); 
-    fd.append('media', file); 
-    fd.append('roomId', roomId || '');
+    // Create a local blob URL so the host starts watching immediately
+    const localUrl = URL.createObjectURL(file);
+    setMediaUrl(localUrl);
+    setIsPlaying(true);
+    prepTargetTimeRef.current = 0;
 
-    console.log('[UPLOAD] Starting fetch to:', `${SOCKET_SERVER_URL}/api/upload`);
-    try {
-      const r = await fetch(`${SOCKET_SERVER_URL}/api/upload`, { method: 'POST', body: fd });
-      const d = await r.json();
-      if (d.url) {
-        const fullLocalUrl = `${SOCKET_SERVER_URL}${d.url}`;
-
-        // PRIORITY STOP: Ensure all browsers and screenshares are closed before file starts
-        if (isScreensharing) stopScreenshare();
-        setShowYtBrowser(false);
-        setShowTwitchBrowser(false);
-        setShowVimeoBrowser(false);
-
-        // Immediately trigger the switch for the entire room
-        socket.emit('change_media', { 
-          roomId: (roomId || '').toLowerCase(), 
-          mediaUrl: fullLocalUrl 
-        });
-
-        // LOCAL FIX: Host should switch immediately to prevent 'Black Screen' or delay
-        setMediaUrl(fullLocalUrl);
-        setIsPlaying(false);
-        if (playerRef.current) playerRef.current.seekTo(0);
-        
-        toast.success('Video uploaded! Starting smoothing...');
-      }
-    } catch { 
-      toast.error('Upload failed'); 
-    } finally { 
-      setIsUploading(false); 
-    }
+    console.log('[FILE] Calling uploadFile, roomId:', roomId, 'socket:', !!socket);
+    // Kick off chunked upload — progress tracked via uploadState
+    uploadFile(file);
   };
   const handlePlay = () => { if (Date.now() - lastExternalUpdate.current < 500) return; socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: playerRef.current?.getCurrentTime() || 0 }); setIsPlaying(true); };
-  const handlePause = () => { if (Date.now() - lastExternalUpdate.current < 500) return; socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: playerRef.current?.getCurrentTime() || 0 }); setIsPlaying(false); };
+  const handlePause = () => {
+    if (Date.now() - lastExternalUpdate.current < 500) return;
+    const pos = getPlayerPosition();
+    socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: pos });
+    setIsPlaying(false);
+    if (isEffectiveHost && mediaUrl) {
+      const mType = detectMediaType(mediaUrl);
+      if (mType && pos > 0) {
+        socket.emit('media_position_save', { roomId: (roomId || '').toLowerCase(), url: mediaUrl, position: pos, mediaType: mType });
+      }
+    }
+  };
   
   const openDiscoveryMenu = (type) => {
     // Automatically pause video for the whole room before opening menus
@@ -3239,18 +5098,23 @@ const Room = () => {
       return;
     }
 
+    const currentPos = getPlayerPosition();
     if (isPlaying) {
-      socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: playerRef.current?.getCurrentTime() || 0 });
+      socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: currentPos });
       setIsPlaying(false);
     } else {
-      socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: playerRef.current?.getCurrentTime() || 0 });
+      socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: currentPos });
       setIsPlaying(true);
     }
   };
 
   const handleScrubberChange = (e) => {
     const t = parseFloat(e.target.value);
-    playerRef.current?.seekTo(t, 'seconds');
+    if (localVideoRef.current) {
+      localVideoRef.current.currentTime = t;
+    } else {
+      playerRef.current?.seekTo(t, 'seconds');
+    }
     lastExternalUpdate.current = Date.now();
     socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: t });
     setCurrentTime(t);
@@ -3258,8 +5122,35 @@ const Room = () => {
 
   const handleVolumeChange = (e) => {
     const v = parseFloat(e.target.value);
+    playerVolumeRef.current = v;
     setPlayerVolume(v);
     setPlayerMuted(v === 0);
+  };
+
+  const skipBack10 = () => {
+    const pos = getPlayerPosition();
+    const newTime = Math.max(0, pos - 10);
+    if (localVideoRef.current) {
+      localVideoRef.current.currentTime = newTime;
+    } else {
+      playerRef.current?.seekTo(newTime, 'seconds');
+    }
+    lastExternalUpdate.current = Date.now();
+    socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: newTime });
+    setCurrentTime(newTime);
+  };
+
+  const skipForward10 = () => {
+    const pos = getPlayerPosition();
+    const newTime = Math.min(duration, pos + 10);
+    if (localVideoRef.current) {
+      localVideoRef.current.currentTime = newTime;
+    } else {
+      playerRef.current?.seekTo(newTime, 'seconds');
+    }
+    lastExternalUpdate.current = Date.now();
+    socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: newTime });
+    setCurrentTime(newTime);
   };
 
   const toggleMutePlayer = () => setPlayerMuted(m => !m);
@@ -3492,7 +5383,22 @@ const Room = () => {
   const openDM = (uname) => {
     dmTargetRef.current = uname; setDmTarget(uname); setChatTab('dm');
     chatTabRef.current = 'dm';
-    setDmUnread(prev => ({ ...prev, [uname]: 0 }));
+    // Seed an empty thread so this person appears in the Chats sidebar immediately,
+    // even before the first message is sent.
+    setDmThreads(prev => {
+      const key = uname.toLowerCase();
+      if (prev[key]) return prev;
+      return { ...prev, [key]: [] };
+    });
+    setDmUnread(prev => {
+      const next = { ...prev };
+      next[uname.toLowerCase()] = 0;
+      return next;
+    });
+    if (dmUnreadRef.current) {
+      dmUnreadRef.current[uname.toLowerCase()] = 0;
+    }
+    setReactionPreviews(prev => { const next = { ...prev }; delete next[uname.toLowerCase()]; return next; });
   };
   const totalDmUnread = Object.values(dmUnread).reduce((a, b) => a + b, 0);
 
@@ -3691,19 +5597,19 @@ const Room = () => {
                     return next; 
                   }); 
                 }} 
-                onMouseDown={(e) => { 
-                  if (!isDraggable || e.target.dataset.dragHandle) return; 
-                  e.preventDefault(); 
-                  const initial = camPositions[cam.id] || { x: 0, y: 0 }; 
-                  draggingCamRef.current = { id: cam.id, startX: e.clientX, startY: e.clientY, initialX: initial.x, initialY: initial.y, moved: false }; 
+                onMouseDown={(e) => {
+                  if (!isDraggable || e.target.dataset.dragHandle) return;
+                  e.preventDefault();
+                  const initial = camPositions[cam.id] || { x: 0, y: 0 };
+                  draggingCamRef.current = { id: cam.id, startX: e.clientX, startY: e.clientY, initialX: initial.x, initialY: initial.y, moved: false };
                   setIsDraggingCam(true);
-                  const onMouseMove = (m) => { 
-                    if (!draggingCamRef.current) return; 
-                    const dx = m.clientX - draggingCamRef.current.startX; 
-                    const dy = m.clientY - draggingCamRef.current.startY; 
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggingCamRef.current.moved = true; 
-                    setCamPositions(prev => ({ ...prev, [draggingCamRef.current.id]: { x: draggingCamRef.current.initialX + dx, y: draggingCamRef.current.initialY + dy } })); 
-                    
+                  const onMouseMove = (m) => {
+                    if (!draggingCamRef.current) return;
+                    const dx = m.clientX - draggingCamRef.current.startX;
+                    const dy = m.clientY - draggingCamRef.current.startY;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggingCamRef.current.moved = true;
+                    setCamPositions(prev => ({ ...prev, [draggingCamRef.current.id]: { x: draggingCamRef.current.initialX + dx, y: draggingCamRef.current.initialY + dy } }));
+
                     // Improved detection using bounding rect
                     const zone = document.getElementById('cam-remove-zone');
                     if (zone) {
@@ -3713,8 +5619,8 @@ const Room = () => {
                       isOverRemoveRef.current = over;
                       setIsOverRemoveZone(over);
                     }
-                  }; 
-                  const onMouseUp = () => { 
+                  };
+                  const onMouseUp = () => {
                     if (draggingCamRef.current) {
                       if (isOverRemoveRef.current) {
                         setHiddenCams(prev => {
@@ -3729,13 +5635,54 @@ const Room = () => {
                     setIsDraggingCam(false);
                     setIsOverRemoveZone(false);
                     isOverRemoveRef.current = false;
-                    window.removeEventListener('mousemove', onMouseMove); 
-                    window.removeEventListener('mouseup', onMouseUp); 
-                    setTimeout(() => { draggingCamRef.current = null; }, 50); 
-                  }; 
-                  window.addEventListener('mousemove', onMouseMove); 
-                  window.addEventListener('mouseup', onMouseUp); 
-                }} 
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+                    setTimeout(() => { draggingCamRef.current = null; }, 50);
+                  };
+                  window.addEventListener('mousemove', onMouseMove);
+                  window.addEventListener('mouseup', onMouseUp);
+                }}
+                onTouchStart={(e) => {
+                  if (!isDraggable || e.target.dataset.dragHandle) return;
+                  if (e.cancelable) e.preventDefault();
+                  const touch = e.touches[0];
+                  const initial = camPositions[cam.id] || { x: 0, y: 0 };
+                  draggingCamRef.current = { id: cam.id, startX: touch.clientX, startY: touch.clientY, initialX: initial.x, initialY: initial.y, moved: false };
+                  setIsDraggingCam(true);
+                  const onTouchMove = (m) => {
+                    if (!draggingCamRef.current) return;
+                    if (m.cancelable) m.preventDefault();
+                    const t = m.touches[0];
+                    const dx = t.clientX - draggingCamRef.current.startX;
+                    const dy = t.clientY - draggingCamRef.current.startY;
+                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggingCamRef.current.moved = true;
+                    setCamPositions(prev => ({ ...prev, [draggingCamRef.current.id]: { x: draggingCamRef.current.initialX + dx, y: draggingCamRef.current.initialY + dy } }));
+                    const zone = document.getElementById('cam-remove-zone');
+                    if (zone) {
+                      const rect = zone.getBoundingClientRect();
+                      const over = t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom;
+                      isOverRemoveRef.current = over;
+                      setIsOverRemoveZone(over);
+                    }
+                  };
+                  const onTouchEnd = () => {
+                    if (draggingCamRef.current) {
+                      if (isOverRemoveRef.current) {
+                        setHiddenCams(prev => { const next = new Set(prev); next.add(draggingCamRef.current.id); return next; });
+                        toast('Video hidden locally', { icon: '🙈' });
+                      }
+                      broadcastUIState();
+                    }
+                    setIsDraggingCam(false);
+                    setIsOverRemoveZone(false);
+                    isOverRemoveRef.current = false;
+                    window.removeEventListener('touchmove', onTouchMove);
+                    window.removeEventListener('touchend', onTouchEnd);
+                    setTimeout(() => { draggingCamRef.current = null; }, 50);
+                  };
+                  window.addEventListener('touchmove', onTouchMove, { passive: false });
+                  window.addEventListener('touchend', onTouchEnd);
+                }}
                 style={{ 
                   position: 'relative', width: currentWidth, height: currentHeight, borderRadius: isCircle ? '50%' : 16, 
                   background: 'transparent', 
@@ -3743,7 +5690,8 @@ const Room = () => {
                   flexShrink: 0, transition: (resizingCamRef.current?.id === cam.id || draggingCamRef.current?.id === cam.id) ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
                   cursor: isDraggable ? 'move' : 'pointer', transform: `translate(${pos.x}px, ${pos.y}px)`, 
                   zIndex: draggingCamRef.current?.id === cam.id ? 100 : 1, pointerEvents: 'auto',
-                  boxShadow: 'none'
+                  boxShadow: 'none',
+                  touchAction: 'none'
                 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: isCircle ? '50%' : 14, overflow: 'hidden', zIndex: 1 }}>
                   <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
@@ -3761,6 +5709,7 @@ const Room = () => {
                       <div key={h.id} data-drag-handle="true" 
                         onMouseDown={(e) => { 
                           e.preventDefault(); e.stopPropagation(); 
+                          setIsResizingCam(true);
                           resizingCamRef.current = { id: cam.id, startX: e.clientX, startY: e.clientY, startWidth: currentWidth, startPos: { ...pos }, handle: h.id, isCircle, moved: false }; 
                           const onMouseMove = (me) => { 
                             if (!resizingCamRef.current) return;
@@ -3784,6 +5733,7 @@ const Room = () => {
                             if (!isCircle) setCamPositions(prev => ({ ...prev, [cam.id]: { x: newX, y: newY } }));
                           }; 
                           const onMouseUp = () => { 
+                            setIsResizingCam(false);
                             // Small delay to ensure the onClick doesn't see 'moved' as false immediately
                             setTimeout(() => { 
                               if (resizingCamRef.current) {
@@ -3795,16 +5745,53 @@ const Room = () => {
                             window.removeEventListener('mouseup', onMouseUp); 
                             document.body.style.cursor = 'default'; 
                           }; 
-                          window.addEventListener('mousemove', onMouseMove); 
-                          window.addEventListener('mouseup', onMouseUp); 
-                          document.body.style.cursor = h.cursor; 
-                        }} 
-                        style={{ 
+                          window.addEventListener('mousemove', onMouseMove);
+                          window.addEventListener('mouseup', onMouseUp);
+                          document.body.style.cursor = h.cursor;
+                        }}
+                        onTouchStart={(e) => {
+                          if (e.cancelable) e.preventDefault();
+                          e.stopPropagation();
+                          setIsResizingCam(true);
+                          const touch = e.touches[0];
+                          resizingCamRef.current = { id: cam.id, startX: touch.clientX, startY: touch.clientY, startWidth: currentWidth, startPos: { ...pos }, handle: h.id, isCircle, moved: false };
+                          const onTouchMove = (me) => {
+                            if (!resizingCamRef.current) return;
+                            if (me.cancelable) me.preventDefault();
+                            const t = me.touches[0];
+                            const dx = t.clientX - resizingCamRef.current.startX;
+                            const dy = t.clientY - resizingCamRef.current.startY;
+                            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) resizingCamRef.current.moved = true;
+                            let newWidth = resizingCamRef.current.startWidth;
+                            let newX = resizingCamRef.current.startPos.x;
+                            let newY = resizingCamRef.current.startPos.y;
+                            if (h.id === 'br') newWidth += dx;
+                            else if (h.id === 'bl') { newWidth -= dx; newX += dx; }
+                            else if (h.id === 'tr') { newWidth += dx; newY += dy; }
+                            else if (h.id === 'tl') { newWidth -= dx; newX += dx; newY += dy; }
+                            const min = resizingCamRef.current.isCircle ? 60 : 80;
+                            if (newWidth < min) return;
+                            setCamSizes(prev => ({ ...prev, [cam.id]: newWidth }));
+                            if (!isCircle) setCamPositions(prev => ({ ...prev, [cam.id]: { x: newX, y: newY } }));
+                          };
+                          const onTouchEnd = () => {
+                            setIsResizingCam(false);
+                            setTimeout(() => {
+                              if (resizingCamRef.current) { broadcastUIState(); resizingCamRef.current = null; }
+                            }, 50);
+                            window.removeEventListener('touchmove', onTouchMove);
+                            window.removeEventListener('touchend', onTouchEnd);
+                          };
+                          window.addEventListener('touchmove', onTouchMove, { passive: false });
+                          window.addEventListener('touchend', onTouchEnd);
+                        }}
+                        style={{
                           position: 'absolute', top: h.top, bottom: h.bottom, left: h.left, right: h.right,
                           width: 28, height: 28, cursor: h.cursor, pointerEvents: 'auto',
                           display: 'flex', alignItems: (h.id.startsWith('b') ? 'flex-end' : 'flex-start'), 
                           justifyContent: (h.id.endsWith('r') ? 'flex-end' : 'flex-start'),
-                          padding: 4, transform: isCircle ? (h.id === 'br' ? 'translate(30%, 30%)' : h.id === 'bl' ? 'translate(-30%, 30%)' : h.id === 'tr' ? 'translate(30%, -30%)' : 'translate(-30%, -30%)') : 'none'
+                          padding: 4, transform: isCircle ? (h.id === 'br' ? 'translate(30%, 30%)' : h.id === 'bl' ? 'translate(-30%, 30%)' : h.id === 'tr' ? 'translate(30%, -30%)' : 'translate(-30%, -30%)') : 'none',
+                          touchAction: 'none'
                         }}>
                         {isCircle ? (
                           <div style={{ 
@@ -3899,11 +5886,16 @@ const Room = () => {
   // ─── RENDER ───
 
   return (
-    <div 
+    <div
       className={isTvMode ? "tv-mode" : ""}
-      style={{ 
-        position: 'relative', display: 'flex', height: '100vh', flexDirection: 'column', 
-        background: 'var(--room-main-bg)', fontFamily: "'Outfit',sans-serif", color: 'var(--text-primary)',
+      style={{
+        position: 'relative', display: 'flex', height: '100vh', flexDirection: 'column',
+        backgroundColor: 'var(--room-main-bg)',
+        backgroundImage: ROOM_THEMES.find(t => t.id === roomTheme)?.backgroundCss || 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        fontFamily: "'Outfit',sans-serif", color: 'var(--text-primary)',
         pointerEvents: isTvMode ? 'none' : 'auto'
       }}>
       <Toaster
@@ -3963,8 +5955,8 @@ const Room = () => {
         ::-webkit-scrollbar{display:none !important;} *{-ms-overflow-style:none !important;scrollbar-width:none !important;}
         .share-btn { transition: transform 0.2s ease, filter 0.2s ease; }
         .share-btn:hover { filter: brightness(1.2); }
-        .player-ctrl-btn{background:transparent;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;border-radius:6px;transition:background 0.15s;}
-        .player-ctrl-btn:hover{background:rgba(255,255,255,0.15);}
+        .player-ctrl-btn{background:transparent;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:8px;transition:all 0.15s;}
+        .player-ctrl-btn:hover{background:rgba(255,255,255,0.15);transform:scale(1.05);}
         .player-scrubber{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
         .player-scrubber::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#6366f1;cursor:pointer;box-shadow:0 0 4px rgba(99,102,241,0.8);transition:transform 0.1s;}
         .player-scrubber::-webkit-slider-thumb:hover{transform:scale(1.3);}
@@ -4012,12 +6004,72 @@ const Room = () => {
         
         .cam-container .cam-ui-overlay { opacity: 0; transition: opacity 0.3s ease; }
         .cam-container:hover .cam-ui-overlay { opacity: 1; }
+        @media (max-width: 1024px) {
+          .cam-container .cam-ui-overlay {
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
+        }
         
         @keyframes blobFloat {
           0% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
           100% { transform: translate(-45%, -55%) scale(1.1) rotate(5deg); }
         }
       `}</style>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          ROOT-LEVEL CAMERA OVERLAY
+          position:absolute over the entire Room div (100vh) so that
+          dragged/resized camera tiles appear on top of the chats panel
+          and any other sibling flex columns.
+          zIndex:999 keeps it below the nav header (zIndex:1000).
+          In fullscreen mode the overlay inside player-wrap is used instead.
+      ══════════════════════════════════════════════════════════════ */}
+      {!isFullscreen && !isTvMode && (
+        <>
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 999,
+            pointerEvents: 'none',
+            overflow: 'visible'
+          }}>
+            {renderCameras(true)}
+          </div>
+
+          {/* Drag-to-Remove Zone — also in the root overlay so it receives correct coords */}
+          {isDraggingCam && (
+            <div
+              id="cam-remove-zone"
+              style={{
+                position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)',
+                zIndex: 1000, pointerEvents: 'none',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                opacity: 1, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                animation: 'slideInUp 0.3s ease'
+              }}
+            >
+              <div className="stay-white" style={{
+                width: isOverRemoveZone ? 72 : 64, height: isOverRemoveZone ? 72 : 64,
+                borderRadius: '50%', background: isOverRemoveZone ? '#ef4444' : 'rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(12px)', border: `2px solid ${isOverRemoveZone ? '#ff6b6b' : 'rgba(255,255,255,0.2)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', boxShadow: isOverRemoveZone ? '0 0 30px rgba(239,68,68,0.5)' : '0 10px 30px rgba(0,0,0,0.3)',
+                transition: 'all 0.2s'
+              }}>
+                <X size={isOverRemoveZone ? 32 : 24} strokeWidth={2.5} color="#fff" />
+              </div>
+              <span style={{
+                color: isOverRemoveZone ? '#ef4444' : '#fff', fontSize: 11, fontWeight: 800,
+                textTransform: 'uppercase', letterSpacing: '0.05em',
+                textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+              }}>
+                {isOverRemoveZone ? 'Drop to Remove' : 'Drag here to hide'}
+              </span>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Share Modal Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {showShareModal && (
@@ -4033,7 +6085,7 @@ const Room = () => {
                 <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>{copied ? t('copied', 'Copied!') : t('copyBtn', 'Copy')}</span>
               </button>
             </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div className="share-social-grid" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
               {[{ icon: <FaWhatsapp size={20} />, label: 'WhatsApp', color: '#25D366', href: `https://api.whatsapp.com/send?text=${encodeURIComponent(window.location.href)}` },
               { icon: <FaTelegramPlane size={20} />, label: 'Telegram', color: '#0088cc', href: `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}` },
               { icon: <FaInstagram size={20} />, label: 'Instagram', color: '#E1306C', href: `https://www.instagram.com/` },
@@ -4064,10 +6116,10 @@ const Room = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button className="back-btn-room" onClick={handleLeaveRoom} title="Back to Home" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, padding: '8px 14px', color: isLight ? '#475569' : '#888', cursor: 'pointer', transition: 'all 0.2s' }}>
             <ChevronLeft size={18} />
-            <span style={{ fontSize: 13, fontWeight: 700 }}>{t('back', 'Back')}</span>
+            <span className="back-btn-text" style={{ fontSize: 13, fontWeight: 700 }}>{t('back', 'Back')}</span>
           </button>
-          <div style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'default', padding: 0 }}>
+          <div className="room-header-divider" style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }} />
+          <div className="room-header-divider-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'default', padding: 0 }}>
             <div style={{ 
               width: 32, 
               height: 32, 
@@ -4081,23 +6133,38 @@ const Room = () => {
             }}>
               <Play size={14} fill="#fff" color="#fff" />
             </div>
-            <span style={{ fontWeight: 800, fontSize: 18, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>WatchTogether</span>
+            <span className="room-brand-text" style={{ fontWeight: 800, fontSize: 18, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>WatchTogether</span>
           </div>
-          <div style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
-          <span style={{ fontSize: 13, color: isLight ? '#64748b' : '#666', fontWeight: 600 }}>{t('roomLabel', 'Room:')} <span style={{ color: isLight ? '#1e293b' : '#aaa' }}>{roomId}</span></span>
+          <div className="room-header-divider" style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
+          <span className="room-id-text" style={{ fontSize: 13, color: isLight ? '#64748b' : '#666', fontWeight: 600 }}>{t('roomLabel', 'Room:')} <span style={{ color: isLight ? '#1e293b' : '#aaa' }}>{roomId}</span></span>
         </div>
 
+        {/* Mobile center: room avatar + name + members pill (Part 1) */}
+        {isMobile && (
+          <div className="room-mob-center" onClick={() => { setShowUserPanel(v => !v); setShowSettings(false); setShowRecentChats(false); }}>
+            {room?.thumbnailPath ? (
+              <img src={room.thumbnailPath.startsWith('http') ? room.thumbnailPath : `${SOCKET_SERVER_URL}${room.thumbnailPath}`} className="room-mob-avatar" alt="" />
+            ) : (
+              <div className="room-mob-avatar-placeholder"><Play size={14} fill="#fff" color="#fff" /></div>
+            )}
+            <div className="room-mob-name-stack">
+              <span className="room-mob-name">{roomName}</span>
+              <div className="room-mob-members-pill"><Users size={10} style={{ flexShrink: 0 }} /><span>{userCount}</span></div>
+            </div>
+          </div>
+        )}
+
         {/* Right: Actions & Profile */}
-        <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Watching / Participants Button */}
+        <div ref={navIconsRef} className="room-header-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Watching / Participants Button — wrapper always in DOM so panel can portal from it */}
           <div style={{ position: 'relative' }} ref={userPanelRef}>
-            <button onClick={() => { 
-              setShowUserPanel(!showUserPanel); setShowSettings(false); setShowRecentChats(false); 
-            }} 
-              style={{ 
-                display: 'flex', alignItems: 'center', gap: 8, 
-                background: isLight ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.15)', 
-                border: isLight ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(16,185,129,0.3)', 
+            <button className="room-desktop-only" onClick={() => {
+              setShowUserPanel(!showUserPanel); setShowSettings(false); setShowRecentChats(false);
+            }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: isLight ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.15)',
+                border: isLight ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(16,185,129,0.3)',
                 borderRadius: 14, padding: '8px 14px', fontSize: 13, color: '#10b981', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
                 boxShadow: isLight ? '0 2px 8px rgba(16,185,129,0.05)' : 'none'
               }}
@@ -4111,7 +6178,7 @@ const Room = () => {
               )}
             </button>
             {showUserPanel && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, background: isLight ? '#fff' : '#0a0a0f', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(129, 140, 248, 0.2)', borderRadius: 24, padding: '20px 12px', minWidth: 300, zIndex: 50000, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.9)' }}>
+              <div className="room-participants-panel" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, background: isLight ? '#fff' : '#0a0a0f', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(129, 140, 248, 0.2)', borderRadius: 24, padding: '20px 12px', minWidth: 300, zIndex: 50000, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.9)' }}>
                 <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 900, letterSpacing: '1.5px', marginBottom: 20, padding: '0 12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{t('roomMembers', 'Room Members')}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4229,21 +6296,32 @@ const Room = () => {
                       : null;
                     return (
                       <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent' }} className="usr-row">
-                        <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isAdmin={uIsAdmin} isMuted={!!u.isMuted} size={38} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13, color: uIsMe ? (isLight ? '#000' : '#fff') : (isLight ? '#1e293b' : '#eee'), fontWeight: uIsMe ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {u.username}{uIsMe ? t('youSuffix', ' (You)') : ''}
-                            </span>
-                            {uIsHost ? (
-                              <span title="Host" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                        <div onClick={() => navigate(`/profile/${u.username}`)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                          <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isAdmin={uIsAdmin} isMuted={!!u.isMuted} size={38} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 13, color: uIsMe ? (isLight ? '#000' : '#fff') : (isLight ? '#1e293b' : '#eee'), fontWeight: uIsMe ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {formatUsername(u.username)}{uIsMe ? t('youSuffix', ' (You)') : ''}
                               </span>
-                            ) : uIsAdmin ? (
-                              <span title="Admin" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                <Shield size={12} color={isLight ? "#4f46e5" : "#818cf8"} fill={isLight ? "#4f46e5" : "#818cf8"} />
-                              </span>
-                            ) : null}
+                              {uIsHost ? (
+                                <span title="Host" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                  <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                                </span>
+                              ) : uIsAdmin ? (
+                                <span title="Admin" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                  <Shield size={12} color={isLight ? "#4f46e5" : "#818cf8"} fill={isLight ? "#4f46e5" : "#818cf8"} />
+                                </span>
+                              ) : null}
+                              {(getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)) && (
+                                <img
+                                  src={getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)}
+                                  alt={u.country || u.countryCode}
+                                  title={u.country || u.countryCode}
+                                  style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
+                                  onError={e => { e.target.style.display = 'none'; }}
+                                />
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -4316,8 +6394,57 @@ const Room = () => {
             )}
           </div>
 
+          {/* Mobile cam/mic/⋮ buttons (Part 1) */}
+          {isMobile && (() => {
+            const camPerm = room?.permissions?.cam || 'all';
+            const canUseCam = camPerm === 'all' || (camPerm === 'host' && isEffectiveHost);
+            const micPerm = room?.permissions?.mic || 'all';
+            const canUseMic = micPerm === 'all' || (micPerm === 'host' && isEffectiveHost);
+            return (
+              <>
+                <button
+                  className={`room-mob-icon-btn${isCamOn ? ' active-cam' : ''}`}
+                  onClick={canUseCam ? toggleCamera : () => toast.error(canUseCam ? '' : 'Camera not available')}
+                  title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
+                >
+                  {isCamOn ? <Video size={18} /> : <VideoOff size={18} />}
+                </button>
+                <button
+                  className={`room-mob-icon-btn${isMicOnCam ? ' active-mic' : ''}`}
+                  onClick={canUseMic ? toggleMic : () => toast.error('Mic not available')}
+                  title={isMicOnCam ? 'Mute mic' : 'Unmute mic'}
+                >
+                  {isMicOnCam ? <Mic size={18} /> : <MicOff size={18} />}
+                </button>
+                <button
+                  className="room-mob-icon-btn"
+                  onClick={() => setShowMobileMenu(true)}
+                  title="More options"
+                >
+                  <MoreVertical size={18} />
+                </button>
+              </>
+            );
+          })()}
+
+          {/* App Fullscreen Button */}
+          <button
+            className={`nav-icon-btn room-fullscreen-btn${isAppFullscreen ? ' active' : ''}`}
+            onClick={() => {
+              if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+              } else {
+                document.exitFullscreen().catch(() => {});
+              }
+            }}
+            title={isAppFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', color: isLight ? '#000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            {isAppFullscreen ? <Minimize size={16} strokeWidth={2.5} /> : <Maximize size={16} strokeWidth={2.5} />}
+          </button>
+
           {/* Global Chats */}
-          <div style={{ position: 'relative' }}>
+          <div className="room-desktop-only" style={{ position: 'relative' }}>
             <button className={`nav-icon-btn${showRecentChats ? ' active' : ''}`} title="Global Chats" onClick={() => { setShowRecentChats(!showRecentChats); setShowUserPanel(false); setShowSettings(false); }} style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', color: isLight ? '#000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s' }}>
               <MessageSquare size={18} strokeWidth={2.5} />
               {totalUnread > 0 && <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{totalUnread > 9 ? '9+' : totalUnread}</div>}
@@ -4325,8 +6452,8 @@ const Room = () => {
           </div>
 
           {/* Share Button */}
-          <button 
-            className="nav-icon-btn"
+          <button
+            className="nav-icon-btn room-desktop-only"
             onClick={() => {
               setShowShareModal(true);
               setShowUserPanel(false);
@@ -4346,7 +6473,7 @@ const Room = () => {
           </button>
 
           {/* Settings Button */}
-          <div style={{ position: 'relative' }} ref={settingsRef}>
+          <div className="room-desktop-only" style={{ position: 'relative' }} ref={settingsRef}>
             <button onClick={() => { setShowSettings(!showSettings); setShowUserPanel(false); setShowRecentChats(false); }} className={`nav-icon-btn${showSettings ? ' active' : ''}`} style={{ width: 38, height: 38, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLight ? '#000' : '#fff' }}>
               <Settings size={18} strokeWidth={2.5} />
             </button>
@@ -4453,9 +6580,15 @@ const Room = () => {
             setShowMediaSelector(false);
             changeMedia(url);
           }}
-          onUpload={(file) => {
+          onUpload={() => {
+            // Modal signals "user wants to upload" — close modal, then trigger Room's own file input
+            console.log('[FILE] onUpload trigger received from modal');
             setShowMediaSelector(false);
-            handleFileUpload(file);
+            // Use setTimeout so modal unmounts cleanly before file dialog opens
+            setTimeout(() => {
+              console.log('[FILE] Opening file picker via Room.jsx ref');
+              videoFileInputRef.current?.click();
+            }, 50);
           }}
           onScreenshare={() => {
             setShowMediaSelector(false);
@@ -4497,26 +6630,83 @@ const Room = () => {
         roomId={roomId}
       />
 
+      <SubtitleSettingsModal
+        open={showSubtitleSettingsModal}
+        onClose={() => setShowSubtitleSettingsModal(false)}
+        settings={subtitleSettings}
+        onChange={setSubtitleSettings}
+      />
+
+      <CustomizeRoomModal
+        isOpen={showCustomizeModal}
+        onClose={() => setShowCustomizeModal(false)}
+        currentTheme={roomTheme}
+        baseRoomTheme={room?.roomTheme || 'default'}
+        hasPersonalOverride={!!localStorage.getItem(`wt-personal-theme-${roomId}`)}
+        onSelectTheme={handleSelectTheme}
+        onClearPersonalTheme={handleClearPersonalTheme}
+        isHost={isEffectiveHost}
+      />
+
       {/* close panel on outside click */}
 
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className="no-scrollbar">
-        <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: isTvMode ? 0 : 12, overflowY: 'hidden', maxHeight: '100%' }} className="no-scrollbar">
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && mediaUrl && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}`}>
+        {/* Player column — padded when a theme is active to let the background show */}
+        <div
+          style={{
+            flex: 3, display: 'flex', flexDirection: 'column', gap: isTvMode ? 0 : 12,
+            overflow: 'hidden',
+            maxHeight: '100%', position: 'relative'
+          }}
+          className="no-scrollbar room-player-col"
+        >
+          {/* Customize Room floating button */}
+          {!isTvMode && !isFullscreen && (
+            <button
+              onClick={() => setShowCustomizeModal(true)}
+              title="Customize Room"
+              className="room-theme-btn"
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.75)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)'; e.currentTarget.style.transform = 'scale(1)'; }}
+              style={{
+                position: 'absolute',
+                top: 8, left: 8,
+                zIndex: 100, width: 34, height: 34, borderRadius: '50%',
+                background: roomTheme !== 'default' ? 'rgba(124,58,237,0.55)' : 'rgba(0,0,0,0.45)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', backdropFilter: 'blur(8px)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <Paintbrush size={15} color="#fff" />
+            </button>
+          )}
+
           <div
             ref={playerWrapRef}
+            className={`player-wrap${isMobile && isMobileFsMode ? ' player-mob-fs' : ''}`}
             onMouseMove={resetControlsTimer}
             onMouseEnter={resetControlsTimer}
             onMouseLeave={() => setShowControls(false)}
-            style={{ 
-              flex: 1, 
-              background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000', 
-              borderRadius: (isFullscreen || isTvMode) ? 0 : 16, 
-              border: (isLight && !isFullscreen && !isTvMode) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'), 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative',
-              boxShadow: (isLight && !isFullscreen && !isTvMode) ? '0 8px 30px rgba(0,0,0,0.04)' : 'none'
+            style={{
+              flex: 1,
+              background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',
+              borderRadius: (isFullscreen || isTvMode) ? 0 : 16,
+              border: (isLight && !isFullscreen && !isTvMode) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              overflow: 'hidden', 
+              position: 'relative',
+              boxShadow: (roomTheme !== 'default' && !isFullscreen && !isTvMode)
+                ? '0 24px 60px rgba(0,0,0,0.65)'
+                : ((isLight && !isFullscreen && !isTvMode) ? '0 8px 30px rgba(0,0,0,0.04)' : 'none'),
+              transition: 'box-shadow 0.3s ease',
             }}
           >
+
+
             {/* ── Management Controls Overlay (Visible for ALL media types) ── */}
             {!isTvMode && (
             <div style={{
@@ -4556,21 +6746,9 @@ const Room = () => {
                   </div>
                 )}
 
-                {/* Fullscreen Toggle / Exit */}
-                <button 
-                  className="player-ctrl-btn stay-white" 
-                  onClick={handleFullscreen} 
-                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                  style={{ 
-                    width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'rgba(15,15,20,0.8)', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)', 
-                    backdropFilter: 'blur(12px)', transition: 'all 0.2s', cursor: 'pointer'
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(25,25,35,0.9)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15,15,20,0.8)'; e.currentTarget.style.transform = 'scale(1)'; }}
-                >
-                  {isFullscreen ? <X size={20} color="#fff" /> : <Maximize size={20} color="#fff" />}
-                </button>
+                {/* No Cloud Browser button here — shown automatically only when page fails to load */}
+
+                {/* Fullscreen button removed — it's in the bottom control bar for all URL types */}
               </div>
             </div>
             )}
@@ -4694,39 +6872,162 @@ const Room = () => {
             ) : hasMounted && mediaUrl ? (
               <>
                 {isWebIframe(mediaUrl) ? (
-                  <div 
+                  <div
                     style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}
                     onMouseMove={resetControlsTimer}
                     onMouseEnter={resetControlsTimer}
                   >
-                    <iframe src={mediaUrl} style={{ width: '100%', height: '100%', border: 'none' }} allow="autoplay; fullscreen" />
-                    
-                    {/* Game Controls Overlay */}
-                    <div style={{
-                      position: 'absolute', top: 20, right: 20, zIndex: 10,
-                      opacity: showControls ? 1 : 0, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      pointerEvents: showControls ? 'auto' : 'none',
-                      display: 'flex', gap: 12
-                    }}>
-                      <button 
-                        onClick={handleFullscreen}
-                        title={isFullscreen ? "Minimize" : "Full Screen"}
-                        className="stay-white"
-                        style={{
-                          width: 44, height: 44, borderRadius: '50%',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: 'rgba(15,15,20,0.85)', color: '#fff',
-                          border: '1px solid rgba(255,255,255,0.15)', 
-                          cursor: 'pointer', backdropFilter: 'blur(12px)',
-                          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-                          transition: 'all 0.3s ease'
+                    {/* ── iframe content area — no browser toolbar, uses shared bottom control bar ── */}
+                    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+                      <iframe
+                        key={mediaUrl}
+                        src={mediaUrl}
+                        style={{ width: '100%', height: '100%', border: 'none', display: iframeLoading ? 'none' : 'block' }}
+                        allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write; encrypted-media; picture-in-picture; payment"
+                        allowFullScreen
+                        onLoad={() => {
+                          setIframeLoading(false);
+                          setIframeError(false);
+                          // Page loaded — may still be a block page (Infoblox / firewall page).
+                          // Block pages finish loading in < 1s, so a short 2.5s timer is plenty.
+                          // When it fires: enable the Globe icon AND auto-open the popup.
+                          clearTimeout(iframeBlockTimeoutRef.current);
+                          iframeBlockTimeoutRef.current = setTimeout(() => {
+                            setIframeBlockSuspected(true);
+                            setShowGlobePopup(true); // auto-open popup so user sees it immediately
+                          }, 2500);
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.background = 'rgba(25,25,35,0.95)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = 'rgba(15,15,20,0.85)'; }}
-                      >
-                        {isFullscreen ? <X size={22} /> : <Maximize size={22} />}
-                      </button>
+                        onError={() => {
+                          // Hard X-Frame-Options / CSP block — enable Globe + open popup immediately.
+                          clearTimeout(iframeBlockTimeoutRef.current);
+                          setIframeLoading(false);
+                          setIframeError(true);
+                          setIframeBlockSuspected(true);
+                          setShowGlobePopup(true); // auto-open popup straight away
+                          if (isEffectiveHost) handleOpenCloudBrowser();
+                        }}
+                      />
+                      {/* ── Loading spinner ── */}
+                      {iframeLoading && (
+                        <div style={{
+                          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center', gap: 20,
+                          background: 'linear-gradient(135deg, #0a0a0f 0%, #111128 100%)'
+                        }}>
+                          <div style={{ position: 'relative', width: 64, height: 64 }}>
+                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid rgba(99,102,241,0.15)' }} />
+                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid transparent', borderTopColor: '#6366f1', borderRightColor: '#a855f7', animation: 'spin 0.9s linear infinite' }} />
+                            <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#a855f7', animation: 'spin 1.4s linear infinite reverse' }} />
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Loading page…</div>
+                            <div style={{ color: '#6366f1', fontSize: 13 }}>{(browserDisplayUrl || mediaUrl).length > 55 ? (browserDisplayUrl || mediaUrl).slice(0,55)+'…' : (browserDisplayUrl || mediaUrl)}</div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                            {[0,1,2].map(i => (
+                              <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1', animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                            ))}
+                          </div>
+                          <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1);opacity:1}}`}</style>
+                        </div>
+                      )}
+
+                      {/* ── Subtle "Page not loading?" settings panel — shown after load, only to host ──
+                          Appears as a small pill at the bottom of the iframe area when page is loaded.
+                          User sees blocked content and can click to switch to Virtual Browser. */}
+                      {!iframeLoading && !hyperbeamSession && !iframeError && isEffectiveHost && (
+                        <div
+                          className="iframe-settings-hint"
+                          style={{
+                            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+                            zIndex: 20, opacity: 0, transition: 'opacity 0.3s',
+                            display: 'flex', alignItems: 'center', gap: 8
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity = '0'}
+                        >
+                          <button
+                            onClick={handleOpenCloudBrowser}
+                            style={{
+                              background: 'rgba(10,10,20,0.85)', backdropFilter: 'blur(12px)',
+                              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20,
+                              padding: '6px 16px', fontSize: 12, fontWeight: 600,
+                              color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.3)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(10,10,20,0.85)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                            </svg>
+                            Page blocked? Use Virtual Browser
+                          </button>
+                        </div>
+                      )}
                     </div>
+
+                    {/* ── Hyperbeam Virtual Browser overlay — seamless, no badges ──
+                        Covers the entire iframe area when a virtual browser session is active.
+                        Only a thin exit bar appears on hover at the top — invisible otherwise. */}
+                    {hyperbeamSession && (
+                      <div
+                        style={{
+                          position: 'absolute', inset: 0, zIndex: 50,
+                          borderRadius: 16, overflow: 'hidden'
+                        }}
+                      >
+                        <div
+                          ref={hyperbeamContainerRef}
+                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
+                        />
+                        {/* Hover-revealed thin exit bar — invisible unless you move to the top edge */}
+                        {isEffectiveHost && (
+                          <div
+                            className="hb-exit-bar"
+                            style={{
+                              position: 'absolute', top: 0, left: 0, right: 0,
+                              height: 36, zIndex: 60,
+                              display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                              padding: '0 10px',
+                              background: 'linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%)',
+                              opacity: 0, transition: 'opacity 0.25s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                            onMouseLeave={e => e.currentTarget.style.opacity = '0'}
+                          >
+                            <button
+                              onClick={handleCloseCloudBrowser}
+                              style={{
+                                background: 'rgba(239,68,68,0.18)', border: '1px solid rgba(239,68,68,0.35)',
+                                borderRadius: 16, padding: '3px 12px',
+                                fontSize: 11, fontWeight: 700, color: '#fca5a5',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                                transition: 'all 0.15s'
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.4)'; e.currentTarget.style.color = '#fff'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; e.currentTarget.style.color = '#fca5a5'; }}
+                            >
+                              ✕ Exit Virtual Browser
+                            </button>
+                          </div>
+                        )}
+                        {/* Connecting spinner — clears automatically when WebRTC stream starts */}
+                        {hbNavStatus === 'connecting' && (
+                          <div style={{
+                            position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+                            zIndex: 65, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+                            borderRadius: 20, padding: '6px 14px',
+                            color: '#a5b4fc', fontSize: 12, fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none'
+                          }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                            Connecting to Cloud Browser…
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -4745,70 +7046,321 @@ const Room = () => {
                       onMouseMove={resetInactivityTimer}
                       onMouseEnter={() => setUiVisible(true)}
                     >
+                      {/* Audio Ducking toast — non-intrusive, visible during fullscreen */}
+                      {duckingNotice && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 70,
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: 'rgba(0,0,0,0.72)',
+                          color: '#fff',
+                          fontSize: '0.72rem',
+                          padding: '5px 14px',
+                          borderRadius: 999,
+                          zIndex: 30,
+                          pointerEvents: 'none',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          🔇 Media lowered — {duckingNotice} is speaking
+                        </div>
+                      )}
                       <div style={{
                         position: 'absolute',
                         inset: (useCustomTwitchControls && mediaUrl.includes('twitch.tv')) || (useCustomVimeoControls && mediaUrl.includes('vimeo.com')) ? '0 0 -40px 0' : 0,
                         zIndex: 0
                       }}>
-                        <ReactPlayer
-                          ref={playerRef}
-                          url={mediaUrl}
-                          width="100%" height="100%"
-                          controls={(mediaUrl.includes('twitch.tv') && !useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || (!mediaUrl.includes('twitch.tv') && !mediaUrl.includes('vimeo.com') && isEmbedPlatform(mediaUrl))}
-                          playing={isPreparing || (isPlaying && !isPreparing)}
-                          volume={isPreparing ? 0 : playerVolume}
-                          muted={isPreparing || playerMuted}
-                          onPlay={handlePlay}
-                          onPause={handlePause}
-                          onBuffer={() => !isPreparing && console.log('Buffering...')}
-                          onSeek={handleSeek}
-                          onProgress={({ playedSeconds }) => {
-                            // Throttle state update to once per second to reduce re-renders
-                            if (Math.floor(playedSeconds) !== Math.floor(currentTime)) {
-                              setCurrentTime(playedSeconds);
-                            }
-                          }}
-                          progressInterval={1000}
-                          onDuration={setDuration}
-                          onError={(e) => {
-                            console.error('[ReactPlayer] Error:', e);
-                            toast.error('Video unavailable or error loading media.');
-                            handleStopMedia();
-                          }}
-                          config={{
-                            file: {
-                              attributes: {
-                                preload: 'auto',
-                                controlsList: 'nodownload',
-                                crossOrigin: "anonymous"
+                        {(() => {
+                          console.log('[PLAYER] mediaUrl:', mediaUrl, 
+                            'isLocalStream:', isLocalStream,
+                            'isPreparing:', isPreparing);
+                          return null;
+                        })()}
+                        {isLocalStream ? (
+                          <>
+                            <video
+                              key={mediaUrl}
+                              ref={localVideoRef}
+                              src={mediaUrl}
+                              autoPlay
+                              muted={playerMuted}
+                              playsInline
+                              width="100%"
+                              height="100%"
+                              style={{
+                                background: '#000',
+                                display: 'block',
+                                zIndex: 9999,
+                                position: 'relative'
+                              }}
+                              onPlay={(e) => {
+                                if (!isEffectiveHost) return;
+                                if (Date.now() - lastExternalUpdate.current < 500) return;
+                                socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
+                                setIsPlaying(true);
+                              }}
+                              onPause={(e) => {
+                                if (!isEffectiveHost) return;
+                                if (Date.now() - lastExternalUpdate.current < 500) return;
+                                socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
+                                setIsPlaying(false);
+                              }}
+                              onSeeked={(e) => {
+                                if (!isEffectiveHost) return;
+                                if (Date.now() - lastExternalUpdate.current < 500) return;
+                                socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
+                              }}
+                              onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+                              onDurationChange={(e) => setDuration(e.target.duration)}
+                              onCanPlay={() => {
+                                console.log('[VIDEO] onCanPlay fired')
+                                setIsPreparing(false)
+                              }}
+                              onLoadStart={() => console.log('[VIDEO] onLoadStart')}
+                              onLoadedMetadata={(e) => {
+                                console.log('[VIDEO] onLoadedMetadata');
+                                e.target.volume = playerVolume;
+                                e.target.muted = playerMuted;
+                                if (prepTargetTimeRef.current > 0) {
+                                  e.target.currentTime = prepTargetTimeRef.current;
+                                  prepTargetTimeRef.current = 0;
+                                }
+                              }}
+                              onLoadedData={() => console.log('[VIDEO] onLoadedData')}
+                              onError={(e) => {
+                                console.error('[VIDEO] onError:',
+                                  e.target.error?.code,
+                                  e.target.error?.message
+                                )
+                              }}
+                              onStalled={() => console.log('[VIDEO] onStalled')}
+                              onWaiting={() => console.log('[VIDEO] onWaiting')}
+                            />
+                            {/* Custom subtitle overlay */}
+                            {activeCue && subtitlesVisible && (() => {
+                              const fsMap = { small: 14, medium: 18, large: 24, xlarge: 32 };
+                              const colorMap = { white: '#ffffff', yellow: '#ffef00', cyan: '#00e5ff', green: '#00e676' };
+                              const fs = fsMap[subtitleSettings.fontSize] || 18;
+                              const color = colorMap[subtitleSettings.textColor] || '#ffffff';
+                              const bg = subtitleSettings.bgColor === 'transparent' ? 'transparent'
+                                : subtitleSettings.bgColor === 'darkgray' ? 'rgba(40,40,40,0.88)'
+                                : 'rgba(0,0,0,0.88)';
+                              const isCenter = subtitleSettings.position === 'center';
+                              const pbottom = subtitleSettings.position === 'bottom-raised' ? '14%' : '8%';
+                              return (
+                                <div style={{
+                                  position: 'absolute', inset: 0, zIndex: 10000,
+                                  display: 'flex', justifyContent: 'center',
+                                  alignItems: isCenter ? 'center' : 'flex-end',
+                                  paddingBottom: isCenter ? 0 : pbottom,
+                                  pointerEvents: 'none', userSelect: 'none',
+                                }}>
+                                  <div style={{
+                                    background: bg,
+                                    padding: bg === 'transparent' ? '0 8px' : '4px 16px',
+                                    borderRadius: 4,
+                                    fontSize: fs,
+                                    color,
+                                    fontFamily: '"Inter", system-ui, sans-serif',
+                                    fontWeight: 500,
+                                    textAlign: 'center',
+                                    lineHeight: 1.5,
+                                    textShadow: bg === 'transparent'
+                                      ? '1px 1px 4px rgba(0,0,0,0.9), -1px -1px 4px rgba(0,0,0,0.7)'
+                                      : 'none',
+                                    whiteSpace: 'pre-line',
+                                    maxWidth: '88%',
+                                    opacity: subtitleSettings.opacity,
+                                  }}>
+                                    {activeCue.text}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </>
+                        ) : (
+                          <ReactPlayer
+                            ref={playerRef}
+                            url={mediaUrl}
+                            width="100%" height="100%"
+                            controls={(mediaUrl.includes('twitch.tv') && !useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || (!mediaUrl.includes('twitch.tv') && !mediaUrl.includes('vimeo.com') && isEmbedPlatform(mediaUrl))}
+                            playing={isPreparing || (isPlaying && !isPreparing)}
+                            volume={isPreparing ? 0 : playerVolume}
+                            muted={isPreparing || playerMuted}
+                            onPlay={handlePlay}
+                            onPause={handlePause}
+                            onReady={() => {
+                              // Playback started — clear the failure detection timer
+                              clearTimeout(loadTimeoutRef.current);
+                              setLoadFailed(false);
+                              setIsPreparing(false);
+                            }}
+                            onBuffer={() => !isPreparing && console.log('Buffering...')}
+                            onSeek={handleSeek}
+                            onProgress={({ playedSeconds }) => {
+                              if (Math.floor(playedSeconds) !== Math.floor(currentTime)) {
+                                setCurrentTime(playedSeconds);
+                              }
+                            }}
+                            progressInterval={1000}
+                            onDuration={setDuration}
+                            onError={(e) => {
+                              console.error('[ReactPlayer] Error:', e);
+                              clearTimeout(loadTimeoutRef.current);
+                              setFailedPlaybackUrl(mediaUrl || mediaUrlRef.current || '');
+                              setLoadFailed(true);
+                            }}
+                            config={{
+                              file: {
+                                attributes: {
+                                  preload: 'auto',
+                                  controlsList: 'nodownload',
+                                  crossOrigin: "anonymous"
+                                },
+                                forceVideo: true,
+                                hlsOptions: {
+                                  maxBufferLength: 60,
+                                  maxMaxBufferLength: 120,
+                                  startLevel: -1,
+                                  enableWorker: true
+                                }
                               },
-                              forceVideo: true,
-                              hlsOptions: {
-                                maxBufferLength: 60,
-                                maxMaxBufferLength: 120,
-                                startLevel: -1,
-                                enableWorker: true
+                              youtube: {
+                                playerVars: {
+                                  modestbranding: 1,
+                                  rel: 0,
+                                  playsinline: 1,
+                                  origin: window.location.origin
+                                }
+                              },
+                              twitch: {
+                                options: {
+                                  parent: [window.location.hostname]
+                                }
                               }
-                            },
-                            youtube: {
-                              playerVars: {
-                                modestbranding: 1,
-                                rel: 0,
-                                playsinline: 1,
-                                origin: window.location.origin
-                              }
-                            },
-                            twitch: {
-                              options: {
-                                parent: [window.location.hostname]
-                              }
-                            }
-                          }}
-                        />
+                            }}
+                          />
+                        )}
+
+                        {/* ─── Hyperbeam Cloud Browser SDK — renders when session is active ─── */}
+                        {hyperbeamSession && (
+                          <div style={{
+                            position: 'absolute', inset: 0, zIndex: 30,
+                            borderRadius: 12, overflow: 'hidden',
+                            display: 'flex', flexDirection: 'column'
+                          }}>
+                            <div
+                              ref={hyperbeamContainerRef}
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
+                            />
+                            {/* Active session badge + close button (host only) */}
+                            <div style={{
+                              position: 'absolute', top: 10, right: 10,
+                              display: 'flex', alignItems: 'center', gap: 8, zIndex: 40
+                            }}>
+                              <div style={{
+                                background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.45)',
+                                backdropFilter: 'blur(10px)', borderRadius: 20,
+                                padding: '5px 12px', fontSize: 12, fontWeight: 700,
+                                color: '#d8b4fe', display: 'flex', alignItems: 'center', gap: 6,
+                                boxShadow: '0 4px 20px rgba(168,85,247,0.2)'
+                              }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7', display: 'inline-block', animation: 'prepPulse 2s infinite' }} />
+                                Cloud Browser
+                              </div>
+                              {isEffectiveHost && (
+                                <button
+                                  id="cloud-browser-close-btn"
+                                  onClick={handleCloseCloudBrowser}
+                                  title="Close Cloud Browser"
+                                  style={{
+                                    background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)',
+                                    backdropFilter: 'blur(10px)', borderRadius: 20,
+                                    padding: '5px 12px', fontSize: 12, fontWeight: 700,
+                                    color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.35)'; e.currentTarget.style.color = '#fff'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#f87171'; }}
+                                >
+                                  ✕ Close
+                                </button>
+                              )}
+                            </div>
+                            {/* Connecting spinner — clears automatically when WebRTC stream starts */}
+                            {hbNavStatus === 'connecting' && (
+                              <div style={{
+                                position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
+                                zIndex: 45, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+                                borderRadius: 20, padding: '6px 14px',
+                                color: '#a5b4fc', fontSize: 12, fontWeight: 600,
+                                display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none'
+                              }}>
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                                Connecting to Cloud Browser…
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ─── Load Failure Overlay — shown when ReactPlayer errors or times out ─── */}
+                        {loadFailed && !hyperbeamSession && !isLocalStream && (
+                          <div style={{
+                            position: 'absolute', inset: 0, zIndex: 25,
+                            background: 'linear-gradient(135deg, rgba(10,10,20,0.96), rgba(20,10,35,0.98))',
+                            backdropFilter: 'blur(16px)',
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            borderRadius: 12, gap: 20
+                          }}>
+                            <div style={{ fontSize: 44 }}>⚠️</div>
+                            <div style={{ textAlign: 'center', maxWidth: 360 }}>
+                              <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
+                                Video failed to load
+                              </div>
+                              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
+                                This URL could not be played directly.
+                                Open it in a Cloud Browser to watch together.
+                              </div>
+                            </div>
+                            {isEffectiveHost && (
+                              <button
+                                id="open-cloud-browser-btn"
+                                onClick={handleOpenCloudBrowser}
+                                style={{
+                                  background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                                  border: 'none', borderRadius: 14,
+                                  padding: '13px 28px', fontSize: 15, fontWeight: 700,
+                                  color: '#fff', cursor: 'pointer',
+                                  display: 'flex', alignItems: 'center', gap: 10,
+                                  boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
+                                  transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
+                              >
+                                🌐 Open in Cloud Browser
+                              </button>
+                            )}
+                            <button
+                              onClick={() => { setLoadFailed(false); handleStopMedia(); }}
+                              style={{
+                                background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 10, padding: '9px 20px',
+                                color: 'rgba(255,255,255,0.55)', fontSize: 13,
+                                cursor: 'pointer', transition: 'all 0.2s'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.55)'}
+                            >
+                              Try a different URL
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* --- Smooth Streaming Preparation Overlay (Root of video container for full coverage) --- */}
-                      {isPreparing && (
+                      {effectiveIsPreparing && (
                         <div style={{
                           position: 'absolute', inset: 0, zIndex: 1200,
                           background: 'radial-gradient(circle at center, rgba(15, 10, 35, 0.98), rgba(5, 5, 15, 1))',
@@ -4816,37 +7368,54 @@ const Room = () => {
                           backdropFilter: 'blur(12px)', transition: 'all 0.5s ease',
                           borderRadius: 12
                         }}>
-                          {/* Beautiful Geometric Animation */}
+                          {/* Beautiful Heart Animation */}
                           <div style={{ position: 'relative', width: 220, height: 220, marginBottom: 40 }}>
+                            {/* Center filled heart icon */}
                             <div style={{
                               width: '100%', height: '100%',
-                              background: 'linear-gradient(45deg, #a855f7, #6366f1)',
-                              maskImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'black\' stroke-width=\'1\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z\'/%3E%3C/svg%3E")',
+                              background: 'linear-gradient(45deg, #a855f7, #ec4899)',
+                              maskImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'black\'%3E%3Cpath d=\'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z\'/%3E%3C/svg%3E")',
                               maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center',
+                              WebkitMaskImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'black\'%3E%3Cpath d=\'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z\'/%3E%3C/svg%3E")',
+                              WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center',
                               animation: 'prepPulse 2s infinite ease-in-out'
                             }} />
-                            <div style={{ position: 'absolute', inset: -20, borderRadius: '50%', border: '1px solid rgba(168, 85, 247, 0.3)', animation: 'spin 4s linear infinite' }} />
-                            <div style={{ position: 'absolute', inset: -40, borderRadius: '50%', border: '1px solid rgba(99, 102, 241, 0.2)', animation: 'spin-reverse 6s linear infinite' }} />
+                            {/* Heart-shaped ripple/wave SVGs propagating outward */}
+                            <svg viewBox="0 0 220 220" style={{
+                              position: 'absolute', inset: 0, width: '100%', height: '100%',
+                              overflow: 'visible', pointerEvents: 'none'
+                            }}>
+                              {/* Wave 1 */}
+                              <path
+                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
+                                fill="none"
+                                stroke="rgba(168,85,247,0.55)"
+                                strokeWidth="2"
+                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '0s', transformOrigin: '110px 115px' }}
+                              />
+                              {/* Wave 2 */}
+                              <path
+                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
+                                fill="none"
+                                stroke="rgba(99,102,241,0.4)"
+                                strokeWidth="2"
+                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '1s', transformOrigin: '110px 115px' }}
+                              />
+                              {/* Wave 3 */}
+                              <path
+                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
+                                fill="none"
+                                stroke="rgba(236,72,153,0.3)"
+                                strokeWidth="2"
+                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '2s', transformOrigin: '110px 115px' }}
+                              />
+                            </svg>
                           </div>
 
                           <div style={{ textAlign: 'center', maxWidth: 400 }}>
-                            <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>Smoothing Experience...</h2>
-                            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>Optimizing high-bitrate clusters for buffer-free playback</p>
+                            <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>Replaying your video...</h2>
+                            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>Just need a few seconds — hang tight! 🎬</p>
 
-                            <div style={{ width: 300, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 10, overflow: 'hidden', position: 'relative', margin: '0 auto 16px' }}>
-                              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${prepProgress}%`, background: 'linear-gradient(90deg, #6366f1, #a855f7)', boxShadow: '0 0 12px rgba(168, 85, 247, 0.6)', transition: 'width 1s linear' }} />
-                            </div>
-
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)' }}>
-                              {bufferedSeconds > 0 ? (
-                                <>
-                                  <span style={{ color: '#a855f7', fontWeight: 800 }}>{bufferedSeconds}s / 25s</span>
-                                  <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>buffered in 'Fueling' stage</span>
-                                </>
-                              ) : (
-                                <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 600, letterSpacing: '0.05em' }}>OPTIMIZING CONNECTION...</span>
-                              )}
-                            </div>
                             <button
                               onClick={handleStopMedia}
                               className="stay-white"
@@ -4865,11 +7434,14 @@ const Room = () => {
                           
                           <style>{`
                             @keyframes prepPulse {
-                              0%, 100% { transform: scale(1); opacity: 0.8; filter: drop-shadow(0 0 0px #a855f7); }
-                              50% { transform: scale(1.05); opacity: 4; filter: drop-shadow(0 0 20px #a855f7); }
+                              0%, 100% { transform: scale(1); opacity: 0.85; filter: drop-shadow(0 0 0px #a855f7); }
+                              50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 24px #ec4899) drop-shadow(0 0 8px #a855f7); }
                             }
-                            @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                            @keyframes spin-reverse { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+                            @keyframes heartWave {
+                              0%   { transform: scale(0.5);  opacity: 0.9; }
+                              75%  { opacity: 0.2; }
+                              100% { transform: scale(2.5);  opacity: 0; }
+                            }
                           `}</style>
                         </div>
                       )}
@@ -5028,10 +7600,66 @@ const Room = () => {
                   </>
                 )}
               </>
+            ) : streamPending ? (
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0,0,0,0.8)',
+                color: 'white',
+                gap: '16px',
+                zIndex: 20
+              }}>
+                <div style={{ fontSize: '2.5rem' }}>📤</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>
+                  Host is uploading video...
+                </div>
+                <div style={{
+                  width: '240px',
+                  height: '8px',
+                  background: 'rgba(255,255,255,0.2)',
+                  borderRadius: '999px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${streamPending.progress || 0}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
+                    borderRadius: '999px',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                <div style={{ 
+                  fontSize: '0.9rem', 
+                  color: '#9ca3af' 
+                }}>
+                  {streamPending.progress || 0}% — Video will play when ready
+                </div>
+              </div>
+            ) : uploadState.isUploading ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 16 }}>
+                <div style={{ fontSize: '2.5rem' }}>📤</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Uploading video...</div>
+                <div style={{
+                  width: 220, height: 8,
+                  background: 'rgba(255,255,255,0.15)', borderRadius: 999, overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${uploadState.progress}%`, height: '100%',
+                    background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
+                    borderRadius: 999, transition: 'width 0.3s ease'
+                  }} />
+                </div>
+                <div style={{ fontSize: 14, color: '#9ca3af' }}>
+                  {uploadState.progress}% — Video plays when upload completes
+                </div>
+              </div>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
-                <div style={{ 
-                  width: 86, height: 86, borderRadius: 28, 
+                <div style={{
+                  width: 86, height: 86, borderRadius: 28,
                   background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.05)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginBottom: 24,
@@ -5040,48 +7668,116 @@ const Room = () => {
                 }}>
                   <MonitorPlay size={44} color={isLight ? '#6366f1' : '#fff'} strokeWidth={2} />
                 </div>
-                <h3 className={(isFullscreen || isTvMode) ? 'stay-white' : ''} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
+                <h3 className={`no-media-title${(isFullscreen || isTvMode) ? ' stay-white' : ''}`} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
                 {!isTvMode && (
-                <button 
-                  onClick={() => setShowMediaSelector(true)} 
-                  style={{ 
-                    background: 'linear-gradient(135deg, #6366f1, #a855f7)', 
-                    border: 'none', 
-                    borderRadius: 14, 
-                    padding: '14px 28px', 
-                    color: '#ffffff', 
-                    fontSize: 15, 
-                    fontWeight: 700, 
-                    cursor: 'pointer', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: 10, 
-                    boxShadow: isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)', 
-                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
-                  }} 
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 15px 30px rgba(99,102,241,0.4)' : '0 15px 30px rgba(0,0,0,0.6)'; }} 
+                <button
+                  onClick={() => setShowMediaSelector(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    border: 'none',
+                    borderRadius: 14,
+                    padding: '14px 28px',
+                    color: '#ffffff',
+                    fontSize: 15,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    boxShadow: isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)',
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 15px 30px rgba(99,102,241,0.4)' : '0 15px 30px rgba(0,0,0,0.6)'; }}
                   onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)'; }}
                 >
-                  <LayoutGrid size={20} color="#ffffff" /> 
+                  <LayoutGrid size={20} color="#ffffff" />
                   <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
                 </button>
                 )}
               </div>
             )}
 
-            {/* Custom Control Bar Ã¢â‚¬â€ visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
-            {!isTvMode && (hasMounted && mediaUrl && !isWebIframe(mediaUrl)) && !(isScreensharing || isViewer) && !((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
+
+            {/* Persistent file input — lives outside the modal so it survives modal unmount */}
+            <input
+              ref={videoFileInputRef}
+              type="file"
+              accept="video/*,video/mp4,video/webm,video/ogg,video/quicktime,video/x-matroska,.mp4,.webm,.mkv,.mov,.avi"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                console.log('[FILE INPUT] onChange fired, file:', file?.name, 'type:', file?.type, 'size:', file?.size);
+                e.target.value = ''; // reset so same file can be re-selected
+                if (!file) { console.log('[FILE INPUT] No file (cancelled)'); return; }
+                handleFileUpload(file);
+              }}
+            />
+
+            {/* Subtitles file input */}
+            <input
+              ref={subtitleInputRef}
+              type="file"
+              accept=".vtt,.srt,.VTT,.SRT,text/vtt,application/x-subrip"
+              style={{ display: 'none' }}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                  const text = evt.target.result;
+                  let vttText = text;
+                  if (file.name.toLowerCase().endsWith('.srt')) {
+                    vttText = convertSrtToVtt(text);
+                  }
+                  setSubtitleVttText(vttText);
+                  setSubtitlesUrl(oldUrl => {
+                    if (oldUrl) URL.revokeObjectURL(oldUrl);
+                    const blob = new Blob([vttText], { type: 'text/vtt' });
+                    return URL.createObjectURL(blob);
+                  });
+                  setSubtitlesVisible(true);
+                  if (socket) {
+                    socket.emit('subtitles_load', { roomId: (roomId || '').toLowerCase(), text: vttText });
+                  }
+                };
+                reader.readAsText(file);
+                e.target.value = '';
+              }}
+            />
+
+            {/* --- Chunked upload progress bar (host-only) — shows even before mediaUrl is set --- */}
+            <StreamUploadProgress uploadState={uploadState} onCancel={cancelUpload} />
+
+            {/* --- Viewer waiting indicator while host uploads --- */}
+            {streamPending && !uploadState.isUploading && (
               <div style={{
-                position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0, zIndex: 2,
+                position: 'absolute', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.82)', borderRadius: '10px', padding: '10px 20px',
+                color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem', zIndex: 1100,
+                border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap'
+              }}>
+                Host is loading: {streamPending.filename}
+              </div>
+            )}
+
+            {/* Custom Control Bar Ã¢â‚¬â€ visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
+            {/* Bottom control bar — shown for direct video AND web-iframe/HB URLs */}
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
+              <div className="gcw-force-dark" style={{
+                display: hideCustomControls ? 'none' : 'block',
+                position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0,
+                zIndex: 25,
                 background: isEmbedPlatform(mediaUrl) ? 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
                 padding: '24px 14px 10px',
-                opacity: showControls ? 1 : 0,
+                // Always visible for URL-based media: embed iframes (YouTube) and web iframes both
+                // capture hover so showControls never fires. Local streams use hover-reveal.
+                opacity: isLocalStream ? (showControls ? 1 : 0) : 1,
                 transition: 'opacity 0.3s ease',
                 pointerEvents: 'none',
                 borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
               }}>
-                {/* Scrubber (Hidden during WebRTC since it's a live stream) */}
-                {!(isScreensharing || isViewer) && (
+                {/* Scrubber — hidden for web iframes + embed platforms (no seekable duration) */}
+                {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && !isEmbedPlatform(mediaUrl) && (
                   <div style={{ position: 'relative', height: 4, marginBottom: 10, display: 'flex', alignItems: 'center', pointerEvents: showControls ? 'auto' : 'none' }}>
                     <div style={{
                       position: 'absolute', left: 0, height: 4, borderRadius: 2,
@@ -5105,23 +7801,48 @@ const Room = () => {
                     />
                   </div>
                 )}
-                {/* Controls row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: showControls ? 'auto' : 'none' }}>
-                  {/* Play/Pause (Hidden during WebRTC to avoid local freezing confusion) */}
-                  {!(isScreensharing || isViewer) && (
+                {/* Controls row — always interactive for URL-based media (iframes capture hover) */}
+                <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isLocalStream ? (showControls ? 'auto' : 'none') : 'auto') }}>
+
+                  {/* 1. Load Media — opens App Directory without stopping current playback */}
+                  {isEffectiveHost && (
+                    <button
+                      className="player-ctrl-btn player-ctrl-load-btn"
+                      onClick={() => setShowMediaSelector(true)}
+                      title="Load Media"
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                  )}
+
+                  {/* Play/Pause — only for ReactPlayer URLs (can actually control) and local streams.
+                      Hidden for web iframes (webpage, can't control playback) */}
+                  {!isWebIframe(mediaUrl) && (
+                    <button className="player-ctrl-btn" onClick={togglePlayPause} title={isPlaying ? 'Pause' : 'Play'}>
+                      {isPlaying ? <Pause size={20} fill="#fff" /> : <Play size={20} fill="#fff" />}
+                    </button>
+                  )}
+
+                  {/* Stop button — should be there no matter which video url we pasted */}
+                  <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
+                    <Square size={18} fill="#fff" />
+                  </button>
+
+                  {/* Skip -10s and +10s (Host Only, and Only for local video uploads) */}
+                  {isLocalStream && isEffectiveHost && (
                     <>
-                      <button className="player-ctrl-btn" onClick={togglePlayPause} title={isPlaying ? 'Pause' : 'Play'}>
-                        {isPlaying ? <Pause size={18} fill="#fff" /> : <Play size={18} fill="#fff" />}
+                      <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
+                        <RotateCcw size={18} />
                       </button>
-                      <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
-                        <Square size={16} fill="#fff" />
+                      <button className="player-ctrl-btn" onClick={skipForward10} title="Forward 10s">
+                        <RotateCw size={18} />
                       </button>
                     </>
                   )}
                   {/* Volume */}
                   <div style={{ display: 'flex', alignItems: 'center' }}>
                     <button className="player-ctrl-btn" onClick={toggleMutePlayer} title={playerMuted ? 'Unmute' : 'Mute'}>
-                      {playerMuted || playerVolume === 0 ? <VolumeX size={16} /> : playerVolume < 0.5 ? <Volume1 size={16} /> : <Volume2 size={16} />}
+                      {playerMuted || playerVolume === 0 ? <VolumeX size={18} /> : playerVolume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
                     </button>
                     <input
                       type="range" className="player-vol-slider"
@@ -5133,31 +7854,390 @@ const Room = () => {
                       }}
                     />
                   </div>
-                  {/* Time (Hidden during WebRTC) */}
-                  {!(isScreensharing || isViewer) && (
+                  {isDucked && (
+                    <div className="player-ducked-badge" title={`Audio ducked — ${duckingNotice} is speaking`} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 10, padding: '2px 7px', fontSize: 10, color: '#a5b4fc', fontWeight: 700, userSelect: 'none' }}>
+                      <Mic size={10} /> DUCKED
+                    </div>
+                  )}
+                  {/* Time — local streams only (URL media durations are unreliable or meaningless) */}
+                  {!(isScreensharing || isViewer) && isLocalStream && (
                     <span style={{ fontSize: 11, color: '#ccc', whiteSpace: 'nowrap', marginLeft: 2, fontVariantNumeric: 'tabular-nums' }}>
                       {formatDuration(currentTime)} / {formatDuration(duration)}
                     </span>
                   )}
                   <div style={{ flex: 1 }} />
-                  {/* Fullscreen */}
-                  <button className="player-ctrl-btn" onClick={handleFullscreen} title="Fullscreen">
-                    <Maximize size={15} />
+
+                  {/* Fallback to Native controls button */}
+                  <button
+                    className="player-native-btn"
+                    onClick={() => setHideCustomControls(true)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '20px',
+                      padding: '6px 14px',
+                      color: '#a5b4fc',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      pointerEvents: 'auto'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                      e.currentTarget.style.border = '1px solid rgba(99, 102, 241, 0.45)';
+                      e.currentTarget.style.color = '#fff';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.25)';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                      e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+                      e.currentTarget.style.color = '#a5b4fc';
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                    }}
+                    title="Hide custom controls and use native player controls"
+                  >
+                    <ChevronDown size={14} color="#a5b4fc" />
+                    <span>Use Native Player</span>
                   </button>
+
+                  <div style={{ flex: 1 }} />
+ 
+                  {/* Globe / Virtual Browser button — only shown for web iframe URLs.
+                      Disabled until a block is detected (hard X-Frame error OR soft 10s timeout). */}
+                  {isWebIframe(mediaUrl) && isEffectiveHost && (
+                    <div ref={globePopupRef} className="player-globe-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <button
+                        id="globe-virtual-browser-btn"
+                        className="player-ctrl-btn"
+                        disabled={!iframeBlockSuspected && !iframeError}
+                        onClick={() => setShowGlobePopup(v => !v)}
+                        title={iframeBlockSuspected || iframeError ? 'Page blocked? Open in Virtual Browser' : 'Virtual Browser (enabled if page is blocked)'}
+                        style={{
+                          opacity: (iframeBlockSuspected || iframeError) ? 1 : 0.35,
+                          cursor: (iframeBlockSuspected || iframeError) ? 'pointer' : 'not-allowed',
+                          position: 'relative',
+                          transition: 'opacity 0.3s, box-shadow 0.3s',
+                          boxShadow: (iframeBlockSuspected || iframeError) ? '0 0 0 0 rgba(99,102,241,0)' : 'none',
+                          animation: (iframeBlockSuspected || iframeError) ? 'globePing 1.8s ease-out 2' : 'none',
+                        }}
+                      >
+                        <Globe size={17} />
+                        {/* Small red dot badge when block is detected */}
+                        {(iframeBlockSuspected || iframeError) && (
+                          <span style={{
+                            position: 'absolute', top: 3, right: 3,
+                            width: 7, height: 7, borderRadius: '50%',
+                            background: '#ef4444',
+                            border: '1.5px solid rgba(0,0,0,0.5)',
+                            boxShadow: '0 0 6px rgba(239,68,68,0.7)',
+                            animation: 'pulse-red 1.2s infinite',
+                          }} />
+                        )}
+                      </button>
+
+                      {/* Globe Popup — light/dark mode aware */}
+                      {showGlobePopup && (iframeBlockSuspected || iframeError) && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 12px)',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(10,10,22,0.97)',
+                          border: isLight ? '1px solid rgba(99,102,241,0.2)' : '1px solid rgba(99,102,241,0.35)',
+                          borderRadius: 14,
+                          padding: '14px 16px',
+                          minWidth: 240,
+                          maxWidth: 280,
+                          zIndex: 9999,
+                          boxShadow: isLight
+                            ? '0 -4px 24px rgba(0,0,0,0.12), 0 8px 32px rgba(99,102,241,0.1), 0 0 0 1px rgba(99,102,241,0.08)'
+                            : '0 -8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15)',
+                          backdropFilter: 'blur(18px)',
+                          animation: 'slideUpFade 0.2s ease-out',
+                        }}>
+                          {/* Arrow — border layer */}
+                          <div style={{
+                            position: 'absolute', bottom: -8, left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: 0, height: 0,
+                            borderLeft: '8px solid transparent',
+                            borderRight: '8px solid transparent',
+                            borderTop: isLight ? '8px solid rgba(99,102,241,0.2)' : '8px solid rgba(99,102,241,0.35)',
+                          }} />
+                          {/* Arrow — fill layer */}
+                          <div style={{
+                            position: 'absolute', bottom: -6, left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: 0, height: 0,
+                            borderLeft: '7px solid transparent',
+                            borderRight: '7px solid transparent',
+                            borderTop: isLight ? '7px solid rgba(255,255,255,0.98)' : '7px solid rgba(10,10,22,0.97)',
+                          }} />
+
+                          {/* Icon + Title */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                            <div style={{
+                              width: 34, height: 34, borderRadius: 10,
+                              background: isLight
+                                ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.1))'
+                                : 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.25))',
+                              border: isLight ? '1px solid rgba(99,102,241,0.25)' : '1px solid rgba(99,102,241,0.4)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0,
+                            }}>
+                              <Globe size={17} color={isLight ? '#6366f1' : '#818cf8'} />
+                            </div>
+                            <div>
+                              <div style={{ color: isLight ? '#111827' : '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>Page Blocked?</div>
+                              <div style={{ color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 1 }}>This URL isn't loading</div>
+                            </div>
+                          </div>
+
+                          <div style={{ color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
+                            The page may be blocked by your network or doesn't allow embedding.
+                            Open it in a <strong style={{ color: isLight ? '#4f46e5' : '#a5b4fc' }}>Virtual Browser</strong> to watch together.
+                          </div>
+
+                          <button
+                            onClick={() => { setShowGlobePopup(false); handleOpenCloudBrowser(); }}
+                            style={{
+                              width: '100%', padding: '9px 14px',
+                              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                              border: 'none', borderRadius: 10,
+                              color: '#fff', fontSize: 13, fontWeight: 700,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', gap: 7,
+                              boxShadow: '0 4px 18px rgba(99,102,241,0.45)',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.65)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(99,102,241,0.45)'; }}
+                          >
+                            <Globe size={14} />
+                            Open in Virtual Browser
+                          </button>
+
+                          <button
+                            onClick={() => setShowGlobePopup(false)}
+                            style={{
+                              width: '100%', marginTop: 7, padding: '7px 14px',
+                              background: 'transparent',
+                              border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                              borderRadius: 10,
+                              color: isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.45)',
+                              fontSize: 12, cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.color = isLight ? '#111' : '#fff'}
+                            onMouseLeave={e => e.currentTarget.style.color = isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.45)'}
+                          >
+                            Dismiss
+                          </button>
+
+                          <style>{`
+                            @keyframes globePing {
+                              0%   { box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
+                              70%  { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
+                              100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+                            }
+                            @keyframes slideUpFade {
+                              from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+                              to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+                            }
+                            @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+                          `}</style>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CC Subtitles — shown for all media types */}
+                  {(isEffectiveHost || subtitlesUrl) && (
+                    <div ref={subtitleMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <button
+                        className="player-ctrl-btn"
+                        onClick={() => setShowSubtitleMenu(v => !v)}
+                        title="Subtitles"
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: subtitlesUrl && subtitlesVisible ? 'rgba(139,92,246,0.3)' : 'rgba(99,102,241,0.15)',
+                          border: subtitlesUrl && subtitlesVisible ? '1px solid rgba(139,92,246,0.55)' : '1px solid rgba(99,102,241,0.35)',
+                          padding: '6px 13px',
+                          borderRadius: 8,
+                          color: subtitlesUrl && subtitlesVisible ? '#c084fc' : '#a5b4fc',
+                          transition: 'all 0.2s',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        CC
+                      </button>
+                      {showSubtitleMenu && (
+                        <div className="player-subtitle-menu" style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 10px)',
+                          right: 0,
+                          background: 'rgba(12,12,22,0.97)',
+                          border: '1px solid rgba(255,255,255,0.11)',
+                          borderRadius: 12,
+                          padding: '5px',
+                          minWidth: 200,
+                          zIndex: 9999,
+                          boxShadow: '0 -8px 32px rgba(0,0,0,0.55)',
+                          backdropFilter: 'blur(16px)',
+                        }}>
+                          {/* Web iframe (regular webpage) note */}
+                          {isWebIframe(mediaUrl) && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                              <div style={{ color: '#a5b4fc', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
+                              <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
+                            </div>
+                          )}
+                          {/* YouTube / embed platform note */}
+                          {isEmbedPlatform(mediaUrl) && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                              <div style={{ color: '#a5b4fc', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
+                              <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
+                            </div>
+                          )}
+                          {/* Direct video URL or local stream: full subtitle controls */}
+                          {!isEmbedPlatform(mediaUrl) && (
+                            <>
+                              {subtitlesUrl && (
+                                <button
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    width: '100%', padding: '9px 12px',
+                                    background: 'none', border: 'none',
+                                    color: subtitlesVisible ? '#c084fc' : '#9ca3af',
+                                    fontSize: 13, cursor: 'pointer', borderRadius: 8,
+                                    textAlign: 'left', fontFamily: 'inherit',
+                                    transition: 'background 0.15s',
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                  onClick={() => { setSubtitlesVisible(v => !v); setShowSubtitleMenu(false); }}
+                                >
+                                  <div style={{
+                                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                    background: subtitlesVisible ? '#c084fc' : 'transparent',
+                                    border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
+                                  }} />
+                                  {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
+                                </button>
+                              )}
+                              {isEffectiveHost && (
+                                <button
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    width: '100%', padding: '9px 12px',
+                                    background: 'none', border: 'none',
+                                    color: '#d1d5db', fontSize: 13, cursor: 'pointer',
+                                    borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
+                                    transition: 'background 0.15s',
+                                  }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                  onClick={() => { subtitleInputRef.current?.click(); setShowSubtitleMenu(false); }}
+                                >
+                                  <Upload size={14} style={{ flexShrink: 0 }} />
+                                  {subtitlesUrl ? 'Change Subtitles' : 'Upload Subtitles'}
+                                </button>
+                              )}
+                              <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
+                              <button
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 10,
+                                  width: '100%', padding: '9px 12px',
+                                  background: 'none', border: 'none',
+                                  color: '#d1d5db', fontSize: 13, cursor: 'pointer',
+                                  borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
+                                  transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                onClick={() => { setShowSubtitleSettingsModal(true); setShowSubtitleMenu(false); }}
+                              >
+                                <Settings size={14} style={{ flexShrink: 0 }} />
+                                Subtitle Settings
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+ 
+                  {/* Fullscreen */}
+                  <button className="player-ctrl-btn" onClick={handleFullscreen} title={isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}>
+                    {isMobile && isMobileFsMode ? <Minimize size={18} /> : <Maximize size={18} />}
+                  </button>
+
                 </div>
               </div>
             )}
-            
-            {/* Camera Streams Overlay */}
-            <div style={{
-              position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
-              transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s'
-            }}>
-              {renderCameras(true)}
-            </div>
 
-            {/* Drag-to-Remove Zone */}
-            {isDraggingCam && (
+            {/* Floating Restore Controls Button — shown at top center when custom controls are hidden */}
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
+              <button
+                onClick={() => setHideCustomControls(false)}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 35,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(168, 85, 247, 0.9))',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  borderRadius: '24px',
+                  padding: '10px 20px',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(8px)',
+                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  pointerEvents: 'auto'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateX(-50%) scale(1.05) translateY(-1px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'translateX(-50%) scale(1) translateY(0)';
+                }}
+                title="Restore SahaPlay Controls"
+              >
+                <ChevronUp size={16} color="#fff" />
+                <span className="stay-white">Show SahaPlay Controls</span>
+              </button>
+            )}
+            
+            {/* Camera Streams Overlay (only inside player-wrap when in fullscreen) */}
+            {isFullscreen && (
+              <div style={{
+                position: 'absolute', inset: 0, 
+                zIndex: (isDraggingCam || isResizingCam) ? 99999 : 1, 
+                pointerEvents: 'none',
+                transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s'
+              }}>
+                {renderCameras(true)}
+              </div>
+            )}
+
+            {/* Drag-to-Remove Zone (only when in fullscreen — normal view zone is in root overlay) */}
+            {isDraggingCam && isFullscreen && (
               <div 
                 id="cam-remove-zone"
                 style={{
@@ -5232,22 +8312,21 @@ const Room = () => {
               </button>
             )}
 
-            {/* Global Chat Widget — rendered inside the fullscreen element so it
-                remains visible when playerWrapRef.requestFullscreen() is active.
-                position:fixed (no transform parent) targets the true viewport = the
-                fullscreen screen, giving us correct overlay positioning in both modes. */}
             {!isTvMode && (
-            <GlobalChatWidget
-              ref={chatWidgetRef}
-              isOpen={showRecentChats}
-              onClose={() => setShowRecentChats(false)}
-              unreadCounts={unreadCounts}
-              onMarkRead={handleMarkRead}
-              onNewMessage={handleNewMessage}
-              transparentMode={isFullscreen}
-            />
+              <GlobalChatWidget
+                ref={chatWidgetRef}
+                isOpen={showRecentChats}
+                onClose={() => setShowRecentChats(false)}
+                unreadCounts={unreadCounts}
+                onMarkRead={handleMarkRead}
+                onNewMessage={handleNewMessage}
+                activeRoomTab={chatTab}
+                activeRoomPartner={roomId}
+                transparentMode={isFullscreen}
+                roomPermissions={room?.permissions}
+                isRoomHost={isEffectiveHost}
+              />
             )}
-
 
           </div>
           
@@ -5255,17 +8334,24 @@ const Room = () => {
         
         {/* — Right Column — */}
         {!isTvMode && (
-        <div style={{ width: 340, display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0, height: '100%' }}>
-          
+        <div className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
+          {/* Mobile: Browse Media button pinned above chat when no media playing */}
+          {isMobile && !mediaUrl && !isTvMode && (
+            <button onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
+              <LayoutGrid size={18} color="#fff" />
+              <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
+            </button>
+          )}
+
           {/* — Controls Box — */}
           {!isFullscreen && !isTvMode && (
-            <div style={{ 
-              background: isLight ? '#fff' : 'var(--room-sidebar-bg)', 
-              borderRadius: 16, 
-              border: '1px solid var(--room-border)', 
-              padding: '20px 16px', 
-              display: 'flex', 
-              flexDirection: 'column', 
+            <div className="room-quick-controls" style={{
+              background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
+              borderRadius: 16,
+              border: '1px solid var(--room-border)',
+              padding: '20px 16px',
+              display: 'flex',
+              flexDirection: 'column',
               gap: 12,
               boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none',
               transition: 'all 0.3s ease'
@@ -5277,39 +8363,30 @@ const Room = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {/* --- Primary Action: Screen Cast (Teams Style) --- */}
                 <button
-                  onClick={() => {
-                    if (mediaUrl || isScreensharing) {
-                      handleCast();
-                    } else {
-                      openDiscoveryMenu('selector');
-                    }
-                  }}
+                  onClick={handleCast}
                   style={{
                     width: '100%', padding: '16px', borderRadius: 16,
-                    background: (mediaUrl || isScreensharing) ? 'rgba(99, 102, 241, 0.1)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
-                    border: (mediaUrl || isScreensharing) ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid rgba(255,255,255,0.1)',
-                    color: (mediaUrl || isScreensharing) ? '#6366f1' : '#fff',
+                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                     cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: 'none',
+                    boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
                     fontWeight: 800, fontSize: 14
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.filter = 'none'; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.45)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.3)'; }}
                 >
-                  <Cast size={20} className={(mediaUrl || isScreensharing) ? '' : 'stay-white'} />
-                  <span className={(mediaUrl || isScreensharing) ? '' : 'stay-white'}>
-                    {(mediaUrl || isScreensharing) ? t('castToTv', 'Cast to TV') : t('castScreen', 'Cast Screen')}
-                  </span>
+                  <Cast size={20} className="stay-white" />
+                  <span className="stay-white">{t('castToTv', 'Cast to TV')}</span>
                 </button>
 
                 {/* --- Secondary Actions: Cam & Mic Side-by-Side --- */}
                 <div style={{ display: 'flex', gap: 10 }}>
                   {(() => {
-                    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
                     const camPerm = room?.permissions?.cam || 'all';
-                    const canUseCam = !isGuest && (camPerm === 'all' || (camPerm === 'host' && isEffectiveHost));
-                    const camReason = isGuest ? 'Guests cannot use webcam' : (camPerm === 'none' ? 'Webcam is disabled' : (camPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use webcam' : ''));
+                    const canUseCam = camPerm === 'all' || (camPerm === 'host' && isEffectiveHost);
+                    const camReason = camPerm === 'none' ? 'Webcam is disabled' : (camPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use webcam' : '');
 
                     return (
                       <button
@@ -5333,10 +8410,9 @@ const Room = () => {
                   })()}
 
                   {(() => {
-                    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
                     const micPerm = room?.permissions?.mic || 'all';
-                    const canUseMic = !isGuest && (micPerm === 'all' || (micPerm === 'host' && isEffectiveHost));
-                    const micReason = isGuest ? 'Guests cannot use microphone' : (micPerm === 'none' ? 'Microphone is disabled' : (micPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use microphone' : ''));
+                    const canUseMic = micPerm === 'all' || (micPerm === 'host' && isEffectiveHost);
+                    const micReason = micPerm === 'none' ? 'Microphone is disabled' : (micPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use microphone' : '');
 
                     return (
                       <button
@@ -5369,10 +8445,10 @@ const Room = () => {
               chatTab, setChatTab, chatTabRef,
               groupMessages, groupUnread, setGroupUnread,
               userList, room, isHost, isAdmin, // added roles for avatar visualization
-              dmThreads, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
+              dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
               dmDecryptedMediaUrls, dmMediaUrlVersion,
               groupDecryptedMediaUrls, groupMediaUrlVersion,
-              typingUsers, messagesEndRef,
+              typingStatuses, typingUsers, messagesEndRef,
               groupChatInput, setGroupChatInput, groupInputRef,
               dmChatInput, setDmChatInput, dmInputRef,
               groupReplyTo, setGroupReplyTo,
@@ -5403,7 +8479,11 @@ const Room = () => {
               onMarkRead: handleMarkRead,
               clearRoomChat: () => { if (socket) socket.emit('clear_room_chat', { roomId }); },
               setDmThreads,
-              socket
+              socket,
+              reactionPreviews, setReactionPreviews,
+              groupHistoryLoading, dmHistoryLoading,
+              hasMoreGroupHistory, hasMoreDmHistory,
+              loadMoreGroupHistory, loadMoreDmHistory
             }} />
           )}
         </div>
@@ -5444,6 +8524,35 @@ const Room = () => {
             socket.emit('mod_ban', { roomId, targetSocketId: banConfirmTarget.socketId });
           }}
         />
+      )}
+
+      {/* Part 2 — Mobile ⋮ bottom sheet */}
+      {isMobile && showMobileMenu && (
+        <>
+          <div className="mob-sheet-backdrop" onClick={() => setShowMobileMenu(false)} />
+          <div className="mob-bottom-sheet">
+            <div className="mob-sheet-handle" />
+            <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleCast(); }}>
+              <Cast size={20} /> <span>{t('castScreen', 'Cast Screen')}</span>
+            </button>
+            <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowShareModal(true); }}>
+              <Share2 size={20} /> <span>{t('invite', 'Invite')}</span>
+            </button>
+            {isEffectiveHost && (
+              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setRoomSettingsModalOpen(true); }}>
+                <Settings2 size={20} /> <span>{t('roomSettings', 'Room Settings')}</span>
+              </button>
+            )}
+            {isEffectiveHost && (
+              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
+                <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
+              </button>
+            )}
+            <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleFullscreen(); }}>
+              <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
+            </button>
+          </div>
+        </>
       )}
 
     </div>

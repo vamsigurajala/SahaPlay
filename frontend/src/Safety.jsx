@@ -37,11 +37,14 @@ export default function Safety() {
   useEffect(() => {
     if (showChatLockModal || showReportModal) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     };
   }, [showChatLockModal, showReportModal]);
 
@@ -69,7 +72,7 @@ export default function Safety() {
   const sec5Bg = isLight ? '#ffffff' : '#0f0f18';
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary, overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
       {showChatLockModal && (
         <ChatLockInfoModal
           isLight={isLight}
@@ -632,9 +635,9 @@ function ReportHowModal({ isLight, isMobile, onClose }) {
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0,
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        background: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
         zIndex: 99999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
@@ -816,9 +819,9 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.78)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
+          background: 'rgba(0,0,0,0.48)',
+          backdropFilter: 'blur(2px)',
+          WebkitBackdropFilter: 'blur(2px)',
           zIndex: 99999,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: isMobile ? 16 : 24,
@@ -830,10 +833,10 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
           style={{
             position: 'relative',
             borderRadius: 20,
-            padding: isMobile ? '24px 18px' : '36px 32px',
-            maxWidth: 560,
+            padding: isMobile ? '20px 16px' : '28px 24px',
+            maxWidth: isMobile ? '90%' : 460,
             width: '100%',
-            maxHeight: isMobile ? '88vh' : '82vh',
+            maxHeight: isMobile ? '80vh' : '75vh',
             overflowY: 'auto',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
@@ -845,9 +848,9 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
           {/* ── Sticky Header Wrapper ── */}
           <div style={{
             position: 'sticky',
-            top: isMobile ? -24 : -36,
-            marginTop: isMobile ? -24 : -36,
-            paddingTop: isMobile ? 24 : 36,
+            top: isMobile ? -20 : -28,
+            marginTop: isMobile ? -20 : -28,
+            paddingTop: isMobile ? 20 : 28,
             background: isLight ? '#ffffff' : '#1a1730',
             zIndex: 10,
           }}>
@@ -856,7 +859,7 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
               onClick={onClose}
               aria-label="Close"
               style={{
-                position: 'absolute', top: isMobile ? 32 : 44, right: 0,
+                position: 'absolute', top: isMobile ? 28 : 36, right: 0,
                 width: 32, height: 32, borderRadius: '50%',
                 background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)',
                 border: `1px solid ${isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'}`,

@@ -2,11 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
+import { appCache } from './cache/appCache.js';
+import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 
-const API = `http://${window.location.hostname}:3001`;
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 // ─── Isolated camera preview ─────────────────────────────────────────────────
 // Owns its own stream + video ref so parent re-renders never blank the preview.
@@ -228,13 +232,16 @@ const AppSettings = () => {
   const { t, i18n } = useTranslation();
   const token = localStorage.getItem('watch_token');
   const myUsername = localStorage.getItem('watch_username');
+  const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
 
   // Settings state
   const [settings, setSettings] = useState(null);
-  const [language, setLanguage] = useState('en');
+  const [language, setLanguage] = useState(() => (localStorage.getItem('watch_language') || i18n.language || 'en').split('-')[0].toLowerCase());
   const [country, setCountry] = useState('');
+  const [countryCode, setCountryCode] = useState('');
   const [showCountry, setShowCountry] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem('watch_theme') || 'dark');
+  const isLight = theme === 'light';
   const [notifyApp, setNotifyApp] = useState(true);
   const [notifyJoin, setNotifyJoin] = useState(true);
   const [notifyMessages, setNotifyMessages] = useState(true);
@@ -243,7 +250,20 @@ const AppSettings = () => {
   const [notifyJoinRequests, setNotifyJoinRequests] = useState(true);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [openSection, setOpenSection] = useState('general');
-  const [profile, setProfile] = useState(null);
+  const [expiryReminders, setExpiryReminders] = useState(() => localStorage.getItem('expiry_reminders') !== 'false');
+  const [profile, setProfile] = useState(() => {
+    const isG = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
+    if (isG) {
+      return {
+        id: 0,
+        username: localStorage.getItem('watch_username') || 'guest',
+        displayName: 'Guest User',
+        avatarPath: null,
+        isGuest: true
+      };
+    }
+    return null;
+  });
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -262,6 +282,14 @@ const AppSettings = () => {
     } catch { return 0; }
   });
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const ReactIsAwesome = React; // just dummy not to conflict
   const navIconsRef = ReactIsAwesome.useRef(null);
   const chatWidgetRef = ReactIsAwesome.useRef(null);
@@ -275,6 +303,7 @@ const AppSettings = () => {
       if (!inNavArea && !inChatWidget) {
         setShowSearch(false);
         setShowNotifications(false);
+        setShowUserMenu(false);
         // Only close showRecentChats (which drives isOpen on widget) if the click is outside the widget
       }
     };
@@ -284,7 +313,7 @@ const AppSettings = () => {
 
   // ── Unread message tracking ──
   useEffect(() => {
-    if (!token) return;
+    if (isGuest || !token) return;
     const getLastSeen = () => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } };
     const checkUnread = async () => {
       try {
@@ -314,7 +343,7 @@ const AppSettings = () => {
     checkUnread();
     const inv = setInterval(checkUnread, 5000);
     return () => clearInterval(inv);
-  }, [token]);
+  }, [token, isGuest]);
 
   const handleNewMessage = useCallback((partner, msg) => {
     const chatKey = partner;
@@ -353,10 +382,9 @@ const AppSettings = () => {
 
   useEffect(() => {
     const fetchRequests = () => {
-      if (token) {
-        fetch(`${API}/api/follow/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
-          .then(r => r.json()).then(d => { if(Array.isArray(d)) setFollowRequests(d); }).catch(() => {});
-      }
+      if (isGuest || !token) return;
+      fetch(`${API}/api/follow/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.json()).then(d => { if(Array.isArray(d)) setFollowRequests(d); }).catch(() => {});
     };
     fetchRequests();
     const inv = setInterval(fetchRequests, 3000);
@@ -414,13 +442,15 @@ const AppSettings = () => {
   const micCanvasRef = useRef(null);
 
   const fetchSettings = useCallback(() => {
-    fetch(`${API}/api/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
+    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
+    fetch(`${API}/api/settings`, { headers })
       .then(r => r.json())
       .then(data => {
         if (data.error) return;
         setSettings(data);
-        setLanguage(data.language || 'en');
+        setLanguage((data.language || 'en').split('-')[0].toLowerCase());
         setCountry(data.country || '');
+        setCountryCode(data.country_code || '');
         setShowCountry(data.showCountry === 1 || data.showCountry === true);
         setNotifyApp(data.notifyApp === 1 || data.notifyApp === true);
         setNotifyJoin(data.notifyJoin === 1 || data.notifyJoin === true);
@@ -431,41 +461,44 @@ const AppSettings = () => {
       })
       .catch(() => toast.error('Failed to load settings'));
 
+    if (isGuest || !token) return;
+
     fetch(`${API}/api/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setProfile(data))
       .catch(() => {});
-  }, [token]);
+  }, [token, isGuest]);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
   useEffect(() => {
+    if (window.location.hash === '#privacy-storage') {
+      setOpenSection('privacy');
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          document.getElementById('privacy-storage')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }, 450);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!searchQuery) { setSearchResults([]); return; }
+    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
     const t = setTimeout(() => {
-      fetch(`${API}/api/users/search?q=${searchQuery}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`${API}/api/users/search?q=${searchQuery}`, { headers })
         .then(r => r.json()).then(setSearchResults).catch(() => {});
     }, 300);
     return () => clearTimeout(t);
-  }, [searchQuery, token]);
+  }, [searchQuery, token, isGuest]);
 
   useEffect(() => {
     if (showRecentChats) {
+      if (isGuest || !token) return;
       fetch(`${API}/api/chats/recent`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json()).then(d => { if(Array.isArray(d)) setRecentChats(d); else setRecentChats([]); }).catch(() => {});
     }
-  }, [showRecentChats, token]);
-
-  const [flagUrl, setFlagUrl] = useState('');
-  useEffect(() => {
-    if (country) {
-      fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(country)}?fullText=true&fields=flags`)
-        .then(res => res.json())
-        .then(data => { if (data[0] && data[0].flags && data[0].flags.png) setFlagUrl(data[0].flags.png); })
-        .catch(() => setFlagUrl(''));
-    } else {
-      setFlagUrl('');
-    }
-  }, [country]);
+  }, [showRecentChats, token, isGuest]);
 
   // Enumerate devices
   const updateDevices = useCallback(async (forceRequest = false, type = 'both') => {
@@ -516,8 +549,22 @@ const AppSettings = () => {
   }, []);
 
   const saveSetting = (key, value) => {
+    // Optimistically update settings state
+    setSettings(prev => prev ? { ...prev, [key]: value } : prev);
+
+    // Direct-write the update into client-side appCache
+    try {
+      const cached = appCache.getData('/api/settings');
+      if (cached) {
+        appCache.set('/api/settings', { ...cached, [key]: value }, 10 * 60_000);
+      }
+    } catch (e) {
+      console.error('Error writing to appCache:', e);
+    }
+
+    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`${API}/api/settings`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
       body: JSON.stringify({ [key]: value })
     }).then(r => r.json()).then(data => {
       if (data.error) toast.error(data.error);
@@ -526,11 +573,13 @@ const AppSettings = () => {
 
   // Language change
   const handleLangChange = (code) => {
-    setLanguage(code);
+    const normalized = code.split('-')[0].toLowerCase();
+    setLanguage(normalized);
     setShowLangDropdown(false);
-    i18n.changeLanguage(code);
-    localStorage.setItem('watch_language', code);
-    saveSetting('language', code);
+    i18n.changeLanguage(normalized);
+    localStorage.setItem('watch_language', normalized);
+    saveSetting('language', normalized);
+    window.dispatchEvent(new Event('settings_changed'));
     toast.success('Language updated!');
   };
 
@@ -649,10 +698,57 @@ const AppSettings = () => {
 
   const toggleSection = (sec) => setOpenSection(p => p === sec ? null : sec);
 
-  if (!settings) return <div style={{ color: '#fff', textAlign: 'center', padding: 80 }}>Loading...</div>;
+  if (!settings) {
+    return (
+      <div style={{ minHeight: '100vh', background: isLight ? '#f7fafc' : '#0a0a0f', color: isLight ? '#111' : '#fff' }}>
+        <style>{`
+          @keyframes shimmer {
+            0% { background-position: -450px 0; }
+            100% { background-position: 450px 0; }
+          }
+          .sk-shim {
+            background: ${isLight ? 'linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%)' : 'linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%)'} !important;
+            background-size: 900px 100% !important;
+            animation: shimmer 1.6s infinite linear !important;
+            border-radius: 12px;
+          }
+          .sk-circle {
+            border-radius: 50% !important;
+          }
+        `}</style>
+
+        {/* Skeleton Navbar */}
+        <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.05)', background: isLight ? '#fff' : 'transparent' }}>
+          <div style={{ flex: 1, display: 'flex' }}>
+            <div className="sk-shim" style={{ width: isMobile ? 38 : 100, height: 38, borderRadius: isMobile ? '50%' : 16 }} />
+          </div>
+          <div style={{ flex: 1 }}></div>
+          <div style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+          </div>
+        </nav>
+
+        {/* Skeleton Content */}
+        <div style={{ maxWidth: '620px', margin: '40px auto 80px', padding: '0 20px' }}>
+          {/* App Settings Page Title */}
+          <div className="sk-shim" style={{ height: 38, width: 220, marginBottom: 40 }} />
+
+          {/* Shimmering settings group cards (general, notification, media settings etc.) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div className="sk-shim" style={{ height: 70, width: '100%', borderRadius: 20 }} />
+            <div className="sk-shim" style={{ height: 70, width: '100%', borderRadius: 20 }} />
+            <div className="sk-shim" style={{ height: 70, width: '100%', borderRadius: 20 }} />
+            <div className="sk-shim" style={{ height: 70, width: '100%', borderRadius: 20 }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ minHeight: '100vh', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
         .settings-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 24px 28px; margin-bottom: 24px; transition: all 0.2s; }
@@ -752,6 +848,22 @@ const AppSettings = () => {
           background: rgba(255,255,255,0.1) !important; 
           border-color: rgba(255,255,255,0.2) !important; 
         }
+        @media (max-width: 768px) {
+          .back-btn span {
+            display: none !important;
+          }
+          .back-btn {
+            padding: 10px !important;
+            border-radius: 50% !important;
+          }
+          .profile-pill span {
+            display: none !important;
+          }
+          .profile-pill {
+            padding: 8px !important;
+            border-radius: 50% !important;
+          }
+        }
 
         /* ── Light Mode Overrides ── */
         html[data-theme='light'] body { background: #f7fafc !important; color: #111 !important; }
@@ -761,13 +873,23 @@ const AppSettings = () => {
         html[data-theme='light'] .section-desc { color: #4a5568 !important; }
 
         html[data-theme='light'] h2 { color: #000 !important; }
+
+        @media (max-width: 767px) {
+          nav .nav-dropdown {
+            position: fixed !important;
+            top: 68px !important;
+            left: 16px !important;
+            right: 16px !important;
+            width: auto !important;
+          }
+        }
       `}</style>
 
       {/* Navbar */}
-      <nav style={{ padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
+      <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
         {/* Left: Back Button */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
-          <button className="back-btn" onClick={() => navigate('/')}>
+          <button className="back-btn" onClick={() => navigate(-1)}>
             <ArrowLeft size={18} />
             <span>{t('back', 'Back')}</span>
           </button>
@@ -788,32 +910,54 @@ const AppSettings = () => {
               <Search size={18} />
             </button>
             {showSearch && (
-              <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+              <div className="nav-dropdown" style={{
+                position: isMobile ? 'fixed' : 'absolute',
+                top: isMobile ? '68px' : 'calc(100% + 12px)',
+                left: isMobile ? '16px' : 'auto',
+                right: isMobile ? '16px' : -60,
+                width: isMobile ? 'auto' : 320,
+                background: isLight ? '#ffffff' : '#111',
+                border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: 12,
+                boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
+                zIndex: 10000
+              }}>
                 <input 
                   autoFocus
                   placeholder="Search users..."
                   className="nav-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8 }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
+                    border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 10,
+                    color: isLight ? '#111' : '#fff',
+                    fontSize: 13,
+                    outline: 'none',
+                    marginBottom: 8
+                  }}
                 />
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                   {searchResults.length > 0 ? (
                     searchResults.map(u => (
                       <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
-                           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                           onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                          <div style={{ color: '#6b7280', fontSize: 11 }}>@{u.username}</div>
+                          <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                          <div style={{ color: isLight ? '#666' : '#6b7280', fontSize: 11 }}>@{u.username}</div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
+                    searchQuery ? <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
                   )}
                 </div>
               </div>
@@ -847,28 +991,40 @@ const AppSettings = () => {
               )}
             </button>
             {showNotifications && (
-              <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
+              <div className="nav-dropdown" style={{
+                position: isMobile ? 'fixed' : 'absolute',
+                top: isMobile ? '68px' : 'calc(100% + 12px)',
+                left: isMobile ? '16px' : 'auto',
+                right: isMobile ? '16px' : 0,
+                width: isMobile ? 'auto' : 340,
+                background: isLight ? '#ffffff' : '#111',
+                border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 16,
+                padding: '12px 6px',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.8)',
+                zIndex: 10000
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#666' : '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
                 <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                   {followRequests.length > 0 ? (
                     followRequests.map(u => (
                       <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent'}>
-                        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#888" />}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent' }}
+                        onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                          <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                          <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                          <div style={{ color: isLight ? '#444' : '#6b7280', fontSize: 11, marginTop: 2 }}>
                             {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             {u.status === 'pending' ? (
                               <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                             ) : (
-                              <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
+                              <button disabled style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                             )}
                             
                             {u.myFollowStatus === 'accepted' ? (
@@ -878,7 +1034,7 @@ const AppSettings = () => {
                                 e.stopPropagation();
                                 if (u.myFollowStatus === 'pending') return;
                                 handleFollowBack(u.username, e);
-                              }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                              }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                 {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                               </button>
                             )}
@@ -887,7 +1043,7 @@ const AppSettings = () => {
                       </div>
                     ))
                   ) : (
-                    <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
+                    <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
                   )}
                 </div>
               </div>
@@ -897,6 +1053,13 @@ const AppSettings = () => {
           {/* User Menu */}
           <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }} onMouseLeave={() => setShowUserMenu(false)}>
             <div className="profile-pill"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUserMenu(!showUserMenu);
+                setShowSearch(false);
+                setShowRecentChats(false);
+                setShowNotifications(false);
+              }}
               onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
             >
@@ -930,25 +1093,39 @@ const AppSettings = () => {
                     </div>
                     {t('app', 'App')}
                   </button>
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <HelpCircle size={16} color="#f59e0b" />
-                    </div>
-                    {t('contactSupport', 'Contact Support')}
-                  </button>
+                  {!isGuest && (
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <HelpCircle size={16} color="#f59e0b" />
+                      </div>
+                      {t('contactSupport', 'Contact Support')}
+                    </button>
+                  )}
                   <div className="profile-divider" />
-                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <LogOutIcon size={16} color="#f87171" />
-                    </div>
-                    {t('logOut', 'Log Out')}
-                  </button>
+                  {isGuest ? (
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <UserIcon size={16} color="#6366f1" />
+                      </div>
+                      {t('logIn', 'Sign In')}
+                    </button>
+                  ) : (
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <LogOutIcon size={16} color="#f87171" />
+                      </div>
+                      {t('logOut', 'Log Out')}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1017,6 +1194,56 @@ const AppSettings = () => {
                   <Toggle on={theme === 'light'} onToggle={handleThemeToggle} />
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Country */}
+        <div className="settings-card">
+          <div className="acc-header" onClick={() => toggleSection('country')}>
+            <h3><MapPin size={18} color="#10b981" /> {t('country', 'Country')}</h3>
+            <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'country' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </div>
+          {openSection === 'country' && (
+            <div className="acc-body">
+              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('countryDesc', 'Your detected location')}</p>
+              {country || countryCode ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', marginBottom: 12 }}>
+                    {(getFlagUrl(countryCode) || getFlagUrlFromName(country)) && (
+                      <img
+                        src={getFlagUrl(countryCode) || getFlagUrlFromName(country)}
+                        alt={country || countryCode}
+                        style={{ width: 40, height: 30, objectFit: 'cover', borderRadius: 4, boxShadow: '0 0 0 1px rgba(0,0,0,0.15)', flexShrink: 0 }}
+                        onError={e => { e.target.style.display = 'none'; }}
+                      />
+                    )}
+                    <span style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 15 }}>{country || countryCode}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                      <div style={{ width: 40, height: 40, background: 'rgba(16,185,129,0.1)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <MapPin size={20} color="#10b981" />
+                      </div>
+                      <div>
+                        <div style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 14 }}>
+                          {showCountry ? t('showMyCountry', 'Show my country to others') : t('countryHidden', 'Country hidden from others')}
+                        </div>
+                        <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+                          {showCountry
+                            ? t('showMyCountryDesc', 'Your flag and country are visible in rooms and on your profile')
+                            : t('countryHiddenDesc', 'Your flag and country are hidden in rooms and on your profile')}
+                        </div>
+                      </div>
+                    </div>
+                    <Toggle on={showCountry} onToggle={handleShowCountryToggle} />
+                  </div>
+                </>
+              ) : (
+                <div style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', color: '#888', fontSize: 13 }}>
+                  {t('locationNotDetected', 'Location not detected')}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1194,8 +1421,113 @@ const AppSettings = () => {
             </div>
           )}
         </div>
+        {/* Privacy & Storage */}
+        <div id="privacy-storage" className="settings-card">
+          <div className="acc-header" onClick={() => toggleSection('privacy')}>
+            <h3><ShieldCheck size={18} color="#6366f1" /> {t('privacyStorage', 'Privacy & Storage')}</h3>
+            <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'privacy' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </div>
+          {openSection === 'privacy' && (
+            <div className="acc-body">
+              <div style={{
+                background: (theme === 'light') ? '#fff' : '#13131f',
+                border: `1px solid ${(theme === 'light') ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 16,
+                padding: 24,
+                marginTop: 8
+              }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <HardDrive size={20} color="#6366f1" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: (theme === 'light') ? '#111' : '#f9fafb' }}>{t('mediaStoragePolicy', 'Media Storage Policy')}</div>
+                    <div style={{ fontSize: 13, color: (theme === 'light') ? '#6b7280' : '#9ca3af', marginTop: 2 }}>{t('mediaStoragePolicyDesc', 'How long your shared files are kept')}</div>
+                  </div>
+                </div>
+
+                {/* Policy table */}
+                {[
+                  { Icon: MessageSquare, typeKey: 'mediaTypeTextMessages', typeDefault: 'Text Messages', durationKey: 'durationKeptForever', durationDefault: 'Kept forever', color: '#10b981' },
+                  { Icon: Image, typeKey: 'mediaTypeImages', typeDefault: 'Images', durationKey: 'duration30Days', durationDefault: '30 days', color: '#6366f1' },
+                  { Icon: Video, typeKey: 'mediaTypeVideos', typeDefault: 'Videos', durationKey: 'duration7Days', durationDefault: '7 days', color: '#f59e0b' },
+                  { Icon: FileText, typeKey: 'mediaTypeFilesDocuments', typeDefault: 'Files & Documents', durationKey: 'duration7Days', durationDefault: '7 days', color: '#ef4444' },
+                  { Icon: Mic, typeKey: 'mediaTypeVoiceNotes', typeDefault: 'Voice Notes', durationKey: 'duration14Days', durationDefault: '14 days', color: '#a855f7' },
+                  { Icon: Smile, typeKey: 'mediaTypeEmojiReactions', typeDefault: 'Emoji Reactions', durationKey: 'durationKeptForever', durationDefault: 'Kept forever', color: '#10b981' },
+                ].map((item, i, arr) => (
+                  <div key={item.typeKey} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 0',
+                    borderBottom: i < arr.length - 1 ? `1px solid ${(theme === 'light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'}` : 'none'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${item.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <item.Icon size={16} color={item.color} />
+                      </div>
+                      <span style={{ fontSize: 14, color: (theme === 'light') ? '#374151' : '#d1d5db', fontWeight: 500 }}>
+                        {t(item.typeKey, item.typeDefault)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: item.color, background: `${item.color}15`, padding: '3px 10px', borderRadius: 20 }}>
+                      {t(item.durationKey, item.durationDefault)}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Info note */}
+                <div style={{
+                  marginTop: 20, padding: '12px 16px',
+                  background: (theme === 'light') ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.1)',
+                  border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10,
+                  fontSize: 13, color: (theme === 'light') ? '#4b5563' : '#9ca3af', lineHeight: 1.6
+                }}>
+                  {t('mediaStorageNote', 'Files are automatically deleted after the above period to save storage space. Download important files before they expire. Text messages and reactions are never deleted.')}
+                </div>
+
+                {/* Download reminder toggle */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginTop: 16, padding: '14px 16px',
+                  background: (theme === 'light') ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.03)',
+                  borderRadius: 12,
+                  border: `1px solid ${(theme === 'light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}`
+                }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: (theme === 'light') ? '#111' : '#f9fafb' }}>
+                      {t('expiryRemindersTitle', 'Show expiry reminders in chat')}
+                    </div>
+                    <div style={{ fontSize: 12, color: (theme === 'light') ? '#6b7280' : '#9ca3af', marginTop: 2 }}>
+                      {t('expiryRemindersDesc', 'Show a banner when files are close to expiring')}
+                    </div>
+                  </div>
+                  <div
+                    onClick={() => {
+                      const next = !expiryReminders;
+                      setExpiryReminders(next);
+                      localStorage.setItem('expiry_reminders', String(next));
+                    }}
+                    style={{
+                      width: 44, height: 24, borderRadius: 999,
+                      background: expiryReminders ? '#6366f1' : ((theme === 'light') ? '#d1d5db' : '#374151'),
+                      position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 3,
+                      left: expiryReminders ? 23 : 3,
+                      width: 18, height: 18, borderRadius: '50%',
+                      background: '#fff', transition: 'left 0.2s',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
-      <GlobalChatWidget 
+      <GlobalChatWidget
         ref={chatWidgetRef}
         isOpen={showRecentChats} 
         onClose={() => setShowRecentChats(false)} 

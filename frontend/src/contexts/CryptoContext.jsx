@@ -14,7 +14,7 @@ import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey } from '../lib/crypto.js';
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
@@ -33,10 +33,10 @@ export function CryptoProvider({ children }) {
         const isGuest  = localStorage.getItem('watch_is_guest') === 'true';
 
         if (isGuest || !localStorage.getItem('watch_token')) {
-          // Guests / unauthenticated: ephemeral key per session
+          // Guests: key persisted in localStorage so E2EE messages survive tab close + reopen.
           const cleanUser = (username || 'anon').toLowerCase();
           const guestKey = `wt_guest_kp_${cleanUser}`;
-          const saved    = sessionStorage.getItem(guestKey);
+          const saved    = localStorage.getItem(guestKey);
           if (saved) {
             try {
               const { pk, sk } = JSON.parse(saved);
@@ -48,7 +48,7 @@ export function CryptoProvider({ children }) {
             } catch {
               const kp = generateKeyPair();
               const cleanUser = (username || 'anon').toLowerCase();
-              sessionStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
+              localStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
                 pk: Array.from(kp.publicKey),
                 sk: Array.from(kp.secretKey)
               }));
@@ -57,7 +57,7 @@ export function CryptoProvider({ children }) {
           } else {
             const kp = generateKeyPair();
             const cleanUser = (username || 'anon').toLowerCase();
-            sessionStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
+            localStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
               pk: Array.from(kp.publicKey),
               sk: Array.from(kp.secretKey)
             }));

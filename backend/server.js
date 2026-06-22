@@ -1,5 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -178,11 +179,31 @@ const db = new SupabaseAdapter();
 
 
 const app = express();
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 const server = http.createServer(app);
 
 // Keep track of rooms in memory
 // roomID => { currentMedia: string, currentTime: number, isPlaying: boolean, uploaderSocketId: string, timestampUpdatedAt: number }
 const rooms = new Map();
+
+// ─── Hyperbeam Cloud Browser sessions: roomId → { session_id, embed_url, createdAt } ───
+// Using Hyperbeam TEST key — switch to production key in .env once all 7 tests pass
+const activeHyperbeamSessions = new Map();
+
+// Audio Ducking: tracks which users are currently speaking per room
+// roomId -> Set(socketId)
+const roomSpeakingUsers = new Map();
+
+function detectMediaTypeServer(url) {
+  if (!url) return null;
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+  if (url.includes('twitch.tv/videos')) return 'twitch_vod';
+  if (/\.(mp4|webm|mkv|m3u8|avi|mov)(\?|$)/i.test(url)) return 'direct';
+  return null;
+}
 
 // Global map: username -> Set of socketIds (all connected sockets for that user)
 const connectedSockets = new Map();
@@ -203,6 +224,37 @@ function emitToUser(username, event, data) {
   const sids = connectedSockets.get((username || '').toLowerCase());
   if (!sids) return;
   sids.forEach(sid => io.to(sid).emit(event, data));
+}
+
+function getRoomIdForChat(chatId, username, isDm) {
+  return new Promise((resolve) => {
+    if (!chatId) {
+      resolve('');
+      return;
+    }
+    if (chatId.toLowerCase().startsWith('dm-')) {
+      resolve(chatId);
+      return;
+    }
+    if (isDm === true) {
+      const sorted = [username.toLowerCase(), chatId.toLowerCase()].sort();
+      resolve('dm-' + sorted.join('-'));
+      return;
+    }
+    db.get('SELECT "roomId" FROM room_names WHERE LOWER("roomId") = LOWER(?)', [chatId], (err, row) => {
+      if (row) {
+        resolve(row.roomId); // It's a group room
+      } else {
+        if (isDm === false) {
+          resolve(chatId);
+        } else {
+          // It's a DM partner username
+          const sorted = [username.toLowerCase(), chatId.toLowerCase()].sort();
+          resolve('dm-' + sorted.join('-'));
+        }
+      }
+    });
+  });
 }
 
 // ─── Zero Latency Cache ───
@@ -239,14 +291,12 @@ function apiCacheMiddleware(req, res, next) {
   next();
 }
 
-/**
- * Wipes cache for a specific user to ensure instant updates after actions
- */
 function invalidateCacheForUser(username) {
   if (!username) return;
-  // console.log(`[CACHE INVALIDATE] User: ${username}`);
-  for (const [key, value] of memoryCache.entries()) {
-    if (value.user === username) {
+  const lowerUser = username.toLowerCase();
+  for (const key of memoryCache.keys()) {
+    const val = memoryCache.get(key);
+    if (key.toLowerCase().includes(lowerUser) || (val && val.user && val.user.toLowerCase() === lowerUser)) {
       memoryCache.delete(key);
     }
   }
@@ -292,24 +342,77 @@ function broadcastMessage(roomId, msg, senderSocketId, senderUsername) {
 }
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // raised to support contact-form image uploads
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-// Global Rate Limiter (200 requests per 15 mins)
+// Required for correct req.ip when behind any proxy layer (localhost, Railway, Render, nginx, etc.)
+app.set('trust proxy', 1);
+
+// ─── Rate Limiters (all applied BEFORE route definitions) ────────────────────
+
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 5000, 
-  message: { error: 'Too many requests from this IP, please try again after 15 minutes.' }
+  windowMs: 15 * 60 * 1000,
+  max: 15000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    const skipRoutes = [
+      '/api/chats/recent',
+      '/api/profile/notifications',
+      '/api/rooms/list',
+      '/api/messages',
+      '/api/follow/requests',
+      '/api/follow/status',
+      '/api/settings',
+      '/api/profile',
+      '/api/stream/',
+      '/api/blocks',
+      '/api/chat-lock/',
+    ];
+    const url = req.originalUrl || req.url || '';
+    return skipRoutes.some(route => url.startsWith(route));
+  },
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many requests. Try again later.' });
+  }
 });
-app.use(globalLimiter);
 
-// Strict Rate Limiter (20 requests per 15 mins) for sensitive auth/create endpoints
-const strictLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 20, 
-  message: { error: 'Too many sensitive requests. Please slow down.' }
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many login attempts. Wait 15 minutes.' });
+  }
 });
-app.use('/api/auth/', strictLimiter);
-app.use('/api/rooms/create', strictLimiter);
+
+const uploadLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
+  }
+});
+
+// Apply limiters — order matters: specific limits before global
+app.use('/api/login', loginLimiter);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/signup', loginLimiter);
+app.use('/api/register', loginLimiter);
+app.use('/api/forgot-password', loginLimiter);
+app.use('/api/reset-password', loginLimiter);
+app.use('/api/upload', uploadLimiter);
+app.use('/api/', globalLimiter);
+
+// Test endpoint — verify the global limiter fires at request 101
+app.get('/api/test-limit', (req, res) => {
+  res.json({ message: 'ok', ip: req.ip });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 
 const io = new Server(server, {
@@ -336,26 +439,112 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
-// Memory-only multer for chat media — bytes go straight to Supabase Storage
-const chatUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
-// Ensure the chat-media Supabase Storage bucket exists on startup
-(async () => {
-  const { error } = await supabase.storage.createBucket('chat-media', { public: true });
-  if (error && !error.message?.includes('already exists') && !error.message?.toLowerCase().includes('duplicate')) {
-    console.warn('[Storage] Could not create chat-media bucket:', error.message);
-  } else {
-    console.log('[Storage] chat-media bucket ready');
+async function checkBucket() {
+  try {
+    const { error } = await supabase.storage
+      .from('encrypted-media')
+      .list('', { limit: 1 });
+    if (error) {
+      console.error('[BUCKET] Access error:', error.message);
+      console.error('[BUCKET] Check Supabase key has storage permissions');
+    } else {
+      console.log('[BUCKET] encrypted-media accessible ✅');
+    }
+  } catch (e) {
+    console.error('[BUCKET] Check failed:', e.message);
   }
-})();
+}
+checkBucket();
+
+// Ensure stream upload directory exists at startup
+fs.mkdirSync(path.join(__dirname, 'uploads', 'streams'), { recursive: true });
 
 // Run on startup: add columns that may not exist in older DB schemas
-pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_expires_at TIMESTAMPTZ`).catch(e => {
-  if (!e.message?.includes('already exists')) console.warn('[Migration] media_expires_at:', e.message);
-});
-pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS "senderMessage" TEXT`).catch(e => {
-  if (!e.message?.includes('already exists')) console.warn('[Migration] senderMessage:', e.message);
-});
+// Stored as a promise so cleanupExpiredMedia() can await it before querying media_expires_at
+const migrationsReady = (async () => {
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_expires_at TIMESTAMPTZ`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] media_expires_at:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS "senderMessage" TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] senderMessage:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_unsent BOOLEAN DEFAULT FALSE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] is_unsent:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_file_name TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] media_file_name:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_file_size BIGINT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] media_file_size:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_duration INTEGER`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] media_duration:', e.message);
+  });
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS message_seen (
+      message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
+      room_id VARCHAR(255),
+      username VARCHAR(255),
+      seen_at BIGINT,
+      PRIMARY KEY (message_id, username)
+    )
+  `).catch(e => console.error('[Migration] message_seen table:', e.message));
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_message_seen_room_id ON message_seen(room_id)
+  `).catch(e => console.error('[Migration] message_seen index:', e.message));
+  // room_theme column for Custom Room Themes feature
+  await pool.query(`ALTER TABLE room_names ADD COLUMN IF NOT EXISTS room_theme TEXT DEFAULT 'default'`)
+    .then(() => console.log('[Migration] room_theme column OK'))
+    .catch(e => console.error('[Migration] room_theme column error:', e.message));
+  // sender_public_key: stores the sender's NaCl public key at message-send time so history
+  // can always decrypt even after key rotation or server restart (in-memory map is empty).
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_public_key TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] sender_public_key:', e.message);
+  });
+  // country_code: ISO 3166-1 alpha-2 code (e.g. "IN") for emoji flag display
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] country_code:', e.message);
+  });
+  // Backfill country_code for existing users who have a country name but no code
+  try {
+    const COUNTRY_NAME_TO_CODE = {
+      'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Argentina':'AR','Armenia':'AM',
+      'Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bahrain':'BH','Bangladesh':'BD',
+      'Belarus':'BY','Belgium':'BE','Bolivia':'BO','Bosnia and Herzegovina':'BA','Brazil':'BR',
+      'Bulgaria':'BG','Cambodia':'KH','Canada':'CA','Chile':'CL','China':'CN',
+      'Colombia':'CO','Croatia':'HR','Cuba':'CU','Czech Republic':'CZ','Denmark':'DK',
+      'Ecuador':'EC','Egypt':'EG','Ethiopia':'ET','Finland':'FI','France':'FR',
+      'Georgia':'GE','Germany':'DE','Ghana':'GH','Greece':'GR','Guatemala':'GT',
+      'Honduras':'HN','Hong Kong':'HK','Hungary':'HU','India':'IN','Indonesia':'ID',
+      'Iran':'IR','Iraq':'IQ','Ireland':'IE','Israel':'IL','Italy':'IT',
+      'Japan':'JP','Jordan':'JO','Kazakhstan':'KZ','Kenya':'KE','Kuwait':'KW',
+      'Lebanon':'LB','Libya':'LY','Lithuania':'LT','Luxembourg':'LU','Malaysia':'MY',
+      'Mexico':'MX','Moldova':'MD','Morocco':'MA','Myanmar':'MM','Nepal':'NP',
+      'Netherlands':'NL','New Zealand':'NZ','Nicaragua':'NI','Nigeria':'NG','North Korea':'KP',
+      'Norway':'NO','Oman':'OM','Pakistan':'PK','Palestine':'PS','Panama':'PA',
+      'Paraguay':'PY','Peru':'PE','Philippines':'PH','Poland':'PL','Portugal':'PT',
+      'Qatar':'QA','Romania':'RO','Russia':'RU','Saudi Arabia':'SA','Serbia':'RS',
+      'Singapore':'SG','Slovakia':'SK','Slovenia':'SI','Somalia':'SO','South Africa':'ZA',
+      'South Korea':'KR','Spain':'ES','Sri Lanka':'LK','Sudan':'SD','Sweden':'SE',
+      'Switzerland':'CH','Syria':'SY','Taiwan':'TW','Tajikistan':'TJ','Tanzania':'TZ',
+      'Thailand':'TH','Tunisia':'TN','Turkey':'TR','Turkmenistan':'TM','Uganda':'UG',
+      'Ukraine':'UA','United Arab Emirates':'AE','United Kingdom':'GB','United States':'US',
+      'Uruguay':'UY','Uzbekistan':'UZ','Venezuela':'VE','Vietnam':'VN','Yemen':'YE',
+      'Zimbabwe':'ZW'
+    };
+    const toBackfill = await pool.query(`SELECT id, country FROM users WHERE country IS NOT NULL AND country_code IS NULL`);
+    for (const row of toBackfill.rows) {
+      const code = COUNTRY_NAME_TO_CODE[row.country];
+      if (code) {
+        await pool.query(`UPDATE users SET country_code = $1 WHERE id = $2`, [code, row.id]).catch(() => {});
+      }
+    }
+    if (toBackfill.rows.length > 0) console.log(`[Migration] Backfilled country_code for ${toBackfill.rows.length} users`);
+  } catch (e) {
+    console.warn('[Migration] country_code backfill error (non-fatal):', e.message);
+  }
+})();
 
 function computeMediaExpiry(mediaType) {
   if (!mediaType) return null;
@@ -586,20 +775,29 @@ app.post('/api/signup', async (req, res) => {
 
     // Detect country from IP
     let detectedCountry = null;
+    let detectedCountryCode = null;
     try {
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      const cleanIp = ip.replace('::ffff:', '');
-      const geoRes = await fetch(`http://ip-api.com/json/${cleanIp === '127.0.0.1' || cleanIp === '::1' ? '' : cleanIp}?fields=country,countryCode`);
-      const geoData = await geoRes.json();
-      if (geoData && geoData.country) detectedCountry = geoData.country;
+      const headerCode = req.headers['cf-ipcountry'] || req.headers['x-vercel-ip-country'];
+      if (headerCode && headerCode !== 'XX') {
+        detectedCountryCode = headerCode;
+      } else {
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+        const cleanIp = ip.replace('::ffff:', '');
+        const geoRes = await fetch(`http://ip-api.com/json/${cleanIp === '127.0.0.1' || cleanIp === '::1' ? '' : cleanIp}?fields=country,countryCode`);
+        const geoData = await geoRes.json();
+        if (geoData && geoData.country) {
+          detectedCountry = geoData.country;
+          detectedCountryCode = geoData.countryCode || null;
+        }
+      }
     } catch (e) { /* silent */ }
 
     // Generate secure verification token
     const verificationToken = crypto.randomBytes(32).toString('hex');
 
     const result = await pool.query(
-      'INSERT INTO users (username, email, password, "isVerified", "verificationToken", country) VALUES ($1, $2, $3, 0, $4, $5) RETURNING id',
-      [username, email, hashedPassword, verificationToken, detectedCountry]
+      'INSERT INTO users (username, email, password, "isVerified", "verificationToken", country, country_code) VALUES ($1, $2, $3, 0, $4, $5, $6) RETURNING id',
+      [username, email, hashedPassword, verificationToken, detectedCountry, detectedCountryCode]
     );
     const newUserId = result.rows[0].id;
 
@@ -845,7 +1043,6 @@ app.post('/api/forgot-password', async (req, res) => {
     );
 
     const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-    console.log(`[RESET] Password reset link for @${user.username}: ${resetLink}`);
 
     // Send real email via Gmail SMTP
     const resetHtml = `
@@ -1249,9 +1446,32 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token required' });
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
-    if (!user || !user.username) return res.status(403).json({ error: 'Invalid token payload' });
+    if (err) {
+      console.log('[AUTH MIDDLEWARE] Rejected request to:', req.path, 'token present:', !!req.headers.authorization);
+      return res.status(403).json({ error: 'Invalid token' });
+    }
+    if (!user || !user.username) {
+      console.log('[AUTH MIDDLEWARE] Rejected request to:', req.path, 'token present:', !!req.headers.authorization);
+      return res.status(403).json({ error: 'Invalid token payload' });
+    }
     // Normalize username to lowercase to ensure database joins work correctly
+    req.user = { ...user, username: user.username.toLowerCase() };
+    next();
+  });
+}
+
+function authenticateTokenOptional(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token || token === 'null' || token === 'undefined') {
+    req.user = { id: 0, username: 'guest', isGuest: true };
+    return next();
+  }
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err || !user || !user.username) {
+      req.user = { id: 0, username: 'guest', isGuest: true };
+      return next();
+    }
     req.user = { ...user, username: user.username.toLowerCase() };
     next();
   });
@@ -1330,7 +1550,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, pinnedRooms FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const [followersRow, followingRow] = await Promise.all([
       queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
@@ -1345,6 +1565,11 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }
+});
+
+// ── Notifications stub ──
+app.get('/api/profile/notifications', authenticateToken, (_req, res) => {
+  res.json([]);
 });
 
 // â”€â”€ UPDATE Pinned Rooms â”€â”€
@@ -1363,7 +1588,7 @@ app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
 });
 
 // â”€â”€ Search Users Worldwide (exclude deleted/non-existent and blocked) â”€â”€
-app.get('/api/users/search', authenticateToken, async (req, res) => {
+app.get('/api/users/search', authenticateTokenOptional, async (req, res) => {
   const query = req.query.q;
   const myUsername = req.user.username.toLowerCase();
   if (!query) return res.json([]);
@@ -1385,7 +1610,7 @@ app.get('/api/users/search', authenticateToken, async (req, res) => {
 });
 
 // â”€â”€ GET Public Profile by username â”€â”€
-app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (req, res) => {
+app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, async (req, res) => {
   const { username } = req.params;
   const viewerUsername = req.user.username;
   
@@ -1401,11 +1626,13 @@ app.get('/api/users/:username', authenticateToken, apiCacheMiddleware, async (re
     if (myBlock.rows.length > 0) return res.json({ isBlockedByMe: true, username });
     if (theirBlock.rows.length > 0) return res.status(404).json({ error: 'User not found' });
     
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, showCountry FROM users WHERE username = ?', [username]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE username = ?', [username]);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    if (!user.showCountry || user.showCountry == 0 || user.showCountry === '0' || user.showCountry === false) {
+
+    const isSelf = viewerUsername.toLowerCase() === (user.username || '').toLowerCase();
+    if (!isSelf && (!user.showCountry || user.showCountry == 0 || user.showCountry === '0' || user.showCountry === false)) {
       user.country = null;
+      user.country_code = null;
     }
     delete user.showCountry;
     
@@ -1445,7 +1672,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     const privateRows = await queryAll(`
       SELECT DISTINCT ON (partner)
         m.timestamp as lastTimestamp,
-        CASE WHEN m.senderName = $1 THEN m.targetName ELSE m.senderName END as partner,
+        CASE WHEN LOWER(m.senderName) = LOWER($1) THEN m.targetName ELSE m.senderName END as partner,
         m.roomId,
         m.message,
         m."senderMessage" as "senderMessage",
@@ -1453,8 +1680,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         m."ephemeralPublicKey" as "ephemeralPublicKey",
         m."mediaUrl" as "mediaUrl",
         m."mediaType" as "mediaType",
+        m.media_file_name as "mediaFileName",
+        m.media_duration as "mediaDuration",
         'private' as type,
-        m.senderName = $2 as isMyLastMessage
+        LOWER(m.senderName) = LOWER($2) as "isMyLastMessage"
       FROM messages m
       WHERE m.type = 'private' 
         AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
@@ -1466,12 +1695,24 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const partnerLower = row.partner.toLowerCase();
       const u = await queryGet('SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = ?', [partnerLower]);
       
-      const seenTs = lastSeen[row.partner] || 0;
-      const countRow = await queryGet(`SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND senderName = ? AND targetName = ? AND timestamp > ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`, [row.partner, username, seenTs, `"${username}"`]);
+      let seenTs = 0;
+      for (const k in lastSeen) {
+        if (k.toLowerCase() === partnerLower) {
+          seenTs = lastSeen[k] || 0;
+          break;
+        }
+      }
+      const countRow = await queryGet(`SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?) AND timestamp > ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`, [row.partner, username, seenTs, `"${username}"`]);
       
       const isMedia = !!row.mediaUrl || !!row.mediaType;
       const mediaPreview = isMedia
-        ? (row.mediaType && row.mediaType.startsWith('video') ? 'Video' : 'Photo')
+        ? (row.mediaType && row.mediaType.startsWith('video')
+            ? 'Video'
+            : row.mediaType && row.mediaType.startsWith('audio')
+              ? 'Voice Note'
+              : row.mediaType && row.mediaType.startsWith('image')
+                ? 'Photo'
+                : 'File')
         : null;
       return {
         id: row.partner,
@@ -1484,6 +1725,9 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         ephemeralPublicKey: isMedia ? null : (row.ephemeralPublicKey || null),
         partnerPublicKey: u?.publicKey || null,
         lastTimestamp: row.lastTimestamp,
+        lastMediaType: row.mediaType || null,
+        lastMediaFileName: row.mediaFileName || null,
+        lastMediaDuration: row.mediaDuration || null,
         type: 'private',
         isMyLastMessage: !!row.isMyLastMessage,
         unread: countRow ? Number(countRow.c) : 0
@@ -1498,6 +1742,9 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         m.message,
         m.mediaUrl,
         m.mediaType,
+        m.media_file_name as "mediaFileName",
+        m.media_duration as "mediaDuration",
+        m."senderName" as "lastSenderName",
         m."nonce",
         m."ephemeralPublicKey",
         u."publicKey" as "senderPublicKey",
@@ -1560,6 +1807,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         e2ee: e2ee,
         message: row.message || '',
         lastTimestamp: row.lastTimestamp,
+        lastMediaType: row.mediaType || null,
+        lastMediaFileName: row.mediaFileName || null,
+        lastMediaDuration: row.mediaDuration || null,
+        lastSenderName: row.lastSenderName || null,
         type: 'room',
         isMyLastMessage: !!row.isMyLastMessage,
         isHost: hostUsername && username && hostUsername.toLowerCase() === username.toLowerCase(),
@@ -1584,19 +1835,20 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
 
         const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
 
-        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
-        const pinnedMediaPreview = lastMsg && (!lastMsg.message || lastMsg.message === '') && lastMsg.mediaUrl
-          ? (lastMsg.mediaType && lastMsg.mediaType.startsWith('video') ? '🎥 Video' : '📷 Photo')
-          : null;
+        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
         finalGroup.push({
           id: rid,
           partner: rid,
           displayName: displayName,
           partnerAvatar: thumbnailPath,
-          message: pinnedMediaPreview || (lastMsg ? lastMsg.message : 'No messages yet'),
+          message: lastMsg ? lastMsg.message : '',
           lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
+          lastMediaType: lastMsg?.mediaType || null,
+          lastMediaFileName: lastMsg?.media_file_name || null,
+          lastMediaDuration: lastMsg?.media_duration || null,
+          lastSenderName: lastMsg?.senderName || null,
           type: 'room',
-          isMyLastMessage: lastMsg ? lastMsg.senderName === username : false,
+          isMyLastMessage: lastMsg ? (lastMsg.senderName || '').toLowerCase() === (username || '').toLowerCase() : false,
           isHost: (hostUsername || '').toLowerCase() === (username || '').toLowerCase() || !!settings?.newMembersAdmins
         });
       }
@@ -1612,7 +1864,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       // Get last message from in-memory or DB
       const lastMsg = room.groupMessages.length > 0 
         ? room.groupMessages[room.groupMessages.length - 1]
-        : await queryGet('SELECT message, mediaUrl, mediaType, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
+        : await queryGet('SELECT message, mediaUrl, mediaType, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
       // Count unread from DB + in-memory messages since lastSeen
       const ls = lastSeen[rid] || 0;
       const dbUnreadRow = await queryGet(
@@ -1631,8 +1883,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         partnerAvatar: room.thumbnailPath || null,
         message: lmPreview || 'Group conversation',
         lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
+        lastMediaType: lastMsg?.mediaType || null,
+        lastMediaDuration: lastMsg?.media_duration || lastMsg?.mediaDuration || null,
         type: 'room',
-        isMyLastMessage: lastMsg ? (lastMsg.username === username || lastMsg.senderName === username) : false,
+        isMyLastMessage: lastMsg ? ((lastMsg.username || '').toLowerCase() === (username || '').toLowerCase() || (lastMsg.senderName || '').toLowerCase() === (username || '').toLowerCase()) : false,
         isHost: (room.hostUsername || '').toLowerCase() === (username || '').toLowerCase() || !!room.settings?.newMembersAdmins,
         unread: roomUnread
       });
@@ -1663,31 +1917,43 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   }
 });
 
-// â”€â”€ GET Chat History â”€â”€
+// ── GET Chat History ──
 app.get('/api/chats/history', authenticateToken, async (req, res) => {
   const username = req.user.username;
   const { type, partner } = req.query; 
   
   if (!type || !partner) return res.status(400).json({ error: 'type and partner required' });
 
+  const before = req.query.before ? parseInt(req.query.before, 10) : null;
+  const limit = parseInt(req.query.limit, 10) || (before ? 200 : 100);
+
   try {
     if (type === 'private') {
-      // Use parameterized query with $N notation for PostgreSQL
-      const rows = await pool.query(`
+      let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
-        LEFT JOIN users u ON u.username = m."senderName"
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m.type = 'private'
-          AND ((m."senderName" = $1 AND m."targetName" = $2)
-            OR (m."senderName" = $3 AND m."targetName" = $4))
-        ORDER BY m.timestamp ASC
-      `, [username, partner, partner, username]).then(r => r.rows);
+          AND ((LOWER(m."senderName") = LOWER($1) AND LOWER(m."targetName") = LOWER($2))
+            OR (LOWER(m."senderName") = LOWER($3) AND LOWER(m."targetName") = LOWER($4)))
+          AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
+      `;
+      const queryParams = [username, partner, partner, username];
+      if (before) {
+        queryStr += ` AND m.timestamp < $5 `;
+        queryParams.push(before);
+      }
+      queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
+      queryParams.push(limit);
+
+      const rows = await pool.query(queryStr, queryParams).then(r => r.rows);
+      rows.reverse(); // chronological
 
       const filtered = rows
         .filter(r => !(r.hiddenFor && r.hiddenFor.includes('"' + username + '"')))
         .map(r => ({
           id: r.id.toString(),
-          isMe: r.senderName === username,
+          isMe: (r.senderName || '').toLowerCase() === (username || '').toLowerCase(),
           senderId: r.senderId,
           senderName: r.senderName,
           senderAvatar: r.senderAvatarPath || null,
@@ -1699,26 +1965,55 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           ephemeralPublicKey: r.ephemeralPublicKey || null,
           mediaUrl: r.mediaUrl || null,
           mediaType: r.mediaType || null,
+          mediaFileName: r.media_file_name || null,
+          mediaFileSize: r.media_file_size || null,
+          mediaDuration: r.media_duration || null,
           mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
         }));
-      res.json(filtered);
+      const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
+      const seenMap = {};
+      if (messageIds.length > 0) {
+        try {
+          const seenResult = await pool.query(`
+            SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as avatar
+            FROM message_seen ms
+            LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+            WHERE ms.message_id = ANY($1::bigint[])
+          `, [messageIds]);
+          seenResult.rows.forEach(r => {
+            const msgId = String(r.message_id);
+            if (!seenMap[msgId]) seenMap[msgId] = [];
+            seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatar });
+          });
+        } catch (seenErr) {
+          console.warn('[chats/history] seenBy fetch failed:', seenErr.message);
+        }
+      }
+      res.json(filtered.map(r => ({ ...r, seenBy: seenMap[r.id] || [] })));
     } else if (type === 'room') {
-      // $2 = JSON-quoted username so we can LIKE-match inside the hiddenFor JSON string
-      const rows = await pool.query(`
+      let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
         LEFT JOIN users u ON u.username = m."senderName"
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
           AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $2)
-        ORDER BY m.timestamp ASC LIMIT 200
-      `, [partner, `%"${username}"%`]).then(r => r.rows);
+          AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
+      `;
+      const queryParams = [partner, `%"${username}"%`];
+      if (before) {
+        queryStr += ` AND m.timestamp < $3 `;
+        queryParams.push(before);
+      }
+      queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
+      queryParams.push(limit);
+
+      const rows = await pool.query(queryStr, queryParams).then(r => r.rows);
+      rows.reverse(); // chronological
 
       const mapped = rows.map(r => {
-        // ephemeralPublicKey column contains JSON {username: keyWrap, ...} for encrypted group messages
-        // senderPublicKey (from users JOIN) is needed so recipients can decrypt their key-wrap
         let e2ee = null;
         if (r.nonce && r.ephemeralPublicKey) {
           try {
@@ -1734,7 +2029,7 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
         }
         return {
           id: r.id.toString(),
-          isMe: r.senderName === username,
+          isMe: (r.senderName || '').toLowerCase() === (username || '').toLowerCase(),
           userId: r.senderId,
           senderName: r.senderName,
           username: r.senderName,
@@ -1745,13 +2040,35 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           e2ee,
           mediaUrl: r.mediaUrl || null,
           mediaType: r.mediaType || null,
+          mediaFileName: r.media_file_name || null,
+          mediaFileSize: r.media_file_size || null,
+          mediaDuration: r.media_duration || null,
           mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
         };
       });
-      res.json(mapped);
+      const msgIds = mapped.map(r => Number(r.id)).filter(Boolean);
+      const seenMap2 = {};
+      if (msgIds.length > 0) {
+        try {
+          const seenResult2 = await pool.query(`
+            SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as avatar
+            FROM message_seen ms
+            LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+            WHERE ms.message_id = ANY($1::bigint[])
+          `, [msgIds]);
+          seenResult2.rows.forEach(r => {
+            const msgId = String(r.message_id);
+            if (!seenMap2[msgId]) seenMap2[msgId] = [];
+            seenMap2[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatar });
+          });
+        } catch (seenErr2) {
+          console.warn('[chats/history] seenBy fetch failed:', seenErr2.message);
+        }
+      }
+      res.json(mapped.map(r => ({ ...r, seenBy: seenMap2[r.id] || [] })));
     } else {
       res.status(400).json({ error: 'invalid type' });
     }
@@ -1766,82 +2083,98 @@ app.post('/api/chats/react', authenticateToken, async (req, res) => {
   const username = req.user.username;
   const { messageId, emoji } = req.body;
   if (!messageId || !emoji) return res.status(400).json({ error: 'invalid payload' });
-  
+
+  const matchId = String(messageId);
+  let tsFromId = null;
+  const tsMatch = matchId.match(/\b(\d{13})\b/);
+  if (tsMatch) tsFromId = tsMatch[1];
+
+  const client = await pool.connect();
   try {
-    // Handle optimistic IDs (socketId-timestamp)
-    const matchId = String(messageId);
-    let tsFromId = null;
-    const tsMatch = matchId.match(/\b(\d{13})\b/);
-    if (tsMatch) tsFromId = tsMatch[1];
-    
-    // SELECT * so we get type, senderName, targetName for broadcast routing
-    const row = await queryGet(`SELECT * FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId]);
-    if (!row) return res.status(404).json({ error: 'Message not found' });
-    
-    // BLOCK CHECK: Reactor cannot react to a message if blocked (either way)
-    const msgSender = (row.senderName || row.username || '').toLowerCase();
-    if (msgSender && username && msgSender !== username) {
-      const bCheck = await queryGet('SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1', [username, msgSender]);
-      if (bCheck) return res.status(403).json({ error: 'You cannot react to this message at this time.' });
+    await client.query('BEGIN');
+
+    // SELECT FOR UPDATE locks the row so concurrent reactions for the same message serialize
+    const qWhere = tsFromId
+      ? `id::text = $1 OR timestamp::text = $1 OR timestamp::text = $2`
+      : `id::text = $1 OR timestamp::text = $1`;
+    const qParams = tsFromId ? [matchId, tsFromId] : [matchId];
+    const { rows } = await client.query(
+      `SELECT id, type, "senderName", "targetName", "roomId", reactions, timestamp FROM messages WHERE ${qWhere} LIMIT 1 FOR UPDATE`,
+      qParams
+    );
+    const row = rows[0];
+    if (!row) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Message not found' });
+    }
+
+    const msgSender = (row.senderName || '').toLowerCase();
+    if (msgSender && username && msgSender !== username.toLowerCase()) {
+      const bCheck = await client.query(
+        `SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1`,
+        [username.toLowerCase(), msgSender]
+      );
+      if (bCheck.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'You cannot react to this message at this time.' });
+      }
     }
 
     let rx = {};
-    try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch{}
+    try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch {}
 
-    // Enforce single reaction per user: remove from all emojis first
     const hadThisEmoji = rx[emoji] && rx[emoji].includes(username);
     for (const em of Object.keys(rx)) {
       rx[em] = rx[em].filter(u => u !== username);
     }
-    // If user didn't already have this emoji, add them
     if (!hadThisEmoji) {
       if (!rx[emoji]) rx[emoji] = [];
       rx[emoji].push(username);
     }
-    // Clean up empty arrays
     for (const em of Object.keys(rx)) {
       if (rx[em].length === 0) delete rx[em];
     }
-    
-    await queryAll(`UPDATE messages SET reactions = ? WHERE id = ? OR timestamp = ?`, [JSON.stringify(rx), messageId, messageId]);
-    
-    // Broadcast to all connected sockets — works for Home, Profile, AND Room pages
+
+    await client.query('UPDATE messages SET reactions = $1 WHERE id = $2', [JSON.stringify(rx), row.id]);
+    await client.query('COMMIT');
+
     if (row.type === 'private') {
-      const otherUser = row.senderName === username ? row.targetName : row.senderName;
-      // Include timestampId so frontend can match optimistic messages (which use timestamp as ID)
-      const payload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderName: username, emoji, targetName: otherUser };
-      // Use emitToUser which targets ALL connected sockets for the user, regardless of which page they are on
+      const otherUser = (row.senderName || '').toLowerCase() === (username || '').toLowerCase() ? row.targetName : row.senderName;
+      const payload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderName: username, emoji, targetName: otherUser, originalSenderName: row.senderName };
       emitToUser(username, 'chat:private_reaction', payload);
       emitToUser(otherUser, 'chat:private_reaction', payload);
     } else if (row.type === 'group') {
-      const ioRoom = rooms.get(row.roomId);
+      const normalizedRoomId = (row.roomId || '').toLowerCase();
+      const ioRoom = rooms.get(normalizedRoomId);
       if (ioRoom) {
-        const msg = ioRoom.groupMessages.find(m => m.id === messageId || String(m.id) === String(messageId) || m.timestamp === messageId || String(m.timestamp) === String(messageId));
+        const msg = ioRoom.groupMessages.find(m => String(m.id) === String(row.id) || String(m.timestamp) === String(row.timestamp));
         if (msg) msg.reactions = rx;
       }
-      // Broadcast to room socket (covers Room.jsx users) + global emit (covers GlobalChatWidget users via track_rooms)
-      const reactionPayload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderUsername: username, roomId: row.roomId };
-      io.in(row.roomId).emit('chat:reaction', reactionPayload);
-      // Also emit globally so GlobalChatWidget users (who join via track_rooms) receive it
-      io.emit('chat:reaction', reactionPayload);
+      const reactionPayload = { messageId: String(row.id), timestampId: String(row.timestamp), reactions: rx, senderUsername: username, roomId: normalizedRoomId, emoji, originalSenderName: row.senderName };
+      io.in(normalizedRoomId).emit('chat:reaction', reactionPayload);
     }
 
     invalidateCacheForUser(username);
     if (row.type === 'private') {
-      const otherUser = row.senderName === username ? row.targetName : row.senderName;
+      const otherUser = (row.senderName || '').toLowerCase() === (username || '').toLowerCase() ? row.targetName : row.senderName;
       invalidateCacheForUser(otherUser);
     }
 
     res.json({ success: true, reactions: rx });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('[/api/chats/react] error:', err);
     res.status(500).json({ error: 'Database error' });
+  } finally {
+    client.release();
   }
 });
 
 app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const username = req.user.username.toLowerCase();
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
-          nonce, ephemeralPublicKey, e2eeKeys, senderMessage } = req.body;
+          nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
+          mediaFileName, mediaFileSize, mediaDuration } = req.body;
   const partner = rawPartner ? rawPartner.toLowerCase() : '';
   // message can be empty if there's a media attachment
   if (!type || !partner || (!message && !mediaUrl)) return res.status(400).json({ error: 'invalid payload' });
@@ -1876,19 +2209,27 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessage || null,
          mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
          nonce || null, ephemeralPublicKey || null,
-         mediaUrl ? computeMediaExpiry(mediaType) : null]
+         mediaUrl ? computeMediaExpiry(mediaType) : null,
+         mediaFileName || null, mediaFileSize || null,
+         mediaDuration ? Number(mediaDuration) : null]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
+      // Save sender seen status to database
+      await pool.query('INSERT INTO message_seen (message_id, room_id, username, seen_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [Number(dmDbId), roomId, username, ts])
+        .catch(err => console.error('[REST send] message_seen error:', err.message));
+
+      const dmExpiry = mediaUrl ? computeMediaExpiry(mediaType) : null;
       const payload = {
         id: dmDbId,
+        dbId: dmDbId,
         senderId: req.user.id || 'http_client',
         senderName: username,
         senderAvatar: senderAvatar,
@@ -1897,12 +2238,17 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         senderMessage: senderMessage || null,
         mediaUrl: mediaUrl || null,
         mediaType: mediaType || null,
+        mediaFileName: mediaFileName || null,
+        mediaFileSize: mediaFileSize || null,
+        mediaDuration: mediaDuration ? Number(mediaDuration) : null,
+        mediaExpiresAt: dmExpiry ? dmExpiry.toISOString() : null,
         timestamp: ts,
         isMe: false,
         replyTo: replyTo || null,
         tempId: tempId || null,
         nonce: nonce || null,
         ephemeralPublicKey: ephemeralPublicKey || null,
+        seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }]
       };
 
       emitToUser(partner, 'private_message', payload);
@@ -1946,14 +2292,16 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
          nonce || null,
          ephemText || null,
-         mediaUrl ? computeMediaExpiry(mediaType) : null]
+         mediaUrl ? computeMediaExpiry(mediaType) : null,
+         mediaFileName || null, mediaFileSize || null,
+         mediaDuration ? Number(mediaDuration) : null]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
@@ -1964,6 +2312,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         ? { nonce, keys: e2eeKeys, senderPublicKey: senderPubKeyForGroup }
         : null;
 
+      const roomExpiry = mediaUrl ? computeMediaExpiry(mediaType) : null;
       const msg = {
         id: roomDbId,
         userId: req.user.id || 'http_client',
@@ -1975,6 +2324,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         type: 'group',
         mediaUrl: mediaUrl || null,
         mediaType: mediaType || null,
+        mediaFileName: mediaFileName || null,
+        mediaFileSize: mediaFileSize || null,
+        mediaDuration: mediaDuration ? Number(mediaDuration) : null,
+        mediaExpiresAt: roomExpiry ? roomExpiry.toISOString() : null,
         timestamp: ts,
         reactions: {},
         replyTo: replyTo || null,
@@ -2004,61 +2357,58 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   }
 });
 
-// â”€â”€ POST Upload Chat Media (no roomId required) â”€â”€
-const ALLOWED_CHAT_MIME_TYPES = new Set([
-  'image/jpeg','image/jpg','image/png','image/gif','image/webp',
-  'video/mp4','video/webm','video/mov','video/quicktime',
-  'application/pdf','application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-powerpoint',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain','text/csv','application/zip',
-  'audio/mp3','audio/mpeg','audio/wav','audio/ogg','audio/m4a','audio/webm',
-]);
 
-app.post('/api/upload/chat', authenticateToken, (req, res, next) => {
-  chatUpload.single('media')(req, res, async (err) => {
-    if (err && err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ error: 'File too large. Maximum allowed size is 100MB.' });
-    }
-    if (err) return res.status(400).json({ error: err.message || 'Upload failed.' });
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
-    const mime = req.file.mimetype;
-    if (!ALLOWED_CHAT_MIME_TYPES.has(mime)) {
-      return res.status(415).json({ error: `File type not supported: ${mime}` });
-    }
+app.post('/api/upload/chat', (req, res) => {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 55 * 1024 * 1024 }
+  }).any();
 
-    const roomId = req.body.roomId;
-    if (roomId) {
-      const room = rooms.get(roomId);
-      if (room?.permissions?.allowMedia === false) {
-        return res.status(400).json({ error: 'Sharing media is disabled in this room.' });
+  upload(req, res, async function(err) {
+    if (err) {
+      console.error('[UPLOAD] multer err:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Videos larger than 50MB cannot be sent in chat.' });
       }
+      return res.status(400).json({ error: err.message });
     }
 
-    try {
-      // Use a random hex name so the encrypted blob is never guessable
-      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
-      const storagePath = `chat-uploads/${filename}`;
+    console.log('[UPLOAD] files received:', req.files?.length ?? 0);
 
-      const { error: upErr } = await supabase.storage
-        .from('chat-media')
-        .upload(storagePath, req.file.buffer, {
-          contentType: 'application/octet-stream', // always an encrypted blob
-          upsert: false,
-        });
-      if (upErr) throw upErr;
-
-      // Return the same relative-style URL the client already expects so no
-      // frontend changes are needed.  The stream endpoint proxies to Supabase.
-      res.json({ url: `/api/stream/${filename}`, mimeType: mime });
-    } catch (e) {
-      console.error('[Upload] Supabase Storage error:', e.message);
-      res.status(500).json({ error: 'Upload to storage failed.' });
+    const file = req.files && req.files[0];
+    if (!file) {
+      return res.status(400).json({ error: 'No file was received.' });
     }
+
+    const ts = Date.now();
+    const safe = (file.originalname || 'f').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `chat/${ts}_${safe}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('encrypted-media')
+      .upload(filePath, file.buffer, {
+        contentType: 'application/octet-stream',
+        upsert: false
+      });
+
+    if (upErr) {
+      console.error('[UPLOAD] supabase:', upErr);
+      return res.status(500).json({ error: 'Unable to save file. Please try again.' });
+    }
+
+    const { data } = supabase.storage
+      .from('encrypted-media')
+      .getPublicUrl(filePath);
+
+    console.log('[UPLOAD] done:', filePath);
+    return res.json({
+      success: true,
+      url: data.publicUrl,
+      path: filePath,
+      fileName: file.originalname,
+      mimeType: file.mimetype
+    });
   });
 });
 
@@ -2101,7 +2451,7 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
         );
         if (idx !== -1) {
           const m = room.groupMessages[idx];
-          if ((m.senderName || '').toLowerCase() === username && action !== 'local') {
+          if ((m.senderName || '').toLowerCase() === (username || '').toLowerCase() && action !== 'local') {
              // Global Unsend — remove from memory AND delete from DB
              const removedMsg = room.groupMessages.splice(idx, 1)[0];
              const dbIdForDelete = removedMsg.dbId || removedMsg.id;
@@ -2140,12 +2490,12 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
     }
 
     // Now working with a DB message
-    if (action === 'local' || (msg.senderName || '').toLowerCase() !== username) {
+    if (action === 'local' || (msg.senderName || '').toLowerCase() !== (username || '').toLowerCase()) {
        // Local Hide Delete
        let hidden = [];
        try { hidden = JSON.parse(msg.hiddenFor || '[]'); } catch(e){}
        if (!hidden.includes(username)) hidden.push(username);
-       await queryAll('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), msg.id]);
+       await queryAll('UPDATE messages SET "hiddenFor" = ? WHERE id = ?', [JSON.stringify(hidden), msg.id]);
        
        // Tell just this user to remove it from UI
        emitToUser(username, 'chat:message_deleted', { messageId: msg.id.toString(), originalId: messageId, timestampId: msg.timestamp.toString() });
@@ -2179,7 +2529,10 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
 });
 
 // â”€â”€ BLOCKS endpoints â”€â”€
-app.post('/api/block/:username', authenticateToken, async (req, res) => {
+app.post('/api/block/:username', authenticateTokenOptional, async (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const blocker = req.user.username;
   const blocked = req.params.username;
   if (blocker.toLowerCase() === blocked.toLowerCase()) return res.status(400).json({ error: 'Cannot block yourself' });
@@ -2210,7 +2563,10 @@ app.post('/api/block/:username', authenticateToken, async (req, res) => {
   }
 });
 
-app.delete('/api/block/:username', authenticateToken, async (req, res) => {
+app.delete('/api/block/:username', authenticateTokenOptional, async (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const blocker = req.user.username;
   const blocked = req.params.username;
   try {
@@ -2247,7 +2603,10 @@ app.get('/api/blocks', authenticateToken, async (req, res) => {
 });
 
 // ─── FOLLOW a user ───
-app.post('/api/follow/:username', authenticateToken, async (req, res) => {
+app.post('/api/follow/:username', authenticateTokenOptional, async (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const follower = req.user.username;
   const following = req.params.username;
   if (follower.toLowerCase() === following.toLowerCase()) return res.status(400).json({ error: 'Cannot follow yourself' });
@@ -2274,7 +2633,10 @@ app.post('/api/follow/:username', authenticateToken, async (req, res) => {
 });
 
 // ─── ACCEPT a follow request ───
-app.post('/api/follow/:username/accept', authenticateToken, (req, res) => {
+app.post('/api/follow/:username/accept', authenticateTokenOptional, (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const accepter = req.user.username;
   const requester = req.params.username;
   db.run('UPDATE follows SET status = ? WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', ['accepted', requester, accepter], function(err) {
@@ -2291,7 +2653,10 @@ app.post('/api/follow/:username/accept', authenticateToken, (req, res) => {
 });
 
 // ─── UNFOLLOW / Cancel request ───
-app.delete('/api/follow/:username', authenticateToken, (req, res) => {
+app.delete('/api/follow/:username', authenticateTokenOptional, (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const follower = req.user.username;
   const following = req.params.username;
   db.run('DELETE FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [follower, following], function(err) {
@@ -2326,7 +2691,7 @@ app.get('/api/follow/requests', authenticateToken, (req, res) => {
 });
 
 // â”€â”€ GET Followers / Following list for a user â”€â”€
-app.get('/api/follow/:username/list', authenticateToken, (req, res) => {
+app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
   const { username } = req.params;
   db.all(
     `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followerId) WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
@@ -2416,9 +2781,9 @@ app.post('/api/profile/change-password', authenticateToken, async (req, res) => 
   });
 });
 
-// â”€â”€ GET App Settings â”€â”€
-app.get('/api/settings', authenticateToken, (req, res) => {
-  if (req.user.id === 0 || req.user.isGuest) {
+// ─── GET App Settings ───
+app.get('/api/settings', authenticateTokenOptional, (req, res) => {
+  if (!req.user || req.user.id === 0 || req.user.isGuest) {
     return res.json({
       language: 'en',
       country: 'US',
@@ -2431,16 +2796,19 @@ app.get('/api/settings', authenticateToken, (req, res) => {
       notifyJoinRequests: true
     });
   }
-  db.get('SELECT language, country, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests FROM users WHERE id = ?', [req.user.id], (err, row) => {
+  db.get('SELECT language, country, country_code, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);
   });
 });
 
-// â”€â”€ UPDATE App Settings â”€â”€
-app.put('/api/settings', authenticateToken, (req, res) => {
-  const allowed = ['language', 'country', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests'];
+// ─── UPDATE App Settings ───
+app.put('/api/settings', authenticateTokenOptional, (req, res) => {
+  if (!req.user || req.user.id === 0 || req.user.isGuest) {
+    return res.json({ message: 'Guest settings updated locally' });
+  }
+  const allowed = ['language', 'country', 'country_code', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests'];
   const updates = [];
   const values = [];
   for (const key of allowed) {
@@ -2458,25 +2826,47 @@ app.put('/api/settings', authenticateToken, (req, res) => {
   });
 });
 
-// Endpoint to upload a local media file to a room
-app.post('/api/upload', upload.single('media'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded.' });
-  }
-  const { roomId } = req.body;
-  if (!roomId) {
-    // Clean up if no room provided
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'roomId is required.' });
-  }
+// Endpoint to upload a room media file to Supabase storage
+app.post('/api/upload', (req, res) => {
+  const roomUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024 }
+  }).single('media');
 
-  const mediaUrl = `/api/stream/${req.file.filename}`;
-  res.json({ url: mediaUrl });
+  roomUpload(req, res, async function(err) {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large (max 100MB).' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
+    const { roomId } = req.body;
+    if (!roomId) return res.status(400).json({ error: 'roomId is required.' });
+
+    const ts = Date.now();
+    const safe = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = `room/${ts}_${safe}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('encrypted-media')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype || 'application/octet-stream',
+        upsert: false
+      });
+
+    if (upErr) {
+      console.error('[UPLOAD/room] supabase:', upErr);
+      return res.status(500).json({ error: 'Unable to save file. Please try again.' });
+    }
+
+    const { data } = supabase.storage.from('encrypted-media').getPublicUrl(filePath);
+    return res.json({ url: data.publicUrl, path: filePath });
+  });
 });
 
-// Endpoint to stream uploaded media.
-// New uploads live in Supabase Storage (chat-media bucket).
-// Legacy files that still exist on local disk are served directly.
+// Legacy endpoint — serves old files that were stored on local disk before Supabase migration.
+// New uploads go directly to Supabase; this endpoint only handles pre-migration files still on disk.
 app.get('/api/stream/:filename', async (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, 'uploads', filename);
@@ -2649,6 +3039,56 @@ app.get('/api/rooms/public', (req, res) => {
   });
 });
 
+// ─── Save media position (sendBeacon fallback for page close) ───
+app.post('/api/rooms/save-position', express.raw({ type: '*/*' }), async (req, res) => {
+  try {
+    const data = JSON.parse(req.body.toString());
+    const { roomId: rawRoomId, url, position, mediaType } = data || {};
+    const roomId = (rawRoomId || '').toLowerCase();
+    if (!roomId || !url || position === undefined) return res.sendStatus(400);
+
+    await pool.query(
+      `UPDATE room_names SET last_media_url=$1, last_media_position=$2, last_media_type=$3, last_media_saved_at=$4 WHERE "roomId"=$5`,
+      [url, parseFloat(position) || 0, mediaType || null, new Date().toISOString(), roomId]
+    );
+
+    // Also sync to in-memory room
+    const room = rooms.get(roomId);
+    if (room) {
+      room.lastMediaUrl = url;
+      room.lastMediaPosition = parseFloat(position) || 0;
+      room.lastMediaType = mediaType || null;
+      room.lastMediaSavedAt = new Date().toISOString();
+    }
+
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('[save-position]', err.message);
+    res.sendStatus(500);
+  }
+});
+
+const COUNTRY_TO_CODE = {
+  'Afghanistan':'AF','Albania':'AL','Algeria':'DZ','Argentina':'AR','Armenia':'AM',
+  'Australia':'AU','Austria':'AT','Azerbaijan':'AZ','Bangladesh':'BD','Belarus':'BY',
+  'Belgium':'BE','Bolivia':'BO','Brazil':'BR','Bulgaria':'BG','Cambodia':'KH',
+  'Canada':'CA','Chile':'CL','China':'CN','Colombia':'CO','Croatia':'HR',
+  'Czech Republic':'CZ','Denmark':'DK','Ecuador':'EC','Egypt':'EG','Ethiopia':'ET',
+  'Finland':'FI','France':'FR','Georgia':'GE','Germany':'DE','Ghana':'GH',
+  'Greece':'GR','Hungary':'HU','India':'IN','Indonesia':'ID','Iran':'IR',
+  'Iraq':'IQ','Ireland':'IE','Israel':'IL','Italy':'IT','Japan':'JP',
+  'Jordan':'JO','Kazakhstan':'KZ','Kenya':'KE','South Korea':'KR','Kuwait':'KW',
+  'Malaysia':'MY','Mexico':'MX','Morocco':'MA','Myanmar':'MM','Nepal':'NP',
+  'Netherlands':'NL','New Zealand':'NZ','Nigeria':'NG','Norway':'NO','Pakistan':'PK',
+  'Peru':'PE','Philippines':'PH','Poland':'PL','Portugal':'PT','Qatar':'QA',
+  'Romania':'RO','Russia':'RU','Saudi Arabia':'SA','Serbia':'RS','Singapore':'SG',
+  'South Africa':'ZA','Spain':'ES','Sri Lanka':'LK','Sweden':'SE','Switzerland':'CH',
+  'Syria':'SY','Taiwan':'TW','Thailand':'TH','Tunisia':'TN','Turkey':'TR',
+  'UAE':'AE','Ukraine':'UA','United Kingdom':'GB','United States':'US',
+  'Uruguay':'UY','Uzbekistan':'UZ','Venezuela':'VE','Vietnam':'VN','Yemen':'YE',
+  'Zimbabwe':'ZW'
+};
+
 function buildUserList(room) {
   // Collect usernames that are currently pending approval so we can exclude them
   // from the active member list. This handles the case where a user was in the room
@@ -2672,7 +3112,9 @@ function buildUserList(room) {
         isHost: u.socketId === room.hostId,
         isAdmin: isUserAdmin(room, u),
         publicKey: room.publicKeys?.[u.socketId] || u.publicKey || null,
-        avatarPath: u.avatarPath || null
+        avatarPath: u.avatarPath || null,
+        country: (u.showCountry !== false && u.showCountry !== 0 && u.showCountry !== '0') ? (u.country || null) : null,
+        countryCode: (u.showCountry !== false && u.showCountry !== 0 && u.showCountry !== '0') ? (u.countryCode || null) : null
       };
     });
 }
@@ -2694,6 +3136,13 @@ function getSerializableRoom(room) {
     bannedUsers: Array.from(room.bannedUsers || []),
     activeExternalApp: room.activeExternalApp || null,
     screenshareHostId: room.screenshareHostId || null,
+    lastMediaUrl: room.lastMediaUrl || null,
+    lastMediaPosition: room.lastMediaPosition || 0,
+    lastMediaType: room.lastMediaType || null,
+    lastMediaSavedAt: room.lastMediaSavedAt || null,
+    streamPending: room.streamPending || null,
+    subtitles: room.subtitles || null,
+    roomTheme: room.roomTheme || 'default',
     users: buildUserList(room)
   };
 }
@@ -2743,18 +3192,174 @@ io.use((socket, next) => {
 });
 
 // Socket.io connection logic
-function isNSFWUrl(url) {
-  if (!url) return false;
-  const nsfwKeywords = ['porn', 'xxx', 'sex', 'xrated', 'nsfw', 'adult', 'erotic', 'brazers', 'redtube', 'xvideos', 'pornhub', 'youporn'];
-  const nsfwDomains = ['pornhub.com', 'xvideos.com', 'redtube.com', 'youporn.com', 'xnxx.com', 'brazzers.com', 'xhamster.com', 'chaturbate.com', 'bongacams.com'];
-  
-  const lowerUrl = url.toLowerCase();
-  // Simple check for domains and keywords in URL
-  const isKeywordMatch = nsfwKeywords.some(k => lowerUrl.includes(k));
-  const isDomainMatch = nsfwDomains.some(d => lowerUrl.includes(d));
-  
-  return isKeywordMatch || isDomainMatch;
-}
+// ─── Virtual Browser (Hyperbeam) endpoints ───────────────────────────────────
+const HB_API = 'https://engine.hyperbeam.com/v0/vm';
+
+// Legacy: used by iframe browser toolbar (navigate endpoint kept for compat)
+app.post('/api/browser/session', authenticateToken, async (req, res) => {
+  const apiKey = process.env.HYPERBEAM_API_KEY;
+  if (!apiKey) return res.json({ error: 'not_configured' });
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'url_required' });
+  try {
+    const r = await fetch(HB_API, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start_url: url, offline_timeout: 600, control_disable_default: false, fps: 30 })
+    });
+    const data = await r.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/browser/session/:id', authenticateToken, async (req, res) => {
+  const apiKey = process.env.HYPERBEAM_API_KEY;
+  if (!apiKey) return res.json({ ok: true });
+  try {
+    await fetch(`${HB_API}/${req.params.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false });
+  }
+});
+
+app.post('/api/browser/session/:id/navigate', authenticateToken, async (req, res) => {
+  const apiKey = process.env.HYPERBEAM_API_KEY;
+  if (!apiKey) return res.json({ error: 'not_configured' });
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: 'url required' });
+  try {
+    // Correct Hyperbeam API endpoint for navigation is /tabs/active (not /navs)
+    const r = await fetch(`${HB_API}/${req.params.id}/tabs/active`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const body = await r.text();
+    console.log(`[HYPERBEAM] Navigate ${req.params.id} → ${url} | status=${r.status} body=${body}`);
+    res.json({ ok: r.ok, status: r.status });
+  } catch (e) {
+    console.error('[HYPERBEAM] Navigate error:', e.message);
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ─── Hyperbeam Fallback Routes ────────────────────────────────────────────────
+// SECURITY: HYPERBEAM_API_KEY is only used here in server.js, never in any
+// frontend file. Frontend only calls these endpoints via our backend.
+
+// POST /api/hyperbeam/create-session
+// Creates a new Hyperbeam VM for a given room. Deduplicates per room (cost safety).
+app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) => {
+  // Using Hyperbeam TEST key — see HYPERBEAM_API_KEY in backend/.env
+  const apiKey = process.env.HYPERBEAM_API_KEY;
+  if (!apiKey) return res.status(503).json({ error: 'Cloud browser not configured on this server.' });
+
+  const { roomId, url } = req.body;
+  if (!roomId || !url) return res.status(400).json({ error: 'roomId and url are required' });
+
+  const rid = roomId.toLowerCase();
+
+  // COST GUARD: if a session already exists for this room, return it immediately
+  if (activeHyperbeamSessions.has(rid)) {
+    const existing = activeHyperbeamSessions.get(rid);
+    console.log(`[HYPERBEAM] Returning existing session for room ${rid}: ${existing.session_id}`);
+    return res.json({
+      session_id: existing.session_id,
+      embed_url: existing.embed_url,
+      admin_token: existing.admin_token || null,
+      targetUrl: url  // use the newly requested URL so navigation goes to the right place
+    });
+  }
+
+  try {
+    const hbRequestBody = {
+      start_url: url,
+      kiosk: true,
+      adblock: true,
+      tag: `room_${rid}`,
+      control_disable_default: false,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      timeout: {
+        offline: 300,
+        absolute: 7200,
+        warning: 30
+      }
+    };
+    console.log('[HYPERBEAM] Creating session with start_url:', url);
+    console.log('[HYPERBEAM][DEBUG] Request body:', JSON.stringify(hbRequestBody));
+    const r = await fetch(HB_API, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(hbRequestBody)
+    });
+    console.log('[HYPERBEAM][DEBUG] HTTP status:', r.status);
+    const rawBody = await r.text();
+    console.log('[HYPERBEAM][DEBUG] Raw response body:', rawBody);
+    if (!r.ok) {
+      console.error('[HYPERBEAM] API error creating session:', r.status, rawBody);
+      return res.status(502).json({ error: 'Hyperbeam API error', details: rawBody });
+    }
+    const data = JSON.parse(rawBody);
+    const ts = new Date().toISOString();
+    console.log(`[HYPERBEAM] Session created: ${data.session_id} at ${ts} for room ${rid}`);
+    console.log('[HYPERBEAM][DEBUG] admin_token present:', !!data.admin_token);
+
+    // Store in memory for cleanup triggers
+    activeHyperbeamSessions.set(rid, {
+      session_id: data.session_id,
+      embed_url: data.embed_url,
+      admin_token: data.admin_token || null,
+      targetUrl: url,
+      createdAt: ts
+    });
+
+    return res.json({
+      session_id: data.session_id,
+      embed_url: data.embed_url,
+      admin_token: data.admin_token || null,
+      targetUrl: url
+    });
+  } catch (e) {
+    console.error('[HYPERBEAM] create-session error:', e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/hyperbeam/session/:roomId
+// Terminates the Hyperbeam session for the given room.
+app.delete('/api/hyperbeam/session/:roomId', authenticateToken, async (req, res) => {
+  const apiKey = process.env.HYPERBEAM_API_KEY;
+  const rid = (req.params.roomId || '').toLowerCase();
+  const session = activeHyperbeamSessions.get(rid);
+
+  if (!session) {
+    return res.json({ ok: true, note: 'No active session found for this room' });
+  }
+
+  try {
+    await fetch(`${HB_API}/${session.session_id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${apiKey}` }
+    });
+    const ts = new Date().toISOString();
+    console.log(`[HYPERBEAM] Session ended: ${session.session_id} at ${ts} for room ${rid}`);
+    activeHyperbeamSessions.delete(rid);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('[HYPERBEAM] end-session error:', e.message);
+    // Still remove from map even if Hyperbeam call failed — don't leave zombie entries
+    activeHyperbeamSessions.delete(rid);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // --- TV Pairing State ---
 const activePairingCodes = new Map();
@@ -2771,10 +3376,294 @@ function generatePairingCode() {
   return code;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// CHUNKED VIDEO STREAMING — local file upload + progressive playback
+// ═══════════════════════════════════════════════════════════════════
+
+const chunkUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, _file, cb) => {
+      const streamKey = req.params.streamKey;
+      const dir = path.join(__dirname, 'uploads', 'streams', streamKey);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, _file, cb) => {
+      // chunkIndex comes from URL params — always available before body is parsed
+      const idx = req.params.chunkIndex ?? '0';
+      cb(null, `chunk_${String(idx).padStart(6, '0')}`);
+    }
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 } // 2MB per chunk max
+});
+
+// In-memory stream registry — no DB migration needed
+const activeStreams = new Map(); // streamKey → { roomId, filename, mimetype, totalSize, totalChunks, chunksReceived, createdAt }
+
+app.post('/api/stream/init', (req, res) => {
+  try {
+    const { roomId, filename, mimetype, totalSize, totalChunks } = req.body;
+    if (!roomId || !filename || !totalSize || !totalChunks) {
+      return res.status(400).json({ error: 'Missing fields' });
+    }
+    const mt = mimetype || 'video/mp4';
+    if (!mt.startsWith('video/')) {
+      return res.status(400).json({ error: 'Only video files allowed' });
+    }
+    if (totalSize > 5 * 1024 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File too large. Max 5GB.' });
+    }
+
+    const streamKey = crypto.randomBytes(16).toString('hex');
+    fs.mkdirSync(path.join(__dirname, 'uploads', 'streams', streamKey), { recursive: true });
+
+    activeStreams.set(streamKey, {
+      roomId: roomId.toLowerCase(),
+      filename,
+      mimetype: mt,
+      totalSize: Number(totalSize),
+      totalChunks: Number(totalChunks),
+      chunksReceived: 0,
+      createdAt: Date.now()
+    });
+
+    const room = rooms.get(roomId.toLowerCase());
+    if (room) {
+      room.streamPending = {
+        streamKey,
+        filename,
+        progress: 0
+      };
+    }
+
+    res.json({ streamKey, streamId: streamKey, chunkSize: 1024 * 1024 });
+  } catch (err) {
+    console.error('[stream/init] error:', err);
+    res.status(500).json({ error: 'Failed to initialize stream' });
+  }
+});
+
+app.post('/api/stream/:streamKey/chunk/:chunkIndex', chunkUpload.single('chunk'), (req, res) => {
+  try {
+    const { streamKey } = req.params;
+    const stream = activeStreams.get(streamKey);
+    if (!stream) return res.status(404).json({ error: 'Stream not found' });
+
+    stream.chunksReceived += 1;
+    const newCount = stream.chunksReceived;
+    const isReady = newCount >= stream.totalChunks;
+    const progress = Math.round((newCount / stream.totalChunks) * 100);
+
+    const room = rooms.get(stream.roomId);
+    if (room && room.streamPending) {
+      room.streamPending.progress = progress;
+    }
+
+    // Only emit stream_ready when the upload is 100% complete
+    if (isReady) {
+      if (room) {
+        room.streamPending = null;
+      }
+      io.to(stream.roomId).emit('stream_ready', {
+        streamKey,
+        filename: stream.filename,
+        progress,
+        canPlay: true
+      });
+    }
+
+    // Emit stream_progress on every chunk so progress bar updates smoothly for viewers
+    io.to(stream.roomId).emit('stream_progress', {
+      streamKey,
+      progress,
+      chunksReceived: newCount,
+      totalChunks: stream.totalChunks
+    });
+
+    res.json({ received: newCount, progress });
+  } catch (err) {
+    console.error('[stream/chunk] error:', err);
+    res.status(500).json({ error: 'Chunk upload failed' });
+  }
+});
+
+// Serve assembled video with HTTP Range support (Async non-blocking version)
+app.get('/api/stream/:streamKey/:filename', async (req, res) => {
+  try {
+    const { streamKey } = req.params;
+    const stream = activeStreams.get(streamKey);
+    if (!stream) return res.status(404).json({ error: 'Stream not found' });
+
+    const streamDir = path.join(__dirname, 'uploads', 'streams', streamKey);
+    const totalSize = stream.totalSize; // real total for Content-Range denominator
+    const CHUNK_SIZE = 1024 * 1024;
+
+    // Allow cross-origin video loading (ReactPlayer fetches from localhost:3001 while page is on :5173)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+    // Calculate bytes actually available on disk right now
+    let availableBytes = 0;
+    for (let i = 0; i < stream.chunksReceived; i++) {
+      const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+      try {
+        const stats = await fs.promises.stat(chunkPath);
+        availableBytes += stats.size;
+      } catch (e) {
+        // Chunk not yet fully written or missing
+      }
+    }
+
+    res.setHeader('Content-Type', stream.mimetype);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Disposition', `inline; filename="${stream.filename}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+
+      if (start >= availableBytes) {
+        // Browser is requesting bytes not yet uploaded
+        res.setHeader('Content-Range', `bytes */${totalSize}`);
+        return res.status(416).end();
+      }
+
+      // Cap end at what's available — don't promise bytes we don't have yet
+      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : availableBytes - 1;
+      const end = Math.min(requestedEnd, availableBytes - 1);
+      const chunkLen = end - start + 1;
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+        'Content-Length': chunkLen,
+      });
+
+      const startChunk = Math.floor(start / CHUNK_SIZE);
+      const endChunk = Math.floor(end / CHUNK_SIZE);
+      let bytesWritten = 0;
+      const totalToWrite = end - start + 1;
+
+      for (let i = startChunk; i <= endChunk && i < stream.chunksReceived; i++) {
+        const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+        try {
+          await fs.promises.access(chunkPath);
+        } catch {
+          break;
+        }
+
+        let data = await fs.promises.readFile(chunkPath);
+
+        if (i === startChunk) {
+          const offset = start - startChunk * CHUNK_SIZE;
+          data = data.subarray(offset);
+        }
+
+        const remaining = totalToWrite - bytesWritten;
+        if (data.length > remaining) data = data.subarray(0, remaining);
+
+        res.write(data);
+        bytesWritten += data.length;
+        if (bytesWritten >= totalToWrite) break;
+      }
+      res.end();
+    } else {
+      // No Range header — serve what's available so far
+      res.setHeader('Content-Length', availableBytes);
+      res.writeHead(200);
+      for (let i = 0; i < stream.chunksReceived; i++) {
+        const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+        try {
+          const data = await fs.promises.readFile(chunkPath);
+          res.write(data);
+        } catch (e) {
+          // Chunk missing
+        }
+      }
+      res.end();
+    }
+  } catch (err) {
+    console.error('[stream/video] error:', err);
+    res.status(500).end();
+  }
+});
+
+// Hourly cleanup of streams older than 4 hours
+setInterval(() => {
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+  let removed = 0;
+  for (const [key, stream] of activeStreams.entries()) {
+    if (stream.createdAt < cutoff) {
+      const dir = path.join(__dirname, 'uploads', 'streams', key);
+      if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+      activeStreams.delete(key);
+      removed++;
+    }
+  }
+  if (removed > 0) console.log(`[stream/cleanup] Removed ${removed} expired stream(s)`);
+}, 60 * 60 * 1000);
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Socket-level chat rate limiter: 30 messages per minute per socket
+const chatRateBuckets = new Map(); // socketId -> { count, resetAt }
+function checkChatRate(socketId) {
+  const now = Date.now();
+  let b = chatRateBuckets.get(socketId) || { count: 0, resetAt: now + 60000 };
+  if (now > b.resetAt) { b.count = 0; b.resetAt = now + 60000; }
+  b.count++;
+  chatRateBuckets.set(socketId, b);
+  return b.count <= 30;
+}
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
+
+  socket.on('client_log', (msg) => {
+    console.log('[CLIENT_LOG]', socket.username || socket.id, msg);
+  });
+
+  socket.on('stream_started', (data) => {
+    if (data?.roomId) {
+      const rid = data.roomId.toLowerCase();
+      const room = rooms.get(rid);
+      if (room) {
+        room.currentMedia = '';
+        room.currentTime = 0;
+        room.isPlaying = false;
+        room.streamPending = {
+          streamKey: data.streamKey,
+          filename: data.filename,
+          progress: 0
+        };
+      }
+      socket.to(rid).emit('stream_started', data);
+      socket.to(rid).emit('media_changed', '');
+    }
+  });
+
+  socket.on('stream_cancelled', (data) => {
+    if (data?.roomId) {
+      const rid = data.roomId.toLowerCase();
+      const room = rooms.get(rid);
+      if (room) {
+        room.streamPending = null;
+      }
+      socket.to(rid).emit('stream_cancelled');
+    }
+  });
+
+  socket.on('subtitles_load', ({ roomId, text }) => {
+    const rid = roomId ? roomId.toLowerCase() : null;
+    if (!rooms.has(rid)) return;
+    const room = rooms.get(rid);
+    room.subtitles = text;
+    socket.to(rid).emit('action_subtitles_load', text);
+  });
 
   // ─── TV Pairing Logic ───
   socket.on('request_tv_code', (data) => {
@@ -2829,7 +3718,8 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     unregisterSocket(socket.username, socket.id);
-    
+    chatRateBuckets.delete(socket.id);
+
     // Cleanup any active pairing codes for this socket
     for (const [code, data] of activePairingCodes.entries()) {
       if (data.socketId === socket.id) {
@@ -2887,16 +3777,21 @@ io.on('connection', (socket) => {
       const userEntry = { socketId: targetSocket.id, username, avatarPath: null, isMuted: true };
       roomObj.users.push(userEntry);
       if (username && username !== 'Anonymous') {
-        db.get('SELECT "avatarPath", "publicKey", "notifyJoinRequests" FROM users WHERE username = ?', [username], (err, row) => {
+        db.get('SELECT "avatarPath", "publicKey", "notifyJoinRequests", country, "showCountry" FROM users WHERE username = ?', [username], (err, row) => {
+          if (err) { console.error('[join] db.get error for', username, err.message); }
           if (!err && row) {
             if (row.avatarPath) userEntry.avatarPath = row.avatarPath;
             if (row.publicKey) userEntry.publicKey = row.publicKey;
             if (row.notifyJoinRequests !== undefined) {
               userEntry.notifyJoinRequests = (row.notifyJoinRequests === 1 || row.notifyJoinRequests === true);
             } else {
-              userEntry.notifyJoinRequests = true; // Default
+              userEntry.notifyJoinRequests = true;
             }
-            // Broadcast updated user list so all clients see the avatar and E2EE key immediately
+            userEntry.country = row.country || null;
+            userEntry.countryCode = row.country_code || COUNTRY_TO_CODE[row.country] || null;
+            // null = never set → default to showing (opt-out model); 0/false = explicitly hidden
+            userEntry.showCountry = !(row.showCountry === 0 || row.showCountry === false || row.showCountry === '0');
+            // Broadcast updated user list so all clients see the avatar, E2EE key, and country flag
             io.in(roomId).emit('user_list', { users: buildUserList(roomObj), hostId: roomObj.hostId });
           }
         });
@@ -2933,15 +3828,18 @@ io.on('connection', (socket) => {
       );
     }
 
-    // Fetch history — JOIN with users so senderAvatar is included;
-    // senderPublicKey is resolved from in-memory publicKeys map + PostgreSQL fallback
-    db.all(`
-      SELECT m.*, u.avatarPath as senderAvatarPath
-      FROM messages m
-      LEFT JOIN users u ON u.username = m.senderName
-      WHERE m.roomId = ? AND (m.type = 'room' OR m.type = 'group')
-      ORDER BY m.timestamp ASC LIMIT 200
-    `, [roomId], async (err, groupRows) => {
+    pool.query(`
+      SELECT * FROM (
+        SELECT m.*, u."avatarPath" as "senderAvatarPath"
+        FROM messages m
+        LEFT JOIN users u ON u.username = m."senderName"
+        WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
+        ORDER BY m.timestamp DESC LIMIT 100
+      ) sub
+      ORDER BY sub.timestamp ASC
+    `, [roomId], async (err, pgRes) => {
+      const groupRows = pgRes ? pgRes.rows : null;
+      console.log('[executeFinalJoin] groupRows count for', roomId, 'is', groupRows ? groupRows.length : 0, 'error:', err ? err.message : null);
       if (!err && groupRows && groupRows.length > 0) {
         // 1. Build username→publicKey from currently-connected sockets (fast, in-memory)
         const usernameToPublicKey = {};
@@ -2971,49 +3869,125 @@ io.on('connection', (socket) => {
           } catch(pgErr) { console.warn('[chat_history] PG publicKey fallback failed:', pgErr.message); }
         }
 
+        console.log('[DEBUG_HISTORY] executeFinalJoin database query callback:', {
+          username,
+          roomId,
+          groupRowsCount: groupRows.length,
+        });
+
         // Filter out messages hidden for this user (soft-delete / clear chat)
-        const visibleGroupRows = groupRows.filter(r =>
-          !(r.hiddenFor && r.hiddenFor.includes(`"${username}"`)));
+        const visibleGroupRows = groupRows.filter(r => {
+          const isHidden = !!(r.hiddenFor && r.hiddenFor.includes(`"${username}"`));
+          if (isHidden) {
+            // Log a sample filtered message
+            console.log('[DEBUG_HISTORY] Filtering out message:', { id: r.id, sender: r.senderName, hiddenFor: r.hiddenFor });
+          }
+          return !isHidden;
+        });
+
+        console.log('[DEBUG_HISTORY] filtered visibleGroupRows:', {
+          username,
+          visibleGroupRowsCount: visibleGroupRows.length,
+          allHiddenFor: groupRows.map(r => ({ id: r.id, hiddenFor: r.hiddenFor, typeOfHiddenFor: typeof r.hiddenFor }))
+        });
+
+        // Fetch seen records for visible messages
+        const messageIds = visibleGroupRows.map(r => Number(r.id)).filter(Boolean);
+        const seenMap = {};
+        if (messageIds.length > 0) {
+          try {
+            const seenResult = await pool.query(`
+              SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as "avatarPath"
+              FROM message_seen ms
+              LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+              WHERE ms.message_id = ANY($1::bigint[])
+            `, [messageIds]);
+            seenResult.rows.forEach(r => {
+              const msgId = String(r.message_id);
+              if (!seenMap[msgId]) seenMap[msgId] = [];
+              seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatarPath });
+            });
+          } catch (seenErr) {
+            console.error('[chat_history] Failed to fetch seen records:', seenErr.message);
+          }
+        }
 
         const history = visibleGroupRows.map(r => ({
           id: r.id.toString(), userId: r.senderId, username: r.senderName, message: r.message,
           timestamp: r.timestamp,
           senderAvatar: r.senderAvatarPath || null,
+          seenBy: seenMap[r.id.toString()] || [],
           reactions: (() => { try { return r.reactions ? JSON.parse(r.reactions) : {}; } catch{ return {}; } })(),
           e2ee: (() => {
             if (!r.nonce || !r.ephemeralPublicKey) return null;
             try {
               const keysMap = JSON.parse(r.ephemeralPublicKey);
               if (typeof keysMap !== 'object' || Array.isArray(keysMap)) throw new Error('not a keys map');
-              const senderPK = usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
+              const senderPK = r.sender_public_key || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
               return { nonce: r.nonce, keys: keysMap, senderPublicKey: senderPK };
-            } catch(e) { 
-               return null; 
+            } catch(e) {
+               return null;
             }
           })(),
           mediaUrl: r.mediaUrl || null,
           mediaType: r.mediaType || null,
+          mediaFileName: r.media_file_name || null,
+          mediaFileSize: r.media_file_size || null,
+          mediaExpiresAt: r.media_expires_at || null,
+          mediaDuration: r.media_duration || null,
           replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null
         }));
-        targetSocket.emit('chat_history', history);
-        roomObj.groupMessages = history;
+        // Merge any in-memory messages not yet reflected in DB
+        // (covers the window between push() and INSERT commit, or INSERT failures)
+        const dbIds = new Set(history.map(m => String(m.id)));
+        const inMemExtra = (roomObj.groupMessages || []).filter(m => {
+          if (!m || !m.id) return false;
+          if (dbIds.has(String(m.id))) return false;
+          if (m.dbId && dbIds.has(String(m.dbId))) return false;
+          return true;
+        });
+        const merged = [...history, ...inMemExtra].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-200);
+        console.log(`[executeFinalJoin] history: ${history.length} DB rows + ${inMemExtra.length} in-memory extra → ${merged.length} total for ${username}`);
+        targetSocket.emit('chat_history', merged);
+        roomObj.groupMessages = merged;
       } else {
-        targetSocket.emit('chat_history', roomObj.groupMessages.slice(-200));
+        console.log(`[executeFinalJoin] 0 DB rows for ${roomId}, falling back to ${(roomObj.groupMessages||[]).length} in-memory messages`);
+        targetSocket.emit('chat_history', (roomObj.groupMessages || []).slice(-200));
       }
     });
 
     db.all(`
       SELECT m.*, u.avatarPath as senderAvatarPath
       FROM messages m
-      LEFT JOIN users u ON u.username = m.senderName
-      WHERE m.type = 'private' AND (m.senderName = ? OR m.targetName = ?)
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
+      WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
-    `, [username, username], (err, dmRows) => {
+    `, [username, username], async (err, dmRows) => {
         if (!err && dmRows && dmRows.length > 0) {
+          const visibleDmRows = dmRows.filter(row => !(row.hiddenFor && row.hiddenFor.includes(`"${username}"`)));
+          const messageIds = visibleDmRows.map(r => Number(r.id)).filter(Boolean);
+          const seenMap = {};
+          if (messageIds.length > 0) {
+            try {
+              const seenResult = await pool.query(`
+                SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as "avatarPath"
+                FROM message_seen ms
+                LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+                WHERE ms.message_id = ANY($1::bigint[])
+              `, [messageIds]);
+              seenResult.rows.forEach(r => {
+                const msgId = String(r.message_id);
+                if (!seenMap[msgId]) seenMap[msgId] = [];
+                seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatarPath });
+              });
+            } catch (seenErr) {
+              console.error('[chat_history_dm] Failed to fetch seen records:', seenErr.message);
+            }
+          }
+
           const dmHistory = {};
-          dmRows.forEach(row => {
-            if (row.hiddenFor && row.hiddenFor.includes(`"${username}"`)) return;
-            const isMe = row.senderName === username;
+          visibleDmRows.forEach(row => {
+            const isMe = (row.senderName || '').toLowerCase() === (username || '').toLowerCase();
             const otherName = isMe ? row.targetName : row.senderName;
             if (!dmHistory[otherName]) dmHistory[otherName] = [];
             dmHistory[otherName].push({
@@ -3031,8 +4005,13 @@ io.on('connection', (socket) => {
               timestamp: row.timestamp,
               mediaUrl: row.mediaUrl || null,
               mediaType: row.mediaType || null,
+              mediaFileName: row.media_file_name || null,
+              mediaFileSize: row.media_file_size || null,
+              mediaExpiresAt: row.media_expires_at || null,
+              mediaDuration: row.media_duration || null,
               reactions: (() => { try { return row.reactions ? JSON.parse(row.reactions) : {}; } catch { return {}; } })(),
-              replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null
+              replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null,
+              seenBy: seenMap[row.id.toString()] || []
             });
           });
           targetSocket.emit('chat_history_dm', dmHistory);
@@ -3135,6 +4114,11 @@ io.on('connection', (socket) => {
           if (row.thumbnailPath) room.thumbnailPath = row.thumbnailPath;
           try { if (row.permissions) room.permissions = JSON.parse(row.permissions); } catch (e) { }
           try { if (row.settings) room.settings = JSON.parse(row.settings); } catch (e) { }
+          if (row.last_media_url) room.lastMediaUrl = row.last_media_url;
+          if (row.last_media_position != null) room.lastMediaPosition = parseFloat(row.last_media_position) || 0;
+          if (row.last_media_type) room.lastMediaType = row.last_media_type;
+          if (row.last_media_saved_at) room.lastMediaSavedAt = row.last_media_saved_at;
+          if (row.room_theme) room.roomTheme = row.room_theme;
         }
         resolve();
       });
@@ -3203,23 +4187,221 @@ io.on('connection', (socket) => {
 
     // Persist the public key to the database so HTTP /api/auth/public-key/:username works
     if (socket.username && publicKey) {
-      pool.query('UPDATE users SET "publicKey" = $1 WHERE LOWER(username) = $2', [publicKey, socket.username.toLowerCase()])
-        .catch(err => console.error('[chat:publicKey] Failed to persist key to DB:', err));
+      if (socket.username.toLowerCase().startsWith('guest_')) {
+        pool.query(
+          'INSERT INTO users (username, "publicKey", "isVerified") VALUES ($1, $2, 1) ON CONFLICT (username) DO UPDATE SET "publicKey" = EXCLUDED."publicKey"',
+          [socket.username, publicKey]
+        ).catch(err => console.error('[chat:publicKey] Failed to upsert guest to DB:', err));
+      } else {
+        pool.query('UPDATE users SET "publicKey" = $1 WHERE LOWER(username) = $2', [publicKey, socket.username.toLowerCase()])
+          .catch(err => console.error('[chat:publicKey] Failed to persist key to DB:', err));
+      }
+    }
+  });
+ 
+  // ─── Scoped Chat History Pagination via Sockets ───
+  socket.on('chat:request_history', async ({ type, roomId: rawRoomId, partner: rawPartner, before, limit }) => {
+    const username = socket.username;
+    if (!username) return;
+
+    const cleanLimit = parseInt(limit, 10) || 200;
+    const cleanBefore = before ? parseInt(before, 10) : null;
+    
+    if (type === 'private' || (!type && rawPartner)) {
+      const partner = rawPartner;
+      if (!partner) return;
+      
+      let queryStr = `
+        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        FROM messages m
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
+        WHERE m.type = 'private'
+          AND ((LOWER(m."senderName") = LOWER($1) AND LOWER(m."targetName") = LOWER($2))
+            OR (LOWER(m."senderName") = LOWER($3) AND LOWER(m."targetName") = LOWER($4)))
+          AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
+      `;
+      const queryParams = [username, partner, partner, username];
+      if (cleanBefore) {
+        queryStr += ` AND m.timestamp < $5 `;
+        queryParams.push(cleanBefore);
+      }
+      queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
+      queryParams.push(cleanLimit);
+
+      try {
+        const pgRes = await pool.query(queryStr, queryParams);
+        const rows = pgRes ? pgRes.rows : [];
+        rows.reverse(); // chronological
+
+        const messageIds = rows.map(r => Number(r.id)).filter(Boolean);
+        const seenMap = {};
+        if (messageIds.length > 0) {
+          try {
+            const seenResult = await pool.query(`
+              SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as "avatarPath"
+              FROM message_seen ms
+              LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+              WHERE ms.message_id = ANY($1::bigint[])
+            `, [messageIds]);
+            seenResult.rows.forEach(r => {
+              const msgId = String(r.message_id);
+              if (!seenMap[msgId]) seenMap[msgId] = [];
+              seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatarPath });
+            });
+          } catch (seenErr) {
+            console.error('[chat:request_history private] Failed to fetch seen records:', seenErr.message);
+          }
+        }
+
+        const history = rows.map(row => {
+          const isMe = (row.senderName || '').toLowerCase() === (username || '').toLowerCase();
+          return {
+            id: row.id.toString(),
+            isMe,
+            senderId: row.senderId,
+            senderName: row.senderName,
+            senderAvatar: row.senderAvatarPath || null,
+            targetId: row.targetId,
+            targetName: row.targetName,
+            message: row.message,
+            senderMessage: row.senderMessage || null,
+            nonce: row.nonce,
+            ephemeralPublicKey: row.ephemeralPublicKey,
+            timestamp: row.timestamp,
+            mediaUrl: row.mediaUrl || null,
+            mediaType: row.mediaType || null,
+            mediaFileName: row.media_file_name || null,
+            mediaFileSize: row.media_file_size || null,
+            mediaExpiresAt: row.media_expires_at || null,
+            mediaDuration: row.media_duration || null,
+            reactions: row.reactions ? JSON.parse(row.reactions) : {},
+            replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
+            seenBy: seenMap[row.id.toString()] || []
+          };
+        });
+
+        socket.emit('chat_history_more_dm', { partner, messages: history, before });
+      } catch (err) {
+        console.error('[chat:request_history private] error:', err);
+      }
+    } else {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId) return;
+
+      let queryStr = `
+        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        FROM messages m
+        LEFT JOIN users u ON u.username = m."senderName"
+        WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
+          AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $2)
+          AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
+      `;
+      const queryParams = [roomId, `%"${username}"%`];
+      if (cleanBefore) {
+        queryStr += ` AND m.timestamp < $3 `;
+        queryParams.push(cleanBefore);
+      }
+      queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
+      queryParams.push(cleanLimit);
+
+      try {
+        const pgRes = await pool.query(queryStr, queryParams);
+        const groupRows = pgRes ? pgRes.rows : [];
+        groupRows.reverse(); // chronological
+
+        const usernameToPublicKey = {};
+        const roomObj = rooms.get(roomId);
+        if (roomObj && roomObj.publicKeys) {
+          for (const [sid, pk] of Object.entries(roomObj.publicKeys)) {
+            const userObj = roomObj.users.find(u => u.socketId === sid);
+            if (userObj && pk) usernameToPublicKey[userObj.username.toLowerCase()] = pk;
+          }
+        }
+        const missingUsers = [...new Set(
+          groupRows
+            .filter(r => r.nonce && r.ephemeralPublicKey && !usernameToPublicKey[(r.senderName || '').toLowerCase()])
+            .map(r => (r.senderName || '').toLowerCase())
+            .filter(Boolean)
+        )];
+        if (missingUsers.length > 0) {
+          try {
+            const pgResult = await pool.query(
+              `SELECT LOWER(username) as username, "publicKey" FROM users WHERE LOWER(username) = ANY($1)`,
+              [missingUsers]
+            );
+            for (const row of pgResult.rows) {
+              if (row.username && row.publicKey) usernameToPublicKey[row.username] = row.publicKey;
+            }
+          } catch(pgErr) { console.warn('[chat_history_more] PG publicKey fallback failed:', pgErr.message); }
+        }
+
+        const messageIds = groupRows.map(r => Number(r.id)).filter(Boolean);
+        const seenMap = {};
+        if (messageIds.length > 0) {
+          try {
+            const seenResult = await pool.query(`
+              SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as "avatarPath"
+              FROM message_seen ms
+              LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+              WHERE ms.message_id = ANY($1::bigint[])
+            `, [messageIds]);
+            seenResult.rows.forEach(r => {
+              const msgId = String(r.message_id);
+              if (!seenMap[msgId]) seenMap[msgId] = [];
+              seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatarPath });
+            });
+          } catch (seenErr) {
+            console.error('[chat_history_more] Failed to fetch seen records:', seenErr.message);
+          }
+        }
+
+        const history = groupRows.map(r => ({
+          id: r.id.toString(), userId: r.senderId, username: r.senderName, message: r.message,
+          timestamp: r.timestamp,
+          senderAvatar: r.senderAvatarPath || null,
+          seenBy: seenMap[r.id.toString()] || [],
+          reactions: (() => { try { return r.reactions ? JSON.parse(r.reactions) : {}; } catch{ return {}; } })(),
+          e2ee: (() => {
+            if (!r.nonce || !r.ephemeralPublicKey) return null;
+            try {
+              const keysMap = JSON.parse(r.ephemeralPublicKey);
+              if (typeof keysMap !== 'object' || Array.isArray(keysMap)) throw new Error('not a keys map');
+              const senderPK = r.sender_public_key || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
+              return { nonce: r.nonce, keys: keysMap, senderPublicKey: senderPK };
+            } catch(e) {
+               return null;
+            }
+          })(),
+          mediaUrl: r.mediaUrl || null,
+          mediaType: r.mediaType || null,
+          mediaFileName: r.media_file_name || null,
+          mediaFileSize: r.media_file_size || null,
+          mediaExpiresAt: r.media_expires_at || null,
+          mediaDuration: r.media_duration || null,
+          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null
+        }));
+
+        socket.emit('chat_history_more', { roomId, messages: history, before });
+      } catch (err) {
+        console.error('[chat:request_history] error:', err);
+      }
     }
   });
 
-  // Typing indicator merged below in the unified section (around line 2131)
-
 
   // ─── Group chat message (saved in history) ───
-  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, username, replyTo, mediaUrl, mediaType, tempId }) => {
+  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, username, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId }) => {
+    if (!checkChatRate(socket.id)) {
+      socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
+      return;
+    }
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room) {
       console.log(`[Chat] Room not found in memory: ${roomId} (Original: ${rawRoomId})`);
       return;
     }
-    console.log(`[Chat] Message from ${username} in ${roomId}: ${message || '[Media]'}`);
+    console.log(`[Chat] ${username} → ${roomId} (${mediaUrl ? 'media' : 'text'})`);
     
     // Check Permissions
     const allowChat = room.permissions?.chat || 'all';
@@ -3263,6 +4445,9 @@ io.on('connection', (socket) => {
       replyTo: replyTo || null,
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
+      mediaFileName: mediaFileName || null,
+      mediaFileSize: mediaFileSize || null,
+      mediaDuration: mediaDuration ? Number(mediaDuration) : null,
       tempId: tempId || null,
       type: 'group',
       roomId: roomId,
@@ -3271,40 +4456,137 @@ io.on('connection', (socket) => {
     room.groupMessages.push(msg);
     if (room.groupMessages.length > 200) room.groupMessages.shift();
     
-    // Save to DB
+    // Save to DB — use pool.query directly to bypass _convertSql and avoid any quoting issues
     const nonceText = e2ee ? e2ee.nonce : null;
     const ephemText = e2ee && e2ee.keys ? JSON.stringify(e2ee.keys) : null;
 
-    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, message, timestamp, replyTo, mediaUrl, mediaType, nonce, "ephemeralPublicKey") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [roomId, 'group', socket.id, username, message || '', msg.timestamp, replyTo ? JSON.stringify(replyTo) : null, msg.mediaUrl, msg.mediaType, nonceText, ephemText], function(err) {
-        if (err) { console.error('Error saving group message:', err); return; }
-        const dbId = this.lastID;
-        if (dbId) {
-          // Swap optimistic id for real DB id on the sender side
-          if (tempId) socket.emit('chat:message_persisted', { tempId, dbId: String(dbId) });
-          // Update in-memory id to real DB id so delete/lookup works immediately
-          const inMem = room.groupMessages.find(m => m.tempId === tempId || m.id === msg.id);
-          if (inMem) { inMem.id = String(dbId); inMem.dbId = String(dbId); }
-        }
-      });
+    const groupSocketExpiry = msg.mediaUrl ? computeMediaExpiry(msg.mediaType) : null;
+    msg.mediaExpiresAt = groupSocketExpiry ? groupSocketExpiry.toISOString() : null;
+    const senderPubKeyText = e2ee?.senderPublicKey || null;
 
-    broadcastMessage(roomId, msg, socket.id, username);
+    console.log('[Chat INSERT] Saving group message for', username, 'in room', roomId, '| e2ee:', !!e2ee, '| mediaUrl:', !!msg.mediaUrl);
+    pool.query(
+      `INSERT INTO messages (
+        "roomId", type, "senderId", "senderName", message, timestamp,
+        "replyTo", "mediaUrl", "mediaType", nonce, "ephemeralPublicKey",
+        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+      [
+        roomId, 'group', socket.id, username, message || '', msg.timestamp,
+        replyTo ? JSON.stringify(replyTo) : null,
+        msg.mediaUrl, msg.mediaType, nonceText, ephemText,
+        mediaFileName || null, mediaFileSize || null,
+        groupSocketExpiry ? groupSocketExpiry.toISOString() : null,
+        mediaDuration ? Number(mediaDuration) : null,
+        senderPubKeyText
+      ]
+    ).then(res => {
+        const dbId = res.rows?.[0]?.id;
+        console.log('[Chat INSERT] Success for', username, '→ dbId:', dbId);
+        if (dbId) {
+          msg.id = String(dbId);
+          msg.dbId = String(dbId);
+          msg.seenBy = [{ username, seenAt: msg.timestamp }];
+          pool.query('INSERT INTO message_seen (message_id, room_id, username, seen_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [dbId, roomId, username, msg.timestamp])
+            .catch(e => console.error('[send_message] message_seen error:', e.message));
+          if (tempId) socket.emit('chat:message_persisted', { tempId, dbId: String(dbId) });
+        } else {
+          msg.seenBy = [];
+        }
+        broadcastMessage(roomId, msg, socket.id, username);
+      }).catch(err => {
+        console.error('[Chat INSERT] FAILED for', username, 'in room', roomId, ':', err.message);
+        // Still broadcast so UI stays consistent — message is in room.groupMessages (in-memory)
+        // and will appear in history on refresh via the in-memory merge in executeFinalJoin
+        msg.seenBy = [];
+        broadcastMessage(roomId, msg, socket.id, username);
+      });
   });
 
-  // â”€â”€ Standardized Mark Read â”€â”€
-  socket.on('chat:mark_read', ({ chatId, timestamp }) => {
-    if (!socket.username || !chatId) return;
+  // ─── Standardized Mark Read ───
+  socket.on('chat:mark_read', async ({ chatId, timestamp, isDm }) => {
+    console.log(`[DEBUG chat:mark_read] Called by socket.username=${socket.username}, socket.id=${socket.id} with chatId=${chatId}, timestamp=${timestamp}, isDm=${isDm}`);
+    if (!socket.username || !chatId) {
+      console.warn(`[DEBUG chat:mark_read] early return due to missing username or chatId`);
+      return;
+    }
     const now = timestamp || Date.now();
     
-    // Persist to DB
+    // 1. Get the actual roomId used in messages table
+    const targetRoomId = await getRoomIdForChat(chatId, socket.username, isDm);
+    console.log(`[DEBUG chat:mark_read] resolved targetRoomId=${targetRoomId}`);
+    
+    // 2. Persist lastSeen to users table (existing logic)
     db.get('SELECT lastSeen FROM users WHERE username = ?', [socket.username], (err, row) => {
+      if (err) console.error(`[DEBUG chat:mark_read] users lastSeen select error:`, err);
       let ls = {};
       try { ls = JSON.parse(row?.lastSeen || '{}'); } catch(e){}
       ls[chatId] = now;
+      console.log(`[DEBUG chat:mark_read] updating lastSeen for ${socket.username} to ${JSON.stringify(ls)}`);
       db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username]);
       
       // Broadcast to other sockets of the same user to sync unread badges across tabs
       emitToUser(socket.username, 'chat:mark_read', { chatId, timestamp: now });
+    });
+
+    // 3. Mark messages as seen in message_seen table
+    const queryStr = `
+      INSERT INTO message_seen (message_id, room_id, username, seen_at)
+      SELECT id, "roomId", $1::varchar, $2::bigint
+      FROM messages
+      WHERE "roomId" = $3::varchar
+        AND LOWER("senderName") != LOWER($1::varchar)
+        AND timestamp <= $2::bigint
+        AND ("is_unsent" IS NULL OR "is_unsent" = FALSE)
+      ON CONFLICT (message_id, username) DO NOTHING
+      RETURNING message_id;
+    `;
+    
+    db.get('SELECT "avatarPath" FROM users WHERE username = ?', [socket.username], (err, userRow) => {
+      const userAvatar = userRow ? userRow.avatarPath : null;
+      console.log(`[DEBUG chat:mark_read] userAvatar=${userAvatar} for ${socket.username}`);
+      
+      pool.query(queryStr, [socket.username, now, targetRoomId])
+        .then(res => {
+          const messageIds = res.rows.map(r => String(r.message_id));
+          console.log(`[DEBUG chat:mark_read] query completed. messageIds marked seen:`, messageIds);
+          if (messageIds.length > 0) {
+            const isDm = targetRoomId.startsWith('dm-');
+            const payload = {
+              roomId: targetRoomId,
+              chatId,
+              username: socket.username,
+              messageIds,
+              seenAt: now,
+              avatar: userAvatar
+            };
+            
+            if (isDm) {
+              console.log(`[DEBUG chat:mark_read] emitting chat:messages_seen to ${socket.username} and ${chatId}`);
+              emitToUser(socket.username, 'chat:messages_seen', payload);
+              emitToUser(chatId, 'chat:messages_seen', payload);
+            } else {
+              // Update in-memory room cache if it exists
+              const roomObj = rooms.get(targetRoomId);
+              if (roomObj && roomObj.groupMessages) {
+                roomObj.groupMessages = roomObj.groupMessages.map(m => {
+                  if (messageIds.includes(String(m.id))) {
+                    const seenBy = m.seenBy ? [...m.seenBy] : [];
+                    if (!seenBy.some(u => u.username.toLowerCase() === socket.username.toLowerCase())) {
+                      seenBy.push({ username: socket.username, seenAt: now, avatar: userAvatar });
+                    }
+                    return { ...m, seenBy };
+                  }
+                  return m;
+                });
+              }
+              io.in(targetRoomId).emit('chat:messages_seen', payload);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('[chat:mark_read] message_seen error:', err.message);
+        });
     });
   });
 
@@ -3379,31 +4661,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ─── Room Chat Reactions ───
-  socket.on('chat:reaction', ({ roomId: rawRoomId, messageId, emoji }) => {
-    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
-    const room = rooms.get(roomId);
-    if (!room) return;
-    const msg = room.groupMessages.find(m => String(m.id) === String(messageId) || String(m.timestamp) === String(messageId));
-    if (msg) {
-      const rx = {};
-      const username = socket.username;
-      for (const [em, uids] of Object.entries(msg.reactions || {})) {
-        const filtered = uids.filter(u => u !== username);
-        if (filtered.length > 0) rx[em] = filtered;
-      }
-      const hadIt = (msg.reactions?.[emoji] || []).includes(username);
-      if (!hadIt) {
-        if (!rx[emoji]) rx[emoji] = [];
-        rx[emoji].push(username);
-      }
-      msg.reactions = rx;
-      const reactionPayload = { roomId, messageId: String(messageId), reactions: rx, senderUsername: username };
-      // Use io.emit for global delivery — ensures GlobalChatWidget and all tabs update
-      io.emit('chat:reaction', reactionPayload);
-    }
-  });
-
   socket.on('chat:private_reaction', ({ targetName, messageId, emoji }) => {
     const senderName = socket.username;
     // Send to both sender and recipient for cross-tab sync
@@ -3422,7 +4679,7 @@ io.on('connection', (socket) => {
         WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
         WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
         ELSE hiddenFor END 
-      WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+      WHERE type = 'private' AND ((LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)) OR (LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)))`,
       [JSON.stringify([sender]), `%${sender}%`, `,"${sender}"]`, sender, targetUsername, targetUsername, sender],
       (err) => {
         if (err) console.error('Error soft-clearing DM:', err);
@@ -3436,7 +4693,7 @@ io.on('connection', (socket) => {
               WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
               WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
               ELSE hiddenFor END 
-            WHERE type = 'private' AND ((senderName = ? AND targetName = ?) OR (senderName = ? AND targetName = ?))`,
+            WHERE type = 'private' AND ((LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)) OR (LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)))`,
             [JSON.stringify([targetUsername]), `%${targetUsername}%`, `,"${targetUsername}"]`, sender, targetUsername, targetUsername, sender],
             (err2) => {
               if (err2) console.error('Error soft-clearing DM for both:', err2);
@@ -3513,33 +4770,58 @@ io.on('connection', (socket) => {
   });
 
   // â”€â”€ Emoji reaction â”€â”€
-  socket.on('chat:reaction', ({ roomId, messageId, emoji }) => {
+  socket.on('chat:reaction', async ({ roomId, messageId, emoji }) => {
     const room = rooms.get(roomId);
-    if (!room) return;
     const username = socket.username;
-    
-    // Robust ID matching: extract the 13-digit Unix timestamp reliably from any format ID
+    if (!username || !roomId || !messageId || !emoji) return;
+
     const matchId = String(messageId);
     let tsFromId = null;
     const tsMatch = matchId.match(/\b(\d{13})\b/);
     if (tsMatch) tsFromId = tsMatch[1];
 
-    // Always use DB as source of truth so historical messages work too
-    db.get(`SELECT reactions, senderName, username FROM messages WHERE id = ? OR timestamp = ? OR timestamp = ?`, [matchId, matchId, tsFromId], async (err, row) => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // SELECT FOR UPDATE serializes concurrent reactions for the same message
+      const qWhere = tsFromId
+        ? `id::text = $1 OR timestamp::text = $1 OR timestamp::text = $2`
+        : `id::text = $1 OR timestamp::text = $1`;
+      const qParams = tsFromId ? [matchId, tsFromId] : [matchId];
+      const { rows } = await client.query(
+        `SELECT id, timestamp, reactions, "senderName" FROM messages WHERE ${qWhere} LIMIT 1 FOR UPDATE`,
+        qParams
+      );
+
       let rx = {};
-      if (!err && row) {
-        // BLOCK CHECK: Reactor cannot react to a message if blocked (either way)
-        const msgSender = (row.senderName || row.username || '').toLowerCase();
+      let rowId = null;
+      let rowTs = null;
+
+      if (rows.length > 0) {
+        const row = rows[0];
+        rowId = row.id;
+        rowTs = String(row.timestamp);
+
+        const msgSender = (row.senderName || '').toLowerCase();
         if (msgSender && username && msgSender !== username.toLowerCase()) {
-           try {
-             const bCheck = await pool.query('SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1', [username, msgSender]);
-             if (bCheck.rows.length > 0) return;
-           } catch(e) { console.error('Block check error in reaction:', e); }
+          const bCheck = await client.query(
+            `SELECT 1 FROM blocks WHERE (LOWER(blocker) = $1 AND LOWER(blocked) = $2) OR (LOWER(blocker) = $2 AND LOWER(blocked) = $1) LIMIT 1`,
+            [username.toLowerCase(), msgSender]
+          );
+          if (bCheck.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return;
+          }
         }
+
         try { rx = row.reactions ? JSON.parse(row.reactions) : {}; } catch {}
-      } else {
-        // Fallback to in-memory for brand-new messages not yet persisted
-        const inMem = room.groupMessages.find(m => String(m.id) === matchId || String(m.timestamp) === matchId || (tsFromId && String(m.timestamp) === String(tsFromId)));
+      } else if (room) {
+        // Fallback to in-memory for brand-new messages not yet persisted to DB
+        const inMem = room.groupMessages.find(m =>
+          String(m.id) === matchId || String(m.timestamp) === matchId ||
+          (tsFromId && String(m.timestamp) === String(tsFromId))
+        );
         if (inMem) {
           for (const [em, val] of Object.entries(inMem.reactions || {})) {
             const arr = val instanceof Set ? [...val] : (Array.isArray(val) ? val : []);
@@ -3548,35 +4830,38 @@ io.on('connection', (socket) => {
         }
       }
 
-      // Check if user already had this emoji BEFORE removing them everywhere
       const hadThisEmoji = (Array.isArray(rx[emoji]) ? rx[emoji] : []).includes(username);
-
-      // Remove user from ALL emojis (single-reaction policy)
       for (const em of Object.keys(rx)) {
         rx[em] = (Array.isArray(rx[em]) ? rx[em] : []).filter(u => u !== username);
         if (rx[em].length === 0) delete rx[em];
       }
-
-      // Toggle: add only if they did not already have it
       if (!hadThisEmoji) {
         if (!rx[emoji]) rx[emoji] = [];
         rx[emoji].push(username);
       }
 
-      // Update in-memory cache
-      const inMemMsg = room.groupMessages.find(m => String(m.id) === matchId || String(m.timestamp) === matchId || (tsFromId && String(m.timestamp) === String(tsFromId)));
-      if (inMemMsg) inMemMsg.reactions = rx;
+      if (rowId !== null) {
+        await client.query('UPDATE messages SET reactions = $1 WHERE id = $2', [JSON.stringify(rx), rowId]);
+      }
+      await client.query('COMMIT');
 
-      // Persist
-      db.run(`UPDATE messages SET reactions = ? WHERE id = ? OR timestamp = ? OR timestamp = ?`, [JSON.stringify(rx), matchId, matchId, tsFromId]);
+      if (room) {
+        const inMemMsg = room.groupMessages.find(m =>
+          String(m.id) === matchId || String(m.timestamp) === matchId ||
+          (tsFromId && String(m.timestamp) === String(tsFromId))
+        );
+        if (inMemMsg) inMemMsg.reactions = rx;
+      }
 
-      // Broadcast with string messageId for consistent type comparison on clients
-      const reactionPayload = { roomId, messageId: String(messageId), timestampId: tsFromId, reactions: rx, senderUsername: username };
+      const originalSenderName = rows.length > 0 ? rows[0].senderName : null;
+      const reactionPayload = { roomId, messageId: String(messageId), timestampId: tsFromId || rowTs, reactions: rx, senderUsername: username, emoji, originalSenderName };
       io.in(roomId).emit('chat:reaction', reactionPayload);
-      
-      // BROAD BROADCAST: Also broadcast globally so widgets in other contexts update immediately
-      io.emit('chat:reaction', reactionPayload);
-    });
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch {}
+      console.error('[chat:reaction socket] error:', err);
+    } finally {
+      client.release();
+    }
   });
 
 
@@ -3629,7 +4914,7 @@ io.on('connection', (socket) => {
 
   // ─── Private / DM ───
   socket.on('private_message', async (data) => {
-    const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, tempId } = data;
+    const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId } = data;
     if (!socket.username || !targetName) return;
     
     const sender = socket.username.toLowerCase();
@@ -3653,34 +4938,51 @@ io.on('connection', (socket) => {
     }
 
     const timestamp = Date.now();
-    const payload = { 
-      id: msgId || `sock-${timestamp}-${Math.floor(Math.random()*1000)}`, 
-      senderId: socket.id, 
-      senderName: socket.username, 
-      targetName, 
-      message, 
+    const payload = {
+      id: msgId || `sock-${timestamp}-${Math.floor(Math.random()*1000)}`,
+      senderId: socket.id,
+      senderName: socket.username,
+      targetName,
+      message,
       senderMessage: senderMessage || null,
-      nonce, 
-      ephemeralPublicKey, 
-      replyTo, 
-      timestamp, 
-      mediaUrl, 
+      nonce,
+      ephemeralPublicKey,
+      replyTo,
+      timestamp,
+      mediaUrl,
       mediaType,
+      mediaFileName: mediaFileName || null,
+      mediaFileSize: mediaFileSize || null,
+      mediaDuration: mediaDuration ? Number(mediaDuration) : null,
       tempId: tempId || null,
       type: 'private'
     };
-    const users = [socket.username, targetName].sort();
+    const users = [socket.username.toLowerCase(), targetName.toLowerCase()].sort();
     const dmRoomId = 'dm-' + users.join('-');
 
-    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null], function(err) {
+    const dmSocketExpiry = payload.mediaUrl ? computeMediaExpiry(payload.mediaType) : null;
+    payload.mediaExpiresAt = dmSocketExpiry ? dmSocketExpiry.toISOString() : null;
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType, media_file_name, media_file_size, media_expires_at, media_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null, mediaFileName || null, mediaFileSize || null, dmSocketExpiry || null, mediaDuration ? Number(mediaDuration) : null], function(err) {
         if (err) { console.error('Error saving private message:', err); return; }
-        if (this.lastID && tempId) {
-          socket.emit('chat:message_persisted', { tempId, dbId: String(this.lastID) });
+        const dbId = this.lastID;
+        if (dbId) {
+          payload.id = String(dbId);
+          payload.dbId = String(dbId);
+          payload.seenBy = [{ username: socket.username, seenAt: payload.timestamp }];
+
+          // Save sender seen status to database
+          pool.query('INSERT INTO message_seen (message_id, room_id, username, seen_at) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING', [dbId, dmRoomId, socket.username, payload.timestamp])
+            .catch(err => console.error('[private_message] message_seen error:', err.message));
+
+          if (tempId) {
+            socket.emit('chat:message_persisted', { tempId, dbId: String(dbId) });
+          }
+        } else {
+          payload.seenBy = [];
         }
+        broadcastMessage(null, payload, socket.id, socket.username);
       });
-      
-    broadcastMessage(null, payload, socket.id, socket.username);
   });
 
   // Request sync
@@ -3693,30 +4995,50 @@ io.on('connection', (socket) => {
     const isMember = room.users.some(u => u.socketId === socket.id);
     if (!isMember) return;
     
-    const state = { ...room, roomName: room.roomName };
+    const state = getSerializableRoom(room);
     if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
     socket.emit('room_state', state);
   });
 
 
 
-  // â”€â”€ Request DM History â”€â”€
+  // ─── Request DM History ───
   socket.on('request_dm_history', () => {
     const username = socket.username;
     if (!username) return;
     db.all(`
       SELECT m.*, u.avatarPath as senderAvatarPath
       FROM messages m
-      LEFT JOIN users u ON u.username = m.senderName
-      WHERE m.type = 'private' AND (m.senderName = ? OR m.targetName = ?)
+      LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
+      WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
-    `, [username, username], (err, dmRows) => {
+    `, [username, username], async (err, dmRows) => {
         if (err) return;
         const dmHistory = {};
         if (dmRows && dmRows.length > 0) {
-          dmRows.forEach(row => {
-            if (row.hiddenFor && row.hiddenFor.includes(`"${username}"`)) return;
-            const isMe = row.senderName === username;
+          const visibleDmRows = dmRows.filter(row => !(row.hiddenFor && row.hiddenFor.includes(`"${username}"`)));
+          const messageIds = visibleDmRows.map(r => Number(r.id)).filter(Boolean);
+          const seenMap = {};
+          if (messageIds.length > 0) {
+            try {
+              const seenResult = await pool.query(`
+                SELECT ms.message_id, ms.username, ms.seen_at, u."avatarPath" as "avatarPath"
+                FROM message_seen ms
+                LEFT JOIN users u ON LOWER(u.username) = LOWER(ms.username)
+                WHERE ms.message_id = ANY($1::bigint[])
+              `, [messageIds]);
+              seenResult.rows.forEach(r => {
+                const msgId = String(r.message_id);
+                if (!seenMap[msgId]) seenMap[msgId] = [];
+                seenMap[msgId].push({ username: r.username, seenAt: Number(r.seen_at), avatar: r.avatarPath });
+              });
+            } catch (seenErr) {
+              console.error('[request_dm_history] Failed to fetch seen records:', seenErr.message);
+            }
+          }
+
+          visibleDmRows.forEach(row => {
+            const isMe = (row.senderName || '').toLowerCase() === (username || '').toLowerCase();
             const otherName = isMe ? row.targetName : row.senderName;
             if (!dmHistory[otherName]) dmHistory[otherName] = [];
             dmHistory[otherName].push({
@@ -3726,7 +5048,12 @@ io.on('connection', (socket) => {
               senderMessage: row.senderMessage || null,
               nonce: row.nonce, ephemeralPublicKey: row.ephemeralPublicKey, timestamp: row.timestamp,
               mediaUrl: row.mediaUrl || null, mediaType: row.mediaType || null,
-              reactions: row.reactions ? JSON.parse(row.reactions) : {}, replyTo: row.replyTo ? JSON.parse(row.replyTo) : null
+              mediaFileName: row.media_file_name || null, mediaFileSize: row.media_file_size || null,
+              mediaExpiresAt: row.media_expires_at || null,
+              mediaDuration: row.media_duration || null,
+              reactions: row.reactions ? JSON.parse(row.reactions) : {}, 
+              replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
+              seenBy: seenMap[row.id.toString()] || []
             });
           });
         }
@@ -3740,16 +5067,12 @@ io.on('connection', (socket) => {
   // â”€â”€ Pinned rooms are handled via REST /api/profile/pinned-rooms instead of WebSockets â”€â”€
 
   // ─── Media control ───
-  socket.on('change_media', ({ roomId: rawRoomId, mediaUrl }) => {
+  socket.on('change_media', ({ roomId: rawRoomId, mediaUrl, browserUrl }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
-    if (isNSFWUrl(mediaUrl)) {
-      socket.emit('error_notification', '18+ (NSFW) content is not allowed here.');
-      return;
-    }
 
     const room = rooms.get(roomId);
-    
+
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
     if (allowMedia === 'host' && !isUserAdmin(room, socket)) {
@@ -3757,7 +5080,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // "Last Action Wins" Priority: 
+    // "Last Action Wins" Priority:
     // If a screenshare is currently active, stop it when the room shifts focus to a new media URL.
     if (room.screenshareHostId) {
       room.screenshareHostId = null;
@@ -3766,7 +5089,9 @@ io.on('connection', (socket) => {
     }
 
     room.currentMedia = mediaUrl; room.currentTime = 0; room.isPlaying = false; room.timestampUpdatedAt = Date.now();
+    room.subtitles = null;
     io.in(roomId).emit('media_changed', mediaUrl);
+    if (browserUrl) io.in(roomId).emit('browser_url_changed', browserUrl);
     io.in(roomId).emit('room_state', getSerializableRoom(room));
   });
 
@@ -3813,6 +5138,30 @@ io.on('connection', (socket) => {
 
     room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_seek', currentTime);
+  });
+
+  // ─── Audio Ducking ───
+  socket.on('audio_ducking_speaking', ({ roomId: rawRoomId, userId, username }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!roomId || !rooms.has(roomId)) return;
+    if (!roomSpeakingUsers.has(roomId)) roomSpeakingUsers.set(roomId, new Set());
+    const set = roomSpeakingUsers.get(roomId);
+    const wasEmpty = set.size === 0;
+    set.add(userId || socket.id);
+    if (wasEmpty) {
+      io.to(roomId).emit('audio_ducking_duck', { username: username || socket.username });
+    }
+  });
+
+  socket.on('audio_ducking_stopped', ({ roomId: rawRoomId, userId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    if (!roomId) return;
+    const set = roomSpeakingUsers.get(roomId);
+    if (!set) return;
+    set.delete(userId || socket.id);
+    if (set.size === 0) {
+      io.to(roomId).emit('audio_ducking_restore');
+    }
   });
 
   // ─── WebRTC Screenshare ───
@@ -4275,6 +5624,20 @@ io.on('connection', (socket) => {
     });
   });
 
+  socket.on('change_room_theme', ({ roomId: rawRoomId, themeId }) => {
+    const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    const room = rooms.get(roomId);
+    console.log(`[change_room_theme] roomId=${roomId} themeId=${themeId} roomFound=${!!room} user=${socket.username} isAdmin=${room ? isUserAdmin(room, socket) : false}`);
+    if (!room || !isUserAdmin(room, socket)) return;
+    room.roomTheme = themeId || 'default';
+    db.run('UPDATE room_names SET room_theme = ? WHERE roomId = ?', [room.roomTheme, roomId], (err) => {
+      if (err) console.error('[change_room_theme] DB error:', err.message);
+      else console.log(`[change_room_theme] DB saved theme=${room.roomTheme} for room=${roomId}`);
+    });
+    io.to(roomId).emit('room_theme_changed', { themeId: room.roomTheme });
+    console.log(`[change_room_theme] Broadcasted theme=${room.roomTheme} to room=${roomId}`);
+  });
+
   socket.on('delete_room', ({ roomId }) => {
     const room = rooms.get(roomId);
     
@@ -4358,10 +5721,126 @@ io.on('connection', (socket) => {
 
 
 
+  // ─── Unsend message (delete for everyone) ───
+  socket.on('message:unsend', async ({ messageId, username: payloadUsername, timestamp: fallbackTs }) => {
+    const username = socket.username || payloadUsername;
+    if (!username || !messageId) return;
+
+    try {
+      let msg = await queryGet('SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE id = ?', [messageId]);
+      // Fallback: if the client sent a socket-based id (pre-fix sessions), look up by timestamp + sender
+      if (!msg && fallbackTs) {
+        msg = await queryGet('SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE timestamp = ? AND "senderName" = ?', [fallbackTs, username]);
+      }
+      if (!msg) return;
+      if ((msg.senderName || '').toLowerCase() !== username.toLowerCase()) return;
+
+      await pool.query('DELETE FROM messages WHERE id = $1', [msg.id]);
+
+      const payload = { messageId: String(msg.id), timestampId: String(msg.timestamp) };
+
+      if (msg.type === 'private') {
+        emitToUser(msg.senderName, 'message:unsent', payload);
+        if (msg.targetName) emitToUser(msg.targetName, 'message:unsent', payload);
+      } else {
+        io.in(msg.roomId).emit('message:unsent', payload);
+        // Also reach the sender's sockets that aren't joined to the room socket
+        // room (e.g. a Global Chat tab), so all of their open views update.
+        emitToUser(msg.senderName, 'message:unsent', payload);
+        const room = rooms.get(msg.roomId);
+        if (room) {
+          const idx = room.groupMessages.findIndex(m => String(m.id) === String(msg.id) || String(m.dbId) === String(msg.id));
+          if (idx !== -1) room.groupMessages.splice(idx, 1);
+        }
+      }
+    } catch (err) {
+      console.error('[message:unsend] Error:', err);
+    }
+  });
+
+  // ─── Delete for me (hides message only for the requesting user) ───
+  socket.on('message:delete-for-me', async ({ messageId, username: payloadUsername, timestamp: fallbackTs }) => {
+    const username = socket.username || payloadUsername;
+    if (!username || !messageId) return;
+
+    try {
+      let msg = await queryGet('SELECT id, "hiddenFor", timestamp FROM messages WHERE id = ?', [messageId]);
+      // Fallback: if the client sent a socket-based id (pre-fix sessions), look up by timestamp
+      if (!msg && fallbackTs) {
+        msg = await queryGet('SELECT id, "hiddenFor", timestamp FROM messages WHERE timestamp = ?', [fallbackTs]);
+      }
+      if (!msg) {
+        // Broadcast to ALL of this user's sockets (Global Chat + Room chat tabs)
+        emitToUser(username, 'message:removed-for-me', { messageId });
+        return;
+      }
+
+      let hiddenFor = [];
+      try { hiddenFor = JSON.parse(msg.hiddenFor || '[]'); } catch {}
+      if (!hiddenFor.includes(username)) hiddenFor.push(username);
+
+      await pool.query('UPDATE messages SET "hiddenFor" = $1 WHERE id = $2', [JSON.stringify(hiddenFor), msg.id]);
+      // Broadcast to ALL of this user's sockets so every open component (Global
+      // Chat widget, Room chat panel, other tabs) hides the message in real time.
+      emitToUser(username, 'message:removed-for-me', { messageId: String(msg.id), originalId: String(messageId), timestampId: String(msg.timestamp) });
+    } catch (err) {
+      console.error('[message:delete-for-me] Error:', err);
+      emitToUser(username, 'message:removed-for-me', { messageId: String(messageId) });
+    }
+  });
+
+  // ─── Live Reactions ───
+  socket.on('room_reaction', (data) => {
+    if (!data?.roomId || !data?.emoji) return;
+    io.to(data.roomId).emit('room_reaction', {
+      id: Date.now() + Math.random(),
+      emoji: data.emoji,
+      username: data.username || 'Someone',
+      avatarUrl: data.avatarUrl || '',
+      timestamp: Date.now()
+    });
+  });
+
+  // ─── Media Position Save (host only) ───
+  socket.on('media_position_save', (data) => {
+    const { roomId: rawRoomId, url, position, mediaType } = data || {};
+    const roomId = (rawRoomId || '').toLowerCase();
+    if (!roomId || !url || position === undefined) return;
+
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    const isHostById = room.hostId === socket.id;
+    const isHostByName = room.hostUsername && socket.username &&
+      room.hostUsername.toLowerCase() === socket.username.toLowerCase();
+    if (!isHostById && !isHostByName) return;
+
+    const pos = parseFloat(position) || 0;
+    room.lastMediaUrl = url;
+    room.lastMediaPosition = pos;
+    room.lastMediaType = mediaType || null;
+    room.lastMediaSavedAt = new Date().toISOString();
+
+    db.run(
+      'UPDATE room_names SET last_media_url = ?, last_media_position = ?, last_media_type = ?, last_media_saved_at = ? WHERE roomId = ?',
+      [url, pos, mediaType || null, room.lastMediaSavedAt, roomId]
+    );
+  });
+
   // ─── Disconnect ───
   socket.on('disconnect', () => {
     console.log(`User disconnected: ${socket.id}`);
     clearTimeout(typingTimers[socket.id]);
+
+    // ─── Audio Ducking: remove from speaking set so ducking doesn't get stuck ───
+    for (const [roomId, set] of roomSpeakingUsers.entries()) {
+      if (set.has(socket.id)) {
+        set.delete(socket.id);
+        if (set.size === 0) {
+          io.to(roomId).emit('audio_ducking_restore');
+        }
+      }
+    }
 
     // ─── Clean up pending join requests ───
     // If this socket was waiting for approval, notify all room admins to dismiss the toast
@@ -4384,6 +5863,35 @@ io.on('connection', (socket) => {
     if (socket.roomId) {
       const room = rooms.get(socket.roomId);
       if (room) {
+        // ── Save media position when host disconnects ──
+        if (room.hostId === socket.id && room.currentMedia) {
+          const mType = detectMediaTypeServer(room.currentMedia);
+          if (mType) {
+            const pos = room.isPlaying
+              ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000
+              : room.currentTime;
+            room.lastMediaUrl = room.currentMedia;
+            room.lastMediaPosition = pos;
+            room.lastMediaType = mType;
+            room.lastMediaSavedAt = new Date().toISOString();
+            db.run(
+              'UPDATE room_names SET last_media_url = ?, last_media_position = ?, last_media_type = ?, last_media_saved_at = ? WHERE roomId = ?',
+              [room.currentMedia, pos, mType, room.lastMediaSavedAt, socket.roomId]
+            );
+          } else {
+            // Non-resumable media (local stream/blob) was last active — clear stale saved URL
+            // so the host doesn't get an old YouTube/URL auto-resumed on next join
+            room.lastMediaUrl = null;
+            room.lastMediaPosition = 0;
+            room.lastMediaType = null;
+            room.lastMediaSavedAt = null;
+            db.run(
+              'UPDATE room_names SET last_media_url = NULL, last_media_position = 0, last_media_type = NULL, last_media_saved_at = NULL WHERE roomId = ?',
+              [socket.roomId]
+            );
+          }
+        }
+
         room.users = room.users.filter(u => u.socketId !== socket.id);
         delete room.publicKeys[socket.id];
 
@@ -4407,6 +5915,22 @@ io.on('connection', (socket) => {
           room.currentTime = 0;
           room.isPlaying = false;
           room.hostId = null;
+
+          // COST CONTROL (trigger c): End any Hyperbeam session when the last user leaves
+          // This runs entirely server-side — no frontend dependency
+          if (activeHyperbeamSessions.has(socket.roomId)) {
+            const hbSession = activeHyperbeamSessions.get(socket.roomId);
+            const apiKey = process.env.HYPERBEAM_API_KEY;
+            if (apiKey) {
+              fetch(`${HB_API}/${hbSession.session_id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${apiKey}` }
+              }).catch(e => console.error('[HYPERBEAM] Auto-cleanup error:', e.message));
+            }
+            activeHyperbeamSessions.delete(socket.roomId);
+            const ts = new Date().toISOString();
+            console.log(`[HYPERBEAM] Session ended (room empty): ${hbSession.session_id} at ${ts}`);
+          }
         }
         io.in(socket.roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
         socket.to(socket.roomId).emit('user_left', { username: socket.username, count: room.users.length });
@@ -4422,6 +5946,19 @@ io.on('connection', (socket) => {
       if (room.screenshareHostId === socket.id) { room.screenshareHostId = null; socket.to(roomId).emit('webrtc_screenshare_stopped'); }
     }
   });
+
+  // ─── Hyperbeam Cloud Browser sync events ─────────────────────────────────
+  // Relay cloud browser open/close to all other room members so they all show
+  // the same Hyperbeam iframe. The API key never passes through these events.
+  socket.on('hyperbeam_opened', ({ roomId, session_id, embed_url, targetUrl }) => {
+    if (!roomId) return;
+    socket.to(roomId.toLowerCase()).emit('hyperbeam_opened', { session_id, embed_url, targetUrl });
+  });
+
+  socket.on('hyperbeam_closed', ({ roomId }) => {
+    if (!roomId) return;
+    socket.to(roomId.toLowerCase()).emit('hyperbeam_closed');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4430,8 +5967,8 @@ io.on('connection', (socket) => {
 const chatLockRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  keyGenerator: (req) => req.user?.username || req.ip,
-  validate: { ip: false, keyGeneratorIpFallback: false },
+  keyGenerator: (req) => req.user?.username || req['ip'],
+  validate: false,
   handler: (req, res) => {
     const blockedUntil = Date.now() + 30 * 1000;
     // Persist block to DB
@@ -5218,7 +6755,10 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/report-user', authenticateToken, bugReportLimiter, async (req, res) => {
+app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async (req, res) => {
+  if (!req.user || req.user.isGuest || req.user.id === 0) {
+    return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
+  }
   const reporter = req.user.username;
   const { reportedUsername, reason, description } = req.body;
 
@@ -5347,6 +6887,29 @@ async function cleanupExpiredMedia() {
 
     filenames.forEach(fp => { try { if (fs.existsSync(fp)) fs.unlinkSync(fp); } catch {} });
 
+    // Clean up from Supabase Storage 'encrypted-media' bucket
+    const supabasePaths = expired
+      .map(m => {
+        try {
+          if (!m.mediaUrl) return null;
+          const match = m.mediaUrl.match(/\/encrypted-media\/(.+)$/);
+          return match ? match[1] : null;
+        } catch { return null; }
+      })
+      .filter(Boolean);
+
+    if (supabasePaths.length > 0) {
+      console.log('[Cleanup] Deleting from Supabase storage:', supabasePaths);
+      const { error: delErr } = await supabase.storage
+        .from('encrypted-media')
+        .remove(supabasePaths);
+      if (delErr) {
+        console.error('[Cleanup] Supabase media delete error:', delErr.message);
+      } else {
+        console.log(`[Cleanup] Successfully deleted ${supabasePaths.length} file(s) from Supabase storage.`);
+      }
+    }
+
     const ids = expired.map(m => m.id);
     await pool.query(
       `UPDATE messages SET "mediaUrl" = NULL, "mediaType" = NULL WHERE id = ANY($1::int[])`,
@@ -5357,7 +6920,7 @@ async function cleanupExpiredMedia() {
     console.error('[Cleanup] Error during media cleanup:', err.message);
   }
 }
-cleanupExpiredMedia();
+migrationsReady.then(() => cleanupExpiredMedia());
 setInterval(cleanupExpiredMedia, 24 * 60 * 60 * 1000);
 
 // Keep server alive on unhandled errors instead of crashing silently

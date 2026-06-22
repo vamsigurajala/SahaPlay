@@ -9,7 +9,9 @@ import { decryptPrivateKey, generateKeyPair } from './lib/crypto.js';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 
-const API = `http://${window.location.hostname}:3001`;
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 const Login = () => {
   const [username, setUsername]         = useState('');
@@ -68,6 +70,7 @@ const Login = () => {
       // Store auth token
       localStorage.setItem('watch_token', data.token);
       localStorage.setItem('watch_username', data.username);
+      window.dispatchEvent(new Event('login_success'));
 
       // ─── E2EE Key Decryption ─────────────────────────────────────────────
       if (data.encryptedPrivateKey) {
@@ -157,6 +160,7 @@ const Login = () => {
         clearUserSession();
         localStorage.setItem('watch_token', data.token);
         localStorage.setItem('watch_username', data.username);
+        window.dispatchEvent(new Event('login_success'));
         // Google OAuth: CryptoContext will auto-generate ephemeral keys
         navigate('/');
       } else {

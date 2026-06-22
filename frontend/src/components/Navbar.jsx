@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play } from 'lucide-react';
+import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
@@ -17,11 +18,16 @@ const Navbar = () => {
   const { t } = useTranslation();
 
   const token = localStorage.getItem('watch_token');
-  const loggedInUsername = localStorage.getItem('watch_username');
-  const isLoggedIn = !!token;
+  const rawUsername = localStorage.getItem('watch_username');
+  const loggedInUsername = rawUsername && rawUsername.toLowerCase().startsWith('guest_')
+    ? rawUsername.slice(6)
+    : rawUsername;
+  const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
+  const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && localStorage.getItem('watch_is_guest') !== 'true';
 
   const [scrolled, setScrolled] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showProfilePageMobile, setShowProfilePageMobile] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,7 +36,55 @@ const Navbar = () => {
   const [showRecentChats, setShowRecentChats] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);
-  const [profile, setProfile] = useState(null);
+  const [isAppFullscreen, setIsAppFullscreen] = useState(false);
+  const [profile, setProfile] = useState(() => {
+    const isG = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
+    if (isG) {
+      return {
+        id: 0,
+        username: localStorage.getItem('watch_username') || 'guest',
+        displayName: 'Guest User',
+        avatarPath: null,
+        isGuest: true
+      };
+    }
+    return null;
+  });
+
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(window.innerWidth < 1025);
+  const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobileOrTablet(window.innerWidth < 1025);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsLight(document.documentElement.getAttribute('data-theme') === 'light'));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+
+
+  // Reset profile subpage when mobile menu closes
+  useEffect(() => {
+    if (!showMobileMenu) {
+      setShowProfilePageMobile(false);
+    }
+  }, [showMobileMenu]);
+
+  // Lock/unlock body scroll when mobile drawer is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showMobileMenu]);
 
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
@@ -55,10 +109,16 @@ const Navbar = () => {
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
+      // Lightbox is portalled to document.body — don't treat those clicks as "outside"
+      if (e.target.closest?.('.media-lightbox-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         setShowSearch(false);
         setShowRecentChats(false);
         setShowNotifications(false);
+        setShowUserMenu(false);
+      }
+      if (!e.target.closest('.mobile-nav-dropdown') && !e.target.closest('.nav-hamburger-btn') && !e.target.closest('.mobile-drawer-panel') && !e.target.closest('.mobile-drawer-backdrop')) {
+        setShowMobileMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -67,16 +127,16 @@ const Navbar = () => {
 
   // Profile data fetch
   useEffect(() => {
-    if (!token) return;
+    if (isGuest || !token) return;
     fetch(`${API}/api/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setProfile(data))
       .catch(() => {});
-  }, [token]);
+  }, [token, isGuest]);
 
   // Unread message tracking
   useEffect(() => {
-    if (!token) return;
+    if (isGuest || !token) return;
     const getLastSeen = () => {
       try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; }
     };
@@ -112,11 +172,11 @@ const Navbar = () => {
       clearInterval(interval);
       window.removeEventListener('focus', checkUnread);
     };
-  }, [token]);
+  }, [token, isGuest]);
 
   // Handle follow requests
   useEffect(() => {
-    if (!token) return;
+    if (isGuest || !token) return;
     const fetchRequests = () => {
       fetch(`${API}/api/follow/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(r => r.json())
@@ -132,16 +192,17 @@ const Navbar = () => {
       window.removeEventListener('focus', fetchRequests);
       window.removeEventListener('follow_status_updated', fetchRequests);
     };
-  }, [token]);
+  }, [token, isGuest]);
 
   // Search execution
   useEffect(() => {
     if (!debouncedSearchQuery) { setSearchResults([]); return; }
-    fetch(`${API}/api/users/search?q=${debouncedSearchQuery}`, { headers: { 'Authorization': `Bearer ${token}` } })
+    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
+    fetch(`${API}/api/users/search?q=${debouncedSearchQuery}`, { headers })
       .then(r => r.json())
       .then(d => { if(Array.isArray(d)) setSearchResults(d); else setSearchResults([]); })
       .catch(() => {});
-  }, [debouncedSearchQuery, token]);
+  }, [debouncedSearchQuery, token, isGuest]);
 
   const handleNewMessage = useCallback((partner, msg) => {
     const chatKey = partner;
@@ -168,6 +229,15 @@ const Navbar = () => {
     
     setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
     setTotalUnread(prev => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      const fsEl = document.fullscreenElement;
+      setIsAppFullscreen(fsEl === document.documentElement);
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
   const handleMarkRead = useCallback((chatId) => {
@@ -251,265 +321,645 @@ const Navbar = () => {
           border-bottom-color: rgba(0,0,0,0.08) !important;
           box-shadow: 0 2px 16px rgba(0,0,0,0.08) !important;
         }
+        @media (max-width: 480px) {
+          .nav-logo-text {
+            display: none !important;
+          }
+        }
+        /* Mobile Drawer */
+        .mobile-drawer-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.45);
+          z-index: 99998;
+          animation: drawerFadeIn 0.22s ease;
+        }
+        @keyframes drawerFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .mobile-drawer-panel {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: 260px;
+          z-index: 99999;
+          display: flex;
+          flex-direction: column;
+          animation: drawerSlideIn 0.25s cubic-bezier(0.22,1,0.36,1);
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        @keyframes drawerSlideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        .mobile-drawer-panel .nav-link-btn {
+          text-align: left !important;
+          justify-content: flex-start !important;
+        }
       `}</style>
       <nav className={`main-nav${scrolled ? ' scrolled' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="nav-bar-row">
-        {/* Left: Logo */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-            <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
-          </div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
-        </div>
-
-        {/* Center: Nav Links */}
-        <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>{t('home', 'Home')}</button>
-          <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
-          <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
-          <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
-        </div>
-
-        {/* Right: Actions */}
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          {isLoggedIn ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
-                {/* Search */}
-                <div style={{ position: 'relative' }}>
-                  <button 
-                    className={`nav-icon-btn${showSearch ? ' active' : ''}`}
-                    title={t('search', 'Search')}
-                    onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
-                  >
-                    <Search size={18} />
-                  </button>
-                  {showSearch && (
-                    <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                      <input 
-                        autoFocus
-                        placeholder={t('searchUsersPlaceholder', 'Search users...')}
-                        className="nav-input"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8 }}
-                      />
-                      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-                        {searchResults.length > 0 ? (
-                          searchResults.map(u => (
-                            <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
-                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                                <div style={{ color: '#6b7280', fontSize: 11 }}>@{u.username}</div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
- 
-                {/* Chats Trigger */}
-                <div style={{ position: 'relative' }}>
-                  <button 
-                    className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
-                    title={t('chats', 'Chats')}
-                    onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
-                  >
-                    <MessageSquare size={18} />
-                    {totalUnread > 0 && (
-                      <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {totalUnread > 9 ? '9+' : totalUnread}
-                      </div>
-                    )}
-                  </button>
-                </div>
- 
-                {/* Notifications */}
-                <div style={{ position: 'relative' }}>
-                  <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
-                    <Bell size={18} />
-                    {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                      <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {followRequests.filter(r => r.status === 'pending').length}
-                      </div>
-                    )}
-                  </button>
-                  {showNotifications && (
-                    <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
-                      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {followRequests.length > 0 ? (
-                          followRequests.map(u => (
-                            <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                              onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent'}>
-                              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                                {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color="#888" />}
-                              </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                                <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
-                                  {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
-                                </div>
-                                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                  {u.status === 'pending' ? (
-                                    <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
-                                  ) : (
-                                    <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
-                                  )}
-                                  
-                                  {u.myFollowStatus === 'accepted' ? (
-                                    <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
-                                  ) : (
-                                    <button onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (u.myFollowStatus === 'pending') return;
-                                      handleFollowBack(u.username, e);
-                                    }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                      {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+        {isMobileOrTablet ? (
+          /* Mobile / Tablet Layout */
+          <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
+            {/* Left: Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
               </div>
+              <h1 className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
+            </div>
 
-              {/* User Menu Dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }} onMouseLeave={() => setShowUserMenu(false)}>
-                <div className="profile-pill"
-                  onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {profile?.avatarPath ? (
-                      <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <User size={14} style={{ color: '#6366f1' }} />
+            {/* Right: Actions & Hamburger */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {isLoggedIn && (
+                  /* Search */
+                  <div style={{ position: 'relative' }}>
+                    <button 
+                      className={`nav-icon-btn${showSearch ? ' active' : ''}`}
+                      title={t('search', 'Search')}
+                      onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); }}
+                    >
+                      <Search size={18} />
+                    </button>
+                    {showSearch && (
+                      <div className="nav-dropdown" style={{
+                        position: 'fixed',
+                        top: '68px',
+                        left: '16px',
+                        right: '16px',
+                        width: 'auto',
+                        background: isLight ? '#ffffff' : '#111',
+                        border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 16,
+                        padding: 12,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                        zIndex: 100000
+                      }}>
+                        <input 
+                          autoFocus
+                          placeholder={t('searchUsersPlaceholder', 'Search users...')}
+                          className="nav-input"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)',
+                            border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 10,
+                            color: isLight ? '#111' : '#fff',
+                            fontSize: 13,
+                            outline: 'none',
+                            marginBottom: 8
+                          }}
+                        />
+                        <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                          {searchResults.length > 0 ? (
+                            searchResults.map(u => (
+                              <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                                   onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
+                                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                                  <div style={{ color: isLight ? '#666' : '#6b7280', fontSize: 11 }}>@{u.username}</div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            searchQuery ? <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
-                </div>
-                {showUserMenu && (
-                  <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
-                    <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                      <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <User size={16} color="#6366f1" />
-                        </div>
-                        {t('account', 'Account')}
-                      </button>
-                      <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Settings size={16} color="#10b981" />
-                        </div>
-                        {t('app', 'App')}
-                      </button>
-                      <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <HelpCircle size={16} color="#f59e0b" />
-                        </div>
-                        {t('contactSupport', 'Contact Support')}
-                      </button>
-                      <div className="profile-divider" />
-                      <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
-                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <LogOut size={16} color="#f87171" />
-                        </div>
-                        {t('logOut', 'Log Out')}
-                      </button>
-                    </div>
                   </div>
                 )}
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px', fontWeight: 500, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', transition: 'color 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = '#ccc'}
-              >
-                {t('logIn', 'Log In')}
-              </button>
-              <button onClick={() => navigate('/signup')} style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
-              >
-                {t('signUp', 'Sign Up')}
-              </button>
-            </div>
-          )}
-          {/* Hamburger — hidden on desktop via CSS */}
-          <button
-            className="nav-hamburger-btn"
-            onClick={() => setShowMobileMenu(m => !m)}
-            aria-label="Toggle menu"
-          >
-            <div className="ham-line" style={{ transform: showMobileMenu ? 'rotate(45deg) translate(0, 7px)' : 'none' }} />
-            <div className="ham-line" style={{ opacity: showMobileMenu ? 0 : 1 }} />
-            <div className="ham-line" style={{ transform: showMobileMenu ? 'rotate(-45deg) translate(0, -7px)' : 'none' }} />
-          </button>
-        </div>
-        </div>{/* end nav-bar-row */}
 
-        {/* Mobile menu panel */}
-        {showMobileMenu && (
-          <div className="mobile-nav-panel">
-            <button className={`mobile-nav-link${location.pathname === '/' ? ' active' : ''}`} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>{t('home', 'Home')}</button>
-            <button className={`mobile-nav-link${location.pathname === '/features' ? ' active' : ''}`} onClick={() => { navigate('/features'); setShowMobileMenu(false); }}>{t('features', 'Features')}</button>
-            <button className={`mobile-nav-link${location.pathname === '/how-it-works' ? ' active' : ''}`} onClick={() => { navigate('/how-it-works'); setShowMobileMenu(false); }}>{t('howItWorks', 'Guide')}</button>
-            <button className={`mobile-nav-link${location.pathname === '/public' ? ' active' : ''}`} onClick={() => { navigate('/public'); setShowMobileMenu(false); }}>{t('explore', 'Explore')}</button>
-            {!isLoggedIn && (
-              <>
-                <div className="mobile-nav-divider" />
-                <button className="mobile-nav-link" onClick={() => { navigate('/login'); setShowMobileMenu(false); }}>{t('logIn', 'Log In')}</button>
+                {isLoggedIn && (
+                  <>
+                    {/* Chats Trigger */}
+                    <div style={{ position: 'relative' }}>
+                      <button 
+                        className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
+                        title={t('chats', 'Chats')}
+                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); }}
+                      >
+                        <MessageSquare size={18} />
+                        {totalUnread > 0 && (
+                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {totalUnread > 9 ? '9+' : totalUnread}
+                          </div>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Notifications */}
+                    <div style={{ position: 'relative' }}>
+                      <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                        <Bell size={18} />
+                        {followRequests.filter(r => r.status === 'pending').length > 0 && (
+                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {followRequests.filter(r => r.status === 'pending').length}
+                          </div>
+                        )}
+                      </button>
+                      {showNotifications && (
+                        <div className="nav-dropdown" style={{
+                          position: 'fixed',
+                          top: '68px',
+                          left: '16px',
+                          right: '16px',
+                          width: 'auto',
+                          background: isLight ? '#ffffff' : '#111',
+                          border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 16,
+                          padding: '12px 6px',
+                          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                          zIndex: 100000
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#666' : '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
+                          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                            {followRequests.length > 0 ? (
+                              followRequests.map(u => (
+                                <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
+                                  <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                                    {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color={isLight ? '#666' : '#888'} />}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                                    <div style={{ color: isLight ? '#444' : '#6b7280', fontSize: 11, marginTop: 2 }}>
+                                      {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                      {u.status === 'pending' ? (
+                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                      ) : (
+                                        <button disabled style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
+                                      )}
+                                      
+                                      {u.myFollowStatus === 'accepted' ? (
+                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
+                                      ) : (
+                                        <button onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (u.myFollowStatus === 'pending') return;
+                                          handleFollowBack(u.username, e);
+                                        }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                          {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Fullscreen Button */}
                 <button
-                  className="mobile-nav-link"
-                  style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontWeight: 700, borderRadius: 10 }}
-                  onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}
-                >{t('signUp', 'Sign Up')}</button>
-              </>
-            )}
+                  className={`nav-icon-btn${isAppFullscreen ? ' active' : ''}`}
+                  title={isAppFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  onClick={() => {
+                    if (!document.fullscreenElement) {
+                      document.documentElement.requestFullscreen().catch(() => {});
+                    } else {
+                      document.exitFullscreen().catch(() => {});
+                    }
+                  }}
+                >
+                  {isAppFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                </button>
+              </div>
+
+              {/* Hamburger Button */}
+              <button
+                className="nav-hamburger-btn"
+                onClick={() => setShowMobileMenu(m => !m)}
+                aria-label="Toggle menu"
+                style={{ display: 'flex' }}
+              >
+                <div className="ham-line" />
+                <div className="ham-line" />
+                <div className="ham-line" />
+              </button>
+
+
+            </div>
+          </div>
+        ) : (
+          /* Desktop Layout */
+          <div className="nav-bar-row">
+            {/* Left: Logo */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
+                <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
+              </div>
+              <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
+            </div>
+
+            {/* Center: Nav Links */}
+            <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>{t('home', 'Home')}</button>
+              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
+              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
+              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
+            </div>
+
+            {/* Right: Actions */}
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+              {isLoggedIn ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '16px' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative' }}>
+                      <button 
+                        className={`nav-icon-btn${showSearch ? ' active' : ''}`}
+                        title={t('search', 'Search')}
+                        onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
+                      >
+                        <Search size={18} />
+                      </button>
+                      {showSearch && (
+                        <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -60, width: 320, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: 12, boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+                          <input 
+                            autoFocus
+                            placeholder={t('searchUsersPlaceholder', 'Search users...')}
+                            className="nav-input"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, outline: 'none', marginBottom: 8 }}
+                          />
+                          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                            {searchResults.length > 0 ? (
+                              searchResults.map(u => (
+                                <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                                    <div style={{ color: '#6b7280', fontSize: 11 }}>@{u.username}</div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+      
+                    {/* Chats Trigger */}
+                    <div style={{ position: 'relative' }}>
+                      <button 
+                        className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
+                        title={t('chats', 'Chats')}
+                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+                      >
+                        <MessageSquare size={18} />
+                        {totalUnread > 0 && (
+                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {totalUnread > 9 ? '9+' : totalUnread}
+                          </div>
+                        )}
+                      </button>
+                    </div>
+      
+                    {/* Notifications */}
+                    <div style={{ position: 'relative' }}>
+                      <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                        <Bell size={18} />
+                        {followRequests.filter(r => r.status === 'pending').length > 0 && (
+                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {followRequests.filter(r => r.status === 'pending').length}
+                          </div>
+                        )}
+                      </button>
+                      {showNotifications && (
+                        <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 12px)', right: -20, width: 340, background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '12px 6px', boxShadow: '0 20px 40px rgba(0,0,0,0.8)', zIndex: 10000 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
+                          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                            {followRequests.length > 0 ? (
+                              followRequests.map(u => (
+                                <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent' }}
+                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent'}>
+                                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                                    {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color="#888" />}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
+                                    <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                                      {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                      {u.status === 'pending' ? (
+                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                      ) : (
+                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
+                                      )}
+                                      
+                                      {u.myFollowStatus === 'accepted' ? (
+                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
+                                      ) : (
+                                        <button onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (u.myFollowStatus === 'pending') return;
+                                          handleFollowBack(u.username, e);
+                                        }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                          {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+      
+                    {/* App Fullscreen */}
+                    <button
+                      className={`nav-icon-btn${isAppFullscreen ? ' active' : ''}`}
+                      title={isAppFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                      onClick={() => {
+                        if (!document.fullscreenElement) {
+                          document.documentElement.requestFullscreen().catch(() => {});
+                        } else {
+                          document.exitFullscreen().catch(() => {});
+                        }
+                      }}
+                    >
+                      {isAppFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                    </button>
+                  </div>
+    
+                  {/* User Menu Dropdown */}
+                  <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }} onMouseLeave={() => setShowUserMenu(false)}>
+                    <div className="profile-pill"
+                      onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {profile?.avatarPath ? (
+                          <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          <User size={14} style={{ color: '#6366f1' }} />
+                        )}
+                      </div>
+                      <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
+                    </div>
+                    {showUserMenu && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
+                        <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <User size={16} color="#6366f1" />
+                            </div>
+                            {t('account', 'Account')}
+                          </button>
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Settings size={16} color="#10b981" />
+                            </div>
+                            {t('app', 'App')}
+                          </button>
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <HelpCircle size={16} color="#f59e0b" />
+                            </div>
+                            {t('contactSupport', 'Contact Support')}
+                          </button>
+                          <div className="profile-divider" />
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <LogOut size={16} color="#f87171" />
+                            </div>
+                            {t('logOut', 'Log Out')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {isGuest && (
+                    <div style={{ display: 'flex', alignItems: 'center', position: 'relative', marginRight: 8 }} onMouseLeave={() => setShowUserMenu(false)}>
+                      <div className="profile-pill"
+                        onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
+                      >
+                        <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <User size={14} style={{ color: '#6366f1' }} />
+                        </div>
+                        <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
+                      </div>
+                      {showUserMenu && (
+                        <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
+                          <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <User size={16} color="#6366f1" />
+                              </div>
+                              {t('account', 'Account')}
+                            </button>
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Settings size={16} color="#10b981" />
+                              </div>
+                              {t('app', 'App')}
+                            </button>
+                            <div className="profile-divider" style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <User size={16} color="#6366f1" />
+                              </div>
+                              {t('logIn', 'Sign In')}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px', fontWeight: 500, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', transition: 'color 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#ccc'}
+                  >
+                    {t('logIn', 'Log In')}
+                  </button>
+                  <button onClick={() => navigate('/signup')} style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
+                    {t('signUp', 'Sign Up')}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </nav>
 
-      {/* Guest Warning Marquee */}
-      {!isLoggedIn && (
+      {/* Mobile/Tablet Drawer – rendered as a portal so it's outside the sticky nav */}
+      {isMobileOrTablet && showMobileMenu && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className="mobile-drawer-backdrop"
+            onClick={() => setShowMobileMenu(false)}
+          />
+          {/* Side Panel */}
+          <div
+            className="mobile-drawer-panel"
+            style={{
+              background: isLight ? '#ffffff' : '#141418',
+              borderLeft: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.08)',
+              boxShadow: isLight ? '-8px 0 32px rgba(0,0,0,0.12)' : '-8px 0 40px rgba(0,0,0,0.7)',
+              padding: '0',
+            }}
+          >
+            {/* Drawer Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Play fill="#fff" size={12} style={{ marginLeft: 1 }} />
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 15, color: isLight ? '#111' : '#fff' }}>Menu</span>
+              </div>
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLight ? '#555' : '#aaa', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                aria-label="Close menu"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Drawer Nav Links */}
+            <div style={{ padding: '8px', flex: 1 }}>
+              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>
+                <Home size={16} />
+                {t('home', 'Home')}
+              </button>
+              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/features'); setShowMobileMenu(false); }}>
+                <Sparkles size={16} />
+                {t('features', 'Features')}
+              </button>
+              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/how-it-works'); setShowMobileMenu(false); }}>
+                <HelpCircle size={16} />
+                {t('howItWorks', 'Guide')}
+              </button>
+              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/public'); setShowMobileMenu(false); }}>
+                <Compass size={16} />
+                {t('explore', 'Explore')}
+              </button>
+
+              <div style={{ height: '1px', background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)', margin: '6px 0' }} />
+
+              {(isLoggedIn || isGuest) && (
+                <>
+                  <button className={`nav-link-btn${location.pathname === '/profile' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/profile'); setShowMobileMenu(false); }}>
+                    <User size={16} />
+                    {t('profile', 'Profile')} {loggedInUsername ? `(${loggedInUsername})` : ''}
+                  </button>
+
+                  <button className={`nav-link-btn${location.pathname === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/app-settings'); setShowMobileMenu(false); }}>
+                    <Settings size={16} />
+                    {t('app', 'App Settings')}
+                  </button>
+
+                  {isGuest ? (
+                    <>
+                      <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowMobileMenu(false); handleLogout(); }}>
+                        <User size={16} />
+                        {t('logIn', 'Sign In')}
+                      </button>
+                      <button style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                        <Sparkles size={16} />
+                        {t('signUp', 'Sign Up')}
+                      </button>
+                    </>
+                  ) : (
+                    <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', color: '#f87171' }} onClick={() => { setShowMobileMenu(false); handleLogout(); }}>
+                      <LogOut size={16} color="#f87171" />
+                      {t('logOut', 'Log Out')}
+                    </button>
+                  )}
+                </>
+              )}
+
+              {!isLoggedIn && !isGuest && (
+                <>
+                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/login'); setShowMobileMenu(false); }}>
+                    <User size={16} />
+                    {t('logIn', 'Sign In')}
+                  </button>
+
+                  <button style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                    <Sparkles size={16} />
+                    {t('signUp', 'Sign Up')}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+
+
+      {!isLoggedIn && localStorage.getItem('watch_is_guest') === 'true' && (
         <div className="guest-marquee-container">
           <div className="guest-marquee-text">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
               <AlertCircle size={14} /> 
-              {t('guestLimitations', 'You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join "Members Only" rooms. Sign Up for a free account to unlock all features!')}
+              {t('guestLimitations', 'You are currently browsing as a Guest. Sign Up for a free account to create your own rooms and unlock all features!')}
             </span>
           </div>
         </div>

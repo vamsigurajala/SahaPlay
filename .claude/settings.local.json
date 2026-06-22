@@ -1,7 +1,47 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(node -e \"require\\('nodemailer'\\); console.log\\('nodemailer OK'\\)\")",
+      "PowerShell(Stop-Process -Id 29388, 8272, 35220 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend\" -WindowStyle Normal)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c npm run dev\" -WorkingDirectory \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\" -WindowStyle Normal)",
+      "Bash(sleep 4 && cat /tmp/backend.log | tail -20)",
+      "Read(//tmp/**)",
+      "Bash(cat /tmp/frontend.log | tail -15)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\" -Force)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(node --input-type=module)",
+      "Bash(npx --yes acorn --ecma2020 --module frontend/src/components/GlobalChatWidget.jsx)",
+      "Bash(npm install *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "PowerShell(Stop-Process -Name \"node\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/api/test-limit)",
+      "Bash(curl -s -o /dev/null -w \"backend: %{http_code}\" http://localhost:3001/api/test-limit)",
+      "Read(//mnt/c/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/**)",
+      "Bash(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force)",
+      "Bash(Write-Host \"Killed node processes\")",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Test-NetConnection -ComputerName localhost -Port 3001 -InformationLevel Quiet)",
+      "PowerShell(Test-NetConnection -ComputerName localhost -Port 5173 -InformationLevel Quiet)",
+      "PowerShell(Start-Sleep -Seconds 1; Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend\"; $backend = Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WindowStyle Hidden -PassThru; Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\"; $frontend = Start-Process -FilePath \"cmd\" -ArgumentList \"/c npx vite --host\" -WindowStyle Hidden -PassThru; Write-Host \"Backend PID: $\\($backend.Id\\)\"; Write-Host \"Frontend PID: $\\($frontend.Id\\)\")",
+      "PowerShell(Start-Sleep -Seconds 4; $b = Test-NetConnection -ComputerName localhost -Port 3001 -InformationLevel Quiet; $f = Test-NetConnection -ComputerName localhost -Port 5173 -InformationLevel Quiet; Write-Host \"Backend \\(3001\\): $b\"; Write-Host \"Frontend \\(5173\\): $f\")",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 1; Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend\"; $b = Start-Process -FilePath \"node\" -ArgumentList \"server.js\" -WindowStyle Hidden -PassThru; Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\"; $f = Start-Process -FilePath \"cmd\" -ArgumentList \"/c npx vite --host\" -WindowStyle Hidden -PassThru; Write-Host \"Backend PID: $\\($b.Id\\)  Frontend PID: $\\($f.Id\\)\")",
+      "PowerShell(Start-Sleep -Seconds 4; $b = Test-NetConnection -ComputerName localhost -Port 3001 -InformationLevel Quiet; $f = Test-NetConnection -ComputerName localhost -Port 5173 -InformationLevel Quiet; Write-Host \"Backend :3001 = $b  |  Frontend :5173 = $f\")",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(Start-Sleep -Seconds 4)",
+      "Bash(Get-Content \"C:\\\\Users\\\\KRISHN~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-KrishnavamsiGurajala--gemini-antigravity-scratch-watch-together\\\\b9c90adb-9238-4b6e-8905-3df08f39221f\\\\tasks\\\\brozaz0ro.output\" -Tail 15)",
+      "PowerShell(npx kill-port 5173 2>$null; Start-Sleep -Milliseconds 800; Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\"; Start-Process powershell -ArgumentList '-NoExit', '-Command', 'npm run dev -- --port 5173' -WindowStyle Normal)",
+      "PowerShell(Start-Sleep -Seconds 4; try { $r = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing; \"Frontend up: $\\($r.StatusCode\\)\" } catch { \"Not yet: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Start-Sleep -Seconds 6; try { $r = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing; \"Frontend up: $\\($r.StatusCode\\)\" } catch { \"Not yet: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\"; Start-Job -ScriptBlock { Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend\"; npm run dev -- --port 5173 2>&1 } | Out-Null; Start-Sleep -Seconds 8; try { $r = Invoke-WebRequest -Uri 'http://localhost:5173' -TimeoutSec 5 -UseBasicParsing; \"Frontend up: $\\($r.StatusCode\\)\" } catch { \"Not yet: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:3001/api/rooms' -TimeoutSec 5 -UseBasicParsing; \"Backend up: $\\($r.StatusCode\\)\" } catch { \"Backend down: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri 'http://localhost:3001' -TimeoutSec 5 -UseBasicParsing; \"Backend up: $\\($r.StatusCode\\)\" } catch { if \\($_.Exception.Response.StatusCode\\) { \"Backend up \\(got $\\($_.Exception.Response.StatusCode\\)\\)\" } else { \"Backend down: $\\($_.Exception.Message\\)\" } })",
+      "PowerShell(npx kill-port 3001 5173 2>$null)",
+      "PowerShell(\"Ports cleared\")",
+      "PowerShell(Start-Process powershell -ArgumentList '-NoExit', '-Command', 'Set-Location \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend\"; node server.js' -WindowStyle Normal)"
     ]
   }
 }

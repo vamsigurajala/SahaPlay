@@ -3,7 +3,9 @@ import { Lock, X, ShieldAlert, Timer, Eye, EyeOff, ChevronRight, Loader2, Key, A
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 
-const API = `http://${window.location.hostname}:3001`;
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 4; 
 const LOCKOUT_ATTEMPTS = 3;
@@ -30,7 +32,8 @@ function CooldownTimer({ blockedUntil, onExpired }) {
       background: 'rgba(239, 68, 68, 0.05)',
       border: '1px solid rgba(239, 68, 68, 0.12)',
       borderRadius: 24,
-      padding: '32px 24px',
+      padding: 'clamp(20px, 5vh, 32px) clamp(16px, 4vw, 24px)',
+      boxSizing: 'border-box',
       textAlign: 'center',
       margin: '20px 0',
       animation: 'fadeIn 0.5s ease-out'
@@ -266,16 +269,18 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
         style={{
-          width: 440, 
+          width: '90%',
+          maxWidth: 440, 
           background: isLight ? '#ffffff' : 'linear-gradient(165deg, #161725 0%, #0c0d16 100%)', 
           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.05)',
           borderRadius: 36, 
-          padding: '48px 36px', 
+          padding: 'clamp(24px, 6vh, 48px) clamp(16px, 5vw, 36px)', 
           textAlign: 'center', 
           boxShadow: isLight ? '0 25px 80px rgba(0,0,0,0.15)' : '0 50px 120px rgba(0,0,0,0.9)', 
           animation: 'scaleUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxSizing: 'border-box'
         }}
       >
         {/* Glow Effect - Hidden in Light Mode */}
@@ -301,7 +306,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         )}
 
         <div style={{ 
-          width: 80, height: 80, borderRadius: 28, margin: '0 auto 28px', 
+          width: 'clamp(60px, 15vw, 80px)', height: 'clamp(60px, 15vw, 80px)', borderRadius: 28, margin: '0 auto clamp(16px, 4vh, 28px)', 
           background: isLight ? '#f8fafc' : 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.02))', 
           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(99,102,241,0.2)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -309,7 +314,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
           {mode === 'pin' ? <Lock size={36} color="#818cf8" strokeWidth={2.5} /> : <Key size={36} color="#a855f7" strokeWidth={2.5} />}
         </div>
 
-        <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.8rem', color: isLight ? '#1e293b' : '#fff', letterSpacing: '-0.03em' }}>
+        <h2 style={{ margin: 0, fontWeight: 800, fontSize: 'clamp(1.4rem, 5vw, 1.8rem)', color: isLight ? '#1e293b' : '#fff', letterSpacing: '-0.03em' }}>
           {mode === 'pin'
             ? (action === 'unlock'
                 ? (chatName === 'Locked Chats Vault' ? t('unlockVault', 'Unlock Vault') : t('privateAccess', 'Private Access'))
@@ -329,7 +334,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
             </div>
           </div>
         ) : (
-          <p style={{ margin: '12px 0 32px', fontSize: '1rem', color: isLight ? '#475569' : '#64748b', fontWeight: 500 }}>
+          <p style={{ margin: '12px 0 clamp(16px, 4vh, 32px)', fontSize: 'clamp(0.9rem, 3.5vw, 1rem)', color: isLight ? '#475569' : '#64748b', fontWeight: 500 }}>
             {isBlocked ? t('securityLockoutActive', 'Security lockout enabled') : (mode === 'pin' ? t('enterPin6Digit', 'Please enter your 6-digit PIN') : t('enterMasterKey', 'Enter your Master Key'))}
           </p>
         )}
@@ -355,13 +360,13 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   onChange={(e) => handlePinChange(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && pin.length === PIN_LENGTH) handleVerify(); }}
                   style={{
-                    width: '100%', padding: '24px', borderRadius: 24, 
+                    width: '100%', padding: 'clamp(14px, 4vw, 24px)', borderRadius: 24, 
                     background: isLight ? '#f8fafc' : 'rgba(0, 0, 0, 0.3)',
                     border: `2px solid ${error ? '#ef4444' : (pin.length > 0 ? 'rgba(99,102,241,0.4)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)'))}`,
-                    color: isLight ? '#1e293b' : '#fff', fontSize: 36, fontWeight: 900, textAlign: 'center', 
+                    color: isLight ? '#1e293b' : '#fff', fontSize: 'clamp(24px, 7vw, 36px)', fontWeight: 900, textAlign: 'center', 
                     letterSpacing: '0.4em', outline: 'none', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                    boxShadow: 'none',
-                    fontFamily: 'monospace', paddingRight: 60
+                    boxSizing: 'border-box',
+                    fontFamily: 'monospace', paddingRight: 'clamp(40px, 12vw, 60px)'
                   }}
                 />
                 {pin.length > 0 && (
@@ -386,12 +391,13 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   autoFocus
                   onChange={(e) => setRecoveryKey(e.target.value.toUpperCase())}
                   style={{
-                    width: '100%', padding: '20px', borderRadius: 20, 
+                    width: '100%', padding: 'clamp(12px, 3.5vw, 20px)', borderRadius: 20, 
                     background: isLight ? '#f8fafc' : 'rgba(0, 0, 0, 0.3)',
                     border: `2px solid ${error ? '#ef4444' : (isLight ? '#e2e8f0' : 'rgba(168,85,247,0.4)')}`,
-                    color: isLight ? '#1e293b' : '#fff', fontSize: 16, fontWeight: 600, textAlign: 'center', 
+                    color: isLight ? '#1e293b' : '#fff', fontSize: 'clamp(14px, 3.5vw, 16px)', fontWeight: 600, textAlign: 'center', 
                     letterSpacing: '0.1em', outline: 'none', transition: 'all 0.3s',
-                    minHeight: 120, resize: 'none', fontFamily: 'monospace', boxShadow: 'none'
+                    boxSizing: 'border-box',
+                    minHeight: 'clamp(100px, 15vh, 120px)', resize: 'none', fontFamily: 'monospace', boxShadow: 'none'
                   }}
                 />
               </div>
@@ -415,15 +421,16 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
               onClick={handleVerify}
               className={`unlock-submit-btn ${isEnabled ? 'enabled' : ''}`}
               style={{
-                width: '100%', padding: '20px', borderRadius: 20, border: 'none',
+                width: '100%', padding: 'clamp(12px, 3.5vw, 20px)', borderRadius: 20, border: 'none',
                 background: isEnabled
                   ? (mode === 'pin' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'linear-gradient(135deg, #a855f7, #9333ea)')
                   : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.03)'),
                 color: isEnabled ? '#ffffff' : (isLight ? '#94a3b8' : '#4b5563'),
-                fontSize: '1.1rem', fontWeight: 800, cursor: isEnabled ? 'pointer' : 'not-allowed',
+                fontSize: 'clamp(0.95rem, 3.5vw, 1.1rem)', fontWeight: 800, cursor: isEnabled ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                 transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                 boxShadow: (isEnabled && !isLight) ? '0 15px 35px rgba(79, 70, 229, 0.3)' : 'none',
+                boxSizing: 'border-box',
                 transform: 'translateY(0)',
                 position: 'relative',
                 zIndex: 1

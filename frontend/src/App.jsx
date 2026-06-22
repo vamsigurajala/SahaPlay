@@ -37,23 +37,69 @@ const ProtectedRoute = ({ children }) => {
   return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
 };
 
+const roomMatch = window.location.pathname.match(/^\/room\/([^\/]+)/);
+if (roomMatch) {
+  const token = localStorage.getItem('watch_token');
+  const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+  if (!token && !isGuest) {
+    const ADJECTIVES = ["Anonymous", "Happy", "Clever", "Swift", "Bright", "Quiet", "Silly", "Fancy", "Jolly", "Cool", "Chilly", "Kind", "Brave", "Calm", "Eager", "Friendly", "Gentle", "Witty", "Spunky", "Sneaky"];
+    const ANIMALS = ["Penguin", "Fox", "Bear", "Koala", "Panda", "Otter", "Rabbit", "Squirrel", "Dolphin", "Tiger", "Lion", "Owl", "Sloth", "Beaver", "Hedgehog", "Raccoon", "Hamster", "Deer", "Elephant", "Badger"];
+    const randomAdj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+    const randomAnim = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    const randomNum = Math.floor(100 + Math.random() * 900);
+    const guestName = `${randomAdj} ${randomAnim} ${randomNum}`;
+
+    const keysToRemove = [
+      'watch_token',
+      'watch_username',
+      'watch_is_guest',
+      'watch_guest_id',
+      'wt_kp_pw',
+      'wt_session_key',
+      'wt_session_pw'
+    ];
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+
+    localStorage.setItem('watch_username', 'guest_' + guestName);
+    localStorage.setItem('watch_is_guest', 'true');
+  }
+}
+
 function App() {
   const { i18n } = useTranslation();
 
   useEffect(() => {
-    const token = localStorage.getItem('watch_token');
-    if (token) {
-      const apiHost = window.location.hostname;
-      fetch(`http://${apiHost}:3001/api/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(data => {
-          if (!data.error && data.language) {
-            i18n.changeLanguage(data.language);
-            localStorage.setItem('watch_language', data.language);
-          }
-        }).catch(()=>{});
-    }
+    const fetchAndApplySettings = () => {
+      const token = localStorage.getItem('watch_token');
+      if (token) {
+        const apiHost = window.location.hostname;
+        const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
+          ? `http://${apiHost}:3001`
+          : `https://${apiHost}`;
+        fetch(`${apiBase}/api/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(data => {
+            if (!data.error && data.language) {
+              const normalizedLang = data.language.split('-')[0].toLowerCase();
+              i18n.changeLanguage(normalizedLang);
+              localStorage.setItem('watch_language', normalizedLang);
+            }
+          }).catch(()=>{});
+      }
+    };
 
+    fetchAndApplySettings();
+
+    window.addEventListener('login_success', fetchAndApplySettings);
+    window.addEventListener('settings_changed', fetchAndApplySettings);
+
+    return () => {
+      window.removeEventListener('login_success', fetchAndApplySettings);
+      window.removeEventListener('settings_changed', fetchAndApplySettings);
+    };
+  }, [i18n]);
+
+  useEffect(() => {
     // ── Runtime Light Mode Stylesheet ──
     // We inject a <style id="light-mode-overrides"> tag when theme=light.
     // This is the ONLY reliable way to override inline styles in React:
@@ -67,8 +113,8 @@ function App() {
         color: #111 !important;
       }
 
-      /* ── Force ALL text to be dark unless it's inside an element with a colored gradient bg or explicitly marked to stay white ── */
-      html[data-theme='light'] *:not(.stay-white):not(.unread-badge):not(.badge-text):not(.danger-red-btn):not(.msg-sent):not(.gcw-force-dark):not(.gcw-force-dark *) {
+      /* ── Force ALL text to be dark unless it's inside an element with a colored gradient bg or explicitly marked to stay white/red/custom ── */
+      html[data-theme='light'] *:not(.stay-white):not(.unread-badge):not(.badge-text):not(.danger-red-btn):not(.msg-sent):not(.gcw-force-dark):not(.gcw-force-dark *):not(.stay-red):not(.stay-color) {
         color: inherit;
         border-color: rgba(0,0,0,0.1);
       }
@@ -76,6 +122,7 @@ function App() {
       /* Protection for explicitly white text */
       html[data-theme='light'] .stay-white,
       html[data-theme='light'] .stay-white *,
+      html[data-theme='light'] .stay-color,
       html[data-theme='light'] .back-to-top-btn,
       html[data-theme='light'] .unread-badge,
       html[data-theme='light'] .unread-badge *,
@@ -84,6 +131,7 @@ function App() {
       html[data-theme='light'] .msg-sent,
       html[data-theme='light'] .msg-sent * {
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
       }
 
       /* ── Navbar, panels, cards – force bg to white/light ── */
@@ -97,13 +145,13 @@ function App() {
       html[data-theme='light'] [style*="background: rgba(255,255,255,0.08)"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: rgba(0,0,0,0.03) !important;
       }
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.1)"] {
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.1)"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: rgba(0,0,0,0.05) !important;
       }
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.12)"] {
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.12)"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: rgba(0,0,0,0.07) !important;
       }
-      html[data-theme='light'] [style*="background: rgba(255,255,255,0.15)"] {
+      html[data-theme='light'] [style*="background: rgba(255,255,255,0.15)"]:not(.gcw-force-dark):not(.gcw-force-dark *) {
         background: rgba(0,0,0,0.08) !important;
       }
 
@@ -120,18 +168,18 @@ function App() {
       }
 
       /* ── All semi-transparent white TEXT → proper dark text ── */
-      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn) {
+      html[data-theme='light'] [style*="color: rgba(255,255,255"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:rgba(255,255,255"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: rgb(255, 255, 255"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #fff"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#fff"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ffffff"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #f1f1f1"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #e2e8f0"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ccc"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#ccc"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color: #ddd"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn),
+      html[data-theme='light'] [style*="color:#ddd"]:not(.stay-white):not(.stay-color):not(.gcw-force-dark):not(.gcw-force-dark *):not(.footer-social-btn):not(.back-to-top-btn) {
         color: #111 !important;
       }
 
@@ -211,10 +259,30 @@ function App() {
       
       /* ── Chat widget container (fixed positioned floating panel) ── */
 
-      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn),
-      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.gcw-force-dark):not(.gcw-force-dark *) {
+      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn):not(.media-lightbox-overlay):not(.media-selector-overlay):not(.subtitle-modal-overlay):not(.customize-room-overlay):not(.block-confirm-overlay):not(.gcw-force-dark):not(.gcw-force-dark *),
+      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.block-confirm-overlay):not(.gcw-force-dark):not(.gcw-force-dark *):not(.media-lightbox-card) {
         background: #f7f8fc !important;
         border-color: rgba(0,0,0,0.1) !important;
+      }
+      html[data-theme='light'] .block-confirm-overlay {
+        background: rgba(15, 23, 42, 0.35) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
+      }
+      html[data-theme='light'] .subtitle-modal-overlay {
+        background: rgba(255,255,255,0.4) !important;
+        backdrop-filter: blur(4px) !important;
+        -webkit-backdrop-filter: blur(4px) !important;
+      }
+      html[data-theme='light'] .customize-room-overlay {
+        background: rgba(0,0,0,0.55) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+      }
+      html[data-theme='light'] .media-selector-overlay {
+        background: rgba(0, 0, 0, 0.35) !important;
+        backdrop-filter: blur(18px) !important;
+        -webkit-backdrop-filter: blur(18px) !important;
       }
       html[data-theme='light'] .chat-modal-overlay:not(.gcw-force-dark .chat-modal-overlay) {
         background: rgba(15, 23, 42, 0.4) !important;
@@ -254,8 +322,32 @@ function App() {
       }
 
       /* ── Scrollbars ── */
-      html[data-theme='light'] ::-webkit-scrollbar { display: none !important; }
-      html[data-theme='light'] * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+      html[data-theme='light'] ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+        display: block !important;
+      }
+      html[data-theme='light'] ::-webkit-scrollbar-track {
+        background: transparent !important;
+      }
+      html[data-theme='light'] ::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15) !important;
+        border-radius: 10px !important;
+      }
+      html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.25) !important;
+      }
+      html[data-theme='light'] * {
+        -ms-overflow-style: auto !important;
+        scrollbar-width: auto !important;
+      }
+      html[data-theme='light'] .no-scrollbar::-webkit-scrollbar {
+        display: none !important;
+      }
+      html[data-theme='light'] .no-scrollbar {
+        -ms-overflow-style: none !important;
+        scrollbar-width: none !important;
+      }
 
       /* ── Red Danger Buttons (Clear Chat, Delete, etc.) ── */
       html[data-theme='light'] .danger-red-btn,
@@ -429,6 +521,16 @@ function App() {
         color: #ffffff !important;
       }
 
+      /* File card text overrides inside sent message bubbles */
+      html[data-theme='light'] .msg-bubble .fc-name { color: #111827 !important; }
+      html[data-theme='light'] .msg-bubble .fc-sub { color: #374151 !important; }
+      html[data-theme='light'] .msg-bubble .fc-expiry-warn { color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble .fc-expiry-ok { color: #9ca3af !important; }
+      html[data-theme='light'] .msg-bubble .fc-dl,
+      html[data-theme='light'] .msg-bubble .fc-dl * { color: #6d28d9 !important; }
+      html[data-theme='light'] .msg-bubble .media-expiry-warn { color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble .media-expiry-ok { color: #666666 !important; }
+
       /* Restore colors for action icons inside dropdowns with better contrast */
       html[data-theme='light'] .nav-dropdown [style*="color: #6366f1"],
       html[data-theme='light'] .nav-dropdown [style*="color:#6366f1"] { color: #4f46e5 !important; stroke: #4f46e5 !important; }
@@ -456,10 +558,12 @@ function App() {
         background: #ffffff !important;
         border-bottom: 1px solid rgba(0,0,0,0.08) !important;
       }
-      html[data-theme='light'] .chat-list-header *:not(.gcw-force-dark *),
+      html[data-theme='light'] .chat-list-header *:not(.gcw-force-dark *):not(.chat-avatar-initial),
       html[data-theme='light'] .chat-header-title:not(.gcw-force-dark .chat-header-title) {
         color: #111111 !important;
       }
+      html[data-theme='light'] .chat-list-header .chat-avatar-initial,
+      html[data-theme='light'] .chat-avatar-initial { color: #ffffff !important; }
       html[data-theme='light'] .chat-list-header input:not(.gcw-force-dark input) {
         background: rgba(0,0,0,0.05) !important;
         border: 1px solid rgba(0,0,0,0.12) !important;
@@ -696,6 +800,7 @@ function App() {
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/app-settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
             <Route path="/room/:roomId" element={<ProtectedRoute><Room /></ProtectedRoute>} />
           </Routes>
         </Router>

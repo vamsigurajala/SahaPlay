@@ -44,6 +44,35 @@ export default function Terms() {
   const [theme, setTheme] = useState(() => localStorage.getItem('watch_theme') || 'dark');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [highlightedId, setHighlightedId] = useState(null);
+
+  const handleLinkClick = (id) => {
+    setHighlightedId(null);
+    setTimeout(() => {
+      setHighlightedId(id);
+    }, 50);
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash) {
+        const id = hash.substring(1);
+        setHighlightedId(id);
+      }
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    if (!highlightedId) return;
+    const timer = setTimeout(() => {
+      setHighlightedId(null);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [highlightedId]);
 
   useEffect(() => {
     const handleTheme = () => setTheme(localStorage.getItem('watch_theme') || 'dark');
@@ -101,10 +130,25 @@ export default function Terms() {
 
   const SectionCard = ({ id, num, Icon, accent = '#6366f1', children }) => {
     const sec = SECTIONS.find(s => s.id === id);
+    const isHighlighted = highlightedId === id;
+
+    const highlightStyle = isHighlighted ? {
+      background: isLight ? 'rgba(168, 85, 247, 0.08)' : 'rgba(168, 85, 247, 0.16)',
+      borderColor: '#a855f7',
+      boxShadow: isLight ? '0 0 28px rgba(168, 85, 247, 0.4)' : '0 0 35px rgba(168, 85, 247, 0.55)',
+      transform: 'scale(1.02) translateY(-2px)',
+    } : {};
+
     return (
       <div
         id={id}
-        style={{ ...cardBase, marginBottom: 20, scrollMarginTop: 90 }}
+        style={{
+          ...cardBase,
+          ...highlightStyle,
+          marginBottom: 20,
+          scrollMarginTop: 90,
+          transition: 'all 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <div style={{
@@ -127,7 +171,7 @@ export default function Terms() {
   };
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary, overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
       <Navbar />
       <div className="page-wrapper">
 
@@ -194,6 +238,7 @@ export default function Terms() {
                   <a
                     key={id}
                     href={`#${id}`}
+                    onClick={() => handleLinkClick(id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '8px 12px', borderRadius: 8,

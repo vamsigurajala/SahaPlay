@@ -100,7 +100,7 @@ const Features = () => {
   ];
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }}>
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -274,22 +274,173 @@ const Features = () => {
         /* --- Side by side sections (image/mockup + text) --- */
         .side-by-side-section {
           display: grid;
-          gap: 64px;
+          gap: 32px;
           align-items: center;
           grid-template-columns: 1fr;
         }
         @media (min-width: 1024px) {
           .side-by-side-section {
             grid-template-columns: 1fr 1fr;
+            gap: 64px;
           }
         }
 
-        .side-by-side-section > .mockup-wrapper {
-          order: -1;
+        /* Default mobile: info first, mockup second */
+        .side-by-side-section > .info-wrapper {
+          order: 1;
         }
+        .side-by-side-section > .mockup-wrapper {
+          order: 2;
+        }
+
+        /* Desktop: alternate layouts if alt-layout class is present */
         @media (min-width: 1024px) {
+          .side-by-side-section > .info-wrapper {
+            order: 0;
+          }
           .side-by-side-section > .mockup-wrapper {
             order: 0;
+          }
+          .side-by-side-section.alt-layout > .mockup-wrapper {
+            order: -1;
+          }
+        }
+
+        /* --- Sources Grid responsive (2 beside on mobile) --- */
+        .sources-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+        }
+        @media (min-width: 640px) {
+          .sources-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+          }
+        }
+        @media (min-width: 1024px) {
+          .sources-grid {
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+          }
+        }
+        .source-card {
+          padding: 16px !important;
+        }
+        @media (min-width: 640px) {
+          .source-card {
+            padding: 24px !important;
+          }
+        }
+
+        /* --- Privacy Badges Grid (2x2 on mobile) --- */
+        .privacy-badges-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          max-width: 440px;
+          margin: 24px auto 0;
+        }
+        @media (min-width: 640px) {
+          .privacy-badges-grid {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 24px;
+            max-width: none;
+            margin: 40px auto 0;
+          }
+        }
+        .privacy-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 8px 16px !important;
+          border-radius: 99px;
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.2);
+          color: #34d399;
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        /* --- Mockup Wrapper & Glass Panel Responsiveness --- */
+        .mockup-wrapper {
+          min-width: 0;
+          width: 100%;
+        }
+        .mockup-wrapper.glass-panel {
+          padding: 16px !important;
+        }
+        @media (min-width: 640px) {
+          .mockup-wrapper.glass-panel {
+            padding: 24px !important;
+          }
+        }
+        .sync-mockup {
+          padding: 16px !important;
+        }
+        @media (min-width: 640px) {
+          .sync-mockup {
+            padding: 32px !important;
+          }
+        }
+
+        /* --- Lobby Item wrapping on small screens --- */
+        .lobby-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 12px 16px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 14px;
+          gap: 12px;
+        }
+        @media (max-width: 480px) {
+          .lobby-item {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            text-align: center;
+            gap: 8px;
+          }
+          .lobby-item > div:first-child {
+            margin-bottom: 4px;
+          }
+          .lobby-item > div:last-child {
+            justify-content: center !important;
+          }
+        }
+
+        /* --- Feature Comparison Table Container --- */
+        .table-container {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border-radius: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        html[data-theme='light'] .table-container {
+          border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .table-container:hover {
+          border-color: rgba(168, 85, 247, 0.45) !important;
+          box-shadow: 0 0 15px rgba(168, 85, 247, 0.12) !important;
+        }
+        @media (max-width: 1023px) {
+          .table-container,
+          .table-container.glass-panel,
+          .table-container.glow-border,
+          html[data-theme='light'] .table-container,
+          html[data-theme='light'] .table-container.glass-panel,
+          html[data-theme='light'] .table-container.glow-border {
+            border-radius: 12px !important;
+          }
+          .table-container.glow-border::after,
+          .table-container::after,
+          .glow-border.table-container::after {
+            display: none !important;
           }
         }
       `}</style>
@@ -304,14 +455,16 @@ const Features = () => {
       {/* ────────────────────────────────────────────────────────
          1. HERO SECTION
       ──────────────────────────────────────────────────────── */}
-      <section className="section-padding" style={{
-        position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', background: isLight
+      <section style={{
+        position: 'relative', display: 'flex', alignItems: 'center', background: isLight
           ? 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(99,102,241,0.18) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(168,85,247,0.14) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.08) 0%, transparent 60%), #ffffff'
-          : 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(99,102,241,0.28) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(168,85,247,0.22) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.12) 0%, transparent 60%), #0f0f18', color: 'var(--text-primary)', overflow: 'hidden'
+          : 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(99,102,241,0.28) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(168,85,247,0.22) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.12) 0%, transparent 60%), #0f0f18', color: 'var(--text-primary)', overflow: 'hidden',
+        paddingTop: 'clamp(48px, 8vw, 100px)',
+        paddingBottom: 'clamp(48px, 8vw, 100px)',
       }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto', width: '100%', position: 'relative', zIndex: 1 }}>
           {/* Left Hero */}
-          <div style={{ position: 'relative', zIndex: 1 }}>
+          <div className="info-wrapper" style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 99, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontSize: 13, fontWeight: 600, marginBottom: 24 }}>
               <Sparkles size={14} /> {t('everythingUnlock', 'Sahaplay watch party hub')}
             </div>
@@ -449,9 +602,27 @@ const Features = () => {
          3. REALTIME SYNC ENGINE SECTION
       ──────────────────────────────────────────────────────── */}
       <section id="how-it-works" className="section-padding" style={{ background: isLight ? '#ffffff' : '#0f0f18', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div className="features-container side-by-side-section alt-layout" style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {/* Info */}
+          <div className="info-wrapper">
+            <h2 className="section-title">{t('syncEngineTitle', 'Perfect Playback Sync')}</h2>
+            <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>
+              {t('syncEngineDesc', 'When you hit play, everyone sees it at the same moment. Pause, seek, or switch videos — it all stays in sync, automatically.')}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: '#6366f1', marginBottom: 4 }}>{t('instant', 'Instant')}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('noDelayDesc', 'No delay in playback alignment')}</div>
+              </div>
+              <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: 24, fontWeight: 900, color: '#10b981', marginBottom: 4 }}>100%</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('syncedScreensDesc', 'Synced screens across all devices')}</div>
+              </div>
+            </div>
+          </div>
+
           {/* Left: Wave/Pulse Sync Visualizer */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 32, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.5)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, position: 'relative', width: '100%' }}>
+          <div className="glass-panel glow-border mockup-wrapper sync-mockup" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.5)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, position: 'relative', width: '100%' }}>
             <div style={{ fontSize: 12, color: '#818cf8', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 20 }}>
               {t('livePlaybackSync', 'Live Playback Sync')}
             </div>
@@ -494,24 +665,6 @@ const Features = () => {
               </div>
             </div>
           </div>
-
-          {/* Right: Info */}
-          <div>
-            <h2 className="section-title">{t('syncEngineTitle', 'Perfect Playback Sync')}</h2>
-            <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 32 }}>
-              {t('syncEngineDesc', 'When you hit play, everyone sees it at the same moment. Pause, seek, or switch videos — it all stays in sync, automatically.')}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#6366f1', marginBottom: 4 }}>{t('instant', 'Instant')}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('noDelayDesc', 'No delay in playback alignment')}</div>
-              </div>
-              <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#10b981', marginBottom: 4 }}>100%</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('syncedScreensDesc', 'Synced screens across all devices')}</div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -520,7 +673,7 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#f3f4f6' : '#1a1a2e', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div>
+          <div className="info-wrapper">
             <h2 className="section-title">{t('communicationHubTitle', 'Live Chat & Private Messaging')}</h2>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
               {t('communicationHubDesc', 'Chat with everyone in public room channels or start a private group chat. Enjoy live typing indicators, unread message badges, and notifications.')}
@@ -542,7 +695,7 @@ const Features = () => {
           </div>
 
           {/* Chat Mockup */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 20, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
+          <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 16, marginBottom: 16 }}>
               <button onClick={() => setActiveTab('sync')} style={{ flex: 1, padding: 8, background: activeTab === 'sync' ? 'rgba(99,102,241,0.1)' : 'transparent', border: activeTab === 'sync' ? '1px solid rgba(99,102,241,0.2)' : 'none', color: activeTab === 'sync' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600, borderRadius: 10, cursor: 'pointer' }}>
                 {t('groupLobbyChat', 'Group Lobby Chat')}
@@ -600,24 +753,9 @@ const Features = () => {
          5. SCREENSHARE + STREAMING SECTION
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#ffffff' : '#0f0f18', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          {/* Screen preview */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 20, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
-            <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: '#09090b', height: 260 }}>
-              <div className="live-badge" style={{ position: 'absolute', top: 12, left: 12, background: '#ef4444', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 10 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
-                {t('liveScreenshare', 'LIVE SCREENSHARE')}
-              </div>
-              <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=60" alt={t('mockScreenshareAlt', 'mock screen sharing')} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
-
-              {/* WebRTC Video Overlay (Camera) */}
-              <div style={{ position: 'absolute', bottom: 12, right: 12, width: 90, height: 60, borderRadius: 10, border: '2px solid #6366f1', overflow: 'hidden', background: '#000' }}>
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60" alt={t('avatarWebcamAlt', 'avatar webcam')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-            </div>
-          </div>
-
-          <div>
+        <div className="features-container side-by-side-section alt-layout" style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {/* Info */}
+          <div className="info-wrapper">
             <h2 className="section-title">{t('screenshareTitle', 'Screenshare & Video Calls')}</h2>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
               {t('screenshareDesc', 'Share your browser tab, specific app window, or entire screen instantly. You can also turn on your camera to react and watch together live.')}
@@ -630,6 +768,22 @@ const Features = () => {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <Check size={16} color="#10b981" />
                 <span style={{ fontSize: 14 }}>{t('smoothLiveFeeds', 'Smooth live video feeds')}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Screen preview */}
+          <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
+            <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: '#09090b', height: 260 }}>
+              <div className="live-badge" style={{ position: 'absolute', top: 12, left: 12, background: '#ef4444', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6, zIndex: 10 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+                {t('liveScreenshare', 'LIVE SCREENSHARE')}
+              </div>
+              <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=60" alt={t('mockScreenshareAlt', 'mock screen sharing')} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
+
+              {/* WebRTC Video Overlay (Camera) */}
+              <div style={{ position: 'absolute', bottom: 12, right: 12, width: 90, height: 60, borderRadius: 10, border: '2px solid #6366f1', overflow: 'hidden', background: '#000' }}>
+                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60" alt={t('avatarWebcamAlt', 'avatar webcam')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             </div>
           </div>
@@ -655,14 +809,14 @@ const Features = () => {
           </p>
 
           {/* Trust Badges */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap' }}>
+          <div className="privacy-badges-grid">
             {[
               t('privateAndSafe', 'Private & Safe'),
               t('noDataLeaks', 'No Data Leaks'),
               t('secureChats', 'Secure Chats'),
               t('signalLevelSecurity', 'Signal-Level Security')
             ].map((badge, idx) => (
-              <span key={idx} style={{ padding: '8px 20px', borderRadius: 99, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399', fontSize: 13, fontWeight: 600 }}>
+              <span key={idx} className="privacy-badge">
                 {badge}
               </span>
             ))}
@@ -675,7 +829,7 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#ffffff' : '#0f0f18', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div>
+          <div className="info-wrapper">
             <h2 className="section-title">{t('hostControlsHeader', 'Host Controls & Room Management')}</h2>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
               {t('hostControlsDescText', 'Keep your watch party fun and friendly. As the host, you can control who can send links, turn on cameras, search for videos, or remove any guests instantly.')}
@@ -693,7 +847,7 @@ const Features = () => {
           </div>
 
           {/* Interactive controls panel preview */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 24, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
+          <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Crown size={18} color="#a855f7" /> {t('roomPermissionsControl', 'Room Permissions Control')}
             </h3>
@@ -734,7 +888,7 @@ const Features = () => {
             {t('supportedSourcesDesc', 'Play almost anything. Simply paste any video link or select from your favorite sites.')}
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+          <div className="sources-grid">
             {[
               { name: t('youtube', 'YouTube'), icon: <FaYoutube size={20} color="#ff0000" />, bg: 'rgba(255, 0, 0, 0.08)', border: 'rgba(255, 0, 0, 0.2)' },
               { name: t('twitch', 'Twitch'), icon: <FaTwitch size={20} color="#9146ff" />, bg: 'rgba(145, 70, 255, 0.08)', border: 'rgba(145, 70, 255, 0.2)' },
@@ -747,7 +901,7 @@ const Features = () => {
               { name: t('localFiles', 'Local Files'), icon: <FolderOpen size={20} color="#fb923c" />, bg: 'rgba(251, 146, 60, 0.08)', border: 'rgba(251, 146, 60, 0.2)' },
               { name: t('directUrls', 'Direct URLs'), icon: <Link2 size={20} color="#10b981" />, bg: 'rgba(16, 185, 129, 0.08)', border: 'rgba(16, 185, 129, 0.2)' }
             ].map((source, idx) => (
-              <div key={idx} className="glass-panel glow-border" style={{ padding: 24, background: isLight ? '#ffffff' : 'rgba(15,15,25,0.4)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div key={idx} className="glass-panel glow-border source-card" style={{ background: isLight ? '#ffffff' : 'rgba(15,15,25,0.4)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: source.bg, border: `1px solid ${source.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {source.icon}
                 </div>
@@ -762,9 +916,21 @@ const Features = () => {
          9. LOCAL FILE SHARING SECTION
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#ffffff' : '#0f0f18', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          {/* Uploader Preview */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 24, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
+        <div className="features-container side-by-side-section alt-layout" style={{ maxWidth: 1200, margin: '0 auto' }}>
+          {/* Info First */}
+          <div className="info-wrapper">
+            <h2 className="section-title">{t('localFileSharing', 'Watch Local Videos')}</h2>
+            <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
+              {t('localFileSharingDesc', 'No waiting for uploads. Select any video from your computer and start watching with friends instantly.')}
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <Check size={18} color="#10b981" />
+              <span style={{ fontSize: 15 }}>{t('noFileLimitsCheck', 'No file size limits or upload delays')}</span>
+            </div>
+          </div>
+
+          {/* Uploader Preview Second */}
+          <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             <div style={{ border: '2px dashed rgba(99,102,241,0.3)', padding: 40, borderRadius: 16, textAlign: 'center', background: 'rgba(99,102,241,0.02)' }}>
               <FolderOpen size={48} color="#6366f1" style={{ margin: '0 auto 16px' }} />
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{t('mockFileName', 'movie_night_sync.mp4')}</div>
@@ -779,17 +945,6 @@ const Features = () => {
               </span>
             </div>
           </div>
-
-          <div>
-            <h2 className="section-title">{t('localFileSharing', 'Watch Local Videos')}</h2>
-            <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
-              {t('localFileSharingDesc', 'No waiting for uploads. Select any video from your computer and start watching with friends instantly.')}
-            </p>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <Check size={18} color="#10b981" />
-              <span style={{ fontSize: 15 }}>{t('noFileLimitsCheck', 'No file size limits or upload delays')}</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -798,7 +953,7 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#f8f7ff' : '#13131f', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div>
+          <div className="info-wrapper">
             <h2 className="section-title">{t('mobileExperienceTitle', 'Watch on Any Device')}</h2>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
               {t('mobileExperienceDesc', 'Take the watch party with you. Our layout adjusts perfectly to look beautiful on your phone, tablet, or desktop.')}
@@ -853,7 +1008,7 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{ background: isLight ? '#ffffff' : '#0f0f18', borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div>
+          <div className="info-wrapper">
             <h2 className="section-title">{t('socialDiscoveryTitle', 'Find Public Watch Parties')}</h2>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>
               {t('socialDiscoveryDesc', 'Explore open rooms from around the world. See how many people are watching before you join.')}
@@ -861,9 +1016,9 @@ const Features = () => {
           </div>
 
           {/* Lobby directory simulation */}
-          <div className="glass-panel glow-border mockup-wrapper" style={{ padding: 24, background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
+          <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             {/* Category Filter Pills */}
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 20, paddingBottom: 6 }} className="no-scrollbar">
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 20, paddingBottom: 6, width: '100%', maxWidth: '100%' }} className="no-scrollbar">
               {[
                 { id: 'All', label: t('catAll', 'All') },
                 { id: 'Movies', label: t('catMovies', 'Movies') },
@@ -904,7 +1059,7 @@ const Features = () => {
               ]
                 .filter(lobby => selectedCategory === 'All' || lobby.cat === selectedCategory)
                 .map((lobby, i) => (
-                  <div key={i} style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={i} className="lobby-item">
                     <div>
                       <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{lobby.catLabel}</span>
                       <h4 style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 700 }}>{lobby.name}</h4>
@@ -932,14 +1087,14 @@ const Features = () => {
             <p className="section-body" style={{ color: 'var(--text-secondary)' }}>{t('howWeCompareDesc', 'See how WatchTogether compares to generic screensharing platforms.')}</p>
           </div>
 
-          <div className="glass-panel glow-border" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.4)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 20 }}>
+          <div className="glass-panel glow-border table-container" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.4)' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: 520 }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14 }}>{t('featureMatrix', 'Feature Matrix')}</th>
-                  <th style={{ padding: '18px 24px', color: 'var(--accent)', fontSize: 14, fontWeight: 800 }}>{t('sahaPlay', 'SahaPlay')}</th>
-                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14 }}>{t('kosmi', 'Kosmi')}</th>
-                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14 }}>{t('discord', 'Discord')}</th>
+                <tr style={{ borderBottom: 'none' }}>
+                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14, borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>{t('featureMatrix', 'Feature Matrix')}</th>
+                  <th style={{ padding: '18px 24px', color: 'var(--accent)', fontSize: 14, fontWeight: 800, borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>{t('sahaPlay', 'SahaPlay')}</th>
+                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14, borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>{t('kosmi', 'Kosmi')}</th>
+                  <th style={{ padding: '18px 24px', color: 'var(--text-secondary)', fontSize: 14, borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>{t('discord', 'Discord')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -958,15 +1113,15 @@ const Features = () => {
                   { name: t('compareSecureDataWipe', 'Secure Data Wipe'), wt: true, kosmi: false, discord: false },
                   { name: t('compareHideUnhideChat', 'Hide and Unhide Chat'), wt: true, kosmi: false, discord: false }
                 ].map((row, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 500 }}>{row.name}</td>
-                    <td style={{ padding: '16px 24px', color: '#10b981' }}>
+                  <tr key={i} style={{ borderBottom: 'none' }}>
+                    <td style={{ padding: '16px 24px', fontSize: 14, fontWeight: 500, borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>{row.name}</td>
+                    <td style={{ padding: '16px 24px', color: '#10b981', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>
                       {row.wt ? <Check size={18} /> : <X size={18} color="#ef4444" />}
                     </td>
-                    <td style={{ padding: '16px 24px', color: row.kosmi ? '#10b981' : 'var(--text-secondary)' }}>
+                    <td style={{ padding: '16px 24px', color: row.kosmi ? '#10b981' : 'var(--text-secondary)', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>
                       {row.kosmi ? <Check size={18} /> : <X size={18} color="#ef4444" />}
                     </td>
-                    <td style={{ padding: '16px 24px', color: row.discord ? '#10b981' : 'var(--text-secondary)' }}>
+                    <td style={{ padding: '16px 24px', color: row.discord ? '#10b981' : 'var(--text-secondary)', borderLeft: 'none', borderRight: 'none', borderTop: 'none', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)'}` }}>
                       {row.discord ? <Check size={18} /> : <X size={18} color="#ef4444" />}
                     </td>
                   </tr>

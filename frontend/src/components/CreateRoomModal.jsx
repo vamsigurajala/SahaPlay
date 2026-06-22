@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Hash, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
@@ -142,7 +142,20 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           transition: background 0.2s, transform 0.2s;
         }
         .cr-close-btn:hover { background: rgba(255,255,255,0.18); transform: scale(1.1) rotate(90deg); }
-        @media (max-width: 600px) { .cr-close-btn { top: -56px; right: 0; } }
+
+        .cr-modal-header {
+          margin-bottom: 28px;
+        }
+
+        .cr-id-box {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: rgba(99,102,241,0.08);
+          border: 1px solid rgba(99,102,241,0.25);
+          border-radius: 12px;
+          padding: 12px 16px;
+        }
 
         .cr-input {
           width: 100%; padding: 12px 16px;
@@ -204,7 +217,11 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s;
         }
         .cr-copy-btn:hover { background: rgba(99,102,241,0.28); }
-        .cr-copy-btn.copied { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.4); color: #34d399; }
+        .cr-copy-btn.copied {
+          background: #10b981 !important;
+          border-color: #10b981 !important;
+          color: #ffffff !important;
+        }
 
         /* ── Light Mode ── */
         html[data-theme='light'] .cr-overlay { background: rgba(0,0,0,0.38); }
@@ -226,14 +243,61 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         html[data-theme='light'] .cr-close-btn { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
         html[data-theme='light'] .cr-close-btn:hover { background: #e2e8f0; color: #1e293b; }
         html[data-theme='light'] .cr-launch-btn { color: #fff !important; box-shadow: 0 4px 16px rgba(99,102,241,0.25); }
+        html[data-theme='light'] .cr-id-box { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
+
+        /* ── Tablet & Mobile View ── */
+        @media (max-width: 1023px) {
+          .cr-modal {
+            max-width: 400px !important;
+            padding: 20px !important;
+            border-radius: 20px !important;
+          }
+          .cr-close-btn {
+            position: absolute !important;
+            top: 14px !important;
+            right: 14px !important;
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 18px !important;
+          }
+          .cr-modal-header {
+            padding-right: 36px !important;
+            margin-bottom: 20px !important;
+          }
+          .cr-id-box {
+            padding: 8px 12px !important;
+          }
+          .cr-input {
+            padding: 10px 14px !important;
+            font-size: 14px !important;
+          }
+          .cr-cat-grid {
+            gap: 8px !important;
+            margin-top: 6px !important;
+          }
+          .cr-cat-btn {
+            padding: 8px 4px !important;
+            font-size: 12px !important;
+            border-radius: 10px !important;
+          }
+          .cr-toggle-row {
+            padding: 10px 12px !important;
+            border-radius: 12px !important;
+          }
+          .cr-launch-btn {
+            padding: 12px !important;
+            font-size: 15px !important;
+            border-radius: 12px !important;
+          }
+        }
       `}</style>
 
       <div className="cr-modal" onClick={e => e.stopPropagation()}>
         {/* ✕ Close button */}
-        <button className="cr-close-btn" onClick={handleClose} aria-label="Close">×</button>
+        <button className="cr-close-btn" onClick={handleClose} aria-label={t('close', 'Close')}>×</button>
 
         {/* Header */}
-        <div style={{ marginBottom: 28 }}>
+        <div className="cr-modal-header">
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>
             {t('createRoomTitle', 'Create a Room')}
           </h2>
@@ -247,7 +311,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: isLight ? '#334155' : '#6b7280', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
             {t('roomIdLabel', 'Room ID (auto-generated)')}
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: isLight ? '#f8fafc' : 'rgba(99,102,241,0.08)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(99,102,241,0.25)', borderRadius: 12, padding: '12px 16px' }}>
+          <div className="cr-id-box">
             <Hash size={15} color="#6366f1" />
             <span style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: isLight ? '#4338ca' : '#a5b4fc', letterSpacing: '2px' }}>
               {pendingRoomId}

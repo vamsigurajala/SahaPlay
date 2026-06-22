@@ -3,7 +3,9 @@ import { Lock, Eye, EyeOff, Copy, Check, ChevronRight, Shield, Key, X, ArrowLeft
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 
-const API = `http://${window.location.hostname}:3001`;
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 const PIN_LENGTH = 6;
 
 function SimplePinDisplay({ value, secret, active, error }) {
@@ -133,13 +135,14 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()} 
         style={{
-        width: 390, maxWidth: '95vw', maxHeight: '95vh', overflowY: 'auto',
+        width: '90%', maxWidth: 390, maxHeight: '90vh', overflowY: 'auto',
         background: 'linear-gradient(165deg, #16162a 0%, #0a0a14 100%)',
         border: '1px solid rgba(129,140,248,0.2)',
-        borderRadius: 28, padding: '32px 28px',
+        borderRadius: 28, padding: 'clamp(20px, 5vh, 32px) clamp(16px, 5vw, 28px)',
         boxShadow: '0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03)',
         animation: 'scaleUp 0.3s cubic-bezier(0.34,1.56,0.64,1)',
-        position: 'relative'
+        position: 'relative',
+        boxSizing: 'border-box'
       }}>
         {/* Close */}
         <button onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.03)', border: 'none', color: '#666', cursor: 'pointer', display: 'flex', padding: 8, borderRadius: '50%', transition: 'all 0.2s' }}
@@ -150,7 +153,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         </button>
 
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ textAlign: 'center', marginBottom: 'clamp(16px, 4vh, 32px)' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '22px', margin: '0 auto 16px',
             background: 'linear-gradient(135deg, rgba(129,140,248,0.15), rgba(168,85,247,0.1))',
@@ -160,10 +163,10 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
           }}>
             {step === 2 ? <Shield size={28} color="#818cf8" /> : <Lock size={28} color="#818cf8" />}
           </div>
-          <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.5rem', color: '#fff', letterSpacing: '-0.02em' }}>
+          <h2 style={{ margin: 0, fontWeight: 800, fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', color: '#fff', letterSpacing: '-0.02em' }}>
             {step === 1 ? (action === 'reset' ? t('changeVaultPin', 'Change Vault PIN') : t('secureVault', 'Secure Your Vault')) : t('newRecoveryKey', 'New Master Recovery Key')}
           </h2>
-          <p style={{ margin: '8px 0 0', fontSize: '0.9rem', color: '#71717a', fontWeight: 500, lineHeight: 1.5 }}>
+          <p style={{ margin: '8px 0 0', fontSize: 'clamp(0.8rem, 3.5vw, 0.9rem)', color: '#71717a', fontWeight: 500, lineHeight: 1.5 }}>
             {step === 1 ? (action === 'reset' ? t('changeVaultPinDesc', 'This will update your PIN across all locked chats.') : t('secureVaultDesc', 'This PIN will be set for every chat you choose to lock.'))
              : t('newRecoveryKeyDesc', 'Keep this new key safe. If you forget your PIN, this will be your only way to recover access. Previous keys will become invalid.')}
           </p>
@@ -171,7 +174,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
 
         {/* Progress Bar */}
         {step === 1 && (
-          <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, margin: '0 40px 32px', overflow: 'hidden' }}>
+          <div style={{ height: 4, background: 'rgba(255,255,255,0.05)', borderRadius: 2, margin: '0 40px clamp(16px, 4vh, 32px)', overflow: 'hidden' }}>
             <div style={{ 
               height: '100%', 
               width: activeField === 'confirm' ? '100%' : '50%', 
@@ -209,11 +212,12 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 }}
                 onFocus={() => setActiveField('pin')}
                 style={{
-                  width: '100%', padding: '16px', borderRadius: 16,
+                  width: '100%', padding: 'clamp(10px, 3vw, 16px)', borderRadius: 16,
                   background: 'rgba(255,255,255,0.03)', border: `1px solid ${activeField === 'pin' ? 'rgba(129,140,248,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                  color: '#fff', fontSize: 20, fontWeight: 800, textAlign: 'center', letterSpacing: '0.8em',
+                  color: '#fff', fontSize: 'clamp(16px, 5vw, 20px)', fontWeight: 800, textAlign: 'center', letterSpacing: '0.8em',
                   outline: 'none', transition: 'all 0.2s',
-                  boxShadow: activeField === 'pin' ? '0 0 20px rgba(129,140,248,0.1)' : 'none'
+                  boxShadow: activeField === 'pin' ? '0 0 20px rgba(129,140,248,0.1)' : 'none',
+                  boxSizing: 'border-box'
                 }}
               />
               <button 
@@ -240,11 +244,12 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 }}
                 onFocus={() => setActiveField('confirm')}
                 style={{
-                  width: '100%', padding: '16px', borderRadius: 16,
+                  width: '100%', padding: 'clamp(10px, 3vw, 16px)', borderRadius: 16,
                   background: 'rgba(255,255,255,0.03)', border: `1px solid ${activeField === 'confirm' ? 'rgba(129,140,248,0.4)' : 'rgba(255,255,255,0.08)'}`,
-                  color: '#fff', fontSize: 20, fontWeight: 800, textAlign: 'center', letterSpacing: '0.8em',
+                  color: '#fff', fontSize: 'clamp(16px, 5vw, 20px)', fontWeight: 800, textAlign: 'center', letterSpacing: '0.8em',
                   outline: 'none', transition: 'all 0.2s',
-                  boxShadow: activeField === 'confirm' ? '0 0 20px rgba(129,140,248,0.1)' : 'none'
+                  boxShadow: activeField === 'confirm' ? '0 0 20px rgba(129,140,248,0.1)' : 'none',
+                  boxSizing: 'border-box'
                 }}
               />
             </div>
@@ -258,11 +263,12 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               }}
               className={(pin.length === 6 && confirmPin.length === 6) ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
               style={{
-                marginTop: 12, padding: '16px', borderRadius: 16, border: 'none',
+                marginTop: 12, padding: 'clamp(10px, 3vw, 16px)', borderRadius: 16, border: 'none',
                 background: (pin.length === 6 && confirmPin.length === 6) ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'rgba(255,255,255,0.05)',
                 color: (pin.length === 6 && confirmPin.length === 6) ? '#fff' : '#444',
-                fontSize: 15, fontWeight: 800, cursor: (pin.length === 6 && confirmPin.length === 6) ? 'pointer' : 'not-allowed',
-                transition: 'all 0.3s'
+                fontSize: 'clamp(13px, 3.5vw, 15px)', fontWeight: 800, cursor: (pin.length === 6 && confirmPin.length === 6) ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s',
+                boxSizing: 'border-box'
               }}
             >
               {t('setLockPinBtn', 'Set Lock PIN')}
@@ -275,7 +281,8 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{
               background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
-              borderRadius: 20, padding: 20, position: 'relative', overflow: 'hidden'
+              borderRadius: 20, padding: 'clamp(12px, 3.5vw, 20px)', position: 'relative', overflow: 'hidden',
+              boxSizing: 'border-box'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -296,7 +303,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               </div>
               
               <div style={{
-                fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: 18, fontWeight: 800, color: '#ffffff',
+                fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: 'clamp(12px, 4vw, 18px)', fontWeight: 800, color: '#ffffff',
                 letterSpacing: '0.15em', textAlign: 'center', padding: '12px 0',
                 background: 'rgba(0,0,0,0.3)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)'
               }}>{recoveryKey}</div>
@@ -317,13 +324,14 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               <button onClick={handleSave} disabled={loading || !hasCopied} 
                 className={hasCopied ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
                 style={{
-                padding: '16px 0', borderRadius: 16, border: 'none',
+                padding: 'clamp(10px, 3.5vw, 16px) 0', borderRadius: 16, border: 'none',
                 background: !hasCopied ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
-                color: !hasCopied ? '#444' : '#fff', fontSize: '1rem', fontWeight: 800,
+                color: !hasCopied ? '#444' : '#fff', fontSize: 'clamp(0.85rem, 3.5vw, 1rem)', fontWeight: 800,
                 cursor: !hasCopied ? 'not-allowed' : 'pointer',
                 boxShadow: !hasCopied ? 'none' : '0 12px 32px rgba(99,102,241,0.3)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                boxSizing: 'border-box'
               }}>
                 {loading ? t('activating', 'Activating...') : (hasCopied ? t('enableChatLock', 'Enable Chat Lock') : t('copyKeyToContinue', 'Copy Key to Continue'))}
                 {!loading && <ChevronRight size={20} color={hasCopied ? "#ffffff" : "inherit"} />}

@@ -207,10 +207,15 @@ export function encryptGroupMessage(plaintext, recipients, myKeyPair, myUsername
 
   const keys = {};
   for (const { username, publicKey } of allRecipients) {
-    if (!username || !publicKey || publicKey.length !== 32) continue;
+    if (!username || !publicKey) continue;
+    let pk = publicKey;
+    if (typeof pk === 'string') {
+      try { pk = robustDecode(pk); } catch (e) { continue; }
+    }
+    if (pk.length !== 32) continue;
     try {
       const keyNonce     = nacl.randomBytes(nacl.box.nonceLength);
-      const encryptedKey = nacl.box(msgKey, keyNonce, publicKey, myKeyPair.secretKey);
+      const encryptedKey = nacl.box(msgKey, keyNonce, pk, myKeyPair.secretKey);
       const packed       = new Uint8Array(keyNonce.length + encryptedKey.length);
       packed.set(keyNonce, 0);
       packed.set(encryptedKey, keyNonce.length);

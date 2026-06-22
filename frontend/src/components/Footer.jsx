@@ -39,17 +39,17 @@ const Footer = () => {
 
   return (
     <footer className="home-footer">
-      <div style={{ maxWidth: 1200, margin: '0 auto' }} className="footer-grid">
+      <div style={{ maxWidth: 1200, marginLeft: 'auto', marginRight: 'auto' }} className="footer-grid">
         {/* Brand Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Play fill="#fff" size={14} style={{ marginLeft: 2 }} />
             </div>
-            <h3 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>WatchTogether</h3>
+            <h3 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>SahaPlay</h3>
           </div>
           <p style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300, color: '#6b7280', margin: 0, cursor: 'text' }}>
-            {t('footerDesc', 'Bringing people together across the digital divide. Watch, chat, and react in perfect harmony.')}
+            {t('footerDesc', 'Stream, share, and celebrate together — no matter where you are.')}
           </p>
           <div style={{ display: 'flex', gap: 12 }}>
             {[
@@ -99,7 +99,7 @@ const Footer = () => {
             <button className="footer-link-btn" onClick={() => navigate('/')}>{t('home', 'Home')}</button>
             <button className="footer-link-btn" onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
             <button className="footer-link-btn" onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
-            <button className="footer-link-btn" onClick={() => navigate('/public')}>{t('publicRooms', 'Public Rooms')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
             <button className="footer-link-btn" onClick={() => navigate('/pricing')}>{t('pricing', 'Pricing')}</button>
           </div>
         </div>
@@ -129,7 +129,7 @@ const Footer = () => {
 
       {/* Bottom Bar */}
       <div className="home-footer-bottom footer-bottom-bar" style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <div>&copy; 2026 WatchTogether. {t('allRightsReserved', 'All rights reserved.')}</div>
+        <div>&copy; 2026 SahaPlay. {t('allRightsReserved', 'All rights reserved.')}</div>
         <div style={{ display: 'flex', gap: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Globe size={14}/> {langDisplayName}

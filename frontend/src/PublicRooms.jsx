@@ -7,7 +7,9 @@ import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-const API = `http://${window.location.hostname}:3001`;
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 
 const catMap = {
@@ -94,7 +96,7 @@ const PublicRooms = () => {
     e.stopPropagation();
     if (!loggedInUsername) return;
     try {
-      const res = await fetch(`http://${window.location.hostname}:3001/api/rooms/make-private`, {
+      const res = await fetch(`${API}/api/rooms/make-private`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomId, username: loggedInUsername })
@@ -112,7 +114,7 @@ const PublicRooms = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
         .pinned-card {
@@ -197,6 +199,7 @@ const PublicRooms = () => {
           padding: 8px 16px;
           border-radius: 12px;
           transition: all 0.2s;
+          white-space: nowrap;
         }
         .cat-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
         .cat-tab.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
@@ -205,6 +208,87 @@ const PublicRooms = () => {
         html[data-theme='light'] .cat-tab:hover { background: #f8fafc; color: #1e293b; border-color: rgba(0,0,0,0.15); }
         html[data-theme='light'] .cat-tab.active { background: #6366f1; border-color: #6366f1; color: #fff !important; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
         html[data-theme='light'] .cat-tab.active * { color: #fff !important; }
+
+        /* Filter row */
+        .cat-filter-row {
+          display: flex;
+          flex-wrap: nowrap;
+          gap: 10px;
+          margin-bottom: 40px;
+          overflow-x: auto;
+          padding-bottom: 10px;
+        }
+
+        /* Rooms grid */
+        .rooms-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin-bottom: 40px;
+        }
+
+        /* Mobile tweaks */
+        @media (max-width: 640px) {
+          .public-page-inner {
+            padding: 0 16px !important;
+          }
+          .public-page-title {
+            font-size: clamp(20px, 6.5vw, 26px) !important;
+            white-space: nowrap !important;
+          }
+          .cat-filter-row {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 6px !important;
+            margin-bottom: 24px;
+            padding-bottom: 0;
+            overflow-x: hidden !important;
+          }
+          .cat-tab {
+            font-size: 11px !important;
+            padding: 6px 2px !important;
+            border-radius: 8px !important;
+            text-align: center;
+            justify-content: center;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+          }
+          .rooms-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+          .img-layer {
+            height: 100px;
+          }
+          .footer-layer {
+            padding: 8px 10px;
+          }
+          .footer-layer h3 {
+            font-size: 13px !important;
+            max-width: 90px !important;
+          }
+          .join-btn {
+            padding: 4px 10px !important;
+            font-size: 11px !important;
+          }
+        }
+
+        /* Tablet tweaks */
+        @media (min-width: 641px) and (max-width: 900px) {
+          .rooms-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+          }
+          .public-page-inner {
+            padding: 0 24px !important;
+          }
+          .cat-filter-row {
+            flex-wrap: wrap;
+            overflow-x: hidden;
+            padding-bottom: 0;
+          }
+        }
 
         .pinned-card:hover .join-btn {
           transform: translateY(-2px);
@@ -295,23 +379,17 @@ const PublicRooms = () => {
       <Navbar />
 
       <section style={{ width: '100%', padding: '40px 0 80px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 40px' }}>
-          <h2 className="section-heading" style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 10px', color: '#fff' }}>{t('joinPublicRooms', 'Public Rooms')}</h2>
+        <div className="public-page-inner" style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 40px' }}>
+          <h2 className="section-heading public-page-title" style={{ fontSize: '36px', fontWeight: 800, margin: '0 0 10px', color: '#fff' }}>{t('joinPublicRooms', 'Join Public Rooms')}</h2>
           <p className="section-desc" style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>{t('explorePublic', 'Discover and join public watch parties around the world.')}</p>
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '40px', overflowX: 'auto', paddingBottom: '10px' }}>
+        <div className="cat-filter-row">
           {Object.entries(catMap).map(([id, label]) => (
             <button
               key={id}
               className={`cat-tab ${selectedCategory === id ? 'active stay-white' : ''}`}
               onClick={() => { setSelectedCategory(id); setCurrentPage(1); }}
-              style={{
-                fontSize: '14px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap'
-              }}
+              style={{ fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}
             >
               {getCategoryLabel(id, t)}
             </button>
@@ -327,7 +405,7 @@ const PublicRooms = () => {
           </div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
+            <div className="rooms-grid">
               {filteredRooms.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(room => (
                 <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">

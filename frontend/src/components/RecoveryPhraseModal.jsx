@@ -79,7 +79,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             {t('recoveryPhraseTitle', 'Your Recovery Phrase')}
           </h2>
           <p style={{ margin: '8px 0 0', color: descColor, fontSize: 14, lineHeight: 1.5 }}>
-            {t('recoveryPhraseDesc1', 'This 24-letter key is the')} <strong style={{ color: '#a78bfa' }}>{t('onlyWay', 'only way')}</strong> {t('recoveryPhraseDesc2', 'to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')}
+            {t('recoveryPhraseDesc', 'This 24-word phrase is the only way to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')}
           </p>
         </div>
 
@@ -91,7 +91,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
         }}>
           <AlertTriangle size={16} color="#f87171" style={{ flexShrink: 0, marginTop: 1 }} />
           <p style={{ margin: 0, color: isLight ? '#c0392b' : '#f87171', fontSize: 13, lineHeight: 1.5 }}>
-            {t('recoveryWarningText1', 'Write these words down or store them in a password manager. Screenshots can be accessed by others.')} <strong>{t('neverSharePhrase', 'Never share this phrase.')}</strong>
+            {t('recoveryWarningText', 'Write these words down or store them in a password manager. Screenshots can be accessed by others. Never share this phrase.')}
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             }} onClick={() => setRevealed(true)}>
               <div style={{ textAlign: 'center' }}>
                 <Eye size={24} color="#a78bfa" style={{ marginBottom: 6 }} />
-                <p style={{ margin: 0, color: '#a78bfa', fontSize: 13, fontWeight: 600 }}>{t('clickToReveal', 'Click to reveal key')}</p>
+                <p style={{ margin: 0, color: '#a78bfa', fontSize: 13, fontWeight: 600 }}>{t('clickToRevealPhrase', 'Click to reveal phrase')}</p>
                 <p style={{ margin: '4px 0 0', color: revealSubColor, fontSize: 11 }}>{t('makeSureNoOneWatching', 'Make sure no one is watching your screen')}</p>
               </div>
             </div>
@@ -146,7 +146,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
               transition: 'all 0.25s'
             }}
           >
-            {copied ? <><Check size={15} /> {t('copiedLabel', 'Copied!')}</> : <><Copy size={15} /> {t('copyAllWords', 'Copy recovery key')}</>}
+            {copied ? <><Check size={15} /> {t('copiedLabel', 'Copied!')}</> : <><Copy size={15} /> {t('copyAll24Words', 'Copy all 24 words')}</>}
           </button>
         )}
 
@@ -159,7 +159,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             style={{ width: 18, height: 18, marginTop: 2, accentColor: '#6366f1', flexShrink: 0 }}
           />
           <span style={{ fontSize: 13, color: ackTextColor, lineHeight: 1.5 }}>
-            {t('recoveryAcknowledge', 'I have written down or securely stored my 24-letter recovery key. I understand this is the only way to recover my encrypted messages.')}
+            {t('recoveryAcknowledgeCheckbox', 'I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages.')}
           </span>
         </label>
 
@@ -180,7 +180,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             boxShadow: acknowledged && revealed ? '0 4px 20px rgba(99,102,241,0.4)' : 'none'
           }}
         >
-          {!revealed ? t('revealPhraseFirst', 'Reveal key first') : !acknowledged ? t('pleaseAcknowledge', 'Please acknowledge above') : t('savedContinue', "I've saved it — Continue →")}
+          {!revealed ? t('revealPhraseFirst', 'Reveal phrase first') : !acknowledged ? t('pleaseAcknowledge', 'Please acknowledge above') : t('savedContinue', "I've saved it — Continue →")}
         </button>
       </div>
 

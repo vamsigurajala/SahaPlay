@@ -4,21 +4,25 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { CheckCircle, Send, X, Upload, AlertCircle, ChevronDown, MessageCircle } from 'lucide-react';
 
-const MAX_CHARS   = 1000;
-const MAX_IMAGES  = 5;
-const MAX_BYTES   = 5 * 1024 * 1024; // 5 MB
-const ALLOWED     = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const MAX_CHARS = 1000;
+const MAX_IMAGES = 5;
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 // Subject options: value = English (sent to API), labelKey = i18n key for display
 const SUBJECTS = [
-  { value: 'General Question',            labelKey: 'contactSubjectGeneral' },
-  { value: 'Bug Report',                  labelKey: 'contactSubjectBug' },
-  { value: 'Feature Request',             labelKey: 'contactSubjectFeature' },
-  { value: 'Account Issue',               labelKey: 'contactSubjectAccount' },
-  { value: 'Safety / Report User',        labelKey: 'contactSubjectSafety' },
-  { value: 'Content / Copyright Issue',   labelKey: 'contactSubjectCopyright' },
-  { value: 'Other',                       labelKey: 'contactSubjectOther' },
+  { value: 'General Question', labelKey: 'contactSubjectGeneral' },
+  { value: 'Bug Report', labelKey: 'contactSubjectBug' },
+  { value: 'Feature Request', labelKey: 'contactSubjectFeature' },
+  { value: 'Account Issue', labelKey: 'contactSubjectAccount' },
+  { value: 'Safety / Report User', labelKey: 'contactSubjectSafety' },
+  { value: 'Content / Copyright Issue', labelKey: 'contactSubjectCopyright' },
+  { value: 'Other', labelKey: 'contactSubjectOther' },
 ];
+
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
 
 const getBorderColor = (hasError, isLight) =>
   hasError ? '#ef4444' : isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)';
@@ -37,19 +41,21 @@ export default function Contact() {
   }, []);
 
   /* ── form ── */
-  const [form, setForm]       = useState({ name: '', email: '', subject: '', message: '' });
-  const [errors, setErrors]   = useState({});
-  const [images, setImages]   = useState([]);
-  const [imgErr, setImgErr]   = useState('');
+  const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [errors, setErrors] = useState({});
+  const [images, setImages] = useState([]);
+  const [imgErr, setImgErr] = useState('');
   const [dragging, setDragging] = useState(false);
 
   /* ── submit ── */
-  const [status, setStatus]   = useState('idle');
-  const [apiErr, setApiErr]   = useState('');
+  const [status, setStatus] = useState('idle');
+  const [apiErr, setApiErr] = useState('');
 
-  const fileRef    = useRef(null);
-  const dragCount  = useRef(0);
-  const [isMobile, setIsMobile]           = useState(() => window.innerWidth < 640);
+  const fileRef = useRef(null);
+  const dragCount = useRef(0);
+  const subjectRef = useRef(null);
+  const [subjectOpen, setSubjectOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [hoveredRemove, setHoveredRemove] = useState(null);
   const [hoveredSuccessBtn, setHoveredSuccessBtn] = useState(null);
 
@@ -59,12 +65,21 @@ export default function Contact() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Close subject dropdown on outside click
+  useEffect(() => {
+    if (!subjectOpen) return;
+    const handler = (e) => {
+      if (subjectRef.current && !subjectRef.current.contains(e.target)) setSubjectOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [subjectOpen]);
+
   /* ── prefill email + name from logged-in user ── */
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
     if (!token) return;
-    const host = window.location.hostname;
-    fetch(`http://${host}:3001/api/profile`, {
+    fetch(`${API}/api/profile`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => (r.ok ? r.json() : null))
@@ -72,20 +87,20 @@ export default function Contact() {
         if (!data || data.isGuest) return;
         setForm(f => ({
           ...f,
-          email: data.email   || f.email,
-          name:  data.displayName || data.username || f.name,
+          email: data.email || f.email,
+          name: data.displayName || data.username || f.name,
         }));
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* ── theme tokens ── */
-  const pageBg  = isLight ? 'linear-gradient(135deg,#f0f0f8 0%,#e8e8f5 50%,#f0f0f8 100%)' : '#09090b';
-  const cardSt  = isLight
+  const pageBg = isLight ? 'linear-gradient(135deg,#f0f0f8 0%,#e8e8f5 50%,#f0f0f8 100%)' : '#09090b';
+  const cardSt = isLight
     ? { background: '#ffffff', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }
     : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 24px rgba(0,0,0,0.3)' };
   const labelSt = { display: 'block', fontSize: 12, fontWeight: 700, color: isLight ? '#6b7280' : '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' };
-  const errSt   = { color: '#ef4444', fontSize: 12, marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 };
+  const errSt = { color: '#ef4444', fontSize: 12, marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 };
 
   const inputBase = (hasErr) => ({
     width: '100%',
@@ -127,7 +142,7 @@ export default function Contact() {
     let errMsg = '';
     for (const f of Array.from(files).slice(0, slots)) {
       if (!ALLOWED.includes(f.type)) { errMsg = t('contactImagesTypeError', 'Only JPG, PNG, GIF, WEBP allowed.'); continue; }
-      if (f.size > MAX_BYTES)        { errMsg = t('contactImagesSizeError', '"{{name}}" exceeds 5 MB limit.', { name: f.name }); continue; }
+      if (f.size > MAX_BYTES) { errMsg = t('contactImagesSizeError', '"{{name}}" exceeds 5 MB limit.', { name: f.name }); continue; }
       toAdd.push({ file: f, preview: URL.createObjectURL(f), name: f.name, type: f.type, size: f.size });
     }
     if (errMsg) setImgErr(errMsg);
@@ -142,8 +157,8 @@ export default function Contact() {
   /* ── drag & drop ── */
   const onDragEnter = (e) => { e.preventDefault(); dragCount.current++; setDragging(true); };
   const onDragLeave = (e) => { e.preventDefault(); dragCount.current--; if (dragCount.current === 0) setDragging(false); };
-  const onDragOver  = (e) => { e.preventDefault(); };
-  const onDrop      = (e) => { e.preventDefault(); dragCount.current = 0; setDragging(false); processFiles(e.dataTransfer.files); };
+  const onDragOver = (e) => { e.preventDefault(); };
+  const onDrop = (e) => { e.preventDefault(); dragCount.current = 0; setDragging(false); processFiles(e.dataTransfer.files); };
 
   /* ── base64 ── */
   const toB64 = (f) => new Promise((res, rej) => {
@@ -169,17 +184,16 @@ export default function Contact() {
         name: img.name,
       })));
 
-      const host = window.location.hostname;
-      const res  = await fetch(`http://${host}:3001/api/contact`, {
-        method:  'POST',
+      const res = await fetch(`${API}/api/contact`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name:    form.name.trim(),
-          email:   form.email.trim(),
+          name: form.name.trim(),
+          email: form.email.trim(),
           subject: form.subject,
           message: form.message.trim(),
-          images:  imagePayload,
-          lang:    i18n.language,
+          images: imagePayload,
+          lang: i18n.language,
         }),
       });
 
@@ -361,7 +375,7 @@ export default function Contact() {
                   onChange={e => { setForm(f => ({ ...f, name: e.target.value })); if (errors.name) setErrors(r => ({ ...r, name: '' })); }}
                   style={inputBase(!!errors.name)}
                 />
-                {errors.name && <div style={errSt}><AlertCircle size={11}/>{errors.name}</div>}
+                {errors.name && <div style={errSt}><AlertCircle size={11} />{errors.name}</div>}
               </div>
 
               {/* Email */}
@@ -376,33 +390,83 @@ export default function Contact() {
                   style={inputBase(!!errors.email)}
                 />
                 {errors.email
-                  ? <div style={errSt}><AlertCircle size={11}/>{errors.email}</div>
+                  ? <div style={errSt}><AlertCircle size={11} />{errors.email}</div>
                   : <div style={{ fontSize: 11, color: '#6b7280', marginTop: 5 }}>
-                      {localStorage.getItem('watch_token') && form.email
-                        ? t('contactEmailPrefilled', '✓ Pre-filled from your account')
-                        : t('contactEmailHint', "We'll reply to this email")}
-                    </div>}
+                    {localStorage.getItem('watch_token') && form.email
+                      ? t('contactEmailPrefilled', '✓ Pre-filled from your account')
+                      : t('contactEmailHint', "We'll reply to this email")}
+                  </div>}
               </div>
             </div>
 
             {/* ── Subject ── */}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 20 }} ref={subjectRef}>
               <label style={labelSt}>{t('contactSubjectLabel', "What's this about?")}<span style={{ color: '#ef4444', marginLeft: 4 }}>*</span></label>
               <div style={{ position: 'relative' }}>
-                <select
-                  value={form.subject}
+                {/* Trigger button */}
+                <button
+                  type="button"
                   disabled={status === 'loading'}
-                  onChange={e => { setForm(f => ({ ...f, subject: e.target.value })); if (errors.subject) setErrors(r => ({ ...r, subject: '' })); }}
-                  style={{ ...selectBase(!!errors.subject), appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingRight: 38 }}
+                  onClick={() => setSubjectOpen(o => !o)}
+                  style={{
+                    ...selectBase(!!errors.subject),
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    cursor: status === 'loading' ? 'not-allowed' : 'pointer',
+                    textAlign: 'left', paddingRight: 38, width: '100%',
+                  }}
                 >
-                  <option value="" disabled style={optionPlaceholderSt}>{t('contactSubjectPlaceholder', 'Select a topic…')}</option>
-                  {SUBJECTS.map(s => <option key={s.value} value={s.value} style={optionSt}>{t(s.labelKey, s.value)}</option>)}
-                </select>
-                <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280', display: 'flex' }}>
-                  <ChevronDown size={16} />
-                </div>
+                  {form.subject ? (
+                    <span style={{ fontSize: 14, color: isLight ? '#111' : '#fff' }}>
+                      {t(SUBJECTS.find(s => s.value === form.subject)?.labelKey || '', form.subject)}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 14, color: isLight ? '#9ca3af' : '#6b7280' }}>
+                      {t('contactSubjectPlaceholder', 'Select a topic…')}
+                    </span>
+                  )}
+                  <ChevronDown size={16} style={{ position: 'absolute', right: 12, top: '50%', transform: `translateY(-50%) rotate(${subjectOpen ? 180 : 0}deg)`, transition: 'transform 0.2s', color: isLight ? '#6b7280' : '#9ca3af' }} />
+                </button>
+
+                {/* Dropdown list */}
+                {subjectOpen && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 200,
+                    background: isLight ? '#fff' : '#1c1c1f',
+                    border: `1px solid ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+                    maxHeight: 280, overflowY: 'auto', padding: 6,
+                  }}>
+                    {SUBJECTS.map(({ value, labelKey }) => {
+                      const selected = form.subject === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setForm(f => ({ ...f, subject: value }));
+                            if (errors.subject) setErrors(r => ({ ...r, subject: '' }));
+                            setSubjectOpen(false);
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                            padding: '10px 12px', borderRadius: 8, border: 'none',
+                            background: selected ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)') : 'transparent',
+                            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => { if (!selected) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
+                          onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#374151' : '#d1d5db'), flex: 1 }}>
+                            {t(labelKey, value)}
+                          </span>
+                          {selected && <CheckCircle size={14} color="#818cf8" style={{ flexShrink: 0 }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              {errors.subject && <div style={errSt}><AlertCircle size={11}/>{errors.subject}</div>}
+              {errors.subject && <div style={errSt}><AlertCircle size={11} />{errors.subject}</div>}
             </div>
 
             {/* ── Message ── */}
@@ -414,7 +478,7 @@ export default function Contact() {
                 </span>
               </div>
               <textarea
-                placeholder={t('contactMessagePlaceholder', 'Write your message here…\nBe as detailed as you like!')}
+                placeholder={t('contactMessagePlaceholder', 'Write your message here.Be as detailed as you like!')}
                 value={form.message}
                 disabled={status === 'loading'}
                 onKeyDown={e => { if (e.ctrlKey && e.key === 'Enter') handleSubmit(e); }}
@@ -429,7 +493,7 @@ export default function Contact() {
                 }}
                 style={{ ...inputBase(!!errors.message), resize: 'none', minHeight: 150, maxHeight: 400, overflowY: 'auto', lineHeight: 1.65 }}
               />
-              {errors.message && <div style={errSt}><AlertCircle size={11}/>{errors.message}</div>}
+              {errors.message && <div style={errSt}><AlertCircle size={11} />{errors.message}</div>}
             </div>
 
             {/* ── Image Upload ── */}
@@ -481,7 +545,7 @@ export default function Contact() {
                 </div>
               )}
 
-              {imgErr && <div style={{ ...errSt, marginTop: 8 }}><AlertCircle size={11}/>{imgErr}</div>}
+              {imgErr && <div style={{ ...errSt, marginTop: 8 }}><AlertCircle size={11} />{imgErr}</div>}
 
               {images.length > 0 && (
                 <>

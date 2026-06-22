@@ -31,6 +31,10 @@ const SEVERITIES = [
   { key: 'critical', Icon: Flame,        color: '#ef4444', labelKey: 'rbSeverityCriticalLabel', descKey: 'rbSeverityCriticalDesc', fallbackLabel: 'Critical', fallbackDesc: 'App completely broken for me' },
 ];
 
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
+  ? `http://${window.location.hostname}:3001`
+  : `https://${window.location.hostname}`;
+
 const MAX_ATTACH = 5;
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_ATT = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
@@ -149,8 +153,7 @@ export default function ReportBug() {
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
     if (!token) return;
-    const host = window.location.hostname;
-    fetch(`http://${host}:3001/api/profile`, {
+    fetch(`${API}/api/profile`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => (r.ok ? r.json() : null))
@@ -275,8 +278,7 @@ export default function ReportBug() {
         }))
       );
 
-      const host = window.location.hostname;
-      const res = await fetch(`http://${host}:3001/api/report-bug`, {
+      const res = await fetch(`${API}/api/report-bug`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

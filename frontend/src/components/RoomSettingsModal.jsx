@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Camera, Shield, Zap, Volume2, Video, Settings, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe } from 'lucide-react';
+import { X, Camera, Shield, Zap, Volume2, Video, Settings, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe, ChevronRight, ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/CropImage';
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
@@ -50,20 +50,29 @@ const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
   );
 };
 
-export default function RoomSettingsModal({ 
-  isOpen, 
-  onClose, 
-  room, 
-  socket, 
+export default function RoomSettingsModal({
+  isOpen,
+  onClose,
+  room,
+  socket,
   isHost,
-  roomId
+  roomId,
 }) {
   const { t } = useTranslation();
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [mobileScreen, setMobileScreen] = useState('list');
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  // Reset mobile screen when modal opens
+  useEffect(() => { if (isOpen) setMobileScreen('list'); }, [isOpen]);
   const [activeTab, setActiveTab] = useState('general');
   const [roomName, setRoomName] = useState(room?.roomName || '');
   const [permissions, setPermissions] = useState(room?.permissions || { changeMedia: 'all', chat: 'all', cam: 'all' });
-  const [settings, setSettings] = useState(room?.settings || { audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player' });
+  const [settings, setSettings] = useState(room?.settings || { playerCustomName: 'WatchTogether Player' });
   const [thumbnail, setThumbnail] = useState(room?.thumbnailPath || null);
   const [isUploading, setIsUploading] = useState(false);
   const [bannedUsers, setBannedUsers] = useState(room?.bannedUsers || []);
@@ -104,6 +113,9 @@ export default function RoomSettingsModal({
       // Removed setBannedUsers sync here to prevent global room_state heartbeats from overwriting the fetched bans list.
     }
   }, [room, isOpen]);
+
+  useEffect(() => {
+  }, [roomId, isOpen]);
 
   const handleSave = () => {
     socket.emit('update_room_settings', {
@@ -195,46 +207,47 @@ export default function RoomSettingsModal({
 
   return createPortal(
     <>
-      <div 
+      <div
         onClick={onClose}
-        className="room-modals-overlay"
-        style={{ position: 'fixed', inset: 0, zIndex: 999999, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        className={`room-modals-overlay${isMobile ? ' rsm-overlay' : ''}`}
+        style={{ position: 'fixed', inset: 0, zIndex: 999999, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.4)' : 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}
       >
-      <div 
+      <div
         onClick={e => e.stopPropagation()}
-        className="modal-enter" 
-        style={{ position: 'relative', background: isLight ? '#fff' : 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.25)', borderRadius: 28, width: '100%', maxWidth: 740, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
+        className={`modal-enter rsm-container`}
+        style={{ position: 'relative', background: isLight ? '#fff' : 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.25)', borderRadius: isMobile ? '20px 20px 0 0' : 28, width: '100%', maxWidth: isMobile ? '100%' : 740, maxHeight: isMobile ? '94vh' : '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
       >
-        
-        {/* Absolute Close Button */}
-        <button 
-          onClick={onClose} 
-          style={{ 
-            position: 'absolute', top: -2, right: -58, width: 48, height: 48, borderRadius: '50%', 
-            background: isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)', 
-            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.1)', 
-            color: isLight ? '#000' : '#fff', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, 
-            backdropFilter: 'blur(10px)', 
-            boxShadow: isLight ? 'none' : '0 8px 16px rgba(0,0,0,0.5)', 
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
-          }} 
-          onMouseEnter={e => { 
-            e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(45, 41, 69, 0.9)'; 
-            e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)'; 
-            e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(168, 85, 247, 0.4)'; 
-          }} 
-          onMouseLeave={e => { 
-            e.currentTarget.style.background = isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)'; 
-            e.currentTarget.style.transform = 'scale(1) rotate(0deg)'; 
-            e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)'; 
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="room-settings-close-btn"
+          style={{
+            position: 'absolute', top: isMobile ? 12 : -2, right: isMobile ? 12 : -58, width: 48, height: 48, borderRadius: '50%',
+            background: isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)',
+            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255, 255, 255, 0.1)',
+            color: isLight ? '#000' : '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10,
+            backdropFilter: 'blur(10px)',
+            boxShadow: isLight ? 'none' : '0 8px 16px rgba(0,0,0,0.5)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(45, 41, 69, 0.9)';
+            e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)';
+            e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(168, 85, 247, 0.4)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.background = isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)';
+            e.currentTarget.style.transform = 'scale(1) rotate(0deg)';
+            e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255, 255, 255, 0.1)';
           }}
         >
           <X size={22} />
         </button>
-        
+
         {/* Header */}
-        <div style={{ padding: '24px 30px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: isMobile ? '20px 20px 16px' : '24px 30px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: thumbnail ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.2)', overflow: 'hidden' }}>
                 {thumbnail ? (
@@ -244,23 +257,52 @@ export default function RoomSettingsModal({
                 )}
               </div>
               <div>
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>{t('roomSettings', 'Room Settings')}</h2>
-                <div style={{ fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 600, marginTop: 2 }}>{t('configureYourSpace', 'Configure your space')}</div>
+                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>
+                  {isMobile && mobileScreen !== 'list' ? t(`${mobileScreen}Tab`, mobileScreen.charAt(0).toUpperCase() + mobileScreen.slice(1)) : t('roomSettings', 'Room Settings')}
+                </h2>
+                {(!isMobile || mobileScreen === 'list') && (
+                  <div style={{ fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 600, marginTop: 2 }}>{t('configureYourSpace', 'Configure your space')}</div>
+                )}
               </div>
             </div>
         </div>
 
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
-          {/* Sidebar */}
-          <div style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Sidebar — hidden on mobile */}
+          <div className="rsm-sidebar" style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <TabButton id="general" label={t('generalTab', 'General')} icon={Settings} />
             <TabButton id="media" label={t('mediaPlayerTab', 'Media Player')} icon={Zap} />
             <TabButton id="security" label={t('securityTab', 'Security')} icon={Shield} />
           </div>
 
           {/* Content */}
-          <div style={{ flex: 1, padding: 30, overflowY: 'auto' }}>
-            {activeTab === 'general' && (
+          <div className="rsm-content" style={{ flex: 1, padding: 30, overflowY: 'auto' }}>
+            {/* Mobile: navigation list */}
+            {isMobile && mobileScreen === 'list' && (
+              <div>
+                <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('general'); setActiveTab('general'); }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Settings size={18} color="#818cf8" /> {t('generalTab', 'General')}</span>
+                  <ChevronRight size={18} style={{ opacity: 0.5 }} />
+                </button>
+                <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('media'); setActiveTab('media'); }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Zap size={18} color="#818cf8" /> {t('mediaPlayerTab', 'Media Player')}</span>
+                  <ChevronRight size={18} style={{ opacity: 0.5 }} />
+                </button>
+                <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('security'); setActiveTab('security'); }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Shield size={18} color="#818cf8" /> {t('securityTab', 'Security')}</span>
+                  <ChevronRight size={18} style={{ opacity: 0.5 }} />
+                </button>
+              </div>
+            )}
+            {/* Mobile: back button for sub-screens */}
+            {isMobile && mobileScreen !== 'list' && (
+              <button className="rsm-mob-back" onClick={() => setMobileScreen('list')}>
+                <ChevronLeft size={18} /> {t('back', 'Back')}
+              </button>
+            )}
+            {/* Tab content — hidden on mobile list screen */}
+            {(!isMobile || mobileScreen !== 'list') && (
+            <>{activeTab === 'general' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Room Name */}
                 <div>
@@ -323,41 +365,25 @@ export default function RoomSettingsModal({
                 </div>
 
                 {/* Audio Ducking */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', gap: 14 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8' }}>
-                      <Volume2 size={20} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', flexShrink: 0 }}>
+                        <Volume2 size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('audioDucking', 'Audio Ducking')}</h4>
+                        <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('audioDuckingDesc', 'When someone with their mic on speaks, media volume lowers for everyone in the room.')}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('audioDucking', 'Audio Ducking')}</h4>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('audioDuckingDesc', 'Lower media volume when others speak')}</p>
-                    </div>
+                    <button
+                      onClick={() => setSettings(s => ({ ...s, audioDucking: !s.audioDucking }))}
+                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                    >
+                      <div style={{ position: 'absolute', top: 3, left: settings.audioDucking ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setSettings({...settings, audioDucking: !settings.audioDucking})}
-                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
-                  >
-                    <div style={{ position: 'absolute', top: 3, left: settings.audioDucking ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
-                  </button>
-                </div>
-
-                {/* Webcam Sync */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', gap: 14 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16,185,129,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                      <Video size={20} />
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('webcamSyncing', 'Webcam Syncing')}</h4>
-                      <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('webcamSyncingDesc', 'Coordinate camera grids across users')}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setSettings({...settings, webcamSync: !settings.webcamSync})}
-                    style={{ width: 44, height: 24, borderRadius: 12, background: settings.webcamSync ? '#10b981' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s' }}
-                  >
-                    <div style={{ position: 'absolute', top: 3, left: settings.webcamSync ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
-                  </button>
+                  <p style={{ fontSize: 11, color: isLight ? '#94a3b8' : '#4b5563', margin: 0, paddingLeft: 54 }}>{t('audioDuckingNote', 'Uses your microphone only while your Mic is turned on. No mic access happens just from enabling this setting.')}</p>
                 </div>
               </div>
             )}
@@ -544,6 +570,7 @@ export default function RoomSettingsModal({
                 </div>
               </div>
             )}
+            </> )}
           </div>
         </div>
 

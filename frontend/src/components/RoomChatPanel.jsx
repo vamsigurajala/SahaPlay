@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
@@ -6,14 +7,25 @@ import Picker from '@emoji-mart/react';
 import toast from 'react-hot-toast';
 import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
-  X, ChevronLeft, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
-  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText
+  X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
+  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock
 } from 'lucide-react';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import crownImg from '../assets/crown.svg';
+import { getFlagUrl } from '../utils/countryFlags.js';
 import ChatLockScreen from './ChatLockScreen';
+import MediaPolicyBanner from './MediaPolicyBanner';
+import { getMessagePreview } from '../utils/messagePreview';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
+
+const formatUsername = (name) => {
+  if (!name) return '';
+  if (name.toLowerCase().startsWith('guest_')) {
+    return name.slice(6);
+  }
+  return name;
+};
 
 const FILE_LIMITS = {
   'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
@@ -29,37 +41,135 @@ const FILE_LIMITS = {
   'application/vnd.ms-powerpoint':{ max:25*1024*1024, label:'25MB' },
   'application/vnd.openxmlformats-officedocument.presentationml.presentation':{ max:25*1024*1024, label:'25MB' },
   'text/plain':{ max:25*1024*1024, label:'25MB' }, 'text/csv':{ max:25*1024*1024, label:'25MB' },
-  'application/zip':{ max:25*1024*1024, label:'25MB' },
+  'application/zip':{ max:25*1024*1024, label:'25MB' }, 'application/x-zip-compressed':{ max:25*1024*1024, label:'25MB' },
   'audio/mp3':{ max:10*1024*1024, label:'10MB' }, 'audio/mpeg':{ max:10*1024*1024, label:'10MB' },
   'audio/wav':{ max:10*1024*1024, label:'10MB' }, 'audio/ogg':{ max:10*1024*1024, label:'10MB' },
   'audio/m4a':{ max:10*1024*1024, label:'10MB' }, 'audio/webm':{ max:10*1024*1024, label:'10MB' },
+  'audio/mp4':{ max:10*1024*1024, label:'10MB' },
+  'application/octet-stream':{ max:100*1024*1024, label:'100MB' },
 };
 
+const EXTENSION_LIMITS = {
+  'jpg':{ max:10*1024*1024, label:'10MB' }, 'jpeg':{ max:10*1024*1024, label:'10MB' },
+  'png':{ max:10*1024*1024, label:'10MB' }, 'gif':{ max:10*1024*1024, label:'10MB' },
+  'webp':{ max:10*1024*1024, label:'10MB' },
+  'mp4':{ max:100*1024*1024, label:'100MB' }, 'webm':{ max:100*1024*1024, label:'100MB' },
+  'mov':{ max:100*1024*1024, label:'100MB' }, 'mkv':{ max:100*1024*1024, label:'100MB' },
+  'pdf':{ max:25*1024*1024, label:'25MB' },
+  'doc':{ max:25*1024*1024, label:'25MB' }, 'docx':{ max:25*1024*1024, label:'25MB' },
+  'xls':{ max:25*1024*1024, label:'25MB' }, 'xlsx':{ max:25*1024*1024, label:'25MB' },
+  'ppt':{ max:25*1024*1024, label:'25MB' }, 'pptx':{ max:25*1024*1024, label:'25MB' },
+  'txt':{ max:25*1024*1024, label:'25MB' }, 'csv':{ max:25*1024*1024, label:'25MB' },
+  'zip':{ max:25*1024*1024, label:'25MB' },
+  'mp3':{ max:10*1024*1024, label:'10MB' }, 'wav':{ max:10*1024*1024, label:'10MB' },
+  'ogg':{ max:10*1024*1024, label:'10MB' }, 'm4a':{ max:10*1024*1024, label:'10MB' },
+};
+
+const ALLOWED_EXTENSIONS = new Set([
+  'jpg','jpeg','png','gif','webp',
+  'mp4','webm','mov','mkv',
+  'pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv','zip',
+  'mp3','wav','ogg','m4a'
+]);
+
+function getMediaType(file) {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  if (file.type && file.type !== 'application/octet-stream') return file.type;
+  if (['jpg','jpeg'].includes(ext)) return 'image/jpeg';
+  if (ext === 'png') return 'image/png';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'mp4') return 'video/mp4';
+  if (ext === 'webm') return 'video/webm';
+  if (['mov','mkv'].includes(ext)) return 'video/quicktime';
+  if (ext === 'mp3') return 'audio/mpeg';
+  if (ext === 'wav') return 'audio/wav';
+  if (ext === 'ogg') return 'audio/ogg';
+  if (ext === 'm4a') return 'audio/mp4';
+  if (ext === 'pdf') return 'application/pdf';
+  if (ext === 'doc') return 'application/msword';
+  if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (ext === 'xls') return 'application/vnd.ms-excel';
+  if (ext === 'xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (ext === 'ppt') return 'application/vnd.ms-powerpoint';
+  if (ext === 'pptx') return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+  if (ext === 'zip') return 'application/zip';
+  if (ext === 'txt') return 'text/plain';
+  if (ext === 'csv') return 'text/csv';
+  return file.type || 'application/octet-stream';
+}
+
 function validateFile(file) {
-  const limit = FILE_LIMITS[file.type];
-  if (!limit) return { valid: false, error: `❌ File type not supported` };
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  if (!ALLOWED_EXTENSIONS.has(ext)) return { valid: false, error: `❌ File type .${ext} is not supported` };
+  const limit = FILE_LIMITS[file.type] || EXTENSION_LIMITS[ext] || { max: 25*1024*1024, label: '25MB' };
   if (file.size > limit.max) return { valid: false, error: `❌ File too large. Max size is ${limit.label}` };
   return { valid: true };
 }
 
-function FileTypeIcon({ mimeType, size = 20 }) {
-  if (!mimeType) return <Paperclip size={size} color="#888" />;
-  if (mimeType === 'application/pdf') return <FileText size={size} color="#ef4444" />;
-  if (mimeType.includes('word')) return <FileText size={size} color="#3b82f6" />;
-  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText size={size} color="#10b981" />;
-  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color="#f97316" />;
-  if (mimeType === 'application/zip') return <Paperclip size={size} color="#6b7280" />;
-  if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color="#6b7280" />;
-  if (mimeType.startsWith('audio/')) return <Music size={size} color="#a855f7" />;
-  if (mimeType.startsWith('video/')) return <Play size={size} color="#3b82f6" fill="#3b82f6" />;
-  return <Paperclip size={size} color="#888" />;
+function FileTypeIcon({ mimeType, size = 20, color }) {
+  const c = color || null;
+  if (!mimeType) return <Paperclip size={size} color={c || "#888"} />;
+  if (mimeType === 'application/pdf') return <FileText size={size} color={c || "#ef4444"} />;
+  if (mimeType.includes('word')) return <FileText size={size} color={c || "#3b82f6"} />;
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileText size={size} color={c || "#10b981"} />;
+  if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color={c || "#f97316"} />;
+  if (mimeType === 'application/zip') return <Paperclip size={size} color={c || "#6b7280"} />;
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color={c || "#6b7280"} />;
+  if (mimeType.startsWith('audio/')) return <Music size={size} color={c || "#a855f7"} />;
+  if (mimeType.startsWith('video/')) return <Play size={size} color={c || "#3b82f6"} fill={c || "#3b82f6"} />;
+  return <Paperclip size={size} color={c || "#888"} />;
 }
 
-function FileCard({ url, type, fileName, isMe, isLight }) {
-  const typeName = type?.split('/').pop()?.toUpperCase() || 'FILE';
-  const isExpired = !url;
+function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-  const handleDownload = async () => {
+function getFileTypeLabel(mimeType, fileName) {
+  if (mimeType === 'application/pdf') return 'PDF';
+  if (mimeType?.includes('word')) return 'Word';
+  if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return 'Excel';
+  if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return 'PowerPoint';
+  if (mimeType === 'text/plain') return 'Text';
+  if (mimeType === 'text/csv') return 'CSV';
+  if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return 'ZIP';
+  const ext = fileName?.split('.').pop()?.toUpperCase();
+  if (ext) return ext;
+  return 'File';
+}
+
+function getFileIconBg(mimeType) {
+  if (mimeType === 'application/pdf') return '#ef4444';
+  if (mimeType?.includes('word')) return '#3b82f6';
+  if (mimeType?.includes('excel') || mimeType?.includes('spreadsheet')) return '#10b981';
+  if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return '#f97316';
+  if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return '#6b7280';
+  if (mimeType === 'text/plain' || mimeType === 'text/csv') return '#64748b';
+  return '#6366f1';
+}
+
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading }) {
+  const isLoading = loading && !url;
+  const isExpired = !url && !isLoading;
+  const typeLabel = getFileTypeLabel(type, fileName);
+  const sizeLabel = formatFileSize(fileSize);
+  const iconBg = getFileIconBg(type);
+  const subtitle = isLoading ? (isMe ? 'Sending…' : 'Loading…') : (isExpired ? 'Expired' : [typeLabel, sizeLabel].filter(Boolean).join(' • '));
+
+  let expiryLine = null;
+  if (expiresAt && !isExpired) {
+    const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+    if (daysLeft > 0) {
+      const expiryColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
+      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: expiryColor, WebkitTextFillColor: expiryColor, marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={expiryColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
+    }
+  }
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
@@ -70,82 +180,238 @@ function FileCard({ url, type, fileName, isMe, isLight }) {
     } catch { toast.error('Download failed'); }
   };
 
-  const cardBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
-  const cardBorder = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.09)');
-  const fileNameColor = isMe ? '#fff' : (isLight ? '#1e293b' : '#e2e8f0');
-  const typeColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
-  const expiredColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  const dlBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(30,41,59,0.12)' : 'rgba(99,102,241,0.2)');
-  const dlBorder = isMe ? 'rgba(255,255,255,0.3)' : (isLight ? 'rgba(30,41,59,0.22)' : 'rgba(99,102,241,0.3)');
-  const dlColor = isMe ? '#fff' : (isLight ? '#334155' : '#a5b4fc');
+  // In light mode all cards use white bg + pure black text regardless of sender
+  const cardBg = isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)');
+  const cardBorder = isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)');
+  const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
+  const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
+  const dlColor = isLight ? '#6d28d9' : (isMe ? 'rgba(255,255,255,0.8)' : '#a5b4fc');
+  const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
+  const iconColor = isLight ? iconBg : '#fff';
 
   return (
-    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 14px', minWidth: 160, maxWidth: 220, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isExpired ? 0 : 8 }}>
-        <FileTypeIcon mimeType={type} size={20} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: fileNameColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {isExpired ? <s style={{ color: expiredColor }}>{fileName || 'File'}</s> : (fileName || 'File')}
-          </div>
-          <div style={{ fontSize: 10, color: typeColor, marginTop: 1 }}>{typeName}</div>
+    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 12px', minWidth: 200, maxWidth: 250, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 38, height: 42, borderRadius: 8, background: iconCircleBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: (isExpired || isLoading) ? 0.5 : 1 }}>
+          {isLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: iconColor }} /> : <FileTypeIcon mimeType={type} size={18} color={iconColor} />}
         </div>
-      </div>
-      {isExpired
-        ? <div style={{ fontSize: 11, color: expiredColor, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Paperclip size={11} color={expiredColor} /> Expired</div>
-        : <button onClick={handleDownload} style={{ width: '100%', padding: '4px', borderRadius: 6, background: dlBg, border: `1px solid ${dlBorder}`, color: dlColor, fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-            <Download size={11} color={dlColor} /> Download
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="fc-name" style={{ fontSize: 11, fontWeight: 700, color: fileNameColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', WebkitTextFillColor: fileNameColor }}>
+            {fileName || 'File'}
+          </div>
+          <div className="fc-sub" style={{ fontSize: 10, fontWeight: 400, color: subtitleColor, marginTop: 2, WebkitTextFillColor: subtitleColor }}>{subtitle}</div>
+          {expiryLine}
+        </div>
+        {!isExpired && !isLoading && (
+          <button className="fc-dl" onClick={handleDownload} style={{ background: 'none', border: 'none', cursor: 'pointer', color: dlColor, padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <Download size={14} color={dlColor} />
           </button>
-      }
+        )}
+      </div>
     </div>
   );
 }
 
-function AudioPlayerBubble({ url, isMe, isLight }) {
-  const [playing, setPlaying] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [duration, setDuration] = React.useState(0);
-  const audioRef = React.useRef(null);
-  const isExpired = !url;
-  const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
+// One voice note plays at a time across the room chat panel
+const _vnReg_rcp = { el: null, pauseFn: null };
 
-  if (isExpired) return (
-    <div style={{ padding: '8px 12px', background: isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)'), borderRadius: 10, fontSize: 12, color: expColor, display: 'flex', alignItems: 'center', gap: 6 }}>
-      <Music size={12} color={expColor} /> Voice note expired
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading }) {
+  const [duration, setDuration] = React.useState(0);
+  const [playing, setPlaying] = React.useState(false);
+  const [currentTime, setCurrentTime] = React.useState(0);
+  const [progress, setProgress] = React.useState(0);
+  const audioRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+  const isPlayingRef = React.useRef(false);
+
+  const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s < 0) ? '0:00' :
+    `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  // Cleanup RAF and global registry on unmount
+  React.useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    if (_vnReg_rcp.el === audioRef.current) { _vnReg_rcp.el = null; _vnReg_rcp.pauseFn = null; }
+  }, []);
+
+  const BAR_COUNT = 30;
+  const bars = React.useMemo(() => {
+    const arr = []; let s = 42;
+    for (let i = 0; i < BAR_COUNT; i++) { s = (s * 9301 + 49297) % 233280; arr.push(3 + (s / 233280) * 18); }
+    return arr;
+  }, []);
+
+  const isLoading = loading && !url;
+  const isExpired = !url && !isLoading;
+  const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
+  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)');
+
+  if (isLoading) return (
+    <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMe ? 'rgba(255,255,255,0.12)' : (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 20, marginBottom: 4 }}>
+          {Array.from({length: 20}, (_, j) => (
+            <div key={j} style={{ width: 2, height: 4 + (j % 5) * 2, borderRadius: 1, background: isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)') }} />
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: expColor, WebkitTextFillColor: expColor }}>{isMe ? 'Sending…' : 'Loading…'}</div>
+      </div>
     </div>
   );
 
-  const toggle = () => {
-    if (!audioRef.current) return;
-    if (playing) audioRef.current.pause(); else audioRef.current.play();
-    setPlaying(prev => !prev);
-  };
-  const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s <= 0) ? null : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  if (isExpired) return (
+    <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, fontSize: 12, color: expColor, display: 'flex', alignItems: 'center', gap: 6 }}>
+      Voice note expired
+    </div>
+  );
 
-  const bubbleBg = isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
-  const trackBg = isMe ? 'rgba(255,255,255,0.2)' : (isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.15)');
-  const metaColor = isMe ? 'rgba(255,255,255,0.7)' : (isLight ? '#64748b' : '#888');
-  const durationStr = fmtDur(duration);
+  // MediaRecorder WebM files have duration=Infinity — seek to end to force real duration
+  const handleLoadedMetadata = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
+      setDuration(el.duration);
+    } else {
+      const waitForDuration = () => {
+        if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
+          el.removeEventListener('timeupdate', waitForDuration);
+          setDuration(el.duration);
+          if (!isPlayingRef.current) el.currentTime = 0;
+        }
+      };
+      el.addEventListener('timeupdate', waitForDuration);
+      el.currentTime = 1e9;
+    }
+  };
+
+  const handleEnded = () => {
+    isPlayingRef.current = false;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    setPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+    if (_vnReg_rcp.el === audioRef.current) { _vnReg_rcp.el = null; _vnReg_rcp.pauseFn = null; }
+  };
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    // If mid-duration-detection (seeked to 1e9), reset position first
+    if (el.currentTime > 1e5) el.currentTime = 0;
+
+    if (isPlayingRef.current) {
+      el.pause();
+      isPlayingRef.current = false;
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      setPlaying(false);
+      if (_vnReg_rcp.el === el) { _vnReg_rcp.el = null; _vnReg_rcp.pauseFn = null; }
+    } else {
+      // Stop any other playing voice note in this panel
+      if (_vnReg_rcp.el && _vnReg_rcp.el !== el && _vnReg_rcp.pauseFn) {
+        _vnReg_rcp.pauseFn();
+        _vnReg_rcp.el.pause();
+      }
+      isPlayingRef.current = true;
+      setPlaying(true); // immediate UI feedback
+      // Start RAF immediately — fills bars as soon as audio data arrives
+      const tick = () => {
+        const a = audioRef.current;
+        if (!a || !isPlayingRef.current) return;
+        const ct = a.currentTime;
+        const dur = isFinite(a.duration) && a.duration > 0 && a.duration < 1e8 ? a.duration : 0;
+        setCurrentTime(ct);
+        setProgress(dur > 0 ? ct / dur : 0);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+      _vnReg_rcp.el = el;
+      _vnReg_rcp.pauseFn = () => {
+        isPlayingRef.current = false;
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        setPlaying(false);
+      };
+      el.play().catch(() => {
+        isPlayingRef.current = false;
+        if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+        setPlaying(false);
+        if (_vnReg_rcp.el === el) { _vnReg_rcp.el = null; _vnReg_rcp.pauseFn = null; }
+      });
+    }
+  };
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `voice_note_${Date.now()}.${ext}`;
+      a.click();
+    } catch { toast.error('Download failed'); }
+  };
+
+  const bubbleBg = isMe
+    ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.15)')
+    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+  const playedColor = '#a855f7';
+  const unplayedColor = isMe
+    ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
+    : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
+  const timeColor = isMe
+    ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
+    : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
+  const dlColor = isMe
+    ? (isLight ? '#6366f1' : 'rgba(255,255,255,0.7)')
+    : (isLight ? '#7c3aed' : '#c084fc');
+  // Before play: show total duration. While playing or paused mid-track: show elapsed.
+  const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
 
   return (
-    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 160, marginTop: 2 }}>
-      <audio ref={audioRef} src={url}
-        onTimeUpdate={() => audioRef.current && setProgress(audioRef.current.currentTime / (audioRef.current.duration || 1))}
-        onLoadedMetadata={() => audioRef.current && setDuration(audioRef.current.duration)}
-        onEnded={() => { setPlaying(false); setProgress(0); }} />
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2 }}>
+      <audio ref={audioRef} src={url} preload="auto"
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={handleEnded} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
-        <button onClick={toggle} style={{ background: 'rgba(99,102,241,0.35)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-          {playing ? <Pause size={10} color="#fff" fill="#fff" /> : <Play size={10} color="#fff" fill="#fff" />}
+        <button onClick={toggle} style={{ background: '#a855f7', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+          {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ height: 3, background: trackBg, borderRadius: 2, overflow: 'hidden', cursor: 'pointer' }} onClick={e => { if (!audioRef.current) return; const rect = e.currentTarget.getBoundingClientRect(); const pct = (e.clientX - rect.left) / rect.width; audioRef.current.currentTime = pct * (audioRef.current.duration || 0); }}>
-            <div style={{ height: '100%', width: `${progress * 100}%`, background: '#6366f1', transition: 'width 0.1s linear' }} />
-          </div>
-          <div style={{ fontSize: 10, color: metaColor, marginTop: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Voice Note</span>
-            {durationStr && <span>{durationStr}</span>}
-          </div>
+        <div
+          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'pointer' }}
+          onClick={e => {
+            const el = audioRef.current;
+            if (!el) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
+            if (dur > 0) {
+              el.currentTime = pct * dur;
+              setProgress(pct);
+              setCurrentTime(pct * dur);
+            }
+          }}
+        >
+          {bars.map((h, i) => (
+            <div key={i} style={{ width: 2, height: h, borderRadius: 1, background: i / BAR_COUNT < progress ? playedColor : unplayedColor, flexShrink: 0 }} />
+          ))}
         </div>
+        <button onClick={handleDownload} title="Download voice note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+          <Download size={14} color={dlColor} />
+        </button>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
+        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+        {expiresAt && (() => {
+          const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+          if (daysLeft <= 0) return null;
+          const expTc = daysLeft <= 7 ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.55)');
+          const expTxt = daysLeft <= 7 ? `⚠️ ${daysLeft}d left` : `${daysLeft}d left`;
+          return <span className="rcp-vn-expiry" style={{ fontSize: 10, color: expTc, WebkitTextFillColor: expTc }}>{expTxt}</span>;
+        })()}
       </div>
     </div>
   );
@@ -172,6 +438,29 @@ const MenuStyles = () => (
     }
     @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes wave-bar { from { height: 3px; } to { height: 100%; } }
+    /* ── Document card text: override msg-sent/stay-white !important rules in light mode ── */
+    html[data-theme='light'] .fc-name,
+    html[data-theme='light'] .msg-sent .fc-name,
+    html[data-theme='light'] .stay-white .fc-name { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+    html[data-theme='light'] .fc-sub,
+    html[data-theme='light'] .msg-sent .fc-sub,
+    html[data-theme='light'] .stay-white .fc-sub { color: rgba(0,0,0,0.65) !important; -webkit-text-fill-color: rgba(0,0,0,0.65) !important; }
+    html[data-theme='light'] .fc-expiry,
+    html[data-theme='light'] .msg-sent .fc-expiry,
+    html[data-theme='light'] .stay-white .fc-expiry { color: rgba(0,0,0,0.62) !important; -webkit-text-fill-color: rgba(0,0,0,0.62) !important; }
+    /* ── Voice note time and expiry: override stay-white / msg-sent forcing ── */
+    html[data-theme='light'] .rcp-vn-time,
+    html[data-theme='light'] .msg-sent .rcp-vn-time,
+    html[data-theme='light'] .stay-white .rcp-vn-time { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
+    html[data-theme='light'] .rcp-vn-expiry,
+    html[data-theme='light'] .msg-sent .rcp-vn-expiry,
+    html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
+    .voice-trash-btn { background: transparent !important; border: none !important; cursor: pointer !important; display: flex !important; align-items: center !important; padding: 4px !important; border-radius: 6px !important; transition: color 0.2s !important; }
+    html:not([data-theme='light']) .voice-trash-btn svg { color: rgba(255,255,255,0.45) !important; }
+    html:not([data-theme='light']) .voice-trash-btn:hover svg { color: #ef4444 !important; }
+    html[data-theme='light'] .voice-trash-btn svg { color: rgba(0,0,0,0.55) !important; }
+    html[data-theme='light'] .voice-trash-btn:hover svg { color: #dc2626 !important; }
     .menu-dropdown {
       animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       transform-origin: top right;
@@ -370,58 +659,376 @@ function Avatar({ name, size=36, isHost=false, isAdmin=false, isMuted=false, src
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬ Media Lightbox Ã¢â€â‚¬Ã¢â€â‚¬
-function MediaLightbox({ url, type, onClose }) {
+function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
+  const item = items?.[index];
+  const url = item?.url;
+  const type = item?.type;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
+  const hasMultiple = items?.length > 1;
+
   React.useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && hasMultiple && index > 0) onPrev?.();
+      if (e.key === 'ArrowRight' && hasMultiple && index < items.length - 1) onNext?.();
+    };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext, hasMultiple, index, items?.length]);
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`;
+      a.click();
+    } catch {}
+  };
+
+  if (!item) return null;
+
   return (
     <div
       onClick={onClose}
+      className="media-lightbox-overlay gcw-force-dark"
       style={{
         position: 'fixed', inset: 0, zIndex: 999999,
-        background: 'rgba(0,0,0,0.92)',
+        background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(6px)'
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)'
       }}
     >
-      <button
-        onClick={onClose}
+      {/* Card */}
+      <div
+        onClick={e => e.stopPropagation()}
+        className="media-lightbox-card"
         style={{
-          position: 'absolute', top: 16, right: 16,
-          background: 'rgba(255,255,255,0.1)', border: 'none',
-          borderRadius: '50%', width: 40, height: 40,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', cursor: 'pointer', zIndex: 1
+          position: 'relative',
+          background: '#111',
+          borderRadius: 16,
+          overflow: 'hidden',
+          width: 'min(640px, 92vw)',
+          height: 'min(520px, 88vh)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
         }}
       >
-        <X size={20} />
-      </button>
-      <div onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh' }}>
-        {isImg ? (
-          <img
-            src={url}
-            alt="Media"
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, display: 'block', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-          />
-        ) : isVid ? (
-          <video
-            src={url}
-            controls
-            autoPlay
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, display: 'block', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-          />
-        ) : null}
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1a1a1a', borderBottom: '1px solid #2e2e2e', flexShrink: 0 }}>
+          <span style={{ color: '#ccc', fontSize: 13, fontWeight: 600 }}>
+            {hasMultiple ? `${index + 1} / ${items.length}` : ''}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleDownload} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 14px', color: '#111', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#111', display: 'flex' }}><Download size={14} /></span> Save
+            </button>
+            <button onClick={onClose} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 10px', color: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: '#111', display: 'flex' }}><X size={16} /></span>
+            </button>
+          </div>
+        </div>
+
+        {/* Media area */}
+        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}>
+          {isImg ? (
+            <img src={url} alt="Media" style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain' }} />
+          ) : isVid ? (
+            <video src={url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+          ) : null}
+
+          {hasMultiple && index > 0 && (
+            <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              <span style={{ color: '#fff', display: 'flex' }}><ChevronLeft size={20} /></span>
+            </button>
+          )}
+          {hasMultiple && index < items.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); onNext?.(); }}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              <span style={{ color: '#fff', display: 'flex' }}><ChevronRight size={20} /></span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+function ReadReceipt({ msg, isGroup, username, userList, socketServerUrl, isLight }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== username.toLowerCase());
+  
+  if (readers.length === 0) return null;
+  
+  const formatSeenTime = (ts) => {
+    if (!ts) return '';
+    const date = new Date(ts);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div 
+      className="read-receipt-container"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 2,
+        fontSize: 11,
+        color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+        cursor: 'pointer',
+        position: 'relative',
+        userSelect: 'none'
+      }}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onClick={() => setIsOpen(!isOpen)}
+    >
+      {isGroup ? (
+        <>
+          {/* Avatar stack */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {readers.slice(0, 3).map((r, idx) => {
+              const uObj = userList?.find(u => u.username.toLowerCase() === r.username.toLowerCase());
+              const avatar = r.avatar || uObj?.avatarPath;
+              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              return (
+                <div 
+                  key={r.username} 
+                  style={{
+                    marginLeft: idx > 0 ? -8 : 0,
+                    border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    width: 16,
+                    height: 16,
+                    background: '#6366f1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 8,
+                    color: '#fff',
+                    zIndex: 10 - idx
+                  }}
+                >
+                  {avatarSrc ? (
+                    <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    r.username.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+              );
+            })}
+            {readers.length > 3 && (
+              <div 
+                style={{
+                  marginLeft: -8,
+                  border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
+                  borderRadius: '50%',
+                  width: 16,
+                  height: 16,
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 7,
+                  color: '#fff',
+                  fontWeight: 600,
+                  zIndex: 5
+                }}
+              >
+                +{readers.length - 3}
+              </div>
+            )}
+          </div>
+          <span style={{ color: isLight ? '#475569' : 'var(--text-muted, #94a3b8)', opacity: 0.8 }}>Seen</span>
+        </>
+      ) : (
+        <span style={{ color: isLight ? '#475569' : 'var(--text-muted, #94a3b8)', opacity: 0.8 }}>Seen</span>
+      )}
+
+      {/* Tooltip */}
+      {isOpen && (
+        <div 
+          className="read-receipt-tooltip"
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            right: 0,
+            marginBottom: 6,
+            background: isLight ? 'rgba(100, 116, 139, 0.98)' : 'rgba(15, 15, 26, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: isLight ? '1px solid rgba(0, 0, 0, 0.05)' : '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            boxShadow: isLight ? '0 10px 25px rgba(0,0,0,0.15)' : '0 10px 25px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            minWidth: 150,
+            maxWidth: 250,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            pointerEvents: 'auto'
+          }}
+        >
+          <div className="stay-color" style={{ fontWeight: 600, fontSize: 10, color: isLight ? '#cbd5e1' : '#ffffff', borderBottom: isLight ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)', paddingBottom: 4 }}>
+            Seen by
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto' }}>
+            {readers.map(r => {
+              const uObj = userList?.find(u => u.username.toLowerCase() === r.username.toLowerCase());
+              const avatar = r.avatar || uObj?.avatarPath;
+              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              return (
+                <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div 
+                    style={{
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      width: 14,
+                      height: 14,
+                      background: '#6366f1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 8,
+                      color: '#fff',
+                      flexShrink: 0
+                    }}
+                  >
+                    {avatarSrc ? (
+                      <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      r.username.slice(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <span className="stay-color" style={{ fontSize: 10, color: isLight ? '#cbd5e1' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {r.username}
+                  </span>
+                  <span className="stay-white" style={{ fontSize: 9, color: isLight ? '#ffffff' : 'rgba(255,255,255,0.9)', flexShrink: 0 }}>
+                    {formatSeenTime(r.seenAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const getEffectiveSeenBy = (messages, username) => {
+  if (!Array.isArray(messages)) return new Map();
+  const latestSeenMap = new Map();
+  messages.forEach((msg, idx) => {
+    const sender = (msg.senderName || msg.username || '').toLowerCase();
+    const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== sender);
+    readers.forEach(r => {
+      const rName = r.username.toLowerCase();
+      if (rName !== username.toLowerCase()) {
+        latestSeenMap.set(rName, { msgId: msg.id || msg.timestamp, reader: r, idx });
+      }
+    });
+  });
+
+  const messageSeenByMap = new Map();
+  for (const [rName, val] of latestSeenMap.entries()) {
+    const key = String(val.msgId);
+    if (!messageSeenByMap.has(key)) {
+      messageSeenByMap.set(key, []);
+    }
+    messageSeenByMap.get(key).push(val.reader);
+  }
+  return messageSeenByMap;
+};
+
 export default function RoomChatPanel({ p }) {
   const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(p.messagesEndRef);
+  
+  const groupScrollContainerRef = React.useRef(null);
+  const dmScrollContainerRef = React.useRef(null);
+  const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
+
+  const prevGroupMsgCount = React.useRef(p.groupMessages.length);
+  const prevFirstGroupMsgId = React.useRef(null);
+  
+  React.useLayoutEffect(() => {
+    const container = groupScrollContainerRef.current;
+    if (!container || p.chatTab !== 'group') {
+      if (p.chatTab === 'group') {
+        prevGroupMsgCount.current = p.groupMessages.length;
+        prevFirstGroupMsgId.current = p.groupMessages.length > 0 ? p.groupMessages[0].id || p.groupMessages[0].tempId : null;
+      }
+      return;
+    }
+
+    const firstMsgId = p.groupMessages.length > 0 ? p.groupMessages[0].id || p.groupMessages[0].tempId : null;
+    const isPrepend = firstMsgId !== prevFirstGroupMsgId.current && prevFirstGroupMsgId.current !== null && p.groupMessages.length > prevGroupMsgCount.current;
+    
+    if (!isPrepend) {
+      const isNewMsg = p.groupMessages.length > prevGroupMsgCount.current && prevGroupMsgCount.current > 0;
+      if (isNewMsg) {
+        const lastMsg = p.groupMessages[p.groupMessages.length - 1];
+        const isMe = lastMsg && (lastMsg.isMe || lastMsg.username?.toLowerCase() === myUser || lastMsg.senderName?.toLowerCase() === myUser);
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 350;
+        if (isMe || isNearBottom) {
+          container.scrollTop = container.scrollHeight;
+        }
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+    
+    prevGroupMsgCount.current = p.groupMessages.length;
+    prevFirstGroupMsgId.current = firstMsgId;
+  }, [p.groupMessages, p.chatTab]);
+
+  const dmMessages = p.dmTarget ? p.dmThreads[p.dmTarget.toLowerCase()] || [] : [];
+  const prevDmMsgCount = React.useRef(dmMessages.length);
+  const prevFirstDmMsgId = React.useRef(null);
+  const prevDmTarget = React.useRef(p.dmTarget);
+
+  React.useLayoutEffect(() => {
+    const container = dmScrollContainerRef.current;
+    if (!container || p.chatTab !== 'dm') {
+      if (p.chatTab === 'dm') {
+        prevDmMsgCount.current = dmMessages.length;
+        prevFirstDmMsgId.current = dmMessages.length > 0 ? dmMessages[0].id || dmMessages[0].tempId : null;
+        prevDmTarget.current = p.dmTarget;
+      }
+      return;
+    }
+
+    const firstMsgId = dmMessages.length > 0 ? dmMessages[0].id || dmMessages[0].tempId : null;
+    const targetChanged = p.dmTarget !== prevDmTarget.current;
+    const isPrepend = !targetChanged && firstMsgId !== prevFirstDmMsgId.current && prevFirstDmMsgId.current !== null && dmMessages.length > prevDmMsgCount.current;
+
+    if (!isPrepend) {
+      const isNewMsg = !targetChanged && dmMessages.length > prevDmMsgCount.current && prevDmMsgCount.current > 0;
+      if (isNewMsg) {
+        const lastMsg = dmMessages[dmMessages.length - 1];
+        const isMe = lastMsg && (lastMsg.isMe || lastMsg.username?.toLowerCase() === myUser || lastMsg.senderName?.toLowerCase() === myUser);
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 350;
+        if (isMe || isNearBottom) {
+          container.scrollTop = container.scrollHeight;
+        }
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+
+    prevDmMsgCount.current = dmMessages.length;
+    prevFirstDmMsgId.current = firstMsgId;
+    prevDmTarget.current = p.dmTarget;
+  }, [dmMessages, p.chatTab, p.dmTarget]);
+
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = React.useState(false);
@@ -434,6 +1041,9 @@ export default function RoomChatPanel({ p }) {
   const mediaRecorderRef = React.useRef(null);
   const audioChunksRef = React.useRef([]);
   const timerRef = React.useRef(null);
+  const analyserRef = React.useRef(null);
+  const waveAnimRef = React.useRef(null);
+  const [waveHeights, setWaveHeights] = React.useState(() => Array(20).fill(3));
   const [activeMessageMenu, setActiveMessageMenu] = React.useState(null);
   const messageMenuRef = React.useRef(null);
 
@@ -441,7 +1051,6 @@ export default function RoomChatPanel({ p }) {
   const [clearGroupChatModalOpen, setClearGroupChatModalOpen] = React.useState(false);
   const fileInputRef = React.useRef(null);
   const dmFileInputRef = React.useRef(null);
-  const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
   const [hiddenChats, setHiddenChats] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(`hidden_chats_${myUser}`) || '[]'); } catch { return []; }
   });
@@ -753,10 +1362,10 @@ export default function RoomChatPanel({ p }) {
 
     try {
       if (type === 'group') {
-        p.sendMediaGroupChat(objectUrl, file.type, p.groupReplyTo, file);
+        p.sendMediaGroupChat(objectUrl, getMediaType(file), p.groupReplyTo, file);
         p.setGroupReplyTo(null);
       } else {
-        p.sendMediaDmChat(objectUrl, file.type, p.dmReplyTo, file);
+        p.sendMediaDmChat(objectUrl, getMediaType(file), p.dmReplyTo, file);
         p.setDmReplyTo(null);
       }
       toast.success('Sent!');
@@ -783,13 +1392,41 @@ export default function RoomChatPanel({ p }) {
         setAudioBlob(blob);
         setAudioUrl(url);
         stream.getTracks().forEach(t => t.stop());
+        if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
+        if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
+        setWaveHeights(Array(20).fill(3));
       };
       mr.start();
       mediaRecorderRef.current = mr;
+      // Set up Web Audio analyser for real waveform
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+        const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        const animate = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArr);
+          const bars = Array.from({ length: 20 }, (_, i) => {
+            const idx = Math.floor(i * dataArr.length / 20);
+            const v = dataArr[idx] / 255;
+            return Math.max(3, Math.round(v * 100));
+          });
+          setWaveHeights(bars);
+          waveAnimRef.current = requestAnimationFrame(animate);
+        };
+        animate();
+      } catch {}
       setRecordingFor(chatType);
       setIsRecording(true);
       setRecordingTime(0);
-      timerRef.current = setInterval(() => setRecordingTime(prev => prev + 1), 1000);
+      timerRef.current = setInterval(() => setRecordingTime(prev => {
+        if (prev >= 299) { stopRecording(); return 300; }
+        return prev + 1;
+      }), 1000);
     } catch {
       toast.error('Microphone access denied');
     }
@@ -804,6 +1441,8 @@ export default function RoomChatPanel({ p }) {
   };
 
   const cancelRecording = () => {
+    if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
+    if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -812,6 +1451,7 @@ export default function RoomChatPanel({ p }) {
     setAudioBlob(null);
     setAudioUrl(null);
     setRecordingFor(null);
+    setWaveHeights(Array(20).fill(3));
     audioChunksRef.current = [];
   };
 
@@ -822,10 +1462,10 @@ export default function RoomChatPanel({ p }) {
       const blob = new Blob([audioBlob], { type: audioBlob.type || 'audio/webm' });
       const url = audioUrl;
       if (recordingFor === 'group') {
-        p.sendMediaGroupChat(url, blob.type, p.groupReplyTo, blob);
+        p.sendMediaGroupChat(url, blob.type, p.groupReplyTo, blob, recordingTime);
         p.setGroupReplyTo(null);
       } else {
-        p.sendMediaDmChat(url, blob.type, p.dmReplyTo, blob);
+        p.sendMediaDmChat(url, blob.type, p.dmReplyTo, blob, recordingTime);
         p.setDmReplyTo(null);
       }
       toast.success('Voice note sent!');
@@ -884,7 +1524,7 @@ export default function RoomChatPanel({ p }) {
         p.onMarkRead(key);
       }
       if (p.socket) {
-        p.socket.emit('chat:mark_read', { chatId: key });
+        p.socket.emit('chat:mark_read', { chatId: key, isDm: key !== p.roomId, userRead: true });
       }
     });
 
@@ -961,7 +1601,7 @@ export default function RoomChatPanel({ p }) {
     if (type === 'dm' && p.setDmThreads) {
       p.setDmThreads(prev => {
         const next = { ...prev };
-        delete next[chatKey];
+        delete next[key];
         return next;
       });
     }
@@ -970,40 +1610,71 @@ export default function RoomChatPanel({ p }) {
     toast.success('Chat deleted');
   };
 
-  const renderMedia = (url, type, isMe, fileName) => {
+  const buildMediaItems = (messages, decryptedUrlsRef) => {
+    return (messages || []).map(m => {
+      const mt = m.mediaType || '';
+      if (!mt.startsWith('image/') && !mt.startsWith('video/')) return null;
+      const decrypted = decryptedUrlsRef?.current && (
+        decryptedUrlsRef.current[m.id] ||
+        decryptedUrlsRef.current[m.tempId] ||
+        decryptedUrlsRef.current[String(m.timestamp)]
+      );
+      const url = decrypted || m._localMediaUrl || ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
+      return url ? { url, type: mt } : null;
+    }).filter(Boolean);
+  };
+
+  const openLightboxAt = (url, type, messages, decryptedUrlsRef) => {
+    const items = buildMediaItems(messages, decryptedUrlsRef);
+    const idx = items.findIndex(i => i.url === url);
+    if (!items.length) {
+      setLightbox({ items: [{ url, type }], index: 0 });
+    } else {
+      setLightbox({ items, index: idx >= 0 ? idx : 0 });
+    }
+  };
+
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
     const isAudio = type?.startsWith('audio/');
 
-    if (isAudio) return <AudioPlayerBubble url={url} isMe={isMe} isLight={isLight} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} isMe={isMe} isLight={isLight} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} />;
 
-    if (!url) return null;
+    if (!url) {
+      if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: '#6366f1', opacity: 0.6 }} /></div>;
+      return null;
+    }
 
     return (
-      <div style={{ marginTop: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: '#000', maxWidth: 220, position: 'relative', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
+      <div style={{ marginTop: 0, borderRadius: 10, overflow: 'hidden', background: '#000', maxWidth: 220, position: 'relative', cursor: 'pointer' }}>
         {isImg ? (
-          <img
-            src={url}
-            alt="Shared media"
-            style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
-            onClick={() => setLightbox({ url, type })}
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.style.display = 'none';
-              e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
-            }}
-          />
+          <>
+            <img
+              src={url}
+              alt="Shared media"
+              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+              onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)}
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.style.display = 'none';
+                e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
+              }}
+            />
+            {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+          </>
         ) : (
-          <div onClick={() => setLightbox({ url, type })} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} muted />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,102,241,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(99,102,241,0.5)' }}>
                 <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
               </div>
             </div>
+            {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
           </div>
         )}
       </div>
@@ -1022,7 +1693,16 @@ export default function RoomChatPanel({ p }) {
   return (
     <>
       <MenuStyles />
-      {lightbox && <MediaLightbox url={lightbox.url} type={lightbox.type} onClose={() => setLightbox(null)} />}
+      {lightbox && createPortal(
+        <MediaLightbox
+          items={lightbox.items}
+          index={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
+          onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+        />,
+        document.body
+      )}
       {pendingUnlockChat && (
         <ChatLockScreen
           chatKey={pendingUnlockChat.key}
@@ -1132,6 +1812,7 @@ export default function RoomChatPanel({ p }) {
               p.setChatTab('group');
               p.chatTabRef.current='group';
               p.setGroupUnread(0);
+              if (p.setReactionPreviews) p.setReactionPreviews(prev => { const next = { ...prev }; delete next[(p.roomId||'').toLowerCase()]; return next; });
               // Also clear the global navbar badge for this room
               if (p.onMarkRead) p.onMarkRead(p.roomId);
             }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
@@ -1146,14 +1827,26 @@ export default function RoomChatPanel({ p }) {
                 <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
                 <div style={{fontSize:11,color: isLight ? '#475569' : '#a1a1aa',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                   {(() => {
+                    const rId = (p.roomId || '').toLowerCase();
+                    const typers = p.typingStatuses?.[rId];
+                    if (typers && typers.length > 0) {
+                      return <span style={{ color: '#10b981', fontStyle: 'italic' }}>{typers.join(', ')} Typing...</span>;
+                    }
+                    const rxnPreview = p.reactionPreviews?.[(p.roomId||'').toLowerCase()];
+                    if (rxnPreview) return <span style={{ color: '#a78bfa' }}>{rxnPreview}</span>;
                     const lastMsg = p.groupMessages.length > 0 ? p.groupMessages[p.groupMessages.length-1] : null;
-                    if (!lastMsg) return t('groupConv', 'Group conversation');
-                    const sender = lastMsg.username || lastMsg.senderName;
-                    const mt = lastMsg.mediaType;
-                    const preview = lastMsg.decryptedText
-                      || (mt ? (mt.startsWith('video') ? 'Video' : mt.startsWith('image') ? 'Photo' : mt.startsWith('audio') ? 'Voice Note' : 'File')
-                        : (lastMsg.message && looksLikeCiphertext(lastMsg.message) ? 'Message' : (lastMsg.message?.slice(0,32) || '...')));
-                    return sender ? `${sender}: ${preview}` : preview;
+                    if (!lastMsg) return t('startConv', 'Start a conversation');
+                    const chatObj = {
+                      type: 'room',
+                      lastSenderName: lastMsg.username || lastMsg.senderName,
+                      isMyLastMessage: lastMsg.isMe !== undefined ? lastMsg.isMe : ((lastMsg.username || lastMsg.senderName) === p.username),
+                      lastMediaType: lastMsg.mediaType,
+                      lastMediaFileName: lastMsg.mediaFileName || lastMsg._fileName,
+                      lastMediaDuration: lastMsg.mediaDuration,
+                      decryptedText: lastMsg.decryptedText,
+                      message: lastMsg.message
+                    };
+                    return getMessagePreview(chatObj, p.username);
                   })()}
                 </div>
               </div>
@@ -1178,18 +1871,25 @@ export default function RoomChatPanel({ p }) {
             )}
 
             {(() => {
-              const allUsernames = Array.from(new Set([
-                ...p.userList.filter(u=>u.username!==p.username).map(u=>u.username), 
-                ...Object.keys(p.dmThreads), 
-                ...Array.from(p.knownUsers)
-              ])).filter(n => n && n !== p.username);
+              // Only show users the current viewer has explicitly started a DM with,
+              // or who have sent a DM to them. Room membership alone does NOT add a row.
+              const allUsernames = Object.keys(p.dmThreads).filter(n => n && n !== p.username);
+
+              // Helper: get timestamp of the last message in a DM thread
+              const getLastMsgTs = (uname) => {
+                const thread = p.dmThreads[uname?.toLowerCase()];
+                if (!thread || thread.length === 0) return p.dmClearedTsRef?.current?.[uname?.toLowerCase()] || 0;
+                const last = thread[thread.length - 1];
+                return Number(last.timestamp || last.createdAt || last.id || 0);
+              };
 
               const sortedUsernames = allUsernames.sort((a, b) => {
                 const isAPinned = pinnedRoomChats.includes(a.toLowerCase());
                 const isBPinned = pinnedRoomChats.includes(b.toLowerCase());
                 if (isAPinned && !isBPinned) return -1;
                 if (!isAPinned && isBPinned) return 1;
-                return 0;
+                // Both pinned or both not pinned — sort by last message time (newest first)
+                return getLastMsgTs(b) - getLastMsgTs(a);
               });
 
               const filteredUsernames = sortedUsernames.filter(uname => {
@@ -1207,8 +1907,8 @@ export default function RoomChatPanel({ p }) {
               }
 
               return filteredUsernames.map(uname => {
-              const unread = p.dmUnread[uname]||0;
-              const thread = p.dmThreads[uname]||[];
+              const unread = p.dmUnread[uname?.toLowerCase()]||0;
+              const thread = p.dmThreads[uname?.toLowerCase()]||[];
               const last = thread[thread.length-1];
               const uObj = p.userList.find(u=>u.username===uname);
               const isOnline = !!uObj;
@@ -1216,7 +1916,7 @@ export default function RoomChatPanel({ p }) {
               const partner = uname.toLowerCase();
               const isBlockedByThem = blockingMe.some(u => u.toLowerCase() === partner);
               const isBlocked = isBlockedByThem || blockedChats.some(u => u.toLowerCase() === partner);
-              const displayUname = isBlocked ? 'User' : uname;
+              const displayUname = isBlocked ? 'User' : formatUsername(uname);
 
               // Find avatar from thread or group history if user is not currently in the room list
               const threadAvatar = thread.find(m => m.senderName === uname && m.senderAvatar)?.senderAvatar;
@@ -1251,13 +1951,27 @@ export default function RoomChatPanel({ p }) {
                       {!isBlockedByThem && uObj?.isHost && <img src={crownImg} alt="host" style={{width:12,height:10}}/>}
                     </div>
                     <div style={{fontSize:11,color: isLight ? '#475569' : '#a1a1aa',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {last ? (() => {
-                        const lmt = last.mediaType;
-                        const preview = last.decryptedText
-                          || (lmt ? (lmt.startsWith('video') ? 'Video' : lmt.startsWith('image') ? 'Photo' : lmt.startsWith('audio') ? 'Voice Note' : 'File')
-                            : (last.message && looksLikeCiphertext(last.message) ? 'Message' : (last.message?.slice(0,32) || '')));
-                        return last.isMe ? `You: ${preview}` : preview;
-                      })() : 'Start a private chat'}
+                      {(() => {
+                        const typers = p.typingStatuses?.[uname.toLowerCase()];
+                        if (typers && typers.length > 0) {
+                          return <span style={{ color: '#10b981', fontStyle: 'italic' }}>Typing...</span>;
+                        }
+                        const dmRxnPreview = p.reactionPreviews?.[uname.toLowerCase()];
+                        if (dmRxnPreview) return <span style={{ color: '#a78bfa' }}>{dmRxnPreview}</span>;
+                        return last ? (() => {
+                          const chatObj = {
+                            type: 'private',
+                            lastSenderName: last.senderName || last.username,
+                            isMyLastMessage: last.isMe,
+                            lastMediaType: last.mediaType,
+                            lastMediaFileName: last.mediaFileName || last._fileName,
+                            lastMediaDuration: last.mediaDuration,
+                            decryptedText: last.decryptedText,
+                            message: last.message
+                          };
+                          return getMessagePreview(chatObj, p.username);
+                        })() : 'Start a private chat';
+                      })()}
                     </div>
                   </div>
                   <div style={{position:'relative',display:'flex',alignItems:'center',gap:4}}>
@@ -1275,7 +1989,7 @@ export default function RoomChatPanel({ p }) {
               );
               });
             })()}
-            {Array.from(new Set([...p.userList.filter(u=>u.username!==p.username).map(u=>u.username), ...Object.keys(p.dmThreads)])).length===0 && (
+            {Object.keys(p.dmThreads).length===0 && (
               <div style={{padding:'20px',color:'#444',fontSize:12,textAlign:'center'}}>No other users in room</div>
             )}
           </div>
@@ -1336,18 +2050,36 @@ export default function RoomChatPanel({ p }) {
             </div>
           </div>
           <div 
+            ref={groupScrollContainerRef}
             className="no-scrollbar"
-            onScroll={handleScroll} 
+            onScroll={(e) => {
+              handleScroll(e);
+              const el = e.currentTarget;
+              if (el.scrollTop < 50 && p.loadMoreGroupHistory && !p.groupHistoryLoading && p.hasMoreGroupHistory) {
+                p.loadMoreGroupHistory(el);
+              }
+            }} 
             onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+            {p.groupHistoryLoading && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
+                <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+              </div>
+            )}
             {p.groupMessages.length===0 && <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>}
-            {p.groupMessages.map((msg,i)=>{
-              const isMe = msg.isMe || (msg.username && msg.username === p.username) || (msg.senderName && msg.senderName === p.username);
+            {(() => {
+              const effectiveGroupSeenMap = getEffectiveSeenBy(p.groupMessages, p.username);
+              const lastGroupMsg = p.groupMessages[p.groupMessages.length - 1];
+              const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
+              const renderGroupReceiptIndex = isLastGroupSentByMe ? p.groupMessages.length - 1 : -1;
+              return p.groupMessages.map((msg,i)=>{
+              const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
               const reactions = msg.reactions||{};
               const resolvedMedia = (p.groupDecryptedMediaUrls?.current && (
                 p.groupDecryptedMediaUrls.current[msg.id] ||
                 p.groupDecryptedMediaUrls.current[msg.tempId] ||
                 p.groupDecryptedMediaUrls.current[String(msg.timestamp)]
-              )) || (msg.nonce ? null : msg.mediaUrl);
+              )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
+              const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
               
               return (
@@ -1358,7 +2090,7 @@ export default function RoomChatPanel({ p }) {
                         const n = msg.replyTo.username || msg.replyTo.senderName; 
                         const partner = (n||'').toLowerCase();
                         const isRepBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner); 
-                        return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); 
+                        return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : formatUsername(n)); 
                       })()}: </span>{(() => {
                         const raw = msg.replyTo.message || '';
                         if (msg.replyTo.mediaType) { const rmt=msg.replyTo.mediaType; return rmt.startsWith('video')?'Video':rmt.startsWith('image')?'Photo':rmt.startsWith('audio')?'Voice Note':'File'; }
@@ -1375,7 +2107,7 @@ export default function RoomChatPanel({ p }) {
                       const isSenderBlockedByMe = blockedChats.some(u => u.toLowerCase() === partner);
                       const amIBlockedBySender = blockingMe.some(u => u.toLowerCase() === partner);
                       
-                      const displayUsername = amIBlockedBySender ? 'User' : partnerName;
+                      const displayUsername = amIBlockedBySender ? 'User' : formatUsername(partnerName);
                       const fallbackAvatar = msg.senderAvatar || p.knownAvatars?.[partnerName];
                       const displayAvatarSrc = amIBlockedBySender ? null : (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null);
                       
@@ -1394,10 +2126,10 @@ export default function RoomChatPanel({ p }) {
                                 const sName = msg.senderName || msg.username;
                                 if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
                               }}
-                              style={{ fontSize: 10, color: '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
+                              style={{ fontSize: 10, color: isLight ? '#374151' : '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
                               title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
                             >
-                              {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : (msg.senderName || msg.username)}
+                              {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : formatUsername(msg.senderName || msg.username)}
                             </span>
                             {(() => {
                               const sName = msg.senderName || msg.username;
@@ -1414,11 +2146,11 @@ export default function RoomChatPanel({ p }) {
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}>
                         <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
-                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')),
+                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
-                          color: isMe ? '#fff' : (isLight ? '#000000' : '#fff'),
+                          color: isMe ? '#fff' : (isLight ? '#111827' : '#fff'),
                           maxWidth:'100%',
                           wordBreak:'break-word'
                         }}
@@ -1433,11 +2165,11 @@ export default function RoomChatPanel({ p }) {
                               !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                             )
                           )}
-                          {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName)}
-                          
+                          {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup)}
+
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background:isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                              <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#f3f4f6' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
@@ -1450,15 +2182,15 @@ export default function RoomChatPanel({ p }) {
                                  }} onClick={e => e.stopPropagation()}>
                                    {isMe ? (
                                      <>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                          <Trash2 size={16}/> {t('unsend', 'Unsend')}
                                        </button>
-                                       <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
                                          <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
                                        </button>
                                      </>
                                    ) : (
-                                     <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                     <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                        <Trash2 size={16}/> {t('delete', 'Delete')}
                                      </button>
                                    )}
@@ -1484,7 +2216,7 @@ export default function RoomChatPanel({ p }) {
                                 {QUICK_EMOJIS.map(em=>(
                                   <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                 ))}
-                                <button onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={16}/></button>
+                                <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16}/></button>
                               </div>
                             </div>
                           )}
@@ -1492,37 +2224,57 @@ export default function RoomChatPanel({ p }) {
                         </div>
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
                               <SmilePlus size={16}/>
                             </button>
                           </div>
                         )}
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <span style={{fontSize:10,color:'#444'}}>{formatTime(msg.timestamp)}</span>
+                      <div style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
+                        {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
+                        <span style={{flex:1}}></span>
+                        <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
-                          <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                          <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
-                        <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.15)',cursor:'pointer',padding:0}}><Flag size={9}/></button>
+                        <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.15)',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
                       </div>
                     </div>
                   </div>
-                  <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4}}>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                     {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                      <button key={emoji} onClick={()=>p.handleGroupReact(msg.id || msg.timestamp, emoji)} style={{background:'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1':'rgba(255,255,255,0.1)'}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color:'#ddd'}}>
+                      <button key={emoji} onClick={()=>p.handleGroupReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
                         {emoji} {uids.length}
                       </button>
                     ))}
                   </div>
+                  {i === renderGroupReceiptIndex && (
+                    <ReadReceipt 
+                      msg={{
+                        ...msg,
+                        seenBy: effectiveGroupSeenMap.get(String(msg.id || msg.timestamp)) || []
+                      }}
+                      isGroup={true} 
+                      username={p.username} 
+                      userList={p.userList} 
+                      socketServerUrl={p.SOCKET_SERVER_URL} 
+                      isLight={isLight}
+                    />
+                  )}
                 </div>
               );
-            })}
-            {Object.values(p.typingUsers).length>0 && (
-              <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12}}>
-                <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
-                {Object.values(p.typingUsers).join(', ')} {Object.values(p.typingUsers).length===1?'is':'are'} typing...
-              </div>
-            )}
+            })})()}
+            {(() => {
+              const rId = (p.roomId || '').toLowerCase();
+              const typers = p.typingStatuses?.[rId];
+              if (!typers || typers.length === 0) return null;
+              return (
+                <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12,marginTop:4,marginBottom:4}}>
+                  <span>{typers.join(', ')}</span>
+                  <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
+                </div>
+              );
+            })()}
             <div ref={p.messagesEndRef}/>
           </div>
           {p.groupReplyTo && (
@@ -1541,59 +2293,55 @@ export default function RoomChatPanel({ p }) {
           <div style={{padding:'10px 12px',borderTop:'1px solid rgba(255,255,255,0.07)',flexShrink:0,position:'relative'}}>
             {/* Restriction badges */}
             {(() => {
-              const isGuest = localStorage.getItem('watch_is_guest') === 'true';
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
-              const showBadges = isGuest || p.isMuted || chatLocked || p.allowLinks === false || p.allowMedia === false;
+              const showBadges = p.isMuted || chatLocked || p.allowLinks === false || p.allowMedia === false;
               if (!showBadges) return null;
               return (
                 <div style={{display:'flex',gap:6,marginBottom:6,flexWrap:'wrap'}}>
-                  {isGuest && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> Guests cannot chat</div>}
-                  {p.isMuted && !isGuest && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> You are muted</div>}
-                  {chatLocked && !isGuest && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> Host-only messaging</div>}
+                  {p.isMuted && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> You are muted</div>}
+                  {chatLocked && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> Host-only messaging</div>}
                   {p.allowLinks === false && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> Links Disabled</div>}
                   {p.allowMedia === false && <div style={{fontSize:10,background:'rgba(239,68,68,0.1)',color:'#ef4444',padding:'2px 6px',borderRadius:4,display:'flex',alignItems:'center',gap:3}}><Lock size={10}/> Media Disabled</div>}
                 </div>
               );
             })()}
             
-            {p.showGroupEmojiPicker && (
-              <div style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onClick={(e) => e.stopPropagation()}>
-                <Picker data={data} onEmojiSelect={(e) => p.setGroupChatInput(prev => prev + e.native)} theme="dark" previewPosition="none" searchPosition="none" navPosition="bottom" />
-              </div>
-            )}
+            {/* Group + DM emoji pickers moved to global section below to avoid overflow clipping */}
             
             {/* Group recording UI */}
             {isRecording && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, minWidth: 28 }}>{formatRecordingTime(recordingTime)}</span>
-                <div style={{ flex: 1 }} />
-                <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 2 }}><X size={14} /></button>
-                <button type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                  <Check size={11} color="#fff" strokeWidth={2.5} /> Done
+                <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
+                <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
+                  {waveHeights.map((h, i) => (
+                    <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, #6366f1, #a855f7)', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
+                  ))}
+                </div>
+                <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
+                <button className="stay-white" type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                  <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
                 </button>
               </div>
             )}
             {!isRecording && audioBlob && audioUrl && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
                 <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
                 <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
-                <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 2 }}><X size={14} /></button>
-                <button type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                  {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> Send</>}
+                <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
+                <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                  {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
                 </button>
               </div>
             )}
             {(!isRecording || recordingFor !== 'group') && !(audioBlob && recordingFor === 'group') && (() => {
-              const isGuest = localStorage.getItem('watch_is_guest') === 'true';
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
-              const isDisabled = isGuest || p.isMuted || chatLocked;
+              const isDisabled = p.isMuted || chatLocked;
               return (
                 <form onSubmit={(e) => {
                     const val = p.groupChatInput.trim();
                     const hasLink = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/.test(val);
                     const hasImage = /data:image\/[a-zA-Z]*;base64,/.test(val);
-                    if (isGuest) { e.preventDefault(); toast.error('Guests cannot chat'); return; }
                     if (chatLocked) { e.preventDefault(); toast.error('Only the host can send messages'); return; }
                     if (hasLink && p.allowLinks === false) { e.preventDefault(); toast.error('Links are not allowed in this room'); return; }
                     if (hasImage && p.allowMedia === false) { e.preventDefault(); toast.error('Media (images/videos) are not allowed in this room'); return; }
@@ -1607,7 +2355,7 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput} 
                         onChange={e=>{p.handleChatInputChange(e.target.value, 'room'); p.setGroupChatInput(e.target.value);}} 
                         onFocus={() => p.setShowGroupEmojiPicker(false)} 
-                        placeholder={isGuest ? t('guestsCannotChat', 'Guests cannot chat') : t('msgRoomPlace', 'Message the room...')} 
+                        placeholder={t('msgRoomPlace', 'Message the room...')} 
                         disabled={isDisabled} 
                         style={{
                           flex:1,
@@ -1625,13 +2373,13 @@ export default function RoomChatPanel({ p }) {
                       
                       {(!p.groupChatInput && !isUploading) && (
                         <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
-                          <button type="button" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.setShowGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                          <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                             <SmilePlus size={18}/>
                           </button>
                           <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1' : (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                             <Paperclip size={18}/>
                           </button>
-                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:isDisabled?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
+                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
                             <Mic size={18}/>
                           </button>
                         </div>
@@ -1673,13 +2421,13 @@ export default function RoomChatPanel({ p }) {
                   {(() => {
                     const partner = p.dmTarget.toLowerCase();
                     const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
-                    const displayUname = isBlocked ? 'User' : p.dmTarget;
+                    const displayUname = isBlocked ? 'User' : formatUsername(p.dmTarget);
                     const uObj = p.userList.find(u => u.username === p.dmTarget);
                     
                     // Check if we have public keys for this user in any cache
                     const hasTargetKeys = (uObj?.publicKey) || (p.dbPublicKeys?.current?.[partner]) || localStorage.getItem(`wt_pk_${partner}`);
                     
-                    const threadAvatar = (p.dmThreads[p.dmTarget]||[]).find(m => m.senderName === p.dmTarget && m.senderAvatar)?.senderAvatar;
+                    const threadAvatar = (p.dmThreads[p.dmTarget?.toLowerCase()]||[]).find(m => m.senderName === p.dmTarget && m.senderAvatar)?.senderAvatar;
                     const groupAvatar = p.groupMessages.find(m => (m.username === p.dmTarget || m.senderName === p.dmTarget) && m.senderAvatar)?.senderAvatar;
                     const fallbackAvatar = threadAvatar || groupAvatar || p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[p.dmTarget.toLowerCase()];
 
@@ -1724,7 +2472,7 @@ export default function RoomChatPanel({ p }) {
                         border: '1px solid var(--dropdown-border)',
                         borderRadius:12,padding:6,zIndex:100,minWidth:180,
                         boxShadow: 'var(--dropdown-shadow)'
-                      }} onMouseLeave={()=>p.setShowDmMenu(null)}>
+                      }}>
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); togglePinRoomChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                           <Pin size={16}/> {pinnedRoomChats.includes((p.dmTarget||'').toLowerCase()) ? t('unpinChat', 'Unpin Chat') : t('pinChat', 'Pin Chat')}
                         </div>
@@ -1749,22 +2497,43 @@ export default function RoomChatPanel({ p }) {
                   </div>
                 </div>
                 <div 
+                  ref={dmScrollContainerRef}
                   className="no-scrollbar"
-                  onScroll={handleScroll} 
+                  onScroll={(e) => {
+                    handleScroll(e);
+                    const el = e.currentTarget;
+                    const partnerKey = p.dmTarget?.toLowerCase();
+                    const hasMore = p.hasMoreDmHistory && p.hasMoreDmHistory[partnerKey] !== false;
+                    if (el.scrollTop < 50 && p.loadMoreDmHistory && !p.dmHistoryLoading && hasMore) {
+                      p.loadMoreDmHistory(el);
+                    }
+                  }} 
                   onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
-                  {(p.dmThreads[p.dmTarget]||[]).length===0 && (
+                  {p.dmHistoryLoading && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
+                      <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+                    </div>
+                  )}
+                  {(p.dmThreads[p.dmTarget?.toLowerCase()]||[]).length===0 && (
                     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:6}}>
                       <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
                     </div>
                   )}
-                  {(p.dmThreads[p.dmTarget]||[]).map((msg,i)=>{
-                    const isMe = msg.isMe;
+                  {(() => {
+                    const dmMessages = p.dmThreads[p.dmTarget?.toLowerCase()] || [];
+                    const effectiveDmSeenMap = getEffectiveSeenBy(dmMessages, p.username);
+                    const lastDMMsg = dmMessages[dmMessages.length - 1];
+                    const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
+                    const renderDMReceiptIndex = isLastDMSentByMe ? dmMessages.length - 1 : -1;
+                    return dmMessages.map((msg,i)=>{
+                    const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
                     const reactions = msg.reactions||{};
                     const resolvedMedia = (p.dmDecryptedMediaUrls?.current && (
                       p.dmDecryptedMediaUrls.current[msg.id] ||
                       p.dmDecryptedMediaUrls.current[msg.tempId] ||
                       p.dmDecryptedMediaUrls.current[String(msg.timestamp)]
-                    )) || (msg.nonce ? null : msg.mediaUrl);
+                    )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
+                    const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
 
                     return (
@@ -1799,11 +2568,11 @@ export default function RoomChatPanel({ p }) {
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}>
                               <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
-                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')),
+                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
-                                color: isMe ? '#fff' : (isLight ? '#000000' : '#ddd'),
+                                color: isMe ? '#fff' : (isLight ? '#111827' : '#ddd'),
                                 maxWidth:'100%',
                                 wordBreak:'break-word'
                               }}
@@ -1818,13 +2587,14 @@ export default function RoomChatPanel({ p }) {
                                     !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
                                   )
                                 )}
-                                {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName)}
+                                {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm)}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
                                     <button 
+                                      className={(isLight && msg.mediaType) ? 'stay-white' : ''}
                                       ref={activeMessageMenu === msg.id ? messageMenuRef : null}
-                                      onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)',backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                      onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#f3f4f6' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
                                     {activeMessageMenu === msg.id && (
@@ -1837,15 +2607,15 @@ export default function RoomChatPanel({ p }) {
                                       }} onClick={e => e.stopPropagation()}>
                                         {isMe ? (
                                           <>
-                                            <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                               <Trash2 size={16}/> {t('unsend', 'Unsend')}
                                             </button>
-                                            <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
                                               <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
                                             </button>
                                           </>
                                         ) : (
-                                          <button onClick={(e) => { e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                             <Trash2 size={16}/> {t('delete', 'Delete')}
                                           </button>
                                         )}
@@ -1871,37 +2641,62 @@ export default function RoomChatPanel({ p }) {
                                       {QUICK_EMOJIS.map(em=>(
                                         <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                       ))}
-                                      <button onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#111' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={16}/></button>
+                                      <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16}/></button>
                                     </div>
                                   </div>
                                 )}
                               </div>
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                   <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
                                       <SmilePlus size={16}/>
                                     </button>
                                   </div>
                                 )}
                             </div>
-                            <div style={{display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontSize:10,color:'#444'}}>{formatTime(msg.timestamp)}</span>
+                            <div style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
+                              {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
+                              <span style={{flex:1}}></span>
+                              <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
-                                <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                                <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4}}>
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
                             <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}
                             </button>
                           ))}
                         </div>
+                        {i === renderDMReceiptIndex && (
+                          <ReadReceipt 
+                            msg={{
+                              ...msg,
+                              seenBy: effectiveDmSeenMap.get(String(msg.id || msg.timestamp)) || []
+                            }}
+                            isGroup={false} 
+                            username={p.username} 
+                            userList={p.userList} 
+                            socketServerUrl={p.SOCKET_SERVER_URL} 
+                            isLight={isLight}
+                          />
+                        )}
                       </div>
                     )
-                  })}
+                  })})()}
+                  {(() => {
+                    const dmKey = p.dmTarget?.toLowerCase();
+                    const typers = p.typingStatuses?.[dmKey];
+                    if (!typers || typers.length === 0) return null;
+                    return (
+                      <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12,marginTop:4,marginBottom:4}}>
+                        <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
+                      </div>
+                    );
+                  })()}
                   <div ref={p.messagesEndRef}/>
                 </div>
                 <div style={{padding:'10px 12px',borderTop:'1px solid var(--room-border)',flexShrink:0,position:'relative'}}>
@@ -1921,6 +2716,31 @@ export default function RoomChatPanel({ p }) {
 
                   {(() => {
                     const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+                    if (isGuest) {
+                      return (
+                        <div className="blocked-banner-v2" onClick={() => navigate('/login')} style={{
+                          background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.03)', 
+                          border: '1px solid var(--room-border)', 
+                          borderRadius: 16, 
+                          padding: '16px 20px', 
+                          textAlign: 'center',
+                          margin: '16px',
+                          marginBottom: 4,
+                          cursor: 'pointer'
+                        }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#1e293b' : '#fff', marginBottom: 4 }}>
+                            {t('loginRequired', 'Login Required')}
+                          </div>
+                          <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
+                            {t('loginToMessage', 'You need to be logged in to send private messages.')}
+                          </p>
+                          <a className="stay-white" href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }}>
+                            {t('logIn', 'Log In')}
+                          </a>
+                        </div>
+                      );
+                    }
+
                     const didIBlock = blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase());
                     const amIBlocked = blockingMe.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase());
 
@@ -1986,33 +2806,38 @@ export default function RoomChatPanel({ p }) {
                     }
 
                     if (isRecording && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px' }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600, minWidth: 28 }}>{formatRecordingTime(recordingTime)}</span>
-                        <div style={{ flex: 1 }} />
-                        <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 2 }}><X size={14} /></button>
-                        <button type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                          <Check size={11} color="#fff" strokeWidth={2.5} /> Done
+                        <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
+                        <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
+                          {waveHeights.map((h, i) => (
+                            <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, #6366f1, #a855f7)', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
+                          ))}
+                        </div>
+                        <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
+                        <button className="stay-white" type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                          <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
                         </button>
                       </div>
                     );
                     if (!isRecording && audioBlob && audioUrl && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px' }}>
                         <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
                         <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
-                        <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 2 }}><X size={14} /></button>
-                        <button type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                          {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> Send</>}
+                        <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
+                        <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                          {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
                         </button>
                       </div>
                     );
 
                     return (
-                      <form onSubmit={(e) => {
-                        if (isGuest) { e.preventDefault(); toast.error('Guests cannot chat'); return; }
-                        p.sendDmChat(e);
-                        p.setShowDmEmojiPicker(false);
-                      }} style={{display:'flex',gap:8,alignItems:'center'}}>
+                      <>
+                        <MediaPolicyBanner isLight={isLight} />
+                        <form onSubmit={(e) => {
+                          p.sendDmChat(e);
+                          p.setShowDmEmojiPicker(false);
+                        }} style={{display:'flex',gap:8,alignItems:'center'}}>
                         <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
                           <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
                           <input 
@@ -2020,8 +2845,7 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput} 
                             onChange={e=>{p.handleChatInputChange(e.target.value, 'private'); p.setDmChatInput(e.target.value);}} 
                             onFocus={() => p.setShowDmEmojiPicker(false)} 
-                            placeholder={isGuest ? t('guestsCannotChat', 'Guests cannot chat') : p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')} 
-                            disabled={isGuest} 
+                            placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')} 
                             style={{
                               flex:1,
                               background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
@@ -2038,13 +2862,13 @@ export default function RoomChatPanel({ p }) {
                           
                           {(!p.dmChatInput && !isUploading) && (
                             <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
-                              <button type="button" disabled={isGuest} onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color:isGuest?'#555': (isLight ? '#64748b' : '#aaa'),cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                              <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <SmilePlus size={18}/>
                               </button>
-                              <button type="button" disabled={isUploading || isGuest} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':(isGuest?'#555': (isLight ? '#64748b' : '#aaa')),cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                              <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':(isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <Paperclip size={18}/>
                               </button>
-                              <button type="button" disabled={isGuest} onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isGuest?0.4:1}}>
+                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
                                 <Mic size={18}/>
                               </button>
                             </div>
@@ -2056,10 +2880,11 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           )}
                         </div>
-                        <button type="submit" disabled={!p.dmChatInput.trim() || isGuest || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',cursor:isGuest?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isGuest||isUploading)?0.5:1, flexShrink: 0}}>
+                        <button type="submit" disabled={!p.dmChatInput.trim() || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isUploading)?0.5:1, flexShrink: 0}}>
                           <Send size={14} color="#fff"/>
                         </button>
                       </form>
+                      </>
                     );
                   })()}
                 </div>
@@ -2073,7 +2898,37 @@ export default function RoomChatPanel({ p }) {
         </div>
       )}
 
-      {/* Global Emoji Picker positioned fixed in panel */}
+      {/* Group Emoji Picker — positioned at panel level so it isn't clipped by overflow:hidden */}
+      {p.showGroupEmojiPicker && (
+        <div style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onClick={e => e.stopPropagation()}>
+          <Picker
+            data={data}
+            onEmojiSelect={(e) => { p.setGroupChatInput(prev => prev + e.native); }}
+            theme={isLight ? 'light' : 'dark'}
+            previewPosition="none"
+            searchPosition="none"
+            navPosition="bottom"
+            perLine={7}
+          />
+        </div>
+      )}
+
+      {/* DM Emoji Picker — panel level, not inside overflow:hidden */}
+      {p.showDmEmojiPicker && (
+        <div style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onClick={e => e.stopPropagation()}>
+          <Picker
+            data={data}
+            onEmojiSelect={(e) => { p.setDmChatInput(prev => prev + e.native); p.setShowDmEmojiPicker(false); }}
+            theme={isLight ? 'light' : 'dark'}
+            previewPosition="none"
+            searchPosition="none"
+            navPosition="bottom"
+            perLine={7}
+          />
+        </div>
+      )}
+
+      {/* Global (Reaction) Emoji Picker */}
       {p.showAllEmojis && p.activeReactionMsg && (
         <div className="emoji-picker-container" style={{position:'absolute', bottom: 84, right: 16, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10, transform: 'scale(0.95)', transformOrigin: 'bottom right'}} onClick={e=>e.stopPropagation()}>
           <Picker 
@@ -2169,7 +3024,7 @@ export default function RoomChatPanel({ p }) {
 
       {/* Block User Confirmation Modal */}
       {blockUserConfirm && (
-        <div style={{position:'fixed',inset:0,zIndex:99999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center', backdropFilter: 'blur(14px) saturate(180%)', WebkitBackdropFilter: 'blur(14px) saturate(180%)'}} className="room-modals-overlay">
+        <div className="block-confirm-overlay" style={{position:'fixed',inset:0,zIndex:99999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center', backdropFilter: 'blur(14px) saturate(180%)', WebkitBackdropFilter: 'blur(14px) saturate(180%)'}}>
           <div style={{background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, padding: 32, width: '100%', maxWidth: 400, boxShadow: isLight ? '0 20px 50px rgba(0,0,0,0.1)' : '0 20px 50px rgba(0,0,0,0.5)'}}>
             <h3 style={{marginTop:0,color: isLight ? '#0f172a' : '#fff',fontSize:22,fontWeight:900,marginBottom:16}}>
               {blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock User' : 'Block User'}

@@ -173,11 +173,17 @@ function AppCard({ app, isQuickAction, onClick, isLight }) {
 }
 
 export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelectUrl, onUpload, onScreenshare, onSelectPlaceholder, isLight }) {
+  console.log('[MODAL] MediaSelectorModal rendered');
   const { t } = useTranslation();
-  const fileInputRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
+  const [isMobile, setIsMobile] = React.useState(() => window.innerWidth < 640);
+  React.useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   const categories = ['Quick Actions', 'Movies & Video', 'Web Games', 'Music & Podcasts', 'Social Media'];
   const categoryTranslations = {
@@ -202,7 +208,8 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
   const handleAppClick = (app) => {
     if (app.type === 'action') {
       if (app.action === 'upload') {
-        fileInputRef.current?.click();
+        console.log('[MODAL] Upload clicked — calling onUpload()');
+        onUpload();
       } else if (app.action === 'url') {
         setShowUrlInput(prev => !prev);
       } else if (app.action === 'screenshare') {
@@ -231,27 +238,30 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
   return (
     <div
       onClick={onClose}
+      className="media-selector-overlay"
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(12px)', padding: '24px'
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 100000,
+        display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center',
+        backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', padding: isMobile ? 0 : '24px'
       }}
     >
       <div
         onClick={e => e.stopPropagation()}
+        className="media-selector-modal-inner"
         style={{
           background: isLight ? '#ffffff' : 'linear-gradient(180deg, #11111a 0%, #0a0a0f 100%)',
           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)', position: 'relative',
-          borderRadius: 24, width: '100%', maxWidth: 1100, maxHeight: '85vh',
-          display: 'flex', flexDirection: 'column', 
+          borderRadius: isMobile ? '20px 20px 0 0' : 24, width: '100%', maxWidth: 1100, maxHeight: isMobile ? '94vh' : '85vh',
+          display: 'flex', flexDirection: 'column',
           boxShadow: isLight ? '0 40px 100px rgba(0,0,0,0.1)' : '0 32px 120px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.05)',
           fontFamily: "'Outfit',sans-serif"
         }}
       >
         <button
           onClick={onClose}
+          className="media-selector-close-btn"
           style={{
-            position: 'absolute', top: -2, right: -60, width: 44, height: 44,
+            position: 'absolute', top: isMobile ? 12 : -2, right: isMobile ? 12 : -60, width: 44, height: 44,
             borderRadius: '50%', background: isLight ? '#fff' : '#1f1f2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
             color: isLight ? '#0f172a' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 8px 24px rgba(0,0,0,0.08)' : '0 4px 12px rgba(0,0,0,0.5)',
@@ -265,13 +275,15 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
 
         <div style={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 24,
-          padding: '24px 36px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.04)', flexShrink: 0
+          padding: isMobile ? '20px 20px 16px' : '24px 36px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.04)', flexShrink: 0
         }}>
           <div>
-            <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>{t('appDirectory', 'App Directory')}</h2>
+            <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>
+              {isMobile ? t('selectMedia', 'Select Media') : t('appDirectory', 'App Directory')}
+            </h2>
           </div>
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', paddingBottom: 4 }}>
+          <div className="media-selector-filter-tabs" style={{ display: 'flex', gap: 8, alignItems: 'center', overflowX: 'auto', paddingBottom: 4 }}>
             {categories.map(cat => (
               <button
                 key={cat}
@@ -346,20 +358,20 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
           </div>
         )}
 
-        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: '32px 36px', scrollBehavior: 'smooth' }}>
+        <div ref={scrollContainerRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '20px 16px' : '32px 36px', scrollBehavior: 'smooth' }}>
           {categories.map(cat => (
-            <div key={cat} ref={sectionRefs.current[cat]} style={{ marginBottom: 40, scrollMarginTop: 32 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-                <h3 style={{ margin: 0, fontSize: 20, color: isLight ? '#1e293b' : '#fff', fontWeight: 800 }}>{categoryTranslations[cat] || cat}</h3>
+            <div key={cat} ref={sectionRefs.current[cat]} style={{ marginBottom: isMobile ? 24 : 40, scrollMarginTop: 32 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: isMobile ? 12 : 20 }}>
+                <h3 style={{ margin: 0, fontSize: isMobile ? 15 : 20, color: isLight ? '#1e293b' : '#fff', fontWeight: 800 }}>{categoryTranslations[cat] || cat}</h3>
                 <div style={{ flex: 1, height: 1, background: isLight ? 'linear-gradient(90deg, rgba(0,0,0,0.05) 0%, transparent 100%)' : 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, transparent 100%)' }} />
               </div>
-              
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: cat === 'Quick Actions' 
-                  ? 'repeat(auto-fill, minmax(280px, 1fr))' 
-                  : 'repeat(auto-fill, minmax(240px, 1fr))', 
-                gap: 16 
+
+              <div className={isMobile ? (cat === 'Quick Actions' ? 'media-selector-grid-quick' : 'media-selector-grid') : ''} style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile
+                  ? (cat === 'Quick Actions' ? 'repeat(1, 1fr)' : 'repeat(2, 1fr)')
+                  : (cat === 'Quick Actions' ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(240px, 1fr))'),
+                gap: isMobile ? 10 : 16
               }}>
                 {OPTIONS.filter(o => o.category === cat).map(app => {
                   const isQuickAction = app.type === 'action';
@@ -373,25 +385,7 @@ export default function MediaSelectorModal({ onClose, onSelectPlatform, onSelect
         </div>
       </div>
       
-      {/* Hidden file input for uploads (Strictly Video) */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        accept="video/*" 
-        style={{ display: 'none' }} 
-        onChange={e => { 
-          const file = e.target.files?.[0];
-          if (file && !file.type.startsWith('video/')) {
-            toast.error('Only video files are allowed!');
-            e.target.value = '';
-            return;
-          }
-          if (file) {
-            onClose(); 
-            onUpload(file); 
-          }
-        }} 
-      />
+      {/* File input moved to Room.jsx — modal just triggers onUpload() callback */}
     </div>
   );
 }

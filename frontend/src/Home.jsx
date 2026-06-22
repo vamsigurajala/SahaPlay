@@ -14,7 +14,7 @@ const getCategoryLabel = (id, t) => {
   return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
 };
 
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
@@ -71,7 +71,8 @@ const Home = () => {
   const { t } = useTranslation();
   const token = localStorage.getItem('watch_token');
   const loggedInUsername = localStorage.getItem('watch_username');
-  const isLoggedIn = !!token;
+  const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+  const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
   const [pinnedRooms, setPinnedRooms] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
@@ -87,7 +88,7 @@ const Home = () => {
   const chatMsgsRef = useRef(null);
   const chatSectionRef = useRef(null);
   const [chatVisible, setChatVisible] = useState(false);
-
+ 
   const fetchRooms = useCallback(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
@@ -101,15 +102,15 @@ const Home = () => {
       }
     } catch (e) { }
   }, []);
-
+ 
   useEffect(() => {
     fetchRooms();
     window.addEventListener('focus', fetchRooms);
     return () => window.removeEventListener('focus', fetchRooms);
   }, [fetchRooms]);
-
+ 
   useEffect(() => {
-    if (!token) return;
+    if (isGuest || !token || token === 'null' || token === 'undefined') return;
     fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
@@ -122,7 +123,7 @@ const Home = () => {
         }
       })
       .catch(() => { });
-  }, [token, fetchRooms]);
+  }, [token, isGuest, fetchRooms]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -148,7 +149,7 @@ const Home = () => {
       }
       const msg = script[idx];
       if (msg.type === 'system' || msg.type === 'banner') {
-        setVisibleMessages(p => [...p, { ...msg, _k: idx }]);
+        setVisibleMessages(p => [...p, { ...msg, _k: `${activeTab}-${idx}-${Date.now()}-${Math.random()}` }]);
         idx++;
         sched(run, 700);
         return;
@@ -157,7 +158,7 @@ const Home = () => {
       const delay = msg.text ? Math.min(900 + msg.text.length * 22, 2200) : 1200;
       sched(() => {
         setTypingUser(null);
-        setVisibleMessages(p => [...p, { ...msg, _k: idx }]);
+        setVisibleMessages(p => [...p, { ...msg, _k: `${activeTab}-${idx}-${Date.now()}-${Math.random()}` }]);
         idx++;
         sched(run, 450);
       }, delay);
@@ -179,7 +180,7 @@ const Home = () => {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       const updated = stored.filter(r => r !== id);
       localStorage.setItem('pinned_rooms', JSON.stringify(updated));
-      if (token) {
+      if (token && !isGuest) {
         await fetch(`${API}/api/profile/pinned-rooms`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -198,7 +199,11 @@ const Home = () => {
   };
 
   const createRoom = () => {
-    if (!isLoggedIn) { toast.error('Please log in to create a room!'); return; }
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    if (!isLoggedIn || isGuest) {
+      navigate('/login');
+      return;
+    }
     setShowCreateModal(true);
   };
 
@@ -213,7 +218,7 @@ const Home = () => {
 
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
         /* ── Orb animations ── */
@@ -309,7 +314,7 @@ const Home = () => {
 
         /* ── Chat Demo section ── */
         .chat-demo-section { background:#09090b; }
-        html[data-theme='light'] .chat-demo-section { background:#ffffff; }
+        html[data-theme='light'] .chat-demo-section { background:#f8fafc !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
         .chat-window { background:#13131f;border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;display:flex;flex-direction:column;height:380px; }
         html[data-theme='light'] .chat-window { background:#f8f7ff;border-color:rgba(0,0,0,0.1); }
         .chat-tab { padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;font-size:13px;font-weight:600;cursor:pointer;color:#9ca3af;transition:all 0.2s;font-family:inherit; }
@@ -353,7 +358,7 @@ const Home = () => {
 
         /* ── Marquee ── */
         .marquee-section { background:#13131f; }
-        html[data-theme='light'] .marquee-section { background:#f8f7ff; }
+        html[data-theme='light'] .marquee-section { background:#f8f7ff !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
 
         @keyframes marqueeLeft {
           0%   { transform: translateX(0); }
@@ -381,13 +386,38 @@ const Home = () => {
 
         /* ── Section shared ── */
         .section-alt { width:100%;background:rgba(255,255,255,0.02); }
-        html[data-theme='light'] .section-alt { background:#f9fafb !important; }
+        html[data-theme='light'] .section-alt { background:#ffffff !important; border-bottom: 1px solid rgba(0,0,0,0.05); }
         .section-heading { font-size:24px;font-weight:800;margin:0;color:#fff; }
         html[data-theme='light'] .section-heading { color:#000 !important; }
         .section-desc { color:#94a3b8; }
         html[data-theme='light'] .section-desc { color:#6b7280 !important; }
         .section-icon-badge { width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;color:#a0aab2; }
         html[data-theme='light'] .section-icon-badge { background:#fff;border-color:rgba(0,0,0,0.1);color:#111;box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+
+        /* Hero & Pinned Rooms section styling in light mode */
+        html[data-theme='light'] .hero-section-pad {
+          background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%) !important;
+          border-bottom: 1px solid rgba(99,102,241,0.08);
+        }
+        .pinned-rooms-section {
+          position: relative;
+          z-index: 10;
+        }
+        html[data-theme='light'] .pinned-rooms-section {
+          background: #f8fafc !important;
+          border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        html[data-theme='light'] .features-section {
+          background: #ffffff !important;
+          border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        /* ── Pinned grid ── */
+        .pinned-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+        }
 
         /* ── Pinned cards ── */
         .pinned-card { border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
@@ -404,8 +434,9 @@ const Home = () => {
         .footer-layer { background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(168,85,247,0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
         .join-btn { background:linear-gradient(135deg,#6366f1,#a855f7);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
         .pinned-card:hover .join-btn { transform:translateY(-2px); }
-        html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(0,0,0,0.08);box-shadow:0 4px 20px rgba(0,0,0,0.06); }
-        html[data-theme='light'] .pinned-card:hover { box-shadow:0 12px 30px rgba(0,0,0,0.12);border-color:rgba(99,102,241,0.3); }
+        html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(99,102,241,0.08);box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 16px -6px rgba(0, 0, 0, 0.03); }
+        html[data-theme='light'] .pinned-card:hover { border-color:#6366f1;box-shadow:0 20px 35px -5px rgba(99, 102, 241, 0.18), 0 10px 20px -10px rgba(0, 0, 0, 0.06); }
+
         html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
         html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
         html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
@@ -481,15 +512,18 @@ const Home = () => {
           .hero-card-wrapper{display:none !important;}
           .hero-ctas{justify-content:center !important;}
           .steps-row{flex-direction:column !important;align-items:stretch !important;}
+          .step-card{flex:none !important;width:100% !important;margin-bottom:24px;}
+          .step-card:last-child{margin-bottom:0;}
           .step-connector{display:none !important;}
           .feat-grid{grid-template-columns:1fr 1fr !important;}
+          .pinned-grid{grid-template-columns:repeat(2, 1fr) !important; gap:12px !important;}
         }
         @media(max-width:640px){
           .feat-grid{grid-template-columns:1fr !important;}
           .stats-row{flex-wrap:wrap !important;justify-content:center !important;}
           .stat-sep{display:none !important;}
           .plats-row{flex-wrap:wrap !important;justify-content:center !important;}
-          .pinned-grid{grid-template-columns:1fr !important;}
+          .pinned-grid{grid-template-columns:repeat(2, 1fr) !important; gap:12px !important;}
           /* hero */
           .hero-section-pad{ padding: 72px 16px 60px !important; }
           /* hero join form — stack on tiny screens */
@@ -528,15 +562,13 @@ const Home = () => {
               {t('heroMainDesc', 'Synchronize YouTube, Twitch, and more with friends in real time. Live chat, P2P screen sharing, and perfect media sync — 100% free.')}
             </p>
             <div className="hero-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
-              {localStorage.getItem('watch_is_guest') !== 'true' && (
-                <button onClick={createRoom} className="create-room-hero-btn"
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '16px 32px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.45)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
-                >
-                  <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
-                </button>
-              )}
+              <button onClick={createRoom} className="create-room-hero-btn"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '16px 32px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.45)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
+              </button>
               <form onSubmit={handleJoin} className="hero-join-form">
                 <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="hero-join-input" />
                 <button type="submit" className="hero-join-btn">{t('join', 'Join')}</button>
@@ -559,13 +591,13 @@ const Home = () => {
               {/* Title bar */}
               <div style={{ height:40,background:'#12122a',borderBottom:'1px solid rgba(255,255,255,0.07)',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 14px' }}>
                 <div style={{ display:'flex',gap:6 }}>
-                  {['#ff5f57','#ffbd2e','#28c840'].map((c,i)=>(<div key={i} style={{ width:10,height:10,borderRadius:'50%',background:c }} />))}
+                  {['#ff5f57','#ffbd2e','#28c840'].map((c,i)=>(<div key={`dot-${i}`} style={{ width:10,height:10,borderRadius:'50%',background:c }} />))}
                 </div>
                 <div style={{ display:'flex',alignItems:'center',gap:8 }}>
                   <span style={{ fontSize:12,color:'rgba(255,255,255,0.5)',fontWeight:600 }}>🎬 Movie Night</span>
                   <div style={{ display:'flex' }}>
                     {[['#6366f1','A'],['#a855f7','S'],['#10b981','V'],['#f59e0b','K']].map(([bg,l],i)=>(
-                      <div key={i} style={{ width:20,height:20,borderRadius:'50%',background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:800,marginLeft:i===0?0:-6,border:'1.5px solid #12122a' }}>{l}</div>
+                      <div key={`avatar-${i}`} style={{ width:20,height:20,borderRadius:'50%',background:bg,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:'#fff',fontWeight:800,marginLeft:i===0?0:-6,border:'1.5px solid #12122a' }}>{l}</div>
                     ))}
                     <span style={{ fontSize:10,color:'rgba(255,255,255,0.35)',marginLeft:5,alignSelf:'center' }}>+9</span>
                   </div>
@@ -601,7 +633,7 @@ const Home = () => {
                   {/* Tab bar */}
                   <div style={{ height:34,borderBottom:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:4,padding:'0 10px' }}>
                     {[['Group',true],['Private',false]].map(([label,active],i)=>(
-                      <div key={i} style={{ padding:'3px 9px',borderRadius:5,fontSize:11,fontWeight:700,cursor:'default',background:active?'rgba(99,102,241,0.2)':'transparent',color:active?'#a5b4fc':'rgba(255,255,255,0.3)',border:active?'1px solid rgba(99,102,241,0.3)':'1px solid transparent' }}>{label}</div>
+                      <div key={`mockup-tab-${i}`} style={{ padding:'3px 9px',borderRadius:5,fontSize:11,fontWeight:700,cursor:'default',background:active?'rgba(99,102,241,0.2)':'transparent',color:active?'#a5b4fc':'rgba(255,255,255,0.3)',border:active?'1px solid rgba(99,102,241,0.3)':'1px solid transparent' }}>{label}</div>
                     ))}
                   </div>
                   {/* Messages */}
@@ -625,7 +657,7 @@ const Home = () => {
                       <div className="chat-bubble-out" style={{ fontSize:11 }}>haha everyone hungry 😂</div>
                     </div>
                     <div style={{ display:'flex',alignItems:'center',gap:4 }}>
-                      {[0,0.2,0.4].map((d,i)=>(<div key={i} style={{ width:3,height:3,borderRadius:'50%',background:'rgba(255,255,255,0.3)',animation:`typingBounce 1.2s ease ${d}s infinite` }} />))}
+                      {[0,0.2,0.4].map((d,i)=>(<div key={`mockup-typing-${i}`} style={{ width:3,height:3,borderRadius:'50%',background:'rgba(255,255,255,0.3)',animation:`typingBounce 1.2s ease ${d}s infinite` }} />))}
                       <span style={{ fontSize:9,color:'rgba(255,255,255,0.25)' }}>Sam is typing…</span>
                     </div>
                   </div>
@@ -645,14 +677,14 @@ const Home = () => {
 
       {/* ─── PINNED ROOMS (if any) ─── */}
 
-      {isLoggedIn && pinnedRooms && pinnedRooms.length > 0 && (
-        <section className="home-section-pad" style={{ padding: '80px 40px' }}>
+      {(isLoggedIn || isGuest) && pinnedRooms && pinnedRooms.length > 0 && (
+        <section className="pinned-rooms-section home-section-pad" style={{ padding: '80px 40px' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
               <div className="section-icon-badge"><Pin size={18} /></div>
               <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
             </div>
-            <div className="pinned-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+            <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
               {pinnedRooms.slice(0, 6).map(room => (
                 <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">
@@ -718,10 +750,23 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ─── SECTION 4: LIVE CHAT DEMO ─── */}
       <section ref={chatSectionRef} className="chat-demo-section home-section-pad" style={{ padding: '100px 40px' }}>
+        <style>{`
+          @media (max-width: 900px) {
+            .chat-demo-section { padding: 28px 16px !important; }
+            .chat-demo-section .section-header-container { margin-bottom: 24px !important; }
+            .chat-demo-inner { flex-direction: column !important; gap: 24px !important; }
+            .chat-demo-inner > div { flex: 1 1 100% !important; min-width: 0 !important; width: 100% !important; }
+            .chat-tab {
+              flex: 1 !important;
+              justify-content: center !important;
+              padding: 8px 10px !important;
+              font-size: 12px !important;
+            }
+          }
+        `}</style>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 64 }}>
+          <div className="section-header-container" style={{ textAlign: 'center', marginBottom: 64 }}>
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,4vw,42px)', fontWeight: 800, marginBottom: 14 }}>{t('seeItInActionTitle', 'See It in Action')}</h2>
             <p className="section-desc" style={{ fontSize: 17, maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>{t('seeItInActionDesc', 'Real-time chat that feels alive — reactions, media, replies, all in sync.')}</p>
           </div>
@@ -832,7 +877,7 @@ const Home = () => {
                       <div className="chat-avatar" style={{ width: 22, height: 22, borderRadius: '50%', background: typingUser.color, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800 }}>{typingUser.initial}</div>
                       <div style={{ display: 'flex', gap: 3 }}>
                         {[0, 0.2, 0.4].map((d, i) => (
-                          <div key={i} className="typing-dot" style={{ animation: `typingBounce 1.2s ease ${d}s infinite` }} />
+                          <div key={`typing-dot-${i}`} className="typing-dot" style={{ animation: `typingBounce 1.2s ease ${d}s infinite` }} />
                         ))}
                       </div>
                       <span className="chat-typing-text">{typingUser.user} is typing...</span>
@@ -871,7 +916,7 @@ const Home = () => {
       </section>
 
       {/* ─── SECTION 5: FEATURES (6 cards, 2 rows × 3) ─── */}
-      <section className="home-section-pad" style={{ padding: '100px 40px' }}>
+      <section className="features-section home-section-pad" style={{ padding: '100px 40px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,46px)', letterSpacing: '-1px', marginBottom: 14 }}>{t('everythingYouNeedTitle', 'Everything you need to watch together.')}</h2>
@@ -909,7 +954,7 @@ const Home = () => {
         <div style={{
           overflow: 'hidden',
           width: '100%',
-          marginBottom: 28,
+          marginBottom: 0,
           WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
           maskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
         }}>
@@ -956,57 +1001,6 @@ const Home = () => {
             ))}
           </div>
         </div>
-
-        {/* Row 2 — scrolls right */}
-        <div style={{
-          overflow: 'hidden',
-          width: '100%',
-          WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
-          maskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
-        }}>
-          <div
-            style={{
-              display: 'flex',
-              gap: 56,
-              width: 'max-content',
-              alignItems: 'center',
-              animation: 'marqueeRight 34s linear infinite',
-              padding: '10px 28px',
-            }}
-            onMouseEnter={e => e.currentTarget.style.animationPlayState = 'paused'}
-            onMouseLeave={e => e.currentTarget.style.animationPlayState = 'running'}
-          >
-            {[...[...PLATFORMS].reverse(), ...[...PLATFORMS].reverse(), ...[...PLATFORMS].reverse()].map((p, i) => (
-              <img
-                key={`r2-${i}`}
-                src={isLight ? (p.logoLight || p.logo) : (p.logoDark || p.logo)}
-                alt={p.name}
-                title={p.name}
-                style={{
-                  height: 44,
-                  width: 'auto',
-                  maxWidth: 80,
-                  objectFit: 'contain',
-                  display: 'block',
-                  flexShrink: 0,
-                  opacity: 0.38,
-                  filter: 'grayscale(15%)',
-                  transition: 'opacity 0.2s ease, filter 0.2s ease',
-                  cursor: 'default',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.opacity = '1';
-                  e.currentTarget.style.filter = 'grayscale(0%) brightness(1.15)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.opacity = '0.38';
-                  e.currentTarget.style.filter = 'grayscale(15%)';
-                }}
-                onError={e => { e.currentTarget.style.display = 'none'; }}
-              />
-            ))}
-          </div>
-        </div>
       </section>
 
       {/* ─── SECTION 7: FAQ ─── */}
@@ -1022,7 +1016,7 @@ const Home = () => {
             { q: t('homeFaqQ3', 'Can I watch Netflix or Prime Video with friends?'), a: t('homeFaqA3', 'Yes — using the Screenshare feature. The host shares their Netflix or Prime Video browser tab and everyone in the room sees it in real time. Only the host needs a subscription to those services. Screenshare works best in Chrome browser.') },
             { q: t('homeFaqQ4', 'What happens if my internet drops during a watch party?'), a: t('homeFaqA4', 'SahaPlay automatically tries to reconnect you to the room. Once you are back online, it jumps you to exactly where the video is currently playing — so you never miss anything. Your chat history also reloads automatically.') },
           ].map((item, i) => (
-            <div key={i} style={{
+            <div key={`faq-${i}`} style={{
               marginBottom: 8,
               border: `1px solid ${openFaq === i ? 'rgba(99,102,241,0.35)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)')}`,
               borderLeft: openFaq === i ? '4px solid #6366f1' : `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,

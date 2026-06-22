@@ -1,0 +1,98 @@
+export const ROOM_THEMES = [
+  {
+    id: 'default',
+    name: 'Default',
+    previewCss: 'linear-gradient(135deg, #0d0d1a 0%, #1a1a2e 100%)',
+    backgroundCss: null,
+  },
+  {
+    id: 'cozy-room',
+    name: 'Cozy Room',
+    previewCss: 'linear-gradient(135deg, #3d1c02 0%, #7c3a1e 40%, #c46e28 100%)',
+    backgroundCss: 'linear-gradient(135deg, #3d1c02 0%, #7c3a1e 40%, #c46e28 100%)',
+  },
+  {
+    id: 'cinema',
+    name: 'Cinema',
+    previewCss: 'linear-gradient(160deg, #0a0a14 0%, #1a0a2e 50%, #0d0d1a 100%)',
+    backgroundCss: 'linear-gradient(160deg, #0a0a14 0%, #1a0a2e 50%, #0d0d1a 100%)',
+  },
+  {
+    id: 'space',
+    name: 'Space Lounge',
+    previewCss: 'radial-gradient(ellipse at top, #1a0533 0%, #0a0a1a 40%, #000308 100%)',
+    backgroundCss: 'radial-gradient(ellipse at top, #1a0533 0%, #0a0a1a 40%, #000308 100%)',
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    previewCss: 'linear-gradient(160deg, #0b1e0b 0%, #1a3d1a 40%, #0d2e0d 100%)',
+    backgroundCss: 'linear-gradient(160deg, #0b1e0b 0%, #1a3d1a 40%, #0d2e0d 100%)',
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    previewCss: 'linear-gradient(180deg, #001e3c 0%, #003366 40%, #00264d 100%)',
+    backgroundCss: 'linear-gradient(180deg, #001e3c 0%, #003366 40%, #00264d 100%)',
+  },
+  {
+    id: 'sunset',
+    name: 'Sunset',
+    previewCss: 'linear-gradient(135deg, #1a0533 0%, #6b1a5a 30%, #c94b4b 65%, #f7931e 100%)',
+    backgroundCss: 'linear-gradient(135deg, #1a0533 0%, #6b1a5a 30%, #c94b4b 65%, #f7931e 100%)',
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    previewCss: 'linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #091428 100%)',
+    backgroundCss: 'linear-gradient(135deg, #0a0f1e 0%, #0d1b3e 50%, #091428 100%)',
+  },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    previewCss: 'linear-gradient(135deg, #0d1f0d 0%, #0a3d2e 30%, #1a1f4e 65%, #2d0a4e 100%)',
+    backgroundCss: 'linear-gradient(135deg, #0d1f0d 0%, #0a3d2e 30%, #1a1f4e 65%, #2d0a4e 100%)',
+  },
+  {
+    id: 'neon-city',
+    name: 'Neon City',
+    previewCss: 'linear-gradient(135deg, #0a0014 0%, #1a003d 30%, #00174d 60%, #1a0026 100%)',
+    backgroundCss: 'linear-gradient(135deg, #0a0014 0%, #1a003d 30%, #00174d 60%, #1a0026 100%)',
+  },
+  {
+    id: 'rose-bloom',
+    name: 'Rose Bloom',
+    previewCss: 'linear-gradient(135deg, #1a000d 0%, #4d0030 30%, #8a1a4d 60%, #c94477 100%)',
+    backgroundCss: 'linear-gradient(135deg, #1a000d 0%, #4d0030 30%, #8a1a4d 60%, #c94477 100%)',
+  },
+  {
+    id: 'golden-hour',
+    name: 'Golden Hour',
+    previewCss: 'linear-gradient(160deg, #1a0800 0%, #5c2500 25%, #a64d00 55%, #d4820a 80%, #e8b84b 100%)',
+    backgroundCss: 'linear-gradient(160deg, #1a0800 0%, #5c2500 25%, #a64d00 55%, #d4820a 80%, #e8b84b 100%)',
+  },
+  {
+    id: 'nebula',
+    name: 'Nebula',
+    previewCss: 'radial-gradient(ellipse at 30% 70%, #2d1b69 0%, #1a0533 30%, #0d2952 65%, #050b1a 100%)',
+    backgroundCss: 'radial-gradient(ellipse at 30% 70%, #2d1b69 0%, #1a0533 30%, #0d2952 65%, #050b1a 100%)',
+  },
+  {
+    id: 'volcanic',
+    name: 'Volcanic',
+    previewCss: 'linear-gradient(160deg, #0a0000 0%, #2d0505 30%, #6b0f0f 60%, #9c2200 85%, #c43a00 100%)',
+    backgroundCss: 'linear-gradient(160deg, #0a0000 0%, #2d0505 30%, #6b0f0f 60%, #9c2200 85%, #c43a00 100%)',
+  },
+  {
+    id: 'arctic',
+    name: 'Arctic',
+    previewCss: 'linear-gradient(160deg, #0a1628 0%, #0d2a4a 35%, #1a4a6e 65%, #0e3352 100%)',
+    backgroundCss: 'linear-gradient(160deg, #0a1628 0%, #0d2a4a 35%, #1a4a6e 65%, #0e3352 100%)',
+  },
+  {
+    id: 'carnival',
+    name: 'Carnival',
+    previewCss: 'linear-gradient(135deg, #1a0033 0%, #4d0066 20%, #800040 45%, #cc4400 70%, #ff6600 100%)',
+    backgroundCss: 'linear-gradient(135deg, #1a0033 0%, #4d0066 20%, #800040 45%, #cc4400 70%, #ff6600 100%)',
+  },
+];

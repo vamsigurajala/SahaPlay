@@ -54,7 +54,7 @@ export default function Cookies() {
   const sec3Bg = isLight ? '#ffffff' : '#09090b';
 
   return (
-    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary, overflowX: 'hidden' }}>
+    <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
       <Navbar />
       <div className="page-wrapper">
 

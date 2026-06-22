@@ -22,6 +22,7 @@ CREATE TABLE users (
   "notifyLeave" INTEGER DEFAULT 1,
   language TEXT DEFAULT 'en',
   country TEXT,
+  country_code TEXT,
   "showCountry" INTEGER DEFAULT 1,
   bio TEXT DEFAULT NULL,
   "pinnedRooms" TEXT DEFAULT '[]',
@@ -55,7 +56,12 @@ CREATE TABLE room_names (
   category TEXT DEFAULT 'other',
   "thumbnailPath" TEXT,
   settings TEXT DEFAULT '{}',
-  permissions TEXT DEFAULT '{}'
+  permissions TEXT DEFAULT '{}',
+  last_media_url TEXT,
+  last_media_position FLOAT DEFAULT 0,
+  last_media_type TEXT,
+  last_media_saved_at TEXT,
+  room_theme TEXT DEFAULT 'default'
 );
 
 CREATE TABLE follows (
