@@ -11,6 +11,7 @@ const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1
   : `https://${window.location.hostname}`;
 
 const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
+  const { t } = useTranslation();
   const [avatar, setAvatar] = useState(null);
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
