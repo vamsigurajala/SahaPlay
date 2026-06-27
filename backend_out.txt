@@ -27907,3 +27907,2586 @@ User connected: NeYvks6Go37dAmKNAAAz (Authenticated: true)
 [DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
 [DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
 [DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+User disconnected: HU73PokuJucQVEawAAAJ
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT id, username, email, "displayName", "avatarPath", bio, country, country_code, "showCountry", 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as count FROM follows WHERE "followingId" = $1 AND status = $2
+[DB EXEC GET]  SELECT COUNT(*) as count FROM follows WHERE "followerId" = $1 AND status = $2
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT language, country, country_code, "showCountry", "notifyApp", "notifyJoin", "notifyMessages", 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[BLOCKS] Fetched 0 blocks for vamsig1416
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+User connected: pFcI8vHHqjwEGJmyAAA1 (Authenticated: true)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT language, country, country_code, "showCountry", "notifyApp", "notifyJoin", "notifyMessages", 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[BLOCKS] Fetched 0 blocks for vamsig1416
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "roomName", category, "thumbnailPath" FROM room_names WHERE "roomId" = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[INFO] Room Info Request: ukays4 -> FOUND (name: Room Chat, active: false)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+User disconnected: pFcI8vHHqjwEGJmyAAA1
+User connected: -rBnGNNzJuk7RHgAAAA3 (Authenticated: true)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[Email] Sent successfully to: gvamsi099@gmail.com | Message ID: <7e36c828-a4c7-1d23-d24c-86d04e999efe@gmail.com>
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[Email] Sent successfully to: gvamsi099@gmail.com | Message ID: <a851f188-93fe-6388-61fc-64fb6a6bb82c@gmail.com>
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+    SELECT 
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (partner)
+        m.timestamp as lastTimestamp,
+        CASE WHEN LOWER(m.
+[DB EXEC GET]  SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER("senderName") = LOWER($1) AND LO
+[DB EXEC ALL]  
+      SELECT DISTINCT ON (m."roomId")
+        m.timestamp as "lastTimestamp",
+        m."roomId",
+ 
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roo
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > 
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC GET]  SELECT "pinnedRooms" FROM users WHERE username = $1
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)
+[DB EXEC ALL]  SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)

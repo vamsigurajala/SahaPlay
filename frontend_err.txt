@@ -15,3 +15,4 @@
 [2m11:39:55 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
 [2m12:08:02 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
 [2m12:19:21 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:35:34 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048

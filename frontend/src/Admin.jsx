@@ -2140,7 +2140,17 @@ function SupportInboxPage() {
                       </div>
                     )}
                   </div>
-                  <button onClick={() => setResolveConfirm({ id: detailData.id })} disabled={!!actionLoading} style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.1)', color: '#16a34a', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  <button onClick={() => {
+                    // Strip [timestamp - email] prefixes from admin_notes → pre-fill the user-facing message
+                    const raw = detailData?.admin_notes || '';
+                    const cleaned = raw
+                      .split('\n')
+                      .map(line => line.replace(/^\[.*?\]\s*/, '').trim())
+                      .filter(Boolean)
+                      .join('\n');
+                    setResolveMessage(cleaned);
+                    setResolveConfirm({ id: detailData.id, hadNotes: !!cleaned });
+                  }} disabled={!!actionLoading} style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.1)', color: '#16a34a', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                     Resolve
                   </button>
                   <button onClick={() => handleAction(detailData.id, 'dismissed')} disabled={!!actionLoading} style={{ padding: '7px 13px', borderRadius: 8, border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.15)', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#374151' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
@@ -2297,9 +2307,16 @@ function SupportInboxPage() {
 
             {/* Message to user - SHOWN IN EMAIL */}
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-                Message to User <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(optional — shown in email)</span>
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <label style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                  Message to User <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(shown in email)</span>
+                </label>
+                {resolveConfirm?.hadNotes && resolveMessage && (
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap' }}>
+                    ✎ pre-filled from your notes
+                  </span>
+                )}
+              </div>
               <textarea
                 value={resolveMessage}
                 onChange={e => setResolveMessage(e.target.value)}
@@ -2307,13 +2324,14 @@ function SupportInboxPage() {
                 rows={4}
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 10,
-                  background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)',
+                  background: resolveMessage ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: resolveMessage ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.1)',
                   color: '#e5e7eb', fontSize: 13, lineHeight: 1.6, resize: 'vertical',
-                  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+                  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border 0.2s',
                 }}
               />
               <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.3)', fontSize: 11, lineHeight: 1.5 }}>
-                🔒 Internal notes are <strong style={{ color: 'rgba(255,255,255,0.5)' }}>never</strong> sent to users. Only this message appears in the resolution email.
+                🔒 Internal notes are <strong style={{ color: 'rgba(255,255,255,0.5)' }}>never</strong> sent to users — only this message appears in the resolution email. Edit or clear before sending.
               </p>
             </div>
 
