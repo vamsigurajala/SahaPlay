@@ -1621,7 +1621,7 @@ const Room = () => {
           id: rid,
           partner: rid,
           displayName: roomName,
-          partnerAvatar: roomThumbnail || null,
+          partnerAvatar: room?.thumbnailPath || null,
           message: preview,
           decryptedText: lastMsg?.decryptedText || mediaLabel || null,
           lastTimestamp: lastMsg?.timestamp || Date.now(),
@@ -1633,7 +1633,7 @@ const Room = () => {
       localStorage.setItem('watch_recent_chats', JSON.stringify(updatedCache));
       window.dispatchEvent(new Event('conversations_updated'));
     } catch (e) {}
-  }, [groupMessages, roomId, username, roomName, roomThumbnail]);
+  }, [groupMessages, roomId, username, roomName, room?.thumbnailPath]);
 
   // Synchronize DM threads to watch_recent_chats in localStorage whenever DM messages update in Room view
   useEffect(() => {
