@@ -1603,7 +1603,7 @@ function AuditLogsPage() {
 }
 
 // ─── Reports Page ─────────────────────────────────────────────────────────────
-function ReportsPage() {
+function ReportsPage({ refreshBadges }) {
   const isLight = React.useContext(AdminThemeCtx);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1630,6 +1630,7 @@ function ReportsPage() {
     try {
       await apiFetch(`/api/admin/reports/${id}/resolve`, { method: 'POST', body: JSON.stringify({ action }) });
       load(page, filter);
+      if (refreshBadges) refreshBadges();
     } catch (e) { alert(`Failed: ${e.message}`); }
     finally { setResolveLoading(null); }
   }
@@ -1752,7 +1753,7 @@ function ReportsPage() {
 }
 
 // ─── Support Inbox Page ────────────────────────────────────────────────────────
-function SupportInboxPage() {
+function SupportInboxPage({ refreshBadges }) {
   const isLight = React.useContext(AdminThemeCtx);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1839,6 +1840,7 @@ function SupportInboxPage() {
       setDetailData(fresh);
       setSelected(prev => ({ ...prev, status: fresh.status }));
       load(page, filter, search);
+      if (refreshBadges) refreshBadges();
     } catch (e) { alert(`Failed: ${e.message}`); }
     setActionLoading(null);
   }
@@ -2950,9 +2952,18 @@ export default function Admin() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const refreshBadges = React.useCallback(() => {
     apiFetch('/api/admin/badge-counts').then(d => setBadges(d)).catch(() => {});
-  }, [tab]);
+  }, []);
+
+  // Refresh on tab change
+  useEffect(() => { refreshBadges(); }, [tab, refreshBadges]);
+
+  // Auto-poll every 10 s so new incoming tickets/reports appear live
+  useEffect(() => {
+    const id = setInterval(refreshBadges, 10000);
+    return () => clearInterval(id);
+  }, [refreshBadges]);
 
   function handleLogout() {
     localStorage.removeItem('watch_token');
@@ -3092,10 +3103,10 @@ export default function Admin() {
         {tab === 'overview' && <OverviewPage onNavigate={setTab} />}
         {tab === 'users' && <UsersPage />}
         {tab === 'rooms' && <ActiveRoomsPage />}
-        {tab === 'reports' && <ReportsPage />}
+        {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}
         {tab === 'audit' && <AuditLogsPage />}
-        {tab === 'support' && <SupportInboxPage />}
-        {tab === 'team' && <AdminTeamPage />}
+        {tab === 'support' && <SupportInboxPage refreshBadges={refreshBadges} />}
+        {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} />}
       </main>
     </div>
     </AdminThemeCtx.Provider>

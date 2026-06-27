@@ -16,3 +16,69 @@
 [2m12:08:02 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
 [2m12:19:21 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
 [2m12:35:34 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:53:15 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:57:56 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:58:23 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:10:02 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:02 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:11 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:11 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:19 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:19 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:27 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:27 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:35 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:35 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:43 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:43 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:52 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:10:52 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:01 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:01 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:14 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:14 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:26 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[SOCKET] Connection error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:11:26 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mSocket error: Error: websocket error
+    at WS.onError (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:473:31)
+    at ws.onerror (http://localhost:5173/node_modules/.vite/deps/socket__io-client.js?v=726fa28e:929:33)
+[2m1:12:37 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:13:21 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:14:18 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048

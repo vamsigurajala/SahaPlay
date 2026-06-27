@@ -941,7 +941,9 @@ app.post('/api/signup', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
+        </div>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -1174,7 +1176,9 @@ app.post('/api/auth/google', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
+        </div>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -1262,7 +1266,9 @@ app.post('/api/forgot-password', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
+        </div>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -6829,8 +6835,8 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.5A16 16 0 0 0 16 16.09l.91-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
         </div>
       </td>
       <td style="vertical-align:middle">
@@ -7127,8 +7133,8 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:10px">
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.15)"/><path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
         </div>
       </td>
       <td style="vertical-align:middle">
@@ -8089,7 +8095,9 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
   <tr><td style="background:linear-gradient(135deg,#059669,#10b981);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
+        </div>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
@@ -8399,7 +8407,9 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
+        </div>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
