@@ -1662,7 +1662,11 @@ const Room = () => {
             lastSenderName: lastSender,
             isMyLastMessage: isMyLast,
             lastMediaType: _mt || null,
-            mediaType: _mt || null
+            mediaType: _mt || null,
+            lastMediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+            mediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+            lastMediaDuration: lastMsg?.mediaDuration || null,
+            mediaDuration: lastMsg?.mediaDuration || null
           };
           changed = true;
         }

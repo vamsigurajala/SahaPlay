@@ -90,3 +90,4 @@
 [2m1:55:28 am[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/GlobalChatWidget.jsx[22m
 [2m1:56:50 am[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/GlobalChatWidget.jsx[22m
 [2m1:57:00 am[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/RoomChatPanel.jsx[22m
+[2m1:59:13 am[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/Room.jsx[22m

@@ -1159,6 +1159,7 @@ const GlobalChatWidget = forwardRef(({
       window.removeEventListener('storage', handleSync);
     };
   }, []);
+  const getSortTime = React.useCallback((c) => Math.max(Number(c.lastTimestamp) || 0, Number(c.clearedAt) || 0), []);
   const [view, setView] = useState('list'); // 'list' or 'chat'
   const [activeChat, setActiveChat] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -2225,7 +2226,10 @@ const GlobalChatWidget = forwardRef(({
           // Server timestamps can exceed the client-optimistic timestamp of a later message due
           // to clock skew, which would otherwise make message-1's echo overwrite message-2's preview.
           const isOwnEcho = isMine && !!msg.tempId;
-          const isLatestOwnEcho = isOwnEcho && msg.tempId === lastSentTempIdRef.current[partner];
+          const hasTrackedTempId = isOwnEcho && !!lastSentTempIdRef.current[partner];
+          const isLatestOwnEcho = hasTrackedTempId 
+            ? msg.tempId === lastSentTempIdRef.current[partner]
+            : msgTs >= (Number(exists.lastTimestamp) || 0);
           const isNewer = isOwnEcho
             ? isLatestOwnEcho
             : msgTs >= (Number(exists.lastTimestamp) || 0);
@@ -2287,7 +2291,7 @@ const GlobalChatWidget = forwardRef(({
             unread: !isMine && !isViewingThis ? 1 : 0
           }, ...conversations];
         }
-        return updatedList.sort((a,b) => (Number(b.lastTimestamp)||0) - (Number(a.lastTimestamp)||0));
+        return updatedList.sort((a,b) => getSortTime(b) - getSortTime(a));
       });
     };
 
@@ -2355,7 +2359,7 @@ const GlobalChatWidget = forwardRef(({
       setConversations(prev => {
         const updated = prev.map(c =>
           (c.partner || '').toLowerCase() === targetLower
-            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() }
             : c
         );
         // Guard: only persist to chat_cleared_partners if the chat was NOT explicitly deleted.
@@ -2369,7 +2373,7 @@ const GlobalChatWidget = forwardRef(({
         })();
         const match = prev.find(c => (c.partner || '').toLowerCase() === targetLower);
         if (match && stillExists) {
-          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 };
+          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() };
           clearedPartnersRef.current = { ...clearedPartnersRef.current, [targetUsername]: entry };
           try { localStorage.setItem('chat_cleared_partners', JSON.stringify(clearedPartnersRef.current)); } catch {}
         }
@@ -2387,7 +2391,7 @@ const GlobalChatWidget = forwardRef(({
       setConversations(prev => {
         const updated = prev.map(c =>
           (c.type === 'room' && (c.partner || '').toLowerCase() === roomLower)
-            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() }
             : c
         );
         // Guard: only persist to chat_cleared_partners if the chat was NOT explicitly deleted.
@@ -2409,7 +2413,7 @@ const GlobalChatWidget = forwardRef(({
           const stored = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
           const cleaned = stored.map(c =>
             (c.type === 'room' && ((c.partner || '').toLowerCase() === roomLower || (c.id || '').toLowerCase() === roomLower))
-              ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+              ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() }
               : c
           );
           localStorage.setItem('watch_recent_chats', JSON.stringify(cleaned));
@@ -2822,7 +2826,7 @@ const GlobalChatWidget = forwardRef(({
         const all = [...finalFetched, ...preserved, ...extras];
         
         // FORCE LIFO SORT: Newest activity first
-        return all.sort((a,b) => (Number(b.lastTimestamp)||0) - (Number(a.lastTimestamp)||0));
+        return all.sort((a,b) => getSortTime(b) - getSortTime(a));
       });
     } catch(e) {
       console.error(e);
@@ -3147,7 +3151,7 @@ const GlobalChatWidget = forwardRef(({
       const updated = (Array.isArray(prev) ? prev : []).map(c => 
         (c.partner === targetPartner || c.id === targetPartner) ? { ...c, unread: 0 } : c
       );
-      return updated.sort((a,b) => (Number(b.lastTimestamp)||0) - (Number(a.lastTimestamp)||0));
+      return updated.sort((a,b) => getSortTime(b) - getSortTime(a));
     });
     // Mark this chat as read
     markChatAsRead(targetPartner, true);
@@ -3304,7 +3308,7 @@ const GlobalChatWidget = forwardRef(({
             unread: 0
           };
       const others = convs.filter(c => c.partner !== partner && c.id !== partner);
-      return [updatedItem, ...others].sort((a,b) => (Number(b.lastTimestamp)||0) - (Number(a.lastTimestamp)||0));
+      return [updatedItem, ...others].sort((a,b) => getSortTime(b) - getSortTime(a));
     });
 
     // ─── E2EE Encryption ───
@@ -3463,7 +3467,7 @@ const GlobalChatWidget = forwardRef(({
         ? { ..._exists, message: _mLabel, decryptedText: _mLabel, lastMediaType: _mType, lastMediaFileName: file.name || null, lastMediaDuration: mediaDuration || null, lastTimestamp: optimisticMsg.timestamp, lastSenderName: myUsername, isMyLastMessage: true, unread: 0 }
         : { id: _isGroup ? _partner : undefined, partner: _partner, displayName: activeChat?.displayName, partnerAvatar: activeChat?.partnerAvatar, lastTimestamp: optimisticMsg.timestamp, message: _mLabel, decryptedText: _mLabel, lastMediaType: _mType, lastMediaFileName: file.name || null, lastMediaDuration: mediaDuration || null, lastSenderName: myUsername, isMyLastMessage: true, type: activeChat?.type, unread: 0 };
       const _others = convs.filter(c => c.partner !== _partner && c.id !== _partner);
-      return [_updated, ..._others].sort((a, b) => (Number(b.lastTimestamp) || 0) - (Number(a.lastTimestamp) || 0));
+      return [_updated, ..._others].sort((a, b) => getSortTime(b) - getSortTime(a));
     });
 
     setIsUploading(true);
@@ -5618,7 +5622,7 @@ const GlobalChatWidget = forwardRef(({
                   }
                   setConversations(prev => prev.map(c =>
                     (c.partner || '').toLowerCase() === dmPartnerLower
-                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() }
                       : c
                   ));
                   setClearChatModalOpen(false);
@@ -5662,7 +5666,7 @@ const GlobalChatWidget = forwardRef(({
                   }
                   setConversations(prev => prev.map(c =>
                     (c.type === 'room' && (c.partner || '').toLowerCase() === rid)
-                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() }
                       : c
                   ));
                   setClearGroupChatModalOpen(false);
