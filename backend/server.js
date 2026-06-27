@@ -932,40 +932,45 @@ app.post('/api/signup', async (req, res) => {
 
     // Send Verification Email
     const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
-    const verifyHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"><title>Verify Your Email</title></head>
-      <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
-          <tr><td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-              <tr>
-                <td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:40px;text-align:center;">
-                  <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">&#9654; SahaPlay</div>
-                  <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:15px;">Verify your email address</p>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:48px 40px;">
-                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome, ${rawUsername}!</h1>
-                  <p style="color:#a0a0c0;font-size:15px;line-height:1.75;margin:0 0 24px;">
-                    You've signed up for SahaPlay using this email address. Please verify your email to activate your account and start watching with friends.
-                  </p>
-                  <div style="text-align:center;margin:0 0 32px;">
-                    <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Verify Email Address</a>
-                  </div>
-                  <p style="color:#6b6b8a;font-size:13px;line-height:1.6;margin:0;">
-                    If you didn't create this account, please ignore this email.
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td></tr>
-        </table>
-      </body>
-      </html>
-    `;
+    const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Email Verification</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Welcome, ${rawUsername}!</h1>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Thank you for signing up for SahaPlay. Please verify your email address to activate your account and start watching with friends.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Verify Email Address</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      If you did not create this account, you can safely ignore this email.
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
     sendEmail({
       to: email,
       subject: `Verify your SahaPlay account`,
@@ -1160,42 +1165,45 @@ app.post('/api/auth/google', async (req, res) => {
 
       // Send verification email to new Google user
       const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
-      const verifyHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="utf-8"><title>Verify Your Email</title></head>
-        <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
-            <tr><td align="center">
-              <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-                <tr>
-                  <td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:40px;text-align:center;">
-                    <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">&#9654; SahaPlay</div>
-                    <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:15px;">Verify your email address</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding:48px 40px;">
-                    <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">Welcome, ${finalUsername}!</h1>
-                    <p style="color:#a0a0c0;font-size:15px;line-height:1.75;margin:0 0 24px;">
-                      You've signed up for SahaPlay using Google. Please verify your email to activate your account and start watching with friends.
-                    </p>
-                    <div style="text-align:center;margin:0 0 32px;">
-                      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">Verify Email Address</a>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="background:#13132a;padding:24px 40px;text-align:center;">
-                    <p style="color:#4a4a6a;font-size:12px;margin:0;">© 2026 SahaPlay · All rights reserved</p>
-                  </td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-        </body>
-        </html>
-      `;
+      const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Email Verification</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Welcome, ${finalUsername}!</h1>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Thank you for signing up for SahaPlay. Please verify your email address to activate your account and start watching with friends.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Verify Email Address</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      If you did not create this account, you can safely ignore this email.
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 
       sendEmail({
         to: email,
@@ -1245,51 +1253,50 @@ app.post('/api/forgot-password', async (req, res) => {
     const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
 
     // Send real email via Gmail SMTP
-    const resetHtml = `
-      <!DOCTYPE html>
-      <html>
-      <head><meta charset="utf-8"><title>${L.emailResetHeading || 'Reset Your Password'}</title></head>
-      <body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Arial,sans-serif;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f1a;padding:40px 0;">
-          <tr><td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background:#1a1a2e;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-              <tr>
-                <td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:40px;text-align:center;">
-                  <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">▶ SahaPlay</div>
-                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">${L.emailResetTagline || 'SahaPlay. Anywhere.'}</p>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding:48px 40px;">
-                  <h1 style="color:#fff;font-size:24px;font-weight:700;margin:0 0 16px;">${L.emailResetHeading || 'Reset Your Password'}</h1>
-                  <p style="color:#a0a0c0;font-size:15px;line-height:1.7;margin:0 0 32px;">
-                    ${L.emailResetBody1 || 'We received a request to reset the password for your SahaPlay account associated with'} <strong style="color:#c4b5fd;">${user.email}</strong>.
-                    ${L.emailResetBody2 || 'Click the button below to create a new password. This link expires in'} <strong style="color:#fff;">${L.emailResetExpiry || '10 minutes'}</strong>.
-                  </p>
-                  <div style="text-align:center;margin:0 0 32px;">
-                    <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;">${L.emailResetBtn || 'Reset My Password'}</a>
-                  </div>
-                  <p style="color:#6b6b8a;font-size:13px;line-height:1.6;margin:0;">
-                    ${L.emailResetIgnore || "If you didn't request a password reset, you can safely ignore this email — your password will remain unchanged."}
-                  </p>
-                  <hr style="border:none;border-top:1px solid #2a2a4a;margin:32px 0;">
-                  <p style="color:#6b6b8a;font-size:12px;margin:0;">
-                    ${L.emailResetCopyLink || 'Or copy and paste this link in your browser:'}<br>
-                    <a href="${resetLink}" style="color:#7c3aed;word-break:break-all;">${resetLink}</a>
-                  </p>
-                </td>
-              </tr>
-              <tr>
-                <td style="background:#13132a;padding:24px 40px;text-align:center;">
-                  <p style="color:#4a4a6a;font-size:12px;margin:0;">${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}</p>
-                </td>
-              </tr>
-            </table>
-          </td></tr>
-        </table>
-      </body>
-      </html>
-    `;
+    const resetHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">${L.emailResetTagline || 'SahaPlay. Anywhere.'}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">${L.emailResetHeading || 'Reset Your Password'}</h1>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.75">
+      ${L.emailResetBody1 || 'We received a request to reset the password for your SahaPlay account associated with'} <strong style="color:#7c3aed;">${user.email}</strong>.
+      ${L.emailResetBody2 || 'Click the button below to create a new password. This link expires in'} <strong style="color:#111827;">${L.emailResetExpiry || '10 minutes'}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(124,58,237,0.2)">${L.emailResetBtn || 'Reset My Password'}</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0 0 12px;color:#9ca3af;font-size:13px;line-height:1.6">
+      ${L.emailResetIgnore || "If you did not request a password reset, you can safely ignore this email — your password will remain unchanged."}
+    </p>
+    <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6">
+      ${L.emailResetCopyLink || 'Or copy and paste this link in your browser:'}<br>
+      <a href="${resetLink}" style="color:#7c3aed;word-break:break-all;">${resetLink}</a>
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
 
     const textVersion = `Hello ${user.username},
 
@@ -6813,31 +6820,52 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   const userLang = lang || 'en';
   const L = emailTranslations[userLang] || emailTranslations['en'] || {};
 
-  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
-<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">${L.emailContactTitle || '✅ We got your message!'}</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">${L.emailContactSubtitle || 'SahaPlay Support'}</p>
-  </div>
-  <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">${L.emailContactHi || 'Hi'} <strong style="color:#fff">${esc(cName)}</strong>,</p>
-    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
-      ${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}
+  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.5A16 16 0 0 0 16 16.09l.91-.86a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </div>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:2px">${L.emailContactSubtitle || 'We have received your message'}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">${L.emailContactTitle || 'Message Received'}</h1>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6">Hi <strong style="color:#111827">${esc(cName)}</strong>,</p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      ${L.emailContactBody || 'Thank you for reaching out. We have received your message and a member of our team will review it and respond within 48 hours.'}
     </p>
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:24px">
-      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px">${L.emailContactYourMsg || 'Your message'}</p>
-      <p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${esc(cMsg)}</p>
-    </div>
-    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
-      ${L.emailContactUrgent || 'Need urgent help? Email us at'}
-      <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
+    <!-- Message Box -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px">
+        <p style="margin:0 0 10px;color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">${L.emailContactYourMsg || 'Your Message'}</p>
+        <p style="margin:0;color:#374151;font-size:14px;line-height:1.75">${esc(cMsg)}</p>
+      </td></tr>
+    </table>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      ${L.emailContactUrgent || 'For urgent matters, you may also contact us at'} <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
     </p>
-  </div>
-  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">— ${L.emailContactFooter || 'SahaPlay Team'}</p>
-  </div>
-</div>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">This is an automated confirmation from <strong>SahaPlay</strong>. Please do not reply directly to this email.</p>
+    <p style="margin:6px 0 0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
 </body></html>`;
 
   // ── Save to support_requests DB ─────────────────────────────────────────────
@@ -7090,41 +7118,65 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
 
   // ── Confirmation email to user ────────────────────────
 
-  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
-<div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">${L.emailBugTitle || '🐛 Bug Report Received'}</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">${L.emailBugSubtitle || 'SahaPlay Bug Tracker'}</p>
-  </div>
-  <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 12px">${L.emailContactHi || 'Hi'} <strong style="color:#fff">${esc(rName)}</strong>,</p>
-    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
-      ${L.emailBugBody1 || 'We received your bug report about'} <strong style="color:#818cf8">${esc(bugTypeLabel)}</strong>.
-      ${L.emailBugBody2 || "Our team will investigate it and we'll update you here when it's resolved."}
+  const confirmHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);border-radius:10px">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.15)"/><path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Bug Tracker</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:2px">${L.emailBugSubtitle || 'Bug Report Confirmation'}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">${L.emailBugTitle || 'Bug Report Received'}</h1>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6">Hi <strong style="color:#111827">${esc(rName)}</strong>,</p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      ${L.emailBugBody1 || 'We have received your bug report regarding'} <strong style="color:#6366f1">${esc(bugTypeLabel)}</strong>.
+      ${L.emailBugBody2 || 'Our engineering team will investigate and you will be notified at this email address once it is resolved.'}
     </p>
-    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
-      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 14px">${L.emailBugDetails || 'Report Details'}</p>
-      <table style="width:100%;border-collapse:collapse">
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0;width:110px">${L.emailBugReportId || 'Report ID'}</td>
-            <td style="font-family:monospace;color:#a5b4fc;font-size:14px;font-weight:700;padding:6px 0">${esc(reportId)}</td></tr>
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugType || 'Bug Type'}</td>
-            <td style="color:#e5e7eb;font-size:14px;padding:6px 0">${esc(bugTypeLabel)}</td></tr>
-        <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugSeverity || 'Severity'}</td>
-            <td style="font-size:14px;padding:6px 0"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:2px 8px;border-radius:4px;font-weight:700;font-size:13px">${severityMeta.label}</span></td></tr>
-      </table>
-    </div>
-    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0 0 8px">
-      ${L.emailBugHint || "We'll email you at this address when the issue is resolved."}
-    </p>
-    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">
-      ${L.emailBugUrgent || 'For urgent help:'} <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a>
-    </p>
-  </div>
-  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">— ${L.emailBugFooter || 'SahaPlay Team'}</p>
-  </div>
-</div>
+    <!-- Report Details -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px">
+        <p style="margin:0 0 14px;color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">${L.emailBugDetails || 'Report Details'}</p>
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:5px 0;width:110px">${L.emailBugReportId || 'Report ID'}</td>
+            <td style="font-family:monospace;color:#6366f1;font-size:14px;font-weight:700;padding:5px 0">${esc(reportId)}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:5px 0">${L.emailBugType || 'Bug Type'}</td>
+            <td style="color:#111827;font-size:14px;padding:5px 0">${esc(bugTypeLabel)}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;font-size:13px;padding:5px 0">${L.emailBugSeverity || 'Severity'}</td>
+            <td style="padding:5px 0"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:2px 10px;border-radius:4px;font-weight:700;font-size:12px;text-transform:uppercase">${severityMeta.label}</span></td>
+          </tr>
+        </table>
+      </td></tr>
+    </table>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.6">${L.emailBugHint || 'We will notify you at this email address when the issue is resolved.'}</p>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">${L.emailBugUrgent || 'For urgent matters:'} <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a></p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">This is an automated confirmation from <strong>SahaPlay</strong>. Please do not reply directly to this email.</p>
+    <p style="margin:6px 0 0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
 </body></html>`;
 
   // ── Guard: no email credentials → still saved to DB ──────────────────────
@@ -8028,30 +8080,64 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
         const ticket = ticketR.rows[0];
         if (ticket && ticket.submitted_by_email) {
           const escR = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-          const resolveHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
-<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#10b981,#059669);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">✅ Your request has been resolved</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Support</p>
-  </div>
-  <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">Hi <strong style="color:#fff">${escR(ticket.submitted_by_name || 'there')}</strong>,</p>
-    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">Good news! Your support request has been reviewed and resolved by our team.</p>
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:${ticket.resolution_message ? '20px' : '24px'}">
-      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px">Your Request</p>
-      <p style="color:#fff;font-size:15px;font-weight:600;margin:0">${escR(ticket.subject)}</p>
-    </div>
-    ${ticket.resolution_message ? `<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
-      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px">Message from our team</p>
-      <p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${escR(ticket.resolution_message)}</p>
-    </div>` : ''}
-    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">If you have further questions, email us at <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a></p>
-  </div>
-  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
-  </div>
-</div>
+          const resolveHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#059669,#10b981);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M13 20l5 5 9-9" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Support Request Resolution</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Your Request Has Been Resolved</h1>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6">Hi <strong style="color:#111827">${escR(ticket.submitted_by_name || 'there')}</strong>,</p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      We have reviewed your support request and are pleased to confirm that it has been resolved by our team.
+    </p>
+    <!-- Request Box -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:${ticket.resolution_message ? '20px' : '28px'}">
+      <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px">
+        <p style="margin:0 0 8px;color:#059669;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Your Request</p>
+        <p style="margin:0;color:#111827;font-size:15px;font-weight:600">${escR(ticket.subject)}</p>
+      </td></tr>
+    </table>
+    ${ticket.resolution_message ? `<!-- Message from team -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tr><td style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:20px">
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="padding-right:10px;vertical-align:top;padding-top:2px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </td>
+          <td>
+            <p style="margin:0 0 8px;color:#1d4ed8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Message from our Team</p>
+            <p style="margin:0;color:#1e3a5f;font-size:14px;line-height:1.75">${escR(ticket.resolution_message)}</p>
+          </td>
+        </tr></table>
+      </td></tr>
+    </table>` : ''}
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      If you have any further questions or this issue reoccurs, please contact us at <a href="mailto:sahaaplay@gmail.com" style="color:#059669;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">This is an automated message from <strong>SahaPlay</strong>. Please do not reply directly to this email.</p>
+    <p style="margin:6px 0 0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
 </body></html>`;
           sendEmail({
             to: ticket.submitted_by_email,
@@ -8304,20 +8390,43 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
     const inviteUrl = `${process.env.FRONTEND_URL || 'https://sahaplay.com'}/admin/accept-invite?token=${rawToken}&email=${encodeURIComponent(cleanEmail)}`;
     const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[role] || role;
 
-    const inviteHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
-<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
-    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">You're invited to SahaPlay Admin</h1>
-    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">Role: ${roleLabel}</p>
-  </div>
-  <div style="padding:32px 40px">
-    <p style="color:#e5e7eb;font-size:15px;line-height:1.75;margin:0 0 24px">You have been invited to join the SahaPlay admin team as a <strong style="color:#a855f7">${roleLabel}</strong>.</p>
-    <a href="${inviteUrl}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;margin-bottom:24px">Accept Invitation</a>
-    <p style="color:#6b7280;font-size:13px;margin:0">This link expires in 48 hours and can only be used once.</p>
-    <p style="color:#6b7280;font-size:13px;margin:8px 0 0">If you did not expect this invitation, you can safely ignore this email.</p>
-  </div>
-</div>
+    const inviteHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M12 28l16-8-16-8v16z" fill="#fff"/></svg>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Admin Invitation</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Team Invitation</h1>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.75">
+      You have been invited to join the SahaPlay team as an administrator with the role of <strong style="color:#6366f1">${roleLabel}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${inviteUrl}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Accept Invitation</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.6">This invitation link will expire in 48 hours and can only be used once.</p>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">If you did not request or expect this invitation, you can safely ignore this email.</p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
 </body></html>`;
 
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
