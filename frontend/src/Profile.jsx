@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban } from 'lucide-react';
+import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, FaRedditAlien, FaDiscord, FaFacebookF, FaPinterestP, FaTwitch } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
@@ -42,6 +42,17 @@ const Profile = () => {
   const [openSection, setOpenSection] = useState(null);
   const toggleSection = (sec) => setOpenSection(p => p === sec ? null : sec);
 
+  useEffect(() => {
+    const sec = location.state?.openSection;
+    if (sec) {
+      setOpenSection(sec);
+      setTimeout(() => {
+        const el = document.getElementById(`${sec.replace(/([A-Z])/g, '-$1').toLowerCase()}-section`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [location.state]);
+
   // Own profile state
   const [profile, setProfile] = useState(() => {
     const isG = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
@@ -63,6 +74,12 @@ const Profile = () => {
   const [bio, setBio] = useState('');
   const [editingName, setEditingName] = useState(false);
   const [editingBio, setEditingBio] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameInput, setUsernameInput] = useState(localStorage.getItem('watch_username') || '');
+  const [usernameStatus, setUsernameStatus] = useState(null); // null|'checking'|'available'|'taken'|'invalid'|'self'
+  const [savingUsername, setSavingUsername] = useState(false);
+  const editingUsernameOriginal = useRef(''); // snapshot of username at edit-start, never changes during a session
+  const editingUsernameId = useRef(null);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -88,6 +105,8 @@ const Profile = () => {
   const [showDeleteError, setShowDeleteError] = useState(false);
 
   // Navbar state
+  const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
+  const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,6 +132,14 @@ const Profile = () => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (isGuest) return;
+    fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.role) { localStorage.setItem('watch_role', d.role); setWatchRole(d.role); } })
+      .catch(() => {});
   }, []);
 
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
@@ -467,6 +494,60 @@ const Profile = () => {
       setEditingBio(false);
       fetchProfile();
     }).catch(() => toast.error('Failed to update'));
+  };
+
+  // Sync usernameInput from profile only when not actively editing
+  useEffect(() => {
+    if (!editingUsername && profile?.username) {
+      setUsernameInput(profile.username);
+    }
+  }, [profile?.username, editingUsername]);
+
+  // Debounced username availability check — only depends on input/editingUsername, NOT profile
+  // (profile polls every 3s; including it would reset status to 'checking' on every poll tick)
+  useEffect(() => {
+    if (!editingUsername) return;
+    if (!usernameInput || usernameInput.trim() === editingUsernameOriginal.current) {
+      setUsernameStatus('self');
+      return;
+    }
+    const cleaned = usernameInput.trim();
+    if (cleaned.length < 3) { setUsernameStatus('too_short'); return; }
+    if (cleaned.length > 30) { setUsernameStatus('too_long'); return; }
+    if (!/^[a-zA-Z0-9._]+$/.test(cleaned)) { setUsernameStatus('invalid'); return; }
+    setUsernameStatus('checking');
+    const timer = setTimeout(() => {
+      fetch(`${API}/api/profile/check-username?username=${encodeURIComponent(cleaned)}&excludeId=${editingUsernameId.current || ''}`)
+        .then(r => r.json())
+        .then(d => setUsernameStatus(d.available ? 'available' : 'taken'))
+        .catch(() => setUsernameStatus(null));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [usernameInput, editingUsername]);
+
+  const handleSaveUsername = async () => {
+    const cleaned = usernameInput.trim();
+    if (!cleaned || usernameStatus !== 'available') return;
+    setSavingUsername(true);
+    try {
+      const r = await fetch(`${API}/api/profile/username`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ username: cleaned })
+      });
+      const data = await r.json();
+      if (!r.ok) { toast.error(data.error || 'Failed to update username'); return; }
+      localStorage.setItem('watch_username', cleaned);
+      if (data.token) localStorage.setItem('watch_token', data.token);
+      setEditingUsername(false);
+      setUsernameStatus(null);
+      toast.success('Username updated!');
+      fetchProfile();
+    } catch {
+      toast.error('Failed to update username');
+    } finally {
+      setSavingUsername(false);
+    }
   };
 
   const [pwErrors, setPwErrors] = useState({});
@@ -1194,6 +1275,17 @@ const Profile = () => {
                       {t('contactSupport', 'Contact Support')}
                     </button>
                   )}
+                  {isAdminRole && (
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'rgba(168,85,247,0.1)', border: 'none', color: '#c084fc', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Sparkles size={16} color="#a855f7" />
+                      </div>
+                      {t('adminDashboard', 'Admin Dashboard')}
+                    </button>
+                  )}
                   <div className="profile-divider" />
                   {isGuest ? (
                     <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
@@ -1590,6 +1682,72 @@ const Profile = () => {
             )}
           </div>
 
+          {/* Username */}
+          <div className="profile-card">
+            <div className="acc-header" onClick={() => toggleSection('username')}>
+              <h3><AtSign size={18} color="#6366f1" style={{ marginRight: 6 }} />{t('username', 'Username')}</h3>
+              <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'username' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </div>
+            {openSection === 'username' && (
+              <div className="acc-body">
+                <div className="field-label">{t('usernameFieldLabel', 'Your unique @handle — used to find and mention you')}</div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      className="profile-input"
+                      value={usernameInput}
+                      onChange={e => setUsernameInput(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))}
+                      disabled={!editingUsername}
+                      placeholder={t('usernamePlaceholder', 'e.g. john.doe_99')}
+                      style={{ width: '100%', paddingRight: usernameStatus && editingUsername ? 36 : undefined }}
+                      maxLength={30}
+                    />
+                    {editingUsername && usernameStatus && (
+                      <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>
+                        {usernameStatus === 'checking' && <span style={{ color: '#94a3b8', fontSize: 12 }}>...</span>}
+                        {usernameStatus === 'available' && <Check size={16} color="#22c55e" />}
+                        {usernameStatus === 'taken' && <X size={16} color="#ef4444" />}
+                        {(usernameStatus === 'invalid' || usernameStatus === 'too_short' || usernameStatus === 'too_long') && <AlertCircle size={16} color="#f59e0b" />}
+                      </span>
+                    )}
+                  </div>
+                  {editingUsername ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="profile-save-box"
+                        onClick={handleSaveUsername}
+                        disabled={usernameStatus !== 'available' || savingUsername}
+                        style={{ opacity: usernameStatus !== 'available' || savingUsername ? 0.45 : 1 }}
+                        title={t('saveChanges', 'Save Changes')}
+                      >
+                        <Check size={18} />
+                      </button>
+                      <button className="profile-cancel-btn" onClick={() => { setEditingUsername(false); setUsernameInput(profile?.username || ''); setUsernameStatus(null); }} title={t('cancelBtn', 'Cancel')}><X size={18} /></button>
+                    </div>
+                  ) : (
+                    <button className="profile-edit-btn" onClick={() => {
+                      editingUsernameOriginal.current = profile?.username || localStorage.getItem('watch_username') || '';
+                      editingUsernameId.current = profile?.id || null;
+                      setEditingUsername(true);
+                    }}>
+                      <Edit2 size={14} /> {t('edit', 'Edit')}
+                    </button>
+                  )}
+                </div>
+                {editingUsername && usernameStatus && usernameStatus !== 'checking' && usernameStatus !== 'self' && (
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5,
+                    color: usernameStatus === 'available' ? '#22c55e' : usernameStatus === 'taken' ? '#ef4444' : '#f59e0b' }}>
+                    {usernameStatus === 'available' && <><Check size={12} /> {t('usernameAvailable', 'Username is available')}</>}
+                    {usernameStatus === 'taken' && <><X size={12} /> {t('usernameTaken', 'Username already taken')}</>}
+                    {usernameStatus === 'too_short' && <><AlertCircle size={12} /> {t('usernameTooShort', 'Must be at least 3 characters')}</>}
+                    {usernameStatus === 'too_long' && <><AlertCircle size={12} /> {t('usernameTooLong', 'Must be 30 characters or less')}</>}
+                    {usernameStatus === 'invalid' && <><AlertCircle size={12} /> {t('usernameInvalidChars', 'Letters, numbers, dots and underscores only')}</>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Bio */}
           <div className="profile-card">
             <div className="acc-header" onClick={() => toggleSection('bio')}>
@@ -1683,7 +1841,7 @@ const Profile = () => {
           </div>
 
           {/* Blocked Users */}
-          <div className="profile-card">
+          <div id="blocked-users-section" className="profile-card">
             <div className="acc-header" onClick={() => toggleSection('blockedUsers')}>
               <h3><Shield size={18} color="#ef4444" /> {t('blockedUsers', 'Blocked Users')}</h3>
               <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'blockedUsers' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />

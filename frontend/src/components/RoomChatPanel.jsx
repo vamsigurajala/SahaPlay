@@ -14,7 +14,6 @@ import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import crownImg from '../assets/crown.svg';
 import { getFlagUrl } from '../utils/countryFlags.js';
 import ChatLockScreen from './ChatLockScreen';
-import MediaPolicyBanner from './MediaPolicyBanner';
 import { getMessagePreview } from '../utils/messagePreview';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -521,6 +520,26 @@ const MenuStyles = () => (
       -webkit-text-fill-color: #dc2626 !important;
     }
 
+    /* "Delete for me" in message dropdown: keep original text color, light red background on hover.
+       Overrides the global .menu-btn:hover { color: #6366f1 } rule without changing the text. */
+    .menu-btn-del-me {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    .menu-btn-del-me svg {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    .menu-btn-del-me:hover {
+      background: rgba(239, 68, 68, 0.1) !important;
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    .menu-btn-del-me:hover svg {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+
     /* Specific overrides to prevent stay-white/msg-sent inside the dropdown from turning text white in light mode */
     html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn,
     html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn {
@@ -580,8 +599,46 @@ const MenuStyles = () => (
       -webkit-text-fill-color: #dc2626 !important;
       stroke: #dc2626 !important;
     }
+
+    /* menu-btn-del-me inside stay-white/msg-sent: keep text color, light red bg on hover */
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover {
+      background: rgba(239, 68, 68, 0.1) !important;
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+    }
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg,
+    html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg *,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg,
+    html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg * {
+      color: var(--menu-item-text) !important;
+      -webkit-text-fill-color: var(--menu-item-text) !important;
+      stroke: var(--menu-item-text) !important;
+    }
   `}</style>
 );
+
+function getDateKey(ts) {
+  const d = new Date(Number(ts));
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateSeparator(ts) {
+  const date = new Date(Number(ts));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today - msgDay) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
 
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
@@ -958,6 +1015,7 @@ export default function RoomChatPanel({ p }) {
 
   const prevGroupMsgCount = React.useRef(p.groupMessages.length);
   const prevFirstGroupMsgId = React.useRef(null);
+  const groupScrollAnchorRef = React.useRef(null);
   
   React.useLayoutEffect(() => {
     const container = groupScrollContainerRef.current;
@@ -972,7 +1030,11 @@ export default function RoomChatPanel({ p }) {
     const firstMsgId = p.groupMessages.length > 0 ? p.groupMessages[0].id || p.groupMessages[0].tempId : null;
     const isPrepend = firstMsgId !== prevFirstGroupMsgId.current && prevFirstGroupMsgId.current !== null && p.groupMessages.length > prevGroupMsgCount.current;
     
-    if (!isPrepend) {
+    if (isPrepend && groupScrollAnchorRef.current) {
+      const { prevScrollHeight, prevScrollTop } = groupScrollAnchorRef.current;
+      container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
+      groupScrollAnchorRef.current = null;
+    } else if (!isPrepend) {
       const isNewMsg = p.groupMessages.length > prevGroupMsgCount.current && prevGroupMsgCount.current > 0;
       if (isNewMsg) {
         const lastMsg = p.groupMessages[p.groupMessages.length - 1];
@@ -994,6 +1056,7 @@ export default function RoomChatPanel({ p }) {
   const prevDmMsgCount = React.useRef(dmMessages.length);
   const prevFirstDmMsgId = React.useRef(null);
   const prevDmTarget = React.useRef(p.dmTarget);
+  const dmScrollAnchorRef = React.useRef(null);
 
   React.useLayoutEffect(() => {
     const container = dmScrollContainerRef.current;
@@ -1010,7 +1073,11 @@ export default function RoomChatPanel({ p }) {
     const targetChanged = p.dmTarget !== prevDmTarget.current;
     const isPrepend = !targetChanged && firstMsgId !== prevFirstDmMsgId.current && prevFirstDmMsgId.current !== null && dmMessages.length > prevDmMsgCount.current;
 
-    if (!isPrepend) {
+    if (isPrepend && dmScrollAnchorRef.current) {
+      const { prevScrollHeight, prevScrollTop } = dmScrollAnchorRef.current;
+      container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
+      dmScrollAnchorRef.current = null;
+    } else if (!isPrepend) {
       const isNewMsg = !targetChanged && dmMessages.length > prevDmMsgCount.current && prevDmMsgCount.current > 0;
       if (isNewMsg) {
         const lastMsg = dmMessages[dmMessages.length - 1];
@@ -2056,6 +2123,10 @@ export default function RoomChatPanel({ p }) {
               handleScroll(e);
               const el = e.currentTarget;
               if (el.scrollTop < 50 && p.loadMoreGroupHistory && !p.groupHistoryLoading && p.hasMoreGroupHistory) {
+                groupScrollAnchorRef.current = {
+                  prevScrollHeight: el.scrollHeight,
+                  prevScrollTop: el.scrollTop
+                };
                 p.loadMoreGroupHistory(el);
               }
             }} 
@@ -2074,6 +2145,8 @@ export default function RoomChatPanel({ p }) {
               return p.groupMessages.map((msg,i)=>{
               const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
               const reactions = msg.reactions||{};
+              const prevMsg = i > 0 ? p.groupMessages[i - 1] : null;
+              const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
               const resolvedMedia = (p.groupDecryptedMediaUrls?.current && (
                 p.groupDecryptedMediaUrls.current[msg.id] ||
                 p.groupDecryptedMediaUrls.current[msg.tempId] ||
@@ -2083,7 +2156,15 @@ export default function RoomChatPanel({ p }) {
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
               
               return (
-                <div key={msg.tempId || msg.id || i} id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                <React.Fragment key={msg.tempId || msg.id || i}>
+                {showDateSep && (
+                  <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0 4px',userSelect:'none'}}>
+                    <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                    <span style={{fontSize:11,color: isLight ? '#64748b' : '#888',whiteSpace:'nowrap',padding:'0 4px'}}>{formatDateSeparator(msg.timestamp)}</span>
+                    <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                  </div>
+                )}
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                   {msg.replyTo && (
                     <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid #6366f1',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
                       <span style={{color: isLight ? '#1e293b' : '#a0aab2',fontWeight:600}}>{(() => { 
@@ -2185,7 +2266,7 @@ export default function RoomChatPanel({ p }) {
                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                          <Trash2 size={16}/> {t('unsend', 'Unsend')}
                                        </button>
-                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-del-me">
                                          <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
                                        </button>
                                      </>
@@ -2262,6 +2343,7 @@ export default function RoomChatPanel({ p }) {
                     />
                   )}
                 </div>
+                </React.Fragment>
               );
             })})()}
             {(() => {
@@ -2486,7 +2568,7 @@ export default function RoomChatPanel({ p }) {
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                           <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? t('unblock', 'Unblock') : t('block', 'Block')}
                         </div>
-                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.setClearChatTarget(p.dmTarget); p.setClearForBoth(false); p.setClearChatModalOpen(true); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                           <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                         </div>
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setDeleteChatConfirm({key: p.dmTarget, type: 'dm', name: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
@@ -2505,6 +2587,10 @@ export default function RoomChatPanel({ p }) {
                     const partnerKey = p.dmTarget?.toLowerCase();
                     const hasMore = p.hasMoreDmHistory && p.hasMoreDmHistory[partnerKey] !== false;
                     if (el.scrollTop < 50 && p.loadMoreDmHistory && !p.dmHistoryLoading && hasMore) {
+                      dmScrollAnchorRef.current = {
+                        prevScrollHeight: el.scrollHeight,
+                        prevScrollTop: el.scrollTop
+                      };
                       p.loadMoreDmHistory(el);
                     }
                   }} 
@@ -2528,6 +2614,8 @@ export default function RoomChatPanel({ p }) {
                     return dmMessages.map((msg,i)=>{
                     const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
                     const reactions = msg.reactions||{};
+                    const prevMsg = i > 0 ? dmMessages[i - 1] : null;
+                    const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
                     const resolvedMedia = (p.dmDecryptedMediaUrls?.current && (
                       p.dmDecryptedMediaUrls.current[msg.id] ||
                       p.dmDecryptedMediaUrls.current[msg.tempId] ||
@@ -2537,7 +2625,15 @@ export default function RoomChatPanel({ p }) {
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
 
                     return (
-                      <div key={msg.tempId || msg.id || i} id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                      <React.Fragment key={msg.tempId || msg.id || i}>
+                      {showDateSep && (
+                        <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0 4px',userSelect:'none'}}>
+                          <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                          <span style={{fontSize:11,color: isLight ? '#64748b' : '#888',whiteSpace:'nowrap',padding:'0 4px'}}>{formatDateSeparator(msg.timestamp)}</span>
+                          <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                        </div>
+                      )}
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                         {msg.replyTo && (
                           <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
                             <span style={{color:'#6366f1',fontWeight:600}} className="reply-sender">
@@ -2610,7 +2706,7 @@ export default function RoomChatPanel({ p }) {
                                             <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
                                               <Trash2 size={16}/> {t('unsend', 'Unsend')}
                                             </button>
-                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-del-me">
                                               <Trash2 size={16}/> {t('deleteForMe', 'Delete for me')}
                                             </button>
                                           </>
@@ -2685,6 +2781,7 @@ export default function RoomChatPanel({ p }) {
                           />
                         )}
                       </div>
+                      </React.Fragment>
                     )
                   })})()}
                   {(() => {
@@ -2833,7 +2930,6 @@ export default function RoomChatPanel({ p }) {
 
                     return (
                       <>
-                        <MediaPolicyBanner isLight={isLight} />
                         <form onSubmit={(e) => {
                           p.sendDmChat(e);
                           p.setShowDmEmojiPicker(false);
@@ -2900,7 +2996,7 @@ export default function RoomChatPanel({ p }) {
 
       {/* Group Emoji Picker — positioned at panel level so it isn't clipped by overflow:hidden */}
       {p.showGroupEmojiPicker && (
-        <div style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onClick={e => e.stopPropagation()}>
+        <div className="emoji-picker-container" style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onMouseDown={e => e.stopPropagation()}>
           <Picker
             data={data}
             onEmojiSelect={(e) => { p.setGroupChatInput(prev => prev + e.native); }}
@@ -2915,10 +3011,10 @@ export default function RoomChatPanel({ p }) {
 
       {/* DM Emoji Picker — panel level, not inside overflow:hidden */}
       {p.showDmEmojiPicker && (
-        <div style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onClick={e => e.stopPropagation()}>
+        <div className="emoji-picker-container" style={{position:'absolute', bottom: 72, left: 8, zIndex: 99999, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.15)' : '0 8px 32px rgba(0,0,0,0.8)', borderRadius:10}} onMouseDown={e => e.stopPropagation()}>
           <Picker
             data={data}
-            onEmojiSelect={(e) => { p.setDmChatInput(prev => prev + e.native); p.setShowDmEmojiPicker(false); }}
+            onEmojiSelect={(e) => { p.setDmChatInput(prev => prev + e.native); }}
             theme={isLight ? 'light' : 'dark'}
             previewPosition="none"
             searchPosition="none"

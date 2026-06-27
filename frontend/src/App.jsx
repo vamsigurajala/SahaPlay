@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -22,6 +22,75 @@ import ReportBug from './ReportBug';
 import Safety from './Safety';
 import Cookies from './Cookies';
 import Terms from './Terms';
+import Admin from './Admin';
+
+function AcceptInvitePage() {
+  const [status, setStatus] = React.useState('idle'); // idle | loading | success | error
+  const [msg, setMsg] = React.useState('');
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const email = params.get('email');
+
+  React.useEffect(() => {
+    if (!token || !email) { setStatus('error'); setMsg('Invalid invite link.'); return; }
+    const authToken = localStorage.getItem('watch_token');
+    if (!authToken) {
+      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      return;
+    }
+    setStatus('loading');
+    const apiHost = window.location.hostname;
+    const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
+      ? `http://${apiHost}:3001`
+      : `https://${apiHost}`;
+    fetch(`${apiBase}/api/admin/accept-invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ token, email }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          localStorage.setItem('watch_role', d.role || 'admin');
+          setStatus('success'); setMsg(d.message || 'Welcome to the SahaPlay admin team!');
+        } else {
+          setStatus('error'); setMsg(d.error || 'Failed to accept invite.');
+        }
+      })
+      .catch(() => { setStatus('error'); setMsg('Network error. Please try again.'); });
+  }, []);
+
+  const bg = '#0a0a12'; const card = 'rgba(255,255,255,0.04)'; const border = 'rgba(255,255,255,0.08)';
+  return (
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Outfit', sans-serif" }}>
+      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, padding: '40px 48px', maxWidth: 420, width: '90%', textAlign: 'center' }}>
+        <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 40, height: 40, marginBottom: 16 }} />
+        <h2 style={{ color: '#fff', margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>SahaPlay Admin</h2>
+        {status === 'loading' && <p style={{ color: 'rgba(255,255,255,0.5)', margin: '24px 0' }}>Verifying invite…</p>}
+        {status === 'success' && (
+          <>
+            <p style={{ color: '#34d399', margin: '20px 0 8px', fontWeight: 700, fontSize: 15 }}>{msg}</p>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: '0 0 24px' }}>You now have admin access.</p>
+            <button onClick={() => window.location.href = '/admin'}
+              style={{ padding: '11px 28px', borderRadius: 10, border: 'none', background: 'rgba(99,102,241,0.2)', color: '#818cf8', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              Go to Dashboard
+            </button>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <p style={{ color: '#f87171', margin: '20px 0 8px', fontWeight: 700, fontSize: 15 }}>{msg}</p>
+            <button onClick={() => window.location.href = '/'}
+              style={{ padding: '11px 28px', borderRadius: 10, border: 'none', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginTop: 12 }}>
+              Back to Home
+            </button>
+          </>
+        )}
+        {status === 'idle' && <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, margin: '20px 0' }}>Loading…</p>}
+      </div>
+    </div>
+  );
+}
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -35,6 +104,33 @@ const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
+};
+
+// AdminRoute: checks role from the DB via /api/me on every render — never trusts localStorage
+const AdminRoute = ({ children }) => {
+  const [status, setStatus] = useState('loading'); // 'loading' | 'admin' | 'denied'
+
+  useEffect(() => {
+    const token = localStorage.getItem('watch_token');
+    if (!token) { setStatus('denied'); return; }
+    const apiHost = window.location.hostname;
+    const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
+      ? `http://${apiHost}:3001`
+      : `https://${apiHost}`;
+    fetch(`${apiBase}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setStatus(['super_admin', 'admin', 'moderator', 'support'].includes(data.role) ? 'admin' : 'denied'))
+      .catch(() => setStatus('denied'));
+  }, []);
+
+  if (status === 'loading') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a12', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 15 }}>Verifying access…</div>
+      </div>
+    );
+  }
+  return status === 'admin' ? children : <Navigate to="/" replace />;
 };
 
 const roomMatch = window.location.pathname.match(/^\/room\/([^\/]+)/);
@@ -337,7 +433,7 @@ function App() {
       html[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
         background: rgba(0, 0, 0, 0.25) !important;
       }
-      html[data-theme='light'] * {
+      html[data-theme='light'] *:not(.admin-wrapper):not(.admin-wrapper *) {
         -ms-overflow-style: auto !important;
         scrollbar-width: auto !important;
       }
@@ -802,6 +898,8 @@ function App() {
             <Route path="/app-settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
             <Route path="/room/:roomId" element={<ProtectedRoute><Room /></ProtectedRoute>} />
+            <Route path="/admin/accept-invite" element={<AcceptInvitePage />} />
+            <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           </Routes>
         </Router>
       </GoogleOAuthProvider>

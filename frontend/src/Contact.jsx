@@ -478,7 +478,7 @@ export default function Contact() {
                 </span>
               </div>
               <textarea
-                placeholder={t('contactMessagePlaceholder', 'Write your message here.Be as detailed as you like!')}
+                placeholder={t('contactMessagePlaceholder', 'Write your message here…')}
                 value={form.message}
                 disabled={status === 'loading'}
                 onKeyDown={e => { if (e.ctrlKey && e.key === 'Enter') handleSubmit(e); }}

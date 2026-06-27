@@ -181,6 +181,7 @@ export default function Safety() {
                 link={
                   <Link
                     to="/profile"
+                    state={{ openSection: 'blockedUsers' }}
                     style={{ color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
                   >
                     {t('sfBlockUserLink')}

@@ -73,7 +73,7 @@ export default function RoomSettingsModal({
   const [activeTab, setActiveTab] = useState('general');
   const [roomName, setRoomName] = useState(room?.roomName || '');
   const [permissions, setPermissions] = useState(room?.permissions || { changeMedia: 'all', chat: 'all', cam: 'all' });
-  const [settings, setSettings] = useState(room?.settings || { playerCustomName: 'WatchTogether Player' });
+  const [settings, setSettings] = useState(room?.settings || { playerCustomName: 'SahaPlay Player' });
   const [thumbnail, setThumbnail] = useState(room?.thumbnailPath || null);
   const [isUploading, setIsUploading] = useState(false);
   const [bannedUsers, setBannedUsers] = useState(room?.bannedUsers || []);

@@ -1084,7 +1084,7 @@ const Features = () => {
         <div className="features-container" style={{ maxWidth: 900, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <h2 className="section-title">{t('howWeCompare', 'How We Compare')}</h2>
-            <p className="section-body" style={{ color: 'var(--text-secondary)' }}>{t('howWeCompareDesc', 'See how WatchTogether compares to generic screensharing platforms.')}</p>
+            <p className="section-body" style={{ color: 'var(--text-secondary)' }}>{t('howWeCompareDesc', 'See how SahaPlay compares to generic screensharing platforms.')}</p>
           </div>
 
           <div className="glass-panel glow-border table-container" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.4)' }}>

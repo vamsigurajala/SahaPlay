@@ -28,7 +28,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -72,6 +72,12 @@ const resolveMediaUrl = (url, baseUrl) => {
 
 const QUICK_EMOJIS = ['👍', '❤️', '😊', '😮', '😢'];
 const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '😂', '🤔', '😎', '😁', '😅', '✨', '🙏', '💚', '💛', '💝', '🤗', '😻', '🥰', '🎉', '😪', '😒', '✔️', '🤞', '😽', '😡', '🤢', '🤡', '🤫'];
+
+// ─── Camera Layout Threshold ──────────────────────────────────────────────────
+// Managed Panel Mode activates when active camera users > this value.
+// Set to 2 for testing (3 or more cameras → managed panel).
+// Change to 10 for production.
+const CAMERA_MANAGED_LAYOUT_THRESHOLD = 10;
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
@@ -260,21 +266,29 @@ const Room = () => {
   const [isResizingCam, setIsResizingCam] = useState(false);
   const [isOverRemoveZone, setIsOverRemoveZone] = useState(false);
   const isOverRemoveRef = useRef(false);
+  // Local-only camera visibility preference (does NOT affect other users)
+  const [areCamerasHidden, setAreCamerasHidden] = useState(
+    () => localStorage.getItem('sahaplay_hide_camera_tiles') === 'true'
+  );
+  // Right-panel tab: 'chat' | 'cameras' — only used when managed layout is active
+  const [rightPanelTab, setRightPanelTab] = useState('chat');
+  // Camera panel display preferences — all local, never sent to server
+  const [cameraLayoutMode, setCameraLayoutMode] = useState(
+    () => localStorage.getItem('sahaplay_camera_layout_mode') || 'list'
+  );
+  const [focusVideoEnabled, setFocusVideoEnabled] = useState(false);
+  const [focusedCameraUserId, setFocusedCameraUserId] = useState(null);
+  const [showCameraMenu, setShowCameraMenu] = useState(false);
+  const cameraMenuRef = useRef(null);
+  // Ref for the right column div — used to compute focus-popout fixed position
+  const rightColumnRef = useRef(null);
+
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameInput, setRenameInput] = useState('');
   const [clearChatModalOpen, setClearChatModalOpen] = useState(false);
   const [clearChatTarget, setClearChatTarget] = useState(null);
   const [clearForBoth, setClearForBoth] = useState(false);
   
-  const broadcastUIState = useCallback((customData = {}) => {
-    if (!socket) return;
-    const data = {
-      camPositions: customData.camPositions || camPositions,
-      camSizes: customData.camSizes || camSizes,
-      circleCams: Array.from(customData.circleCams || circleCams),
-    };
-    socket.emit('ui_sync', { roomId, data });
-  }, [socket, roomId, camPositions, camSizes, circleCams]);
 
   const [profile, setProfile] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -1090,11 +1104,7 @@ const Room = () => {
           setHasMoreGroupHistory(false);
         }
 
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight + prevScrollTop;
-          }, 0);
-        });
+        // Scroll restoration is handled synchronously in useLayoutEffect in RoomChatPanel.jsx
       } catch (err) {
         console.error('[loadMoreGroupHistory] Error:', err);
       } finally {
@@ -1234,10 +1244,14 @@ const Room = () => {
         setModMenuTarget(null);
         setShowHeaderModMenu(false);
       }
+      // Close the camera three-dot menu if clicking outside it
+      if (showCameraMenu && cameraMenuRef.current && !cameraMenuRef.current.contains(e.target)) {
+        setShowCameraMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget, showHeaderModMenu, showGroupEmojiPicker, showDmEmojiPicker]);
+  }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget, showHeaderModMenu, showGroupEmojiPicker, showDmEmojiPicker, showCameraMenu]);
 
   useEffect(() => {
     if (chatTab === 'group') {
@@ -1484,6 +1498,15 @@ const Room = () => {
   const localCamRef = useRef(null);
   const cameraPcRefs = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
+
+  // Auto-switch right panel to "cameras" tab when managed layout activates.
+  // Reactive to isCamOn so the host's own camera toggle immediately updates the layout.
+  useEffect(() => {
+    const activeCamCount = (isCamOn ? 1 : 0) + Object.keys(remoteStreams).length;
+    if (activeCamCount > CAMERA_MANAGED_LAYOUT_THRESHOLD) {
+      setRightPanelTab('cameras');
+    }
+  }, [remoteStreams, isCamOn]);
 
   const [hideCustomControls, setHideCustomControls] = useState(false);
 
@@ -1784,10 +1807,20 @@ const Room = () => {
       setKickedReason(reason);
       sock.disconnect();
     });
-    sock.on('ui_sync', (data) => {
-      if (data.camPositions) setCamPositions(data.camPositions);
-      if (data.camSizes) setCamSizes(data.camSizes);
-      if (data.circleCams) setCircleCams(new Set(data.circleCams));
+
+    sock.on('account_banned', ({ reason, isPermanent, expiresAt }) => {
+      clearUserSession();
+      sock.disconnect();
+      const msg = isPermanent
+        ? `Your account has been permanently banned by an admin.\nReason: ${reason}`
+        : `Your account has been banned until ${new Date(expiresAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}.\nReason: ${reason}`;
+      navigate('/login', { state: { banMessage: msg } });
+    });
+
+    sock.on('account_terminated', ({ reason }) => {
+      clearUserSession();
+      sock.disconnect();
+      navigate('/login', { state: { terminateMessage: `Your account has been permanently terminated by an admin.\nReason: ${reason}\nYou can no longer use this account.` } });
     });
     sock.on('remote_command', ({ command, mediaUrl: mUrl, isScreensharing: isSharing, senderName }) => {
       if (command === 'go_fullscreen_and_play') {
@@ -1850,14 +1883,20 @@ const Room = () => {
         }
         return { ...prev, [otherUserLow]: [] };
       });
-      if (clearForBoth) {
-        sock.emit('request_dm_history', roomId);
-      }
     });
 
     sock.on('room_chat_cleared', ({ roomId: targetRoomId }) => {
       if (roomId === targetRoomId) {
         setGroupMessages([]);
+        try {
+          const cached = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+          const cleaned = cached.map(c =>
+            (c.type === 'room' && (c.partner || '').toLowerCase() === (targetRoomId || '').toLowerCase())
+              ? { ...c, message: '', decryptedText: '', mediaType: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+              : c
+          );
+          localStorage.setItem('watch_recent_chats', JSON.stringify(cleaned));
+        } catch {}
       }
     });
 
@@ -1944,11 +1983,6 @@ const Room = () => {
       if (state.isPublic !== undefined) setIsPublic(state.isPublic);
       if (state.activeExternalApp) setActiveExternalApp(state.activeExternalApp);
       
-      if (state.uiState) {
-        if (state.uiState.camPositions) setCamPositions(state.uiState.camPositions);
-        if (state.uiState.camSizes) setCamSizes(state.uiState.camSizes);
-        if (state.uiState.circleCams) setCircleCams(new Set(state.uiState.circleCams));
-      }
       
       syncRecentChat({ roomName: state.roomName, thumbnailPath: state.thumbnailPath });
       
@@ -2246,15 +2280,7 @@ const Room = () => {
       state.isLoading = false;
       setGroupHistoryLoading(false);
 
-      const scrollEl = groupScrollElRef.current;
-      const scrollPos = groupScrollPosRef.current;
-      if (scrollEl && scrollPos) {
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            scrollEl.scrollTop = scrollEl.scrollHeight - scrollPos.prevScrollHeight + scrollPos.prevScrollTop;
-          }, 0);
-        });
-      }
+      // Scroll restoration is handled synchronously in useLayoutEffect in RoomChatPanel.jsx
     });
 
     sock.on('chat_history_more_dm', async ({ partner, messages: msgs, before }) => {
@@ -2300,15 +2326,7 @@ const Room = () => {
       state.isLoading = false;
       setDmHistoryLoading(false);
 
-      const scrollEl = dmScrollElRef.current;
-      const scrollPos = dmScrollPosRef.current;
-      if (scrollEl && scrollPos) {
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            scrollEl.scrollTop = scrollEl.scrollHeight - scrollPos.prevScrollHeight + scrollPos.prevScrollTop;
-          }, 0);
-        });
-      }
+      // Scroll restoration is handled synchronously in useLayoutEffect in RoomChatPanel.jsx
     });
 
 
@@ -3088,7 +3106,14 @@ const Room = () => {
       setDmThreads(prev => {
         const merged = { ...prev };
         for (const [name, msgs] of Object.entries(threads)) {
-          merged[name.toLowerCase()] = msgs;
+          const key = name.toLowerCase();
+          // If this conversation was cleared in this session, filter out messages
+          // that predate the clear timestamp (secondary defense against server
+          // re-sending cleared messages on reconnect before hiddenFor propagates).
+          const clearedTs = dmClearedTsRef.current?.[key] || 0;
+          merged[key] = clearedTs > 0
+            ? msgs.filter(m => Number(m.timestamp || m.createdAt || 0) > clearedTs)
+            : msgs;
         }
         return merged;
       });
@@ -3337,7 +3362,7 @@ const Room = () => {
     sock.on('kicked_out', ({ reason }) => {
       setKickedReason(reason);
       setIsConnecting(false);
-      if (reason === 'room_deleted') setRoomNotFound(true);
+      if (reason === 'room_deleted' || reason === 'room_closed_by_admin') setRoomNotFound(true);
     });
     sock.on('room_not_found', () => {
       setRoomNotFound(true);
@@ -5300,12 +5325,15 @@ const Room = () => {
   const toggleCamera = async () => {
     console.log('toggleCamera clicked. isCamOn:', isCamOn);
     if (isCamOn) {
-      // Turn off
+      // Turn off — stop every track so the browser releases both camera and mic hardware
       localCamRef.current?.getTracks().forEach(t => t.stop());
       localCamRef.current = null;
       setIsCamOn(false);
       isCamOnRef.current = false;
-      
+      // The camera stream carried the mic track too, so mic is now off at the hardware level
+      setIsMicOnCam(false);
+      if (socket) socket.emit('self_mute', { roomId: (roomId || '').toLowerCase(), isMuted: true });
+
       // Close peer connections ONLY for users who don't have their cameras on.
       Object.keys(cameraPcRefs.current).forEach(sid => {
         if (!remoteStreams[sid]) {
@@ -5313,7 +5341,7 @@ const Room = () => {
           delete cameraPcRefs.current[sid];
         }
       });
-      
+
       socket?.emit('cam_stopped', { roomId: (roomId || '').toLowerCase() });
     } else {
       // Turn on
@@ -5365,38 +5393,69 @@ const Room = () => {
 
   const toggleMic = async () => {
     const nextState = !isMicOnCam;
-    
-    // If turning ON and no stream exists, we must start one (audio-only for now)
-    if (nextState && !localCamRef.current) {
-      try {
-        const selectedMic = localStorage.getItem('watch_selected_mic');
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: selectedMic ? { deviceId: { exact: selectedMic } } : true,
-          video: false 
+
+    if (nextState) {
+      // ── TURNING ON ──
+      const hasLiveAudio = localCamRef.current?.getAudioTracks().some(t => t.readyState === 'live');
+
+      if (!hasLiveAudio) {
+        // No stream at all, or audio tracks were stopped — must acquire mic hardware fresh
+        try {
+          const selectedMic = localStorage.getItem('watch_selected_mic');
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: selectedMic ? { deviceId: { exact: selectedMic } } : true,
+            video: false,
+          });
+          const newTrack = audioStream.getAudioTracks()[0];
+
+          if (localCamRef.current) {
+            // Camera is running — graft the new audio track onto the existing stream
+            localCamRef.current.getAudioTracks().forEach(t => localCamRef.current.removeTrack(t));
+            localCamRef.current.addTrack(newTrack);
+            // Slot it into any open camera peer connections
+            Object.values(cameraPcRefs.current).forEach(pc => {
+              const existingSender = pc.getSenders().find(s => s.track?.kind === 'audio');
+              if (existingSender) existingSender.replaceTrack(newTrack).catch(() => {});
+              else pc.addTrack(newTrack, localCamRef.current);
+            });
+          } else {
+            // No camera stream — keep the audio-only stream
+            localCamRef.current = audioStream;
+          }
+        } catch (err) {
+          toast.error('Could not access microphone.');
+          return;
+        }
+      } else {
+        // Audio track is already live (was just enabled=false) — re-enable it
+        localCamRef.current.getAudioTracks().forEach(t => { t.enabled = true; });
+      }
+    } else {
+      // ── TURNING OFF ── stop tracks entirely so the browser releases the mic hardware
+      if (localCamRef.current) {
+        const audioTracks = localCamRef.current.getAudioTracks();
+        audioTracks.forEach(t => {
+          t.stop();
+          try { localCamRef.current.removeTrack(t); } catch {}
         });
-        localCamRef.current = stream;
-        // Don't set isCamOn=true here, it's just audio
-      } catch (err) {
-        toast.error('Could not access microphone.');
-        return;
+        // Remove audio senders from peer connections so the device indicator clears
+        Object.values(cameraPcRefs.current).forEach(pc => {
+          pc.getSenders().filter(s => s.track?.kind === 'audio').forEach(s => {
+            try { pc.removeTrack(s); } catch {}
+          });
+        });
+        // If camera is also off, clean up the entire stream
+        if (!isCamOn) {
+          localCamRef.current.getTracks().forEach(t => t.stop());
+          localCamRef.current = null;
+        }
       }
     }
 
-    // Toggle tracks in existing streams
-    if (localCamRef.current) {
-      localCamRef.current.getAudioTracks().forEach(t => t.enabled = nextState);
-      
-      // If we are turning OFF and camera is also off, cleanup stream
-      if (!nextState && !isCamOn) {
-        localCamRef.current.getTracks().forEach(t => t.stop());
-        localCamRef.current = null;
-      }
-    }
-    
     if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach(t => t.enabled = nextState);
+      localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = nextState; });
     }
-    
+
     setIsMicOnCam(nextState);
     // Optimistic update: immediately reflect this user's mute state in their own user list view
     if (usernameRef.current) {
@@ -5512,10 +5571,11 @@ const Room = () => {
 
   // ─── Kicked / Not Found Modal ───
   if (roomNotFound || kickedReason || forceMembersOnlyLock) {
-    const isDeleted = kickedReason === 'room_deleted';
+    const isDeleted = kickedReason === 'room_deleted' || kickedReason === 'room_closed_by_admin';
     const isBanned = kickedReason === 'banned';
     const isDenied = kickedReason === 'denied';
     const isMembersOnly = kickedReason === 'members_only' || forceMembersOnlyLock;
+    const isAdminKick = kickedReason === 'admin_kick';
 
     return (
       <div style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(255, 255, 255, 0.95)' : 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }} className="room-modals-overlay">
@@ -5528,16 +5588,18 @@ const Room = () => {
           </div>
 
           <h1 style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 36, fontWeight: 950, marginBottom: 20, letterSpacing: '-1.5px' }}>
-            {isBanned ? 'You are Banned' : isDenied ? 'Access Denied' : isMembersOnly ? 'Members Only' : (isDeleted || roomNotFound ? 'Room Not Found' : 'You were Kicked')}
+            {isBanned ? 'You are Banned' : isDenied ? 'Access Denied' : isMembersOnly ? 'Members Only' : isAdminKick ? 'Removed by Admin' : (isDeleted || roomNotFound ? 'Room Closed' : 'You were Kicked')}
           </h1>
 
           <p style={{ color: isLight ? '#475569' : 'rgba(255,255,255,0.5)', fontSize: 17, lineHeight: 1.7, marginBottom: 48, fontWeight: 500 }}>
             {isBanned ? "The host has restricted your access to this room permanently." :
               (kickedReason === 'denied' ? "The host didn't allow you to join this room." :
                 (isMembersOnly ? "This room allows only signed-in users to join. Please log in to gain access." :
-                  (isDeleted ? "This room has been permanently deleted by the host and no longer exists." :
-                    (roomNotFound ? "We couldn't find the room you're looking for. It might have been deleted or the link is incorrect." :
-                      "You have been removed from the room by the host."))))}
+                  (kickedReason === 'room_closed_by_admin' ? "This room was closed by a platform administrator." :
+                    (isAdminKick ? "You have been removed from this room by a platform administrator." :
+                      (isDeleted ? "This room has been permanently deleted by the host and no longer exists." :
+                        (roomNotFound ? "We couldn't find the room you're looking for. It might have been deleted or the link is incorrect." :
+                          "You have been removed from the room by the host."))))))}
           </p>
 
           <button
@@ -5554,6 +5616,198 @@ const Room = () => {
   }
 
 
+  // ─── Camera layout derivation ──────────────────────────────────────────────
+  // Build the list of all currently active camera users.
+  // Uses isCamOn (not hasStartedCamOnce) so toggling your own camera
+  // immediately updates the count — no page refresh needed for host or anyone.
+  const activeCameraUsers = (() => {
+    const all = [];
+    const seen = new Set();
+    // Local user: only counted while camera is CURRENTLY on
+    if (isCamOn && localCamRef.current) { all.push({ id: 'local', username }); seen.add(username); }
+    // Remote users who have established camera streams
+    Object.entries(remoteStreams).forEach(([sid, { stream, username: uname }]) => {
+      if (!uname || uname === username || seen.has(uname)) return;
+      all.push({ id: sid, username: uname });
+      seen.add(uname);
+    });
+    return all;
+  })();
+  const shouldUseManagedCameraLayout = activeCameraUsers.length > CAMERA_MANAGED_LAYOUT_THRESHOLD;
+
+  // Debug logs — remove after confirming layout works
+  console.log('[CameraLayout] active cameras:', activeCameraUsers.length);
+  console.log('[CameraLayout] mode:', shouldUseManagedCameraLayout ? 'managed' : 'floating');
+  console.log('[CameraLayout] hide cameras local:', areCamerasHidden);
+
+  // ─── Managed Panel renderer ────────────────────────────────────────────────
+  // Renders camera tiles for the right-side Cameras tab.
+  // Supports: list view, grid view (2 columns), focus mode (click to enlarge).
+  const renderCamerasPanel = () => {
+    const allCams = [];
+    const seenUsers = new Set();
+    if (hasStartedCamOnce) {
+      allCams.push({ id: 'local', isLocal: true, stream: localCamRef.current, username, isMuted: !isMicOnCam });
+      seenUsers.add(username);
+    }
+    Object.entries(remoteStreams).forEach(([sid, { stream, username: uname }]) => {
+      if (uname === username || seenUsers.has(uname)) return;
+      const uObj = userList.find(u => u.username?.toLowerCase() === uname?.toLowerCase());
+      allCams.push({ id: sid, isLocal: false, stream, username: uname, isMuted: uObj?.isMuted });
+      seenUsers.add(uname);
+    });
+
+    // Debug logs
+    console.log('[CameraMenu] layout mode:', cameraLayoutMode);
+    console.log('[CameraMenu] focus enabled:', focusVideoEnabled);
+    console.log('[CameraMenu] focused user:', focusedCameraUserId);
+    console.log('[CameraMenu] cameras hidden:', areCamerasHidden);
+
+    if (allCams.length === 0) {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 10, padding: 24, color: isLight ? '#94a3b8' : '#555', flex: 1
+        }}>
+          <VideoOff size={28} />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>No cameras active</span>
+        </div>
+      );
+    }
+
+    // Tile height differs between grid and list
+    const isGrid = cameraLayoutMode === 'grid';
+    const tileHeight = isGrid ? 118 : 160;
+
+    const renderTile = (cam) => {
+      const vTracks = cam.stream ? cam.stream.getVideoTracks() : [];
+      const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
+      const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
+      const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
+      const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
+        ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
+      const isFocused = focusedCameraUserId === cam.id;
+
+      const handleTileClick = () => {
+        if (!focusVideoEnabled) return;
+        setFocusedCameraUserId(prev => prev === cam.id ? null : cam.id);
+      };
+
+      return (
+        <div
+          key={cam.id}
+          onClick={handleTileClick}
+          style={{
+            position: 'relative', borderRadius: 12, overflow: 'hidden',
+            background: '#000', flexShrink: 0, height: tileHeight,
+            border: isFocused
+              ? '2px solid #818cf8'
+              : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'),
+            boxShadow: isFocused
+              ? '0 0 0 3px rgba(129,140,248,0.25), 0 4px 20px rgba(0,0,0,0.5)'
+              : (isLight ? '0 2px 8px rgba(0,0,0,0.06)' : '0 2px 12px rgba(0,0,0,0.4)'),
+            cursor: focusVideoEnabled ? 'pointer' : 'default',
+            transition: 'border 0.15s, box-shadow 0.15s',
+          }}
+        >
+          {/* Video or avatar fallback */}
+          {hasVideo ? (
+            <VideoTile
+              stream={cam.stream}
+              isMuted={cam.isMuted || cam.isLocal}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
+            />
+          ) : (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(135deg, #312e81, #1e1b4b)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              {avatarSrc ? (
+                <img src={avatarSrc} style={{ width: isGrid ? 36 : 56, height: isGrid ? 36 : 56, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+              ) : (
+                <div style={{
+                  width: isGrid ? 36 : 56, height: isGrid ? 36 : 56, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontWeight: 800, fontSize: isGrid ? 13 : 20
+                }}>{cam.username?.substring(0, 2).toUpperCase()}</div>
+              )}
+            </div>
+          )}
+
+          {/* Focused indicator */}
+          {isFocused && (
+            <div className="stay-white" style={{
+              position: 'absolute', top: 6, right: 6,
+              background: 'rgba(99,102,241,0.92)', borderRadius: 6,
+              padding: '2px 7px', fontSize: 10, fontWeight: 800, color: '#fff',
+              pointerEvents: 'none', letterSpacing: '0.5px'
+            }}>FOCUSED</div>
+          )}
+
+          {/* Focus hint overlay (only in focus mode, not focused) */}
+          {focusVideoEnabled && !isFocused && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(0,0,0,0)', transition: 'background 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0)'}
+            />
+          )}
+
+          {/* Bottom name bar */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0,
+            background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)',
+            padding: isGrid ? '14px 8px 6px' : '18px 10px 8px',
+            display: 'flex', alignItems: 'center', gap: 5
+          }}>
+            {/* Mic muted badge */}
+            {cam.isMuted && (
+              <div style={{
+                width: isGrid ? 16 : 20, height: isGrid ? 16 : 20, borderRadius: '50%',
+                background: 'rgba(239,68,68,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <MicOff size={isGrid ? 9 : 11} color="#fff" />
+              </div>
+            )}
+            {/* Camera live dot */}
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+            <span style={{
+              fontSize: isGrid ? 10 : 12, color: '#fff', fontWeight: 700,
+              textShadow: '0 1px 3px rgba(0,0,0,0.8)', overflow: 'hidden',
+              textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1
+            }}>
+              {cam.username}{cam.isLocal ? ' (You)' : ''}
+            </span>
+          </div>
+        </div>
+      );
+    };
+
+    if (isGrid) {
+      return (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: 10, padding: '8px 10px',
+        }}>
+          {allCams.map(renderTile)}
+        </div>
+      );
+    }
+
+    // List view
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px' }}>
+        {allCams.map(renderTile)}
+      </div>
+    );
+  };
 
   // Helper to render camera tiles (shared for overlay and dedicated row modes)
   const renderCameras = (isOverlay) => {
@@ -5606,13 +5860,20 @@ const Room = () => {
             const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5) 
               ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
             const isCircle = circleCams.has(cam.id);
-            const isDraggable = allCams.length <= 3;
+            const isDraggable = allCams.length <= CAMERA_MANAGED_LAYOUT_THRESHOLD;
             const pos = camPositions[cam.id] || { x: 0, y: 0 };
             const currentWidth = camSizes[cam.id] || (isCircle ? 90 : 120);
             const currentHeight = isCircle ? currentWidth : (currentWidth * 0.75);
+            // Ghost wrapper defaults — fixed in the flex layout so resizing one tile never reflows others
+            const defaultWidth = isCircle ? 90 : 120;
+            const defaultHeight = 90;
 
             return (
-              <div key={cam.id} className="cam-container" 
+              <div key={cam.id} style={{
+                width: defaultWidth, height: defaultHeight, flexShrink: 0, position: 'relative',
+                zIndex: draggingCamRef.current?.id === cam.id ? 100 : 1
+              }}>
+              <div className="cam-container"
                 onClick={(e) => { 
                   if (e.target.dataset.dragHandle) return; 
                   // Prevent toggle if we just finished dragging or resizing
@@ -5620,10 +5881,9 @@ const Room = () => {
                   
                   setCircleCams(prev => { 
                     const next = new Set(prev); 
-                    if (next.has(cam.id)) next.delete(cam.id); 
-                    else next.add(cam.id); 
-                    broadcastUIState({ circleCams: next });
-                    return next; 
+                    if (next.has(cam.id)) next.delete(cam.id);
+                    else next.add(cam.id);
+                    return next;
                   }); 
                 }} 
                 onMouseDown={(e) => {
@@ -5659,7 +5919,6 @@ const Room = () => {
                         });
                         toast('Video hidden locally', { icon: '🙈' });
                       }
-                      broadcastUIState();
                     }
                     setIsDraggingCam(false);
                     setIsOverRemoveZone(false);
@@ -5700,7 +5959,6 @@ const Room = () => {
                         setHiddenCams(prev => { const next = new Set(prev); next.add(draggingCamRef.current.id); return next; });
                         toast('Video hidden locally', { icon: '🙈' });
                       }
-                      broadcastUIState();
                     }
                     setIsDraggingCam(false);
                     setIsOverRemoveZone(false);
@@ -5712,13 +5970,13 @@ const Room = () => {
                   window.addEventListener('touchmove', onTouchMove, { passive: false });
                   window.addEventListener('touchend', onTouchEnd);
                 }}
-                style={{ 
-                  position: 'relative', width: currentWidth, height: currentHeight, borderRadius: isCircle ? '50%' : 16, 
-                  background: 'transparent', 
-                  border: 'none', 
-                  flexShrink: 0, transition: (resizingCamRef.current?.id === cam.id || draggingCamRef.current?.id === cam.id) ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                  cursor: isDraggable ? 'move' : 'pointer', transform: `translate(${pos.x}px, ${pos.y}px)`, 
-                  zIndex: draggingCamRef.current?.id === cam.id ? 100 : 1, pointerEvents: 'auto',
+                style={{
+                  position: 'absolute', top: 0, left: 0, width: currentWidth, height: currentHeight, borderRadius: isCircle ? '50%' : 16,
+                  background: 'transparent',
+                  border: 'none',
+                  transition: (resizingCamRef.current?.id === cam.id || draggingCamRef.current?.id === cam.id) ? 'none' : 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1), height 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: isDraggable ? 'move' : 'pointer', transform: `translate(${pos.x}px, ${pos.y}px)`,
+                  pointerEvents: 'auto',
                   boxShadow: 'none',
                   touchAction: 'none'
                 }}>
@@ -5764,9 +6022,8 @@ const Room = () => {
                           const onMouseUp = () => { 
                             setIsResizingCam(false);
                             // Small delay to ensure the onClick doesn't see 'moved' as false immediately
-                            setTimeout(() => { 
+                            setTimeout(() => {
                               if (resizingCamRef.current) {
-                                broadcastUIState();
                                 resizingCamRef.current = null;
                               }
                             }, 50);
@@ -5806,7 +6063,7 @@ const Room = () => {
                           const onTouchEnd = () => {
                             setIsResizingCam(false);
                             setTimeout(() => {
-                              if (resizingCamRef.current) { broadcastUIState(); resizingCamRef.current = null; }
+                              if (resizingCamRef.current) { resizingCamRef.current = null; }
                             }, 50);
                             window.removeEventListener('touchmove', onTouchMove);
                             window.removeEventListener('touchend', onTouchEnd);
@@ -5900,6 +6157,7 @@ const Room = () => {
                   )}
                 </div>
               </div>
+              </div>
             );
           })}
         </div>
@@ -5971,6 +6229,9 @@ const Room = () => {
         @keyframes slideIn { from{opacity:0;transform:translateY(12px);} to{opacity:1;transform:translateY(0);} }
         @keyframes slideInDown { from{opacity:0;transform:translateY(-24px) scale(0.96);} to{opacity:1;transform:translateY(0) scale(1);} }
         @keyframes slideOutUp { from{opacity:1;transform:translateY(0) scale(1);} to{opacity:0;transform:translateY(-20px) scale(0.95);} }
+        @keyframes slideInRight { from{opacity:0;transform:translateX(24px) scale(0.96);} to{opacity:1;transform:translateX(0) scale(1);} }
+        @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+        @keyframes fadeInScale { from{opacity:0;transform:scale(0.88) translateY(8px);} to{opacity:1;transform:scale(1) translateY(0);} }
         @keyframes bounce { 0%,80%,100%{transform:scale(0);} 40%{transform:scale(1);} }
         @keyframes joinPulse { 0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0.4);} 50%{box-shadow:0 0 0 8px rgba(168,85,247,0);} }
         .msg-enter{animation:slideIn 0.2s ease;}
@@ -6047,14 +6308,14 @@ const Room = () => {
       `}</style>
 
       {/* ═══════════════════════════════════════════════════════════════
-          ROOT-LEVEL CAMERA OVERLAY
-          position:absolute over the entire Room div (100vh) so that
-          dragged/resized camera tiles appear on top of the chats panel
-          and any other sibling flex columns.
+          ROOT-LEVEL CAMERA OVERLAY — FLOATING MODE ONLY
+          Only rendered when cameras are ≤ CAMERA_MANAGED_LAYOUT_THRESHOLD (floating/draggable mode).
+          When managed layout is active, cameras are rendered in the right-side panel instead.
+          When cameras are hidden, nothing is rendered here.
           zIndex:999 keeps it below the nav header (zIndex:1000).
           In fullscreen mode the overlay inside player-wrap is used instead.
       ══════════════════════════════════════════════════════════════ */}
-      {!isFullscreen && !isTvMode && (
+      {!isFullscreen && !isTvMode && !shouldUseManagedCameraLayout && !areCamerasHidden && (
         <>
           <div style={{
             position: 'absolute',
@@ -6149,20 +6410,8 @@ const Room = () => {
           </button>
           <div className="room-header-divider" style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }} />
           <div className="room-header-divider-wrap" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'default', padding: 0 }}>
-            <div style={{ 
-              width: 32, 
-              height: 32, 
-              borderRadius: 10, 
-              background: 'linear-gradient(135deg,#6366f1,#a855f7)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              boxShadow: '0 4px 12px rgba(99,102,241,0.3)',
-              overflow: 'hidden'
-            }}>
-              <Play size={14} fill="#fff" color="#fff" />
-            </div>
-            <span className="room-brand-text" style={{ fontWeight: 800, fontSize: 18, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>WatchTogether</span>
+            <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 28, height: 28 }} />
+            <span className="room-brand-text" style={{ fontWeight: 800, fontSize: 18, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>SahaPlay</span>
           </div>
           <div className="room-header-divider" style={{ width: 1, height: 24, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)', margin: '0 4px' }} />
           <span className="room-id-text" style={{ fontSize: 13, color: isLight ? '#64748b' : '#666', fontWeight: 600 }}>{t('roomLabel', 'Room:')} <span style={{ color: isLight ? '#1e293b' : '#aaa' }}>{roomId}</span></span>
@@ -6479,6 +6728,34 @@ const Room = () => {
               {totalUnread > 0 && <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{totalUnread > 9 ? '9+' : totalUnread}</div>}
             </button>
           </div>
+
+          {/* Hide / Show Cameras — local preference only, does NOT affect other users */}
+          {(hasStartedCamOnce || Object.keys(remoteStreams).length > 0) && (
+            <button
+              className={`nav-icon-btn room-desktop-only${areCamerasHidden ? ' active' : ''}`}
+              title={areCamerasHidden ? 'Show Cameras' : 'Hide Cameras'}
+              onClick={() => {
+                const next = !areCamerasHidden;
+                setAreCamerasHidden(next);
+                localStorage.setItem('sahaplay_hide_camera_tiles', String(next));
+                if (!next && shouldUseManagedCameraLayout) setRightPanelTab('cameras');
+              }}
+              style={{
+                width: 38, height: 38, borderRadius: 12,
+                background: areCamerasHidden
+                  ? (isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)')
+                  : 'var(--room-card-bg)',
+                border: areCamerasHidden
+                  ? '1px solid rgba(99,102,241,0.4)'
+                  : '1px solid var(--room-border)',
+                color: areCamerasHidden ? '#818cf8' : (isLight ? '#000' : '#fff'),
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.2s', position: 'relative'
+              }}
+            >
+              {areCamerasHidden ? <Eye size={17} strokeWidth={2.5} /> : <EyeOff size={17} strokeWidth={2.5} />}
+            </button>
+          )}
 
           {/* Share Button */}
           <button
@@ -8253,8 +8530,8 @@ const Room = () => {
               </button>
             )}
             
-            {/* Camera Streams Overlay (only inside player-wrap when in fullscreen) */}
-            {isFullscreen && (
+            {/* Camera Streams Overlay (only inside player-wrap when in fullscreen, floating mode only) */}
+            {isFullscreen && !shouldUseManagedCameraLayout && !areCamerasHidden && (
               <div style={{
                 position: 'absolute', inset: 0, 
                 zIndex: (isDraggingCam || isResizingCam) ? 99999 : 1, 
@@ -8363,7 +8640,7 @@ const Room = () => {
         
         {/* — Right Column — */}
         {!isTvMode && (
-        <div className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
+        <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
           {/* Mobile: Browse Media button pinned above chat when no media playing */}
           {isMobile && !mediaUrl && !isTvMode && (
             <button onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
@@ -8372,7 +8649,7 @@ const Room = () => {
             </button>
           )}
 
-          {/* — Controls Box — */}
+          {/* — Controls Box — unchanged in both modes */}
           {!isFullscreen && !isTvMode && (
             <div className="room-quick-controls" style={{
               background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
@@ -8468,52 +8745,478 @@ const Room = () => {
             </div>
           )}
 
-          {/* — Chat Panel — */}
-          {!isTvMode && (
-            <RoomChatPanel p={{
-              chatTab, setChatTab, chatTabRef,
-              groupMessages, groupUnread, setGroupUnread,
-              userList, room, isHost, isAdmin, // added roles for avatar visualization
-              dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
-              dmDecryptedMediaUrls, dmMediaUrlVersion,
-              groupDecryptedMediaUrls, groupMediaUrlVersion,
-              typingStatuses, typingUsers, messagesEndRef,
-              groupChatInput, setGroupChatInput, groupInputRef,
-              dmChatInput, setDmChatInput, dmInputRef,
-              groupReplyTo, setGroupReplyTo,
-              dmReplyTo, setDmReplyTo,
-              activeReactionMsg, setActiveReactionMsg,
-              showAllEmojis, setShowAllEmojis,
-              showGroupEmojiPicker, setShowGroupEmojiPicker,
-              showDmEmojiPicker, setShowDmEmojiPicker,
-              showGroupMenu, setShowGroupMenu, groupMenuRef,
-              showDmMenu, setShowDmMenu, dmMenuRef,
-              isMuted, isHost: isEffectiveHost,
-              allowLinks: room?.permissions?.allowLinks !== false,
-              allowMedia: room?.permissions?.allowMedia !== false,
-              chatPerm: room?.permissions?.chat || 'all',
-              roomName, userCount, userList,
-              username, mySocketId, mySocketIdRef,
-              knownUsers, knownAvatars,
-              keyPair, dbPublicKeys,
-              sendGroupChat, sendDmChat,
-              sendMediaGroupChat, sendMediaDmChat,
-              handleGroupReact, handleDmReact,
-              handleDeleteMessage,
-              handleChatInputChange,
-              openDM, reportMsg,
-              setRenameInput, setRenameModalOpen,
-              setClearChatTarget, setClearChatModalOpen,
-              SOCKET_SERVER_URL, roomId,
-              onMarkRead: handleMarkRead,
-              clearRoomChat: () => { if (socket) socket.emit('clear_room_chat', { roomId }); },
-              setDmThreads,
-              socket,
-              reactionPreviews, setReactionPreviews,
-              groupHistoryLoading, dmHistoryLoading,
-              hasMoreGroupHistory, hasMoreDmHistory,
-              loadMoreGroupHistory, loadMoreDmHistory
-            }} />
+          {/* ── Focus Video Popout — rendered here (direct child of room-right-column)
+              so it escapes all inner overflow:hidden containers and floats freely
+              left into the player area using position:absolute on the right column.
+          ─────────────────────────────────────────────────────────────────────── */}
+          {focusVideoEnabled && focusedCameraUserId && rightPanelTab === 'cameras' && shouldUseManagedCameraLayout && (() => {
+            const allCams = [];
+            const seen = new Set();
+            if (isCamOn && localCamRef.current) { allCams.push({ id: 'local', isLocal: true, stream: localCamRef.current, username, isMuted: !isMicOnCam }); seen.add(username); }
+            Object.entries(remoteStreams).forEach(([sid, { stream, username: uname }]) => {
+              if (!uname || uname === username || seen.has(uname)) return;
+              const uObj = userList.find(u => u.username?.toLowerCase() === uname?.toLowerCase());
+              allCams.push({ id: sid, isLocal: false, stream, username: uname, isMuted: uObj?.isMuted });
+              seen.add(uname);
+            });
+            const focusedCam = allCams.find(c => c.id === focusedCameraUserId);
+            if (!focusedCam) return null;
+            const vTracks = focusedCam.stream ? focusedCam.stream.getVideoTracks() : [];
+            const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
+
+            // Shared card content used by both mobile overlay and desktop float
+            const cardInner = (
+              <div style={{
+                width: isMobile ? 'min(calc(100vw - 32px), 440px)' : 340,
+                borderRadius: 16,
+                background: isLight ? '#ffffff' : '#0d0d14',
+                border: isLight ? '1px solid rgba(99,102,241,0.25)' : '1px solid rgba(129,140,248,0.4)',
+                boxShadow: isLight
+                  ? '0 16px 48px rgba(0,0,0,0.22), 0 0 0 1px rgba(99,102,241,0.12)'
+                  : '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(129,140,248,0.2)',
+                overflow: 'hidden',
+                animation: 'fadeInScale 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              }}>
+                {/* Header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '12px 14px',
+                  borderBottom: isLight ? '1px solid rgba(0,0,0,0.09)' : '1px solid rgba(255,255,255,0.08)',
+                  background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.12)',
+                }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: isLight ? '#111827' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {focusedCam.username}{focusedCam.isLocal ? ' (You)' : ''}
+                  </span>
+                  {focusedCam.isMuted && (
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(239,68,68,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <MicOff size={11} color="#fff" />
+                    </div>
+                  )}
+                  <span className="stay-white" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: 'rgba(99,102,241,0.85)', borderRadius: 5, padding: '2px 8px', flexShrink: 0 }}>FOCUSED</span>
+                  <button
+                    onClick={() => setFocusedCameraUserId(null)}
+                    title="Close"
+                    style={{ width: 28, height: 28, borderRadius: 8, background: isLight ? 'transparent' : 'rgba(255,255,255,0.08)', border: isLight ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(255,255,255,0.12)', color: isLight ? '#374151' : '#bbb', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = isLight ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.25)'; e.currentTarget.style.color = isLight ? '#dc2626' : '#fca5a5'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isLight ? 'transparent' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = isLight ? '#374151' : '#bbb'; }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {/* 16:9 video — always dark */}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000' }}>
+                  {hasVideo ? (
+                    <VideoTile stream={focusedCam.stream} isMuted={focusedCam.isMuted || focusedCam.isLocal}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #312e81, #1e1b4b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
+                      <div className="stay-white" style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 24 }}>
+                        {focusedCam.username?.substring(0, 2).toUpperCase()}
+                      </div>
+                      <span className="stay-white" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>Camera off</span>
+                    </div>
+                  )}
+                </div>
+                {/* Footer */}
+                <div style={{ padding: '9px 14px', fontSize: 11, textAlign: 'center', color: isLight ? '#374151' : 'rgba(255,255,255,0.4)', borderTop: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.05)' }}>
+                  {isMobile ? 'Tap outside or × to close' : 'Click tile again or × to close'}
+                </div>
+              </div>
+            );
+
+            // Mobile: centered full-screen overlay with backdrop
+            if (isMobile) {
+              return (
+                <div
+                  onClick={() => setFocusedCameraUserId(null)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                >
+                  <div onClick={e => e.stopPropagation()}>{cardInner}</div>
+                </div>
+              );
+            }
+
+            // Desktop/tablet: floating card anchored left of right panel
+            const rcRect = rightColumnRef.current?.getBoundingClientRect();
+            const popoutWidth = 340;
+            const popoutLeft = rcRect ? Math.max(8, rcRect.left - popoutWidth - 14) : 8;
+            const popoutTop  = rcRect ? Math.min(rcRect.top + 60, window.innerHeight - 280) : 120;
+            return (
+              <div style={{ position: 'fixed', left: popoutLeft, top: popoutTop, zIndex: 9999 }}>{cardInner}</div>
+            );
+          })()}
+
+          {/* ── MANAGED LAYOUT: Tabbed Chat / Cameras panel ──────────────────────
+              Shown on ALL screen sizes (including mobile) when cameras > threshold.
+              Previously excluded !isMobile — now works on phone/tablet/desktop.
+          ─────────────────────────────────────────────────────────────────────── */}
+          {!isTvMode && shouldUseManagedCameraLayout ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
+              background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
+              borderRadius: 16, border: '1px solid var(--room-border)',
+              boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none',
+              marginTop: isFullscreen ? 0 : 0,
+            }}>
+              {/* Tab bar */}
+              <div style={{
+                display: 'flex', flexShrink: 0,
+                borderBottom: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.07)'}`,
+                padding: '0 4px',
+              }}>
+                {[
+                  { id: 'chat', label: 'Chat', icon: <MessageCircle size={14} /> },
+                  {
+                    id: 'cameras',
+                    label: `Cameras${activeCameraUsers.length > 0 ? ` (${activeCameraUsers.length})` : ''}`,
+                    icon: <Video size={14} />
+                  }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setRightPanelTab(tab.id)}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      padding: '11px 8px',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontWeight: 700,
+                      color: rightPanelTab === tab.id
+                        ? (isLight ? '#6366f1' : '#818cf8')
+                        : (isLight ? '#94a3b8' : '#555'),
+                      borderBottom: rightPanelTab === tab.id
+                        ? `2px solid ${isLight ? '#6366f1' : '#818cf8'}`
+                        : '2px solid transparent',
+                      transition: 'all 0.2s',
+                      marginBottom: -1,
+                    }}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {/* Chat tab — RoomChatPanel rendered but hidden when not active (preserves scroll/state) */}
+                <div style={{ flex: 1, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+                  <RoomChatPanel p={{
+                    chatTab, setChatTab, chatTabRef,
+                    groupMessages, groupUnread, setGroupUnread,
+                    userList, room, isHost, isAdmin,
+                    dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
+                    dmDecryptedMediaUrls, dmMediaUrlVersion,
+                    groupDecryptedMediaUrls, groupMediaUrlVersion,
+                    typingStatuses, typingUsers, messagesEndRef,
+                    groupChatInput, setGroupChatInput, groupInputRef,
+                    dmChatInput, setDmChatInput, dmInputRef,
+                    groupReplyTo, setGroupReplyTo,
+                    dmReplyTo, setDmReplyTo,
+                    activeReactionMsg, setActiveReactionMsg,
+                    showAllEmojis, setShowAllEmojis,
+                    showGroupEmojiPicker, setShowGroupEmojiPicker,
+                    showDmEmojiPicker, setShowDmEmojiPicker,
+                    showGroupMenu, setShowGroupMenu, groupMenuRef,
+                    showDmMenu, setShowDmMenu, dmMenuRef,
+                    isMuted, isHost: isEffectiveHost,
+                    allowLinks: room?.permissions?.allowLinks !== false,
+                    allowMedia: room?.permissions?.allowMedia !== false,
+                    chatPerm: room?.permissions?.chat || 'all',
+                    roomName, userCount, userList,
+                    username, mySocketId, mySocketIdRef,
+                    knownUsers, knownAvatars,
+                    keyPair, dbPublicKeys,
+                    sendGroupChat, sendDmChat,
+                    sendMediaGroupChat, sendMediaDmChat,
+                    handleGroupReact, handleDmReact,
+                    handleDeleteMessage,
+                    handleChatInputChange,
+                    openDM, reportMsg,
+                    setRenameInput, setRenameModalOpen,
+                    setClearChatTarget, setClearChatModalOpen, setClearForBoth,
+                    SOCKET_SERVER_URL, roomId,
+                    onMarkRead: handleMarkRead,
+                    clearRoomChat: () => { setGroupMessages([]); if (socket) socket.emit('clear_room_chat', { roomId }); },
+                    setDmThreads,
+                    socket,
+                    reactionPreviews, setReactionPreviews,
+                    groupHistoryLoading, dmHistoryLoading,
+                    hasMoreGroupHistory, hasMoreDmHistory,
+                    loadMoreGroupHistory, loadMoreDmHistory
+                  }} />
+                </div>
+
+                {/* Cameras tab */}
+                {rightPanelTab === 'cameras' && (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+                    {/* ── LIVE CAMERAS header row ── */}
+                    <div style={{
+                      padding: '10px 12px 6px',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      flexShrink: 0,
+                    }}>
+                      {/* Label */}
+                      <span style={{
+                        fontSize: 11, fontWeight: 900, letterSpacing: '1.2px',
+                        textTransform: 'uppercase', flex: 1,
+                        color: isLight ? '#64748b' : '#666'
+                      }}>
+                        Live Cameras
+                      </span>
+                      {/* Active count pill */}
+                      <span style={{
+                        background: 'rgba(16,185,129,0.15)', color: '#10b981',
+                        border: '1px solid rgba(16,185,129,0.3)',
+                        borderRadius: 20, padding: '2px 9px',
+                        fontSize: 11, fontWeight: 800, flexShrink: 0
+                      }}>
+                        {activeCameraUsers.length} active
+                      </span>
+
+                      {/* ⋮ Three-dot menu button */}
+                      <div ref={cameraMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+                        <button
+                          onClick={() => setShowCameraMenu(v => !v)}
+                          title="Camera Options"
+                          style={{
+                            width: 28, height: 28, borderRadius: 8,
+                            background: showCameraMenu
+                              ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)')
+                              : 'transparent',
+                            border: showCameraMenu
+                              ? '1px solid rgba(99,102,241,0.35)'
+                              : '1px solid transparent',
+                            color: showCameraMenu ? '#818cf8' : (isLight ? '#94a3b8' : '#555'),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={e => { if (!showCameraMenu) { e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = isLight ? '#475569' : '#aaa'; } }}
+                          onMouseLeave={e => { if (!showCameraMenu) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isLight ? '#94a3b8' : '#555'; } }}
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+
+                        {/* ── Dropdown menu ── */}
+                        {showCameraMenu && (
+                          <div style={{
+                            position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+                            background: isLight ? '#fff' : '#1a1a24',
+                            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 14,
+                            boxShadow: isLight ? '0 8px 32px rgba(0,0,0,0.12)' : '0 8px 40px rgba(0,0,0,0.7)',
+                            zIndex: 9000,
+                            minWidth: 196,
+                            padding: '6px 0',
+                            overflow: 'hidden',
+                          }}>
+                            {/* ── Section: Camera Layout ── */}
+                            <div style={{ padding: '6px 14px 4px', fontSize: 10, fontWeight: 900, letterSpacing: '0.9px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#444' }}>
+                              Camera Layout
+                            </div>
+                            {[
+                              { id: 'list', label: 'List View', icon: <LayoutGrid size={13} /> },
+                              { id: 'grid', label: 'Grid View (2 col)', icon: <Monitor size={13} /> },
+                            ].map(item => (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setCameraLayoutMode(item.id);
+                                  localStorage.setItem('sahaplay_camera_layout_mode', item.id);
+                                  setShowCameraMenu(false);
+                                }}
+                                style={{
+                                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                  padding: '9px 14px', background: cameraLayoutMode === item.id
+                                    ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)')
+                                    : 'transparent',
+                                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                                  fontSize: 13, fontWeight: cameraLayoutMode === item.id ? 700 : 500,
+                                  color: cameraLayoutMode === item.id
+                                    ? (isLight ? '#6366f1' : '#818cf8')
+                                    : (isLight ? '#334155' : '#ccc'),
+                                  transition: 'background 0.12s',
+                                }}
+                                onMouseEnter={e => { if (cameraLayoutMode !== item.id) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
+                                onMouseLeave={e => { if (cameraLayoutMode !== item.id) e.currentTarget.style.background = 'transparent'; }}
+                              >
+                                <span style={{ color: cameraLayoutMode === item.id ? (isLight ? '#6366f1' : '#818cf8') : (isLight ? '#94a3b8' : '#555') }}>{item.icon}</span>
+                                {item.label}
+                                {cameraLayoutMode === item.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? '#6366f1' : '#818cf8' }}>✓</span>}
+                              </button>
+                            ))}
+
+                            {/* Divider */}
+                            <div style={{ height: 1, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', margin: '5px 0' }} />
+
+                            {/* ── Section: Focus Video ── */}
+                            <div style={{ padding: '4px 14px 4px', fontSize: 10, fontWeight: 900, letterSpacing: '0.9px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#444' }}>
+                              Focus Video
+                            </div>
+                            <button
+                              onClick={() => {
+                                const next = !focusVideoEnabled;
+                                setFocusVideoEnabled(next);
+                                if (!next) setFocusedCameraUserId(null);
+                                setShowCameraMenu(false);
+                              }}
+                              style={{
+                                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '9px 14px', background: focusVideoEnabled
+                                  ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)')
+                                  : 'transparent',
+                                border: 'none', cursor: 'pointer', textAlign: 'left',
+                                fontSize: 13, fontWeight: focusVideoEnabled ? 700 : 500,
+                                color: focusVideoEnabled
+                                  ? (isLight ? '#6366f1' : '#818cf8')
+                                  : (isLight ? '#334155' : '#ccc'),
+                                transition: 'background 0.12s',
+                              }}
+                              onMouseEnter={e => { if (!focusVideoEnabled) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
+                              onMouseLeave={e => { if (!focusVideoEnabled) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <Maximize size={13} style={{ color: focusVideoEnabled ? (isLight ? '#6366f1' : '#818cf8') : (isLight ? '#94a3b8' : '#555') }} />
+                              {focusVideoEnabled ? 'Disable Focus Mode' : 'Enable Focus Mode'}
+                              {focusVideoEnabled && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? '#6366f1' : '#818cf8' }}>ON</span>}
+                            </button>
+
+                            {/* Divider */}
+                            <div style={{ height: 1, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', margin: '5px 0' }} />
+
+                            {/* ── Section: Visibility ── */}
+                            <div style={{ padding: '4px 14px 4px', fontSize: 10, fontWeight: 900, letterSpacing: '0.9px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#444' }}>
+                              Visibility
+                            </div>
+                            <button
+                              onClick={() => {
+                                const next = !areCamerasHidden;
+                                setAreCamerasHidden(next);
+                                localStorage.setItem('sahaplay_hide_camera_tiles', String(next));
+                                setShowCameraMenu(false);
+                              }}
+                              style={{
+                                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '9px 14px', background: 'transparent',
+                                border: 'none', cursor: 'pointer', textAlign: 'left',
+                                fontSize: 13, fontWeight: 500,
+                                color: isLight ? '#334155' : '#ccc',
+                                transition: 'background 0.12s',
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(239,68,68,0.06)' : 'rgba(239,68,68,0.08)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              {areCamerasHidden
+                                ? <Eye size={13} style={{ color: '#10b981' }} />
+                                : <EyeOff size={13} style={{ color: isLight ? '#94a3b8' : '#555' }} />}
+                              {areCamerasHidden ? 'Show Cameras' : 'Hide All Cameras'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ── Focus hint bar ── */}
+                    {focusVideoEnabled && !areCamerasHidden && (
+                      <div style={{
+                        margin: '0 10px 4px',
+                        padding: '5px 12px',
+                        background: isLight ? 'rgba(67,56,202,0.12)' : 'rgba(99,102,241,0.18)',
+                        border: `1px solid ${isLight ? 'rgba(67,56,202,0.3)' : 'rgba(129,140,248,0.35)'}`,
+                        borderRadius: 8, flexShrink: 0,
+                        fontSize: 11,
+                        color: isLight ? '#4338ca' : '#c7d2fe',
+                        fontWeight: 700,
+                        display: 'flex', alignItems: 'center', gap: 6
+                      }}>
+                        <Maximize size={12} />
+                        Click a camera to focus · click again to close
+                      </div>
+                    )}
+
+
+                    {/* ── Camera tile list / hidden state ── */}
+                    {areCamerasHidden ? (
+                      /* Always dark-themed — camera content is inherently dark */
+                      <div style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+                        padding: 28, flex: 1, justifyContent: 'center',
+                        background: 'rgba(0,0,0,0.22)', borderRadius: 10, margin: '6px 8px',
+                      }}>
+                        <EyeOff size={28} color="#818cf8" />
+                        <span className="stay-white" style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Cameras hidden</span>
+                        <button
+                          className="stay-white"
+                          onClick={() => { setAreCamerasHidden(false); localStorage.setItem('sahaplay_hide_camera_tiles', 'false'); }}
+                          style={{
+                            padding: '7px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                            border: 'none', borderRadius: 10, color: '#fff',
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            boxShadow: '0 4px 12px rgba(99,102,241,0.35)'
+                          }}
+                        >
+                          Show Cameras
+                        </button>
+                      </div>
+                    ) : (
+                      /* Scrollable camera tiles */
+                      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                        {renderCamerasPanel()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            </div>
+          ) : (
+            /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
+            !isTvMode && (
+              <RoomChatPanel p={{
+                chatTab, setChatTab, chatTabRef,
+                groupMessages, groupUnread, setGroupUnread,
+                userList, room, isHost, isAdmin,
+                dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
+                dmDecryptedMediaUrls, dmMediaUrlVersion,
+                groupDecryptedMediaUrls, groupMediaUrlVersion,
+                typingStatuses, typingUsers, messagesEndRef,
+                groupChatInput, setGroupChatInput, groupInputRef,
+                dmChatInput, setDmChatInput, dmInputRef,
+                groupReplyTo, setGroupReplyTo,
+                dmReplyTo, setDmReplyTo,
+                activeReactionMsg, setActiveReactionMsg,
+                showAllEmojis, setShowAllEmojis,
+                showGroupEmojiPicker, setShowGroupEmojiPicker,
+                showDmEmojiPicker, setShowDmEmojiPicker,
+                showGroupMenu, setShowGroupMenu, groupMenuRef,
+                showDmMenu, setShowDmMenu, dmMenuRef,
+                isMuted, isHost: isEffectiveHost,
+                allowLinks: room?.permissions?.allowLinks !== false,
+                allowMedia: room?.permissions?.allowMedia !== false,
+                chatPerm: room?.permissions?.chat || 'all',
+                roomName, userCount, userList,
+                username, mySocketId, mySocketIdRef,
+                knownUsers, knownAvatars,
+                keyPair, dbPublicKeys,
+                sendGroupChat, sendDmChat,
+                sendMediaGroupChat, sendMediaDmChat,
+                handleGroupReact, handleDmReact,
+                handleDeleteMessage,
+                handleChatInputChange,
+                openDM, reportMsg,
+                setRenameInput, setRenameModalOpen,
+                setClearChatTarget, setClearChatModalOpen, setClearForBoth,
+                SOCKET_SERVER_URL, roomId,
+                onMarkRead: handleMarkRead,
+                clearRoomChat: () => { setGroupMessages([]); if (socket) socket.emit('clear_room_chat', { roomId }); },
+                setDmThreads,
+                socket,
+                reactionPreviews, setReactionPreviews,
+                groupHistoryLoading, dmHistoryLoading,
+                hasMoreGroupHistory, hasMoreDmHistory,
+                loadMoreGroupHistory, loadMoreDmHistory
+              }} />
+            )
           )}
         </div>
         )}
@@ -8530,6 +9233,10 @@ const Room = () => {
         clearChatTarget={clearChatTarget}
         clearForBoth={clearForBoth}
         setClearForBoth={setClearForBoth}
+        onClearDm={(target) => {
+          const key = (target || '').toLowerCase();
+          if (key) setDmThreads(prev => ({ ...prev, [key]: [] }));
+        }}
         isLight={isLight}
         showCastDiscovery={showCastDiscovery}
         setShowCastDiscovery={setShowCastDiscovery}

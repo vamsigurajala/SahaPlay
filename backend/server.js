@@ -544,6 +544,132 @@ const migrationsReady = (async () => {
   } catch (e) {
     console.warn('[Migration] country_code backfill error (non-fatal):', e.message);
   }
+
+  // ─── Admin System Migrations ─────────────────────────────────────────────
+  await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user',
+      ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS is_permanently_banned BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS ban_reason TEXT,
+      ADD COLUMN IF NOT EXISTS terminated BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+  `).catch(e => console.warn('[Migration] admin user columns:', e.message));
+
+  await pool.query(`
+    ALTER TABLE room_names
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+  `).catch(e => console.warn('[Migration] room_names created_at:', e.message));
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bans (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      banned_by_admin_id TEXT NOT NULL,
+      ban_type TEXT NOT NULL,
+      scope TEXT NOT NULL DEFAULT 'global',
+      room_id TEXT,
+      reason TEXT NOT NULL,
+      starts_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at TIMESTAMPTZ,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] bans table:', e.message));
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id SERIAL PRIMARY KEY,
+      admin_user_id TEXT NOT NULL,
+      admin_email TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_user_id TEXT,
+      room_id TEXT,
+      details JSONB,
+      reason TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] admin_audit_logs table:', e.message));
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id SERIAL PRIMARY KEY,
+      "roomId" TEXT,
+      "reporterUsername" TEXT NOT NULL,
+      "reportedUsername" TEXT DEFAULT 'Unknown',
+      message TEXT NOT NULL,
+      resolved BOOLEAN DEFAULT FALSE,
+      "createdAt" TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] reports table:', e.message));
+
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolved BOOLEAN DEFAULT FALSE`)
+    .catch(e => console.warn('[Migration] reports.resolved column:', e.message));
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_requests (
+      id SERIAL PRIMARY KEY,
+      request_type VARCHAR(50) NOT NULL DEFAULT 'contact',
+      subject VARCHAR(500) NOT NULL,
+      message TEXT NOT NULL,
+      submitted_by_user_id TEXT,
+      submitted_by_email VARCHAR(255),
+      submitted_by_name VARCHAR(255),
+      room_id VARCHAR(255),
+      target_user_id TEXT,
+      priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+      status VARCHAR(30) NOT NULL DEFAULT 'open',
+      attachments JSONB,
+      metadata JSONB,
+      admin_notes TEXT,
+      assigned_to_admin_id TEXT,
+      resolved_by_admin_id TEXT,
+      resolved_at TIMESTAMPTZ,
+      attachment_deleted BOOLEAN DEFAULT FALSE,
+      attachment_deleted_at TIMESTAMPTZ,
+      email_notification_status VARCHAR(20) DEFAULT 'pending',
+      email_notification_error TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] support_requests table:', e.message));
+
+  // Add resolution_message column (confidential user-facing message, separate from internal admin_notes)
+  await pool.query(`ALTER TABLE support_requests ADD COLUMN IF NOT EXISTS resolution_message TEXT`)
+    .catch(e => console.warn('[Migration] resolution_message column:', e.message));
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admin_invites (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      role VARCHAR(50) NOT NULL DEFAULT 'moderator',
+      token_hash VARCHAR(255) NOT NULL UNIQUE,
+      invited_by_admin_id TEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      expires_at TIMESTAMPTZ NOT NULL,
+      accepted_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] admin_invites table:', e.message));
+
+  await pool.query(`ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS target_email TEXT`)
+    .catch(e => console.warn('[Migration] admin_audit_logs.target_email column:', e.message));
+  await pool.query(`ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS support_request_id TEXT`)
+    .catch(e => console.warn('[Migration] admin_audit_logs.support_request_id column:', e.message));
+
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'open'`)
+    .catch(e => console.warn('[Migration] reports.status column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS admin_notes TEXT`)
+    .catch(e => console.warn('[Migration] reports.admin_notes column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolved_by_admin_id TEXT`)
+    .catch(e => console.warn('[Migration] reports.resolved_by_admin_id column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ`)
+    .catch(e => console.warn('[Migration] reports.resolved_at column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium'`)
+    .catch(e => console.warn('[Migration] reports.priority column:', e.message));
+
+  console.log('[Migration] Admin system migrations complete');
 })();
 
 function computeMediaExpiry(mediaType) {
@@ -554,7 +680,7 @@ function computeMediaExpiry(mediaType) {
   return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // documents / other
 }
 
-// â”€â”€ YouTube Search Proxy (via yt-search) â”€â”€
+// â"€â"€ YouTube Search Proxy (via yt-search) â"€â"€
 const ytSearch = require('yt-search');
 
 app.get('/api/youtube/search', async (req, res) => {
@@ -901,12 +1027,49 @@ app.post('/api/login', async (req, res) => {
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) return res.status(400).json({ error: 'Invalid credentials' });
 
+    // ─── Ban / termination enforcement ───
+    if (user.terminated) {
+      return res.status(403).json({
+        error: `Your account has been permanently terminated by an admin.\nReason: ${user.ban_reason || 'Policy violation'}\nYou can no longer use this account.`,
+        code: 'ACCOUNT_TERMINATED',
+        reason: user.ban_reason || 'Policy violation',
+      });
+    }
+    if (user.is_permanently_banned) {
+      return res.status(403).json({
+        error: `Your account has been permanently banned by an admin.\nReason: ${user.ban_reason || 'Policy violation'}`,
+        code: 'ACCOUNT_BANNED_PERMANENT',
+        reason: user.ban_reason || 'Policy violation',
+      });
+    }
+    if (user.banned_until && new Date(user.banned_until) > new Date()) {
+      const expiry = new Date(user.banned_until).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
+      return res.status(403).json({
+        error: `Your account has been banned until ${expiry}.\nReason: ${user.ban_reason || 'Policy violation'}`,
+        code: 'ACCOUNT_BANNED_TEMP',
+        bannedUntil: user.banned_until,
+        reason: user.ban_reason || 'Policy violation',
+      });
+    }
+
+    // ─── One-time admin promotion via ADMIN_EMAIL ───
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (adminEmail && user.email === adminEmail && user.role !== 'admin') {
+      await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+      user.role = 'admin';
+      console.log('[ADMIN] Promoted to admin on first login:', user.email);
+    }
+
+    // ─── Track last login ───
+    pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
+
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    
+
     res.json({
       message: 'Login successful',
       token,
       username: user.username,
+      role: user.role || 'user',
       encryptedPrivateKey: user.encryptedPrivateKey || null,
       publicKey: user.publicKey || null
     });
@@ -939,8 +1102,45 @@ app.post('/api/auth/google', async (req, res) => {
       if (user.isVerified === 0) {
         return res.status(403).json({ error: 'Account not verified. Please check your email to verify your account.' });
       }
+
+      // ─── Ban / termination enforcement ───
+      if (user.terminated) {
+        return res.status(403).json({
+          error: `Your account has been permanently terminated by an admin.\nReason: ${user.ban_reason || 'Policy violation'}\nYou can no longer use this account.`,
+          code: 'ACCOUNT_TERMINATED',
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+      if (user.is_permanently_banned) {
+        return res.status(403).json({
+          error: `Your account has been permanently banned by an admin.\nReason: ${user.ban_reason || 'Policy violation'}`,
+          code: 'ACCOUNT_BANNED_PERMANENT',
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+      if (user.banned_until && new Date(user.banned_until) > new Date()) {
+        const expiry = new Date(user.banned_until).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
+        return res.status(403).json({
+          error: `Your account has been banned until ${expiry}.\nReason: ${user.ban_reason || 'Policy violation'}`,
+          code: 'ACCOUNT_BANNED_TEMP',
+          bannedUntil: user.banned_until,
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+
+      // ─── One-time admin promotion via ADMIN_EMAIL ───
+      const adminEmail = process.env.ADMIN_EMAIL;
+      if (adminEmail && user.email === adminEmail && user.role !== 'admin') {
+        await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
+        user.role = 'admin';
+        console.log('[ADMIN] Promoted to admin on first Google login:', user.email);
+      }
+
+      // ─── Track last login ───
+      pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
+
       const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-      return res.json({ message: 'Login successful', token, username: user.username });
+      return res.json({ message: 'Login successful', token, username: user.username, role: user.role || 'user' });
     } else {
       // User does not exist, create them
       const baseUsername = (name || 'user').replace(/\s+/g, '').toLowerCase();
@@ -1056,7 +1256,7 @@ app.post('/api/forgot-password', async (req, res) => {
               <tr>
                 <td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:40px;text-align:center;">
                   <div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:-1px;">▶ SahaPlay</div>
-                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">${L.emailResetTagline || 'Watch Together. Anywhere.'}</p>
+                  <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:15px;">${L.emailResetTagline || 'SahaPlay. Anywhere.'}</p>
                 </td>
               </tr>
               <tr>
@@ -1477,7 +1677,50 @@ function authenticateTokenOptional(req, res, next) {
   });
 }
 
-// â”€â”€ Avatar upload storage â”€â”€
+// ─── Admin Authorization Middleware ──────────────────────────────────────────
+const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'moderator', 'support'];
+
+async function requireAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    const result = await pool.query('SELECT role, email FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user || !ALL_ADMIN_ROLES.includes(user.role)) {
+      console.warn('[ADMIN] Unauthorized attempt by', req.user.id, 'on', req.path);
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    req.adminRole = user.role;
+    req.adminEmail = user.email;
+    next();
+  } catch (err) {
+    console.error('[ADMIN] requireAdmin error:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+}
+
+function requireAdminRole(allowedRoles) {
+  return (req, res, next) => {
+    if (!req.adminRole || !allowedRoles.includes(req.adminRole)) {
+      return res.status(403).json({ error: 'Insufficient permissions for this action' });
+    }
+    next();
+  };
+}
+
+// ─── /api/me — lightweight role check for frontend ──────────────────────────
+app.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, username, email, role FROM users WHERE id = $1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ id: user.id, username: user.username, email: user.email, role: user.role || 'user' });
+  } catch (err) {
+    console.error('[/api/me] error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ─── Avatar upload storage ───
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'avatars');
@@ -1530,7 +1773,7 @@ app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('
 // Serve avatars statically
 app.use('/avatars', express.static(path.join(__dirname, 'avatars')));
 
-// â”€â”€ GET Profile (own) â”€â”€
+// â"€â"€ GET Profile (own) â"€â"€
 const queryAll = (sql, params) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows)));
 const queryGet = (sql, params) => new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row)));
 
@@ -1572,7 +1815,7 @@ app.get('/api/profile/notifications', authenticateToken, (_req, res) => {
   res.json([]);
 });
 
-// â”€â”€ UPDATE Pinned Rooms â”€â”€
+// â"€â"€ UPDATE Pinned Rooms â"€â"€
 app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
   const { pinnedRooms } = req.body;
   if (!Array.isArray(pinnedRooms)) return res.status(400).json({ error: 'pinnedRooms must be an array' });
@@ -1587,7 +1830,7 @@ app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
   });
 });
 
-// â”€â”€ Search Users Worldwide (exclude deleted/non-existent and blocked) â”€â”€
+// â"€â"€ Search Users Worldwide (exclude deleted/non-existent and blocked) â"€â"€
 app.get('/api/users/search', authenticateTokenOptional, async (req, res) => {
   const query = req.query.q;
   const myUsername = req.user.username.toLowerCase();
@@ -1609,7 +1852,7 @@ app.get('/api/users/search', authenticateTokenOptional, async (req, res) => {
   }
 });
 
-// â”€â”€ GET Public Profile by username â”€â”€
+// â"€â"€ GET Public Profile by username â"€â"€
 app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, async (req, res) => {
   const { username } = req.params;
   const viewerUsername = req.user.username;
@@ -1656,10 +1899,10 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
   }
 });
 
-// â”€â”€ Promisify queries locally for cleaner async/await â”€â”€
+// â"€â"€ Promisify queries locally for cleaner async/await â"€â"€
 // (queryGet and queryAll moved above)
 
-// â”€â”€ GET Recent Chats â”€â”€
+// â"€â"€ GET Recent Chats â"€â"€
 app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   const username = req.user.username;
   let lastSeen = {};
@@ -1950,7 +2193,11 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
       rows.reverse(); // chronological
 
       const filtered = rows
-        .filter(r => !(r.hiddenFor && r.hiddenFor.includes('"' + username + '"')))
+        .filter(r => {
+          if (!r.hiddenFor) return true;
+          const hStr = typeof r.hiddenFor === 'string' ? r.hiddenFor : JSON.stringify(r.hiddenFor);
+          return !hStr.includes('"' + username + '"');
+        })
         .map(r => ({
           id: r.id.toString(),
           isMe: (r.senderName || '').toLowerCase() === (username || '').toLowerCase(),
@@ -2528,7 +2775,7 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// â”€â”€ BLOCKS endpoints â”€â”€
+// â"€â"€ BLOCKS endpoints â"€â"€
 app.post('/api/block/:username', authenticateTokenOptional, async (req, res) => {
   if (!req.user || req.user.isGuest || req.user.id === 0) {
     return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
@@ -2672,7 +2919,7 @@ app.delete('/api/follow/:username', authenticateTokenOptional, (req, res) => {
   });
 });
 
-// â”€â”€ GET Follow Requests (incoming) â”€â”€
+// â"€â"€ GET Follow Requests (incoming) â"€â"€
 app.get('/api/follow/requests', authenticateToken, (req, res) => {
   const username = req.user.username;
   // Fetch pending and accepted follows from the last 10 days (or just all for simplicity, limit 50)
@@ -2690,7 +2937,7 @@ app.get('/api/follow/requests', authenticateToken, (req, res) => {
   });
 });
 
-// â”€â”€ GET Followers / Following list for a user â”€â”€
+// â"€â"€ GET Followers / Following list for a user â"€â"€
 app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
   const { username } = req.params;
   db.all(
@@ -2710,7 +2957,7 @@ app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
   );
 });
 
-// â”€â”€ UPDATE Display Name and Bio â”€â”€
+// â"€â"€ UPDATE Display Name and Bio â"€â"€
 app.put('/api/profile', authenticateToken, (req, res) => {
   const { displayName, bio } = req.body;
   if (!displayName || !displayName.trim()) return res.status(400).json({ error: 'Display name is required' });
@@ -2721,7 +2968,50 @@ app.put('/api/profile', authenticateToken, (req, res) => {
   });
 });
 
-// â”€â”€ DELETE User Account â”€â”€
+// ── Check Username Availability ──
+app.get('/api/profile/check-username', async (req, res) => {
+  const { username, excludeId } = req.query;
+  if (!username || username.trim().length < 3) return res.json({ available: false, reason: 'too_short' });
+  const cleaned = username.trim();
+  if (cleaned.length > 30) return res.json({ available: false, reason: 'too_long' });
+  if (!/^[a-zA-Z0-9._]+$/.test(cleaned)) return res.json({ available: false, reason: 'invalid_chars' });
+  try {
+    const result = await pool.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1)' + (excludeId ? ' AND id != $2' : ''),
+      excludeId ? [cleaned, excludeId] : [cleaned]
+    );
+    res.json({ available: result.rows.length === 0 });
+  } catch {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── Update Username ──
+app.put('/api/profile/username', authenticateToken, async (req, res) => {
+  const { username } = req.body;
+  if (!username || !username.trim()) return res.status(400).json({ error: 'Username is required' });
+  const cleaned = username.trim();
+  if (cleaned.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
+  if (cleaned.length > 30) return res.status(400).json({ error: 'Username must be 30 characters or less' });
+  if (!/^[a-zA-Z0-9._]+$/.test(cleaned)) return res.status(400).json({ error: 'Username can only contain letters, numbers, dots, and underscores' });
+  try {
+    const existing = await pool.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
+      [cleaned, req.user.id]
+    );
+    if (existing.rows.length > 0) return res.status(409).json({ error: 'Username already taken' });
+    await pool.query('UPDATE users SET username = $1 WHERE id = $2', [cleaned, req.user.id]);
+    invalidateCacheForUser(req.user.username);
+    invalidateCacheForUser(cleaned);
+    const newToken = jwt.sign({ id: req.user.id, username: cleaned }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ message: 'Username updated', username: cleaned, token: newToken });
+  } catch (err) {
+    console.error('Username update error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ── DELETE User Account ──
 app.delete('/api/profile', authenticateToken, (req, res) => {
   // First get the username to delete rooms
   db.get('SELECT username FROM users WHERE id = ?', [req.user.id], (err, user) => {
@@ -2743,7 +3033,7 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
   });
 });
 
-// â”€â”€ Upload Avatar â”€â”€
+// â"€â"€ Upload Avatar â"€â"€
 app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const avatarUrl = `/avatars/${req.file.filename}`;
@@ -2761,7 +3051,7 @@ app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar')
   });
 });
 
-// â”€â”€ Change Password â”€â”€
+// â"€â"€ Change Password â"€â"€
 app.post('/api/profile/change-password', authenticateToken, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
@@ -3281,12 +3571,8 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
     const hbRequestBody = {
       start_url: url,
       kiosk: true,
-      adblock: true,
       tag: `room_${rid}`,
       control_disable_default: false,
-      width: 1920,
-      height: 1080,
-      fps: 30,
       timeout: {
         offline: 300,
         absolute: 7200,
@@ -3939,11 +4225,13 @@ io.on('connection', (socket) => {
         }));
         // Merge any in-memory messages not yet reflected in DB
         // (covers the window between push() and INSERT commit, or INSERT failures)
-        const dbIds = new Set(history.map(m => String(m.id)));
+        // Use ALL DB row IDs (not just visible ones) so soft-hidden messages don't
+        // reappear through the in-memory path after a "clear for me" operation.
+        const allDbIds = new Set(groupRows.map(r => String(r.id)));
         const inMemExtra = (roomObj.groupMessages || []).filter(m => {
           if (!m || !m.id) return false;
-          if (dbIds.has(String(m.id))) return false;
-          if (m.dbId && dbIds.has(String(m.dbId))) return false;
+          if (allDbIds.has(String(m.id))) return false;
+          if (m.dbId && allDbIds.has(String(m.dbId))) return false;
           return true;
         });
         const merged = [...history, ...inMemExtra].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-200);
@@ -3963,8 +4251,13 @@ io.on('connection', (socket) => {
       WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
     `, [username, username], async (err, dmRows) => {
+        console.log('🔥🔥🔥 [DM HISTORY FROM SQLITE — executeFinalJoin] 🔥🔥🔥', { username, totalRowsFromSQLite: dmRows?.length || 0 });
         if (!err && dmRows && dmRows.length > 0) {
-          const visibleDmRows = dmRows.filter(row => !(row.hiddenFor && row.hiddenFor.includes(`"${username}"`)));
+          const visibleDmRows = dmRows.filter(row => {
+            if (!row.hiddenFor) return true;
+            const hStr = typeof row.hiddenFor === 'string' ? row.hiddenFor : JSON.stringify(row.hiddenFor);
+            return !hStr.includes(`"${username}"`);
+          });
           const messageIds = visibleDmRows.map(r => Number(r.id)).filter(Boolean);
           const seenMap = {};
           if (messageIds.length > 0) {
@@ -4417,7 +4710,7 @@ io.on('connection', (socket) => {
 
     const safeMessage = message || '';
     
-    // â”€â”€ Content Filtering â”€â”€
+    // â"€â"€ Content Filtering â"€â"€
     if (room.permissions && room.permissions.allowLinks === false && !isRoomAdminOrHost) {
        // Match http/https links AND bare domains like google.com, website.in, etc.
        const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
@@ -4668,108 +4961,182 @@ io.on('connection', (socket) => {
     emitToUser(targetName, 'chat:private_reaction', { messageId, senderName, emoji, targetName });
   });
 
-  // â”€â”€ Clear DM â”€â”€
+  // ─── Clear DM ───
   socket.on('clear_dm', async ({ targetUsername, clearForBoth }) => {
+    console.log('🔥🔥🔥 [CLEAR CHAT REAL HANDLER HIT] 🔥🔥🔥', new Date().toISOString(), JSON.stringify({ targetUsername, clearForBoth }));
     const sender = socket.username;
-    if (!sender || !targetUsername) return;
-    
-    // Soft delete: add sender to hiddenFor array for all messages in this DM
-    db.run(
-      `UPDATE messages SET hiddenFor = CASE 
-        WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
-        WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
-        ELSE hiddenFor END 
-      WHERE type = 'private' AND ((LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)) OR (LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)))`,
-      [JSON.stringify([sender]), `%${sender}%`, `,"${sender}"]`, sender, targetUsername, targetUsername, sender],
-      (err) => {
-        if (err) console.error('Error soft-clearing DM:', err);
-        
-        const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: !!clearForBoth };
+    console.log('[CLEAR_DM] triggered', { sender, targetUsername, clearForBoth });
+    if (!sender || !targetUsername) {
+      console.log('[CLEAR_DM] aborting — missing sender or targetUsername');
+      return;
+    }
 
-        if (clearForBoth) {
-          // Also hide for the target user
-          db.run(
-            `UPDATE messages SET hiddenFor = CASE 
-              WHEN hiddenFor IS NULL OR hiddenFor = '' THEN ? 
-              WHEN hiddenFor NOT LIKE ? THEN REPLACE(hiddenFor, ']', ?) 
-              ELSE hiddenFor END 
-            WHERE type = 'private' AND ((LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)) OR (LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?)))`,
-            [JSON.stringify([targetUsername]), `%${targetUsername}%`, `,"${targetUsername}"]`, sender, targetUsername, targetUsername, sender],
-            (err2) => {
-              if (err2) console.error('Error soft-clearing DM for both:', err2);
-              // Broadcast to both users across all their tabs
-              emitToUser(sender, 'dm_cleared', payload);
-              emitToUser(targetUsername, 'dm_cleared', payload);
-            }
-          );
-        } else {
-          // Only broadcast to the sender's active tabs
-          emitToUser(sender, 'dm_cleared', payload);
-        }
+    const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: !!clearForBoth };
+    const senderLow = sender.toLowerCase();
+    const targetLow = targetUsername.toLowerCase();
+
+    console.log('[CLEAR CHAT] deleteForBoth flag received:', clearForBoth, typeof clearForBoth);
+
+    if (clearForBoth) {
+      // ── Hard DELETE: permanently erase for both parties ──
+      let pgDeleted = 0;
+      try {
+        const pgResult = await pool.query(
+          `DELETE FROM messages WHERE type = 'private'
+           AND ((LOWER("senderName") = $1 AND LOWER("targetName") = $2)
+             OR (LOWER("senderName") = $2 AND LOWER("targetName") = $1))`,
+          [senderLow, targetLow]
+        );
+        pgDeleted = pgResult.rowCount || 0;
+        console.log('[CLEAR_DM] clearForBoth — PostgreSQL deleted rows:', pgDeleted);
+        console.log('🔥🔥🔥 [CLEAR CHAT DB RESULT] 🔥🔥🔥', JSON.stringify({ operation: 'DELETE_PG', rowCount: pgDeleted, sqliteCleared: false }));
+      } catch (err) {
+        console.error('[CLEAR_DM] clearForBoth — PostgreSQL DELETE failed:', err.message);
       }
-    );
+
+      // Also delete from SQLite — DM history is read entirely from SQLite on join/refresh
+      await new Promise((resolve) => {
+        db.run(
+          `DELETE FROM messages WHERE type = 'private' AND (
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?)
+          )`,
+          [senderLow, targetLow, targetLow, senderLow],
+          (err) => { if (err) console.error('[CLEAR_DM] SQLite DELETE failed:', err); resolve(); }
+        );
+      });
+
+      // Emit to both participants
+      emitToUser(sender, 'dm_cleared', payload);
+      emitToUser(targetUsername, 'dm_cleared', payload);
+    } else {
+      // ── Soft hide: only the requester stops seeing the messages ──
+      // Uses the same hiddenFor mechanism as per-message "delete for me".
+      // The other participant's view is completely unaffected.
+      // Explicit ::text casts make this work whether hiddenFor is TEXT or JSONB.
+      let pgUpdated = 0;
+      try {
+        // Diagnostic: count rows BEFORE the update
+        const beforeCount = await pool.query(
+          `SELECT COUNT(*) AS c FROM messages
+           WHERE type = 'private'
+             AND ((LOWER("senderName") = $1 AND LOWER("targetName") = $2)
+               OR (LOWER("senderName") = $2 AND LOWER("targetName") = $1))
+             AND ("hiddenFor" IS NULL OR NOT ("hiddenFor"::jsonb @> jsonb_build_array($3::text)))`,
+          [senderLow, targetLow, sender]
+        ).catch(() => ({ rows: [{ c: '?' }] }));
+        console.log('[CLEAR CHAT] Operation scope:', {
+          conversationKey: `${sender}<->${targetUsername}`,
+          messageIdsProvided: 'none - full clear',
+          whereClauseDescription: 'ALL private messages between the pair, unconditional',
+        });
+        console.log('[CLEAR CHAT] Rows matching scope BEFORE clear:', beforeCount.rows[0]?.c);
+
+        const pgResult = await pool.query(
+          `UPDATE messages
+           SET "hiddenFor" = CASE
+             WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
+               THEN jsonb_build_array($1::text)::text
+             WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
+               THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
+             ELSE "hiddenFor"::text
+           END
+           WHERE type = 'private'
+             AND ((LOWER("senderName") = $2 AND LOWER("targetName") = $3)
+               OR (LOWER("senderName") = $3 AND LOWER("targetName") = $2))`,
+          [
+            sender,    // $1 — username to add to hiddenFor array
+            senderLow, // $2
+            targetLow  // $3
+          ]
+        );
+        pgUpdated = pgResult.rowCount || 0;
+        console.log('[CLEAR_DM] clearForMe — PostgreSQL updated rows (hiddenFor):', pgUpdated);
+        console.log('🔥🔥🔥 [CLEAR CHAT DB RESULT] 🔥🔥🔥', JSON.stringify({ operation: 'UPDATE_HIDDENFOR_PG', rowCount: pgUpdated, sqliteCleared: false }));
+      } catch (err) {
+        console.error('[CLEAR_DM] clearForMe — PostgreSQL UPDATE failed:', err.message);
+      }
+
+      // Also update hiddenFor in SQLite — DM history is read entirely from SQLite on join/refresh
+      await new Promise((resolve) => {
+        db.all(
+          `SELECT id, hiddenFor FROM messages WHERE type = 'private' AND (
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?)
+          )`,
+          [senderLow, targetLow, targetLow, senderLow],
+          (err, rows) => {
+            if (err || !rows?.length) { resolve(); return; }
+            let pending = rows.length;
+            rows.forEach(row => {
+              let arr = [];
+              try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
+              if (!Array.isArray(arr)) arr = [];
+              if (!arr.map(x => (x || '').toLowerCase()).includes(sender.toLowerCase())) arr.push(sender);
+              db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
+                [JSON.stringify(arr), row.id],
+                () => { if (--pending === 0) resolve(); }
+              );
+            });
+          }
+        );
+      });
+
+      // Emit only to the requester (partner keeps their history)
+      emitToUser(sender, 'dm_cleared', payload);
+    }
   });
 
-  // ─── Clear Room Chat ───
+  // ─── Clear Room Chat (for me only — soft hide via hiddenFor) ───
   socket.on('clear_room_chat', async ({ roomId }) => {
     const sender = socket.username;
     if (!sender || !roomId) return;
 
-    // hiddenFor is stored as a JSON text string e.g. '["user1","user2"]'
-    // We use text-based manipulation compatible with both SQLite and PostgreSQL TEXT columns.
-    const senderJson = `"${sender}"`;
-    const senderJsonArray = JSON.stringify([sender]);
-
+    // PostgreSQL: add sender to hiddenFor on all messages in this room
     try {
-        // Single UPDATE: 
-        //  - If hiddenFor is NULL or empty array → set to ["sender"]
-        //  - If sender is NOT already in the JSON string → append before the closing ]
-        //  - Otherwise → leave unchanged (already hidden)
-        await pool.query(
-            `UPDATE messages
-             SET "hiddenFor" =
-               CASE
-                 WHEN "hiddenFor" IS NULL OR "hiddenFor" = '[]' THEN $1
-                 WHEN "hiddenFor" NOT LIKE $2 THEN REPLACE("hiddenFor", ']', ',' || $3 || ']')
-                 ELSE "hiddenFor"
-               END
-             WHERE "roomId" = $4 AND type IN ('group', 'room')`,
-            [senderJsonArray, `%${senderJson}%`, senderJson, roomId]
-        );
+      await pool.query(
+        `UPDATE messages
+         SET "hiddenFor" = CASE
+           WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
+             THEN jsonb_build_array($1::text)::text
+           WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
+             THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
+           ELSE "hiddenFor"::text
+         END
+         WHERE "roomId" = $2 AND type IN ('group', 'room')`,
+        [sender, roomId]
+      );
+    } catch (err) {
+      console.error('[CLEAR_ROOM] PostgreSQL UPDATE failed:', err.message);
+    }
 
-        // Mirror the hiddenFor update to SQLite (used by chat_history socket event on rejoin)
-        db.all(`SELECT id, hiddenFor FROM messages WHERE roomId = ? AND type IN ('room', 'group')`,
-          [roomId], (sqliteErr, sqliteRows) => {
-            if (!sqliteErr && sqliteRows) {
-              sqliteRows.forEach(r => {
-                let hidden = [];
-                try { hidden = JSON.parse(r.hiddenFor || '[]'); } catch {}
-                if (!hidden.includes(sender)) {
-                  hidden.push(sender);
-                  db.run('UPDATE messages SET hiddenFor = ? WHERE id = ?', [JSON.stringify(hidden), r.id]);
-                }
-              });
-            }
-          });
-
-        // Also update in-memory groupMessages cache so current session updates instantly
-        const room = rooms.get(roomId);
-        if (room && room.groupMessages) {
-          room.groupMessages = room.groupMessages.map(m => {
-            if (!m.hiddenFor) m.hiddenFor = [];
-            if (!m.hiddenFor.includes(sender)) m.hiddenFor.push(sender);
-            return m;
+    // SQLite: same hiddenFor update row-by-row
+    await new Promise((resolve) => {
+      db.all(
+        `SELECT id, hiddenFor FROM messages WHERE roomId = ? AND type IN ('room', 'group')`,
+        [roomId],
+        (err, rows) => {
+          if (err || !rows?.length) { resolve(); return; }
+          let pending = rows.length;
+          rows.forEach(row => {
+            let arr = [];
+            try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
+            if (!Array.isArray(arr)) arr = [];
+            if (!arr.map(x => (x || '').toLowerCase()).includes(sender.toLowerCase())) arr.push(sender);
+            db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
+              [JSON.stringify(arr), row.id],
+              () => { if (--pending === 0) resolve(); }
+            );
           });
         }
+      );
+    });
 
-        // Let ALL sockets of the client know the clear was successful so they can update UI immediately
-        emitToUser(sender, 'room_chat_cleared', { roomId });
-    } catch (err) {
-        console.error('Error clearing room chat:', err);
-    }
+    // Emit only to the requester — other room members keep their history
+    emitToUser(sender, 'room_chat_cleared', { roomId });
   });
 
-  // â”€â”€ Emoji reaction â”€â”€
+  // â"€â"€ Emoji reaction â"€â"€
   socket.on('chat:reaction', async ({ roomId, messageId, emoji }) => {
     const room = rooms.get(roomId);
     const username = socket.username;
@@ -5013,10 +5380,15 @@ io.on('connection', (socket) => {
       WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
     `, [username, username], async (err, dmRows) => {
+        console.log('🔥🔥🔥 [DM HISTORY FROM SQLITE — request_dm_history] 🔥🔥🔥', { username, totalRowsFromSQLite: dmRows?.length || 0 });
         if (err) return;
         const dmHistory = {};
         if (dmRows && dmRows.length > 0) {
-          const visibleDmRows = dmRows.filter(row => !(row.hiddenFor && row.hiddenFor.includes(`"${username}"`)));
+          const visibleDmRows = dmRows.filter(row => {
+            if (!row.hiddenFor) return true;
+            const hStr = typeof row.hiddenFor === 'string' ? row.hiddenFor : JSON.stringify(row.hiddenFor);
+            return !hStr.includes(`"${username}"`);
+          });
           const messageIds = visibleDmRows.map(r => Number(r.id)).filter(Boolean);
           const seenMap = {};
           if (messageIds.length > 0) {
@@ -5064,7 +5436,7 @@ io.on('connection', (socket) => {
   // ── Room rename ──
 
 
-  // â”€â”€ Pinned rooms are handled via REST /api/profile/pinned-rooms instead of WebSockets â”€â”€
+  // â"€â"€ Pinned rooms are handled via REST /api/profile/pinned-rooms instead of WebSockets â"€â"€
 
   // ─── Media control ───
   socket.on('change_media', ({ roomId: rawRoomId, mediaUrl, browserUrl }) => {
@@ -5198,7 +5570,7 @@ io.on('connection', (socket) => {
   socket.on('webrtc_answer', ({ targetSocketId, answer }) => { io.to(targetSocketId).emit('webrtc_answer', { senderSocketId: socket.id, answer }); });
   socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => { io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate }); });
 
-  // â”€â”€ Camera/Mic WebRTC (peer video communication) â”€â”€
+  // â"€â"€ Camera/Mic WebRTC (peer video communication) â"€â"€
   socket.on('cam_started', ({ roomId }) => {
     if (!rooms.has(roomId)) return;
     const room = rooms.get(roomId);
@@ -5257,7 +5629,7 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
   });
 
-  // â”€â”€ Toggle Public Status â”€â”€
+  // â"€â"€ Toggle Public Status â"€â"€
   socket.on('toggle_public', (data) => {
     if (!socket.roomId) return;
     const room = rooms.get(socket.roomId);
@@ -5271,22 +5643,22 @@ io.on('connection', (socket) => {
     );
   });
 
-  // â”€â”€ Connection Request (P2P Mesh) â”€â”€
+  // â"€â"€ Connection Request (P2P Mesh) â"€â"€
   socket.on('webrtc_connection_request', ({ targetSocketId, signal }) => {
     io.to(targetSocketId).emit('webrtc_connection_request', { senderSocketId: socket.id, signal });
   });
 
-  // â”€â”€ Connection Answer (P2P Mesh) â”€â”€
+  // â"€â"€ Connection Answer (P2P Mesh) â"€â"€
   socket.on('webrtc_connection_answer', ({ targetSocketId, signal }) => {
     io.to(targetSocketId).emit('webrtc_connection_answer', { senderSocketId: socket.id, signal });
   });
 
-  // â”€â”€ ICE Candidate (P2P Mesh) â”€â”€
+  // â"€â"€ ICE Candidate (P2P Mesh) â"€â"€
   socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => {
     io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate });
   });
 
-  // â”€â”€ Screenshare Start â”€â”€
+  // â"€â"€ Screenshare Start â"€â"€
   socket.on('webrtc_screenshare_start', (roomId) => {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -5294,7 +5666,7 @@ io.on('connection', (socket) => {
     io.in(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app: room.activeExternalApp });
   });
 
-  // â”€â”€ Screenshare Stop â”€â”€
+  // â"€â"€ Screenshare Stop â"€â"€
   socket.on('webrtc_screenshare_stop', (roomId) => {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -6254,7 +6626,7 @@ app.post('/api/chat-lock/request-email-reset', authenticateToken, async (req, re
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
     });
     await transporter.sendMail({
-      from: `"WatchTogether" <${process.env.SMTP_USER}>`,
+      from: `"SahaPlay" <${process.env.SMTP_USER}>`,
       to: user.email,
       subject: 'Chat Lock PIN Reset Code',
       html: `
@@ -6337,17 +6709,31 @@ const contactLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+function mapContactSubjectToType(subject) {
+  const s = (subject || '').toLowerCase();
+  if (s.includes('safety') || s.includes('report user')) return 'safety';
+  if (s.includes('bug') || s.includes('bug report')) return 'bug';
+  if (s.includes('account')) return 'account';
+  if (s.includes('billing') || s.includes('payment') || s.includes('pricing')) return 'billing';
+  return 'contact';
+}
+
+function mapContactSubjectToPriority(subject) {
+  const s = (subject || '').toLowerCase();
+  if (s.includes('safety') || s.includes('urgent') || s.includes('critical')) return 'urgent';
+  if (s.includes('bug') || s.includes('error') || s.includes('broken')) return 'high';
+  if (s.includes('feature') || s.includes('general')) return 'low';
+  return 'medium';
+}
+
+function mapBugSeverityToPriority(severity) {
+  if (severity === 'critical') return 'urgent';
+  if (severity === 'major') return 'high';
+  return 'medium';
+}
+
 app.post('/api/contact', contactLimiter, async (req, res) => {
   const { name, email, subject, message, images, lang } = req.body;
-
-  // ── Guard: credentials must exist ────────────────────
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.error('[contact] Gmail credentials missing from .env! Set GMAIL_USER and GMAIL_APP_PASSWORD.');
-    return res.status(500).json({
-      success: false,
-      error: 'Email service not configured. Please email sahaaplay@gmail.com directly.',
-    });
-  }
 
   // ── Validation ──────────────────────────────────────
   const trim  = (v) => (v ? String(v).trim() : '');
@@ -6454,54 +6840,65 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 </div>
 </body></html>`;
 
+  // ── Save to support_requests DB ─────────────────────────────────────────────
+  let dbRequestId = null;
   try {
-    // Send notification to sahaaplay@gmail.com (with Reply-To set to sender)
-    await gmailTransporter.sendMail({
-      from:     `"SahaPlay Contact" <${process.env.GMAIL_USER}>`,
-      replyTo:  `"${cName}" <${cEmail}>`,
-      to:       process.env.GMAIL_USER,
-      subject:  `[SahaPlay Contact] ${cSubject}`,
-      html:     notifyHtml,
-      text:     `From: ${cName} <${cEmail}>\nSubject: ${cSubject}\n\n${cMsg}`,
-      attachments,
-    });
-
-    // Send confirmation to the user — non-blocking (failure is not fatal)
-    sendEmail({
-      to:      cEmail,
-      subject: L.emailContactSubject || 'We received your message — SahaPlay',
-      html:    confirmHtml,
-      text:    `${L.emailContactHi || 'Hi'} ${cName},\n\n${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}\n\n${L.emailContactYourMsg || 'Your message'}:\n${cMsg}\n\n— ${L.emailContactFooter || 'SahaPlay Team'}`,
-    }).catch(e => console.warn('[contact] Confirmation email failed (non-fatal):', e.message));
-
-    return res.json({ success: true, message: L.apiContactSuccess || 'Message sent!' });
-  } catch (err) {
-    console.error('[contact] Full error:', {
-      message: err.message,
-      code:     err.code,
-      command:  err.command,
-      response: err.response,
-    });
-    if (err.code === 'EAUTH') {
-      return res.status(500).json({
-        success: false,
-        error: L.apiContactErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.',
-      });
-    }
-    if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
-      return res.status(500).json({
-        success: false,
-        error: L.apiContactErrorConnection || 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
-      });
-    }
-    const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
-    return res.status(500).json({
-      success: false,
-      error: isAuthErr
-        ? (L.apiContactErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.')
-        : (L.apiContactErrorFallback || 'Failed to send message. Please try again or email sahaaplay@gmail.com directly.'),
-    });
+    const dbAttachments = attachments.length > 0
+      ? attachments.map(a => ({ filename: a.filename, type: a.contentType, data: `data:${a.contentType};base64,${a.content}` }))
+      : null;
+    const dbInsert = await pool.query(
+      `INSERT INTO support_requests (request_type, subject, message, submitted_by_email, submitted_by_name, priority, status, attachments, metadata, email_notification_status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'open', $7, $8, 'pending') RETURNING id`,
+      [
+        mapContactSubjectToType(cSubject), cSubject, cMsg, cEmail, cName,
+        mapContactSubjectToPriority(cSubject),
+        dbAttachments ? JSON.stringify(dbAttachments) : null,
+        JSON.stringify({ source: 'contact_form', lang: lang || 'en', attachmentCount: attachments.length }),
+      ]
+    );
+    dbRequestId = dbInsert.rows[0]?.id;
+  } catch (dbErr) {
+    console.error('[contact] DB save error (non-fatal):', dbErr.message);
   }
+
+  // ── Guard: no email credentials → still saved to DB ─────────────────────
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    if (dbRequestId) {
+      return res.json({ success: true, message: L.apiContactSuccess || 'Message received! Our team will follow up soon.' });
+    }
+    console.error('[contact] Gmail credentials missing from .env!');
+    return res.status(500).json({ success: false, error: 'Email service not configured. Please email sahaaplay@gmail.com directly.' });
+  }
+
+  // ── Fire both emails non-blocking so the response is instant ──
+  // Data is already saved to DB — email failures are non-fatal.
+  gmailTransporter.sendMail({
+    from:     `"SahaPlay Contact" <${process.env.GMAIL_USER}>`,
+    replyTo:  `"${cName}" <${cEmail}>`,
+    to:       process.env.GMAIL_USER,
+    subject:  `[SahaPlay Contact] ${cSubject}`,
+    html:     notifyHtml,
+    text:     `From: ${cName} <${cEmail}>\nSubject: ${cSubject}\n\n${cMsg}`,
+    attachments,
+  }).then(() => {
+    if (dbRequestId) {
+      pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+    }
+  }).catch(err => {
+    console.warn('[contact] Admin notification email failed (non-fatal):', err.message);
+    if (dbRequestId) {
+      pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = $1, updated_at = NOW() WHERE id = $2`, [err.message.substring(0, 500), dbRequestId]).catch(() => {});
+    }
+  });
+
+  sendEmail({
+    to:      cEmail,
+    subject: L.emailContactSubject || 'We received your message — SahaPlay',
+    html:    confirmHtml,
+    text:    `${L.emailContactHi || 'Hi'} ${cName},\n\n${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}\n\n${L.emailContactYourMsg || 'Your message'}:\n${cMsg}\n\n— ${L.emailContactFooter || 'SahaPlay Team'}`,
+  }).catch(e => console.warn('[contact] Confirmation email failed (non-fatal):', e.message));
+
+  return res.json({ success: true, message: L.apiContactSuccess || 'Message sent!' });
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -6515,35 +6912,33 @@ const bugReportLimiter = rateLimit({
 });
 
 const ALLOWED_BUG_TYPES = [
-  '🎬 Video / Sync Issue',
-  '💬 Chat Not Working',
-  '🔐 Login / Account Problem',
-  '📱 Mobile / Responsive Layout',
-  '🔔 Notifications Not Working',
-  '🎤 Audio / Microphone Issue',
-  '📷 Camera / Screenshare Issue',
-  '⚡ App Crashing / Freezing',
-  '🎨 UI / Visual Glitch',
-  '🔗 Link / URL Problem',
-  '🔒 Security Concern',
-  '🔹 Other Bug',
+  'video-sync', 'chat', 'login', 'mobile', 'notif', 'audio',
+  'camera', 'crash', 'perf', 'ui', 'link', 'security', 'other',
 ];
+
+const BUG_TYPE_LABELS = {
+  'video-sync': 'Video / Sync Issue',
+  'chat':       'Chat Not Working',
+  'login':      'Login / Account Problem',
+  'mobile':     'Mobile / Responsive Layout',
+  'notif':      'Notifications Not Working',
+  'audio':      'Audio / Microphone Issue',
+  'camera':     'Camera / Screenshare Issue',
+  'crash':      'App Crashing / Freezing',
+  'perf':       'Performance / Slow Loading',
+  'ui':         'UI / Visual Glitch',
+  'link':       'Link / URL Problem',
+  'security':   'Security Concern',
+  'other':      'Other Bug',
+};
 
 app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   const { name, email, bugType, severity, whatHappened, whatExpected, actualResult,
           stepsToReproduce, browser, os, screenSize, consoleErrors, attachments, lang } = req.body;
 
-  // ── Credentials guard ─────────────────────────────────
+  // ── Lang + translations ────────────────────────────────
   const bugUserLang = lang || 'en';
   const L = emailTranslations[bugUserLang] || emailTranslations['en'] || {};
-
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.error('[report-bug] Gmail credentials missing from .env!');
-    return res.status(500).json({
-      success: false,
-      error: L.apiBugErrorNoConfig || 'Email service not configured. Please email sahaaplay@gmail.com directly.',
-    });
-  }
 
   // ── Validation ──────────────────────────────────────
   const trim = (v) => (v ? String(v).trim() : '');
@@ -6579,8 +6974,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   if (!rOs)
     return res.status(400).json({ success: false, error: L.apiBugErrorOs || 'Please enter your operating system.' });
 
-  // ── Generate report ID ──────────────────────────────
-  const reportId = 'BUG-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  const bugTypeLabel = BUG_TYPE_LABELS[rBugType] || rBugType;
 
   // ── Attachment validation ────────────────────────────
   const emailAttachments = [];
@@ -6605,6 +6999,33 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
         contentType: att.type,
       });
     }
+  }
+
+  // ── Save to support_requests DB ──────────────────────
+  let dbRequestId = null;
+  let reportId = 'BUG-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  const imgAttsForDb = emailAttachments
+    .filter(a => a.contentType && a.contentType.startsWith('image/'))
+    .map(a => ({ filename: a.filename, type: a.contentType, data: `data:${a.contentType};base64,${a.content}` }));
+
+  try {
+    const bugMsg = `What happened: ${rWhatHappened}\n\nExpected: ${rWhatExpected}\n\nActual: ${rActualResult}${rSteps ? `\n\nSteps: ${rSteps}` : ''}${rConsoleErrors ? `\n\nConsole errors: ${rConsoleErrors}` : ''}`;
+    const dbInsert = await pool.query(
+      `INSERT INTO support_requests (request_type, subject, message, submitted_by_email, submitted_by_name, priority, status, attachments, metadata, email_notification_status)
+       VALUES ('bug', $1, $2, $3, $4, $5, 'open', $6, $7, 'pending') RETURNING id`,
+      [
+        `Bug Report: ${bugTypeLabel} [${rSeverity}]`,
+        bugMsg, rEmail, rName,
+        mapBugSeverityToPriority(rSeverity),
+        imgAttsForDb.length > 0 ? JSON.stringify(imgAttsForDb) : null,
+        JSON.stringify({ source: 'bug_report_form', bugType: rBugType, severity: rSeverity, browser: rBrowser, os: rOs, screenSize: rScreenSize, attachmentCount: emailAttachments.length }),
+      ]
+    );
+    dbRequestId = dbInsert.rows[0]?.id;
+    if (dbRequestId) reportId = `BUG-${dbRequestId}`;
+  } catch (dbErr) {
+    console.error('[report-bug] DB save error (non-fatal):', dbErr.message);
   }
 
   // ── HTML helpers ─────────────────────────────────────
@@ -6644,7 +7065,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Severity</td>
           <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:3px 10px;border-radius:6px;font-size:13px;font-weight:700">${severityMeta.label}</span></td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Bug Type</td>
-          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px">${esc(rBugType)}</td></tr>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px">${esc(bugTypeLabel)}</td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Browser</td>
           <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#e5e7eb;font-size:14px">${esc(rBrowser)}</td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">OS</td>
@@ -6679,7 +7100,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   <div style="padding:32px 40px">
     <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 12px">${L.emailContactHi || 'Hi'} <strong style="color:#fff">${esc(rName)}</strong>,</p>
     <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">
-      ${L.emailBugBody1 || 'We received your bug report about'} <strong style="color:#818cf8">${esc(rBugType)}</strong>.
+      ${L.emailBugBody1 || 'We received your bug report about'} <strong style="color:#818cf8">${esc(bugTypeLabel)}</strong>.
       ${L.emailBugBody2 || "Our team will investigate it and we'll update you here when it's resolved."}
     </p>
     <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
@@ -6688,7 +7109,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
         <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0;width:110px">${L.emailBugReportId || 'Report ID'}</td>
             <td style="font-family:monospace;color:#a5b4fc;font-size:14px;font-weight:700;padding:6px 0">${esc(reportId)}</td></tr>
         <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugType || 'Bug Type'}</td>
-            <td style="color:#e5e7eb;font-size:14px;padding:6px 0">${esc(rBugType)}</td></tr>
+            <td style="color:#e5e7eb;font-size:14px;padding:6px 0">${esc(bugTypeLabel)}</td></tr>
         <tr><td style="color:#9ca3af;font-size:13px;padding:6px 0">${L.emailBugSeverity || 'Severity'}</td>
             <td style="font-size:14px;padding:6px 0"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:2px 8px;border-radius:4px;font-weight:700;font-size:13px">${severityMeta.label}</span></td></tr>
       </table>
@@ -6706,53 +7127,43 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
 </div>
 </body></html>`;
 
-  try {
-    await gmailTransporter.sendMail({
-      from:    `"SahaPlay Bug Reports" <${process.env.GMAIL_USER}>`,
-      replyTo: `"${rName}" <${rEmail}>`,
-      to:      process.env.GMAIL_USER,
-      subject: `[BUG REPORT] ${rSeverity.toUpperCase()} - ${rBugType} | ${reportId}`,
-      html:    notifyHtml,
-      text:    `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${rBugType}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
-      attachments: emailAttachments,
-    });
-
-    // Non-blocking confirmation to user
-    sendEmail({
-      to:      rEmail,
-      subject: `${L.emailBugSubject || 'Bug Report Received'} - ${reportId} | SahaPlay`,
-      html:    confirmHtml,
-      text:    `${L.emailContactHi || 'Hi'} ${rName},\n\n${L.emailBugBody1 || 'We received your bug report about'} ${rBugType}.\n\n${L.emailBugReportId || 'Report ID'}: ${reportId}\n${L.emailBugSeverity || 'Severity'}: ${rSeverity}\n\n${L.emailBugBody2 || "Our team will investigate and we'll update you at this email when it's resolved."}\n\n${L.emailBugUrgent || 'For urgent issues:'} sahaaplay@gmail.com\n\n— ${L.emailBugFooter || 'SahaPlay Team'}`,
-    }).catch(e => console.warn('[report-bug] Confirmation email failed (non-fatal):', e.message));
-
-    return res.json({ success: true, reportId });
-  } catch (err) {
-    console.error('[report-bug] Full error:', {
-      message:  err.message,
-      code:     err.code,
-      command:  err.command,
-      response: err.response,
-    });
-    if (err.code === 'EAUTH') {
-      return res.status(500).json({
-        success: false,
-        error: L.apiBugErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.',
-      });
+  // ── Guard: no email credentials → still saved to DB ──────────────────────
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    if (dbRequestId) {
+      return res.json({ success: true, reportId });
     }
-    if (err.code === 'ECONNECTION' || err.code === 'ESOCKET' || err.code === 'ETIMEDOUT') {
-      return res.status(500).json({
-        success: false,
-        error: L.apiBugErrorConnection || 'Cannot connect to email server. Please try again later or email sahaaplay@gmail.com directly.',
-      });
-    }
-    const isAuthErr = /auth|credentials|password|535|Username and Password not accepted/i.test(err.message);
-    return res.status(500).json({
-      success: false,
-      error: isAuthErr
-        ? (L.apiBugErrorAuth || 'Email authentication failed. Please email sahaaplay@gmail.com directly.')
-        : (L.apiBugErrorFallback || 'Failed to submit bug report. Please try again or email sahaaplay@gmail.com directly.'),
-    });
+    console.error('[report-bug] Gmail credentials missing from .env!');
+    return res.status(500).json({ success: false, error: L.apiBugErrorNoConfig || 'Email service not configured. Please email sahaaplay@gmail.com directly.' });
   }
+
+  // ── Fire both emails non-blocking — data already in DB ──
+  gmailTransporter.sendMail({
+    from:    `"SahaPlay Bug Reports" <${process.env.GMAIL_USER}>`,
+    replyTo: `"${rName}" <${rEmail}>`,
+    to:      process.env.GMAIL_USER,
+    subject: `[BUG REPORT] ${rSeverity.toUpperCase()} - ${bugTypeLabel} | ${reportId}`,
+    html:    notifyHtml,
+    text:    `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${bugTypeLabel}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
+    attachments: emailAttachments,
+  }).then(() => {
+    if (dbRequestId) {
+      pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+    }
+  }).catch(err => {
+    console.warn('[report-bug] Admin notification email failed (non-fatal):', err.message);
+    if (dbRequestId) {
+      pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = $1, updated_at = NOW() WHERE id = $2`, [err.message.substring(0, 500), dbRequestId]).catch(() => {});
+    }
+  });
+
+  sendEmail({
+    to:      rEmail,
+    subject: `${L.emailBugSubject || 'Bug Report Received'} - ${reportId} | SahaPlay`,
+    html:    confirmHtml,
+    text:    `${L.emailContactHi || 'Hi'} ${rName},\n\n${L.emailBugBody1 || 'We received your bug report about'} ${bugTypeLabel}.\n\n${L.emailBugReportId || 'Report ID'}: ${reportId}\n${L.emailBugSeverity || 'Severity'}: ${rSeverity}\n\n${L.emailBugBody2 || "Our team will investigate and we'll update you at this email when it's resolved."}\n\n${L.emailBugUrgent || 'For urgent issues:'} sahaaplay@gmail.com\n\n— ${L.emailBugFooter || 'SahaPlay Team'}`,
+  }).catch(e => console.warn('[report-bug] Confirmation email failed (non-fatal):', e.message));
+
+  return res.json({ success: true, reportId });
 });
 
 app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async (req, res) => {
@@ -6838,6 +7249,1205 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
     return res.status(500).json({ success: false, error: 'Failed to submit report. Please try again later.' });
   }
 });
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN API — all routes require authenticateToken + requireAdmin
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /api/admin/stats
+app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [totalR, monthR, weekR, publicRoomR, privateRoomR] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM users'),
+      pool.query('SELECT COUNT(*) FROM users WHERE created_at >= $1', [startOfMonth]),
+      pool.query('SELECT COUNT(*) FROM users WHERE created_at >= $1', [startOfWeek]),
+      pool.query(`SELECT COUNT(*) FROM room_names WHERE "isPublic" = 1`),
+      pool.query(`SELECT COUNT(*) FROM room_names WHERE "isPublic" = 0 OR "isPublic" IS NULL`),
+    ]);
+
+    // Separate logged-in users (with email) from guest accounts (no email) among connected sockets
+    const connectedUsernames = [...connectedSockets.keys()];
+    let loggedInOnline = 0;
+    let guestsOnline = 0;
+    if (connectedUsernames.length > 0) {
+      const presenceR = await pool.query(
+        `SELECT email FROM users WHERE username = ANY($1)`,
+        [connectedUsernames]
+      );
+      loggedInOnline = presenceR.rows.filter(u => u.email).length;
+      guestsOnline = presenceR.rows.filter(u => !u.email).length;
+    }
+    const activeRoomsNow = rooms.size;
+    let activePublicRooms = 0;
+    let activePrivateRooms = 0;
+    for (const [, room] of rooms.entries()) {
+      if (room.isPublic) activePublicRooms++; else activePrivateRooms++;
+    }
+
+    res.json({
+      totalUsers: parseInt(totalR.rows[0].count),
+      newThisMonth: parseInt(monthR.rows[0].count),
+      newThisWeek: parseInt(weekR.rows[0].count),
+      loggedInOnline,
+      guestsOnline,
+      activeRoomsNow,
+      activePublicRooms,
+      activePrivateRooms,
+      totalPublicRooms: parseInt(publicRoomR.rows[0].count),
+      totalPrivateRooms: parseInt(privateRoomR.rows[0].count),
+    });
+  } catch (err) {
+    console.error('[ADMIN] stats error:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// GET /api/admin/online-users — only accounts with email (truly registered)
+app.get('/api/admin/online-users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const usernames = [...connectedSockets.keys()];
+    if (usernames.length === 0) return res.json({ users: [], count: 0 });
+    const result = await pool.query(
+      `SELECT id, username, "displayName", "avatarPath" FROM users WHERE username = ANY($1) AND email IS NOT NULL`,
+      [usernames]
+    );
+    res.json({ users: result.rows, count: result.rows.length });
+  } catch (err) {
+    console.error('[ADMIN] online-users error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/admin/guest-users — accounts without email (guests) currently online
+app.get('/api/admin/guest-users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const usernames = [...connectedSockets.keys()];
+    if (usernames.length === 0) return res.json({ users: [], count: 0 });
+    const result = await pool.query(
+      `SELECT id, username, "displayName", "avatarPath" FROM users WHERE username = ANY($1) AND (email IS NULL OR email = '')`,
+      [usernames]
+    );
+    res.json({ users: result.rows, count: result.rows.length });
+  } catch (err) {
+    console.error('[ADMIN] guest-users error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/admin/active-rooms
+app.get('/api/admin/active-rooms', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const filter = req.query.filter || 'all'; // 'all' | 'public' | 'private'
+    const list = [];
+    for (const [roomId, room] of rooms.entries()) {
+      if (filter === 'public' && !room.isPublic) continue;
+      if (filter === 'private' && room.isPublic) continue;
+      list.push({
+        roomId,
+        roomName: room.roomName || room.name || roomId,
+        hostUsername: room.hostUsername || room.host || '—',
+        memberCount: room.members ? (room.members instanceof Set ? room.members.size : Object.keys(room.members).length) : (room.viewers ? room.viewers.size : 0),
+        isPublic: !!room.isPublic,
+        category: room.category || '—',
+      });
+    }
+    res.json({ rooms: list, count: list.length });
+  } catch (err) {
+    console.error('[ADMIN] active-rooms error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/admin/users?search=&page=&limit=
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const search = (req.query.search || '').trim();
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+    const pattern = `%${search}%`;
+
+    const [usersR, countR] = await Promise.all([
+      pool.query(
+        `SELECT id, username, email, role, banned_until, is_permanently_banned, ban_reason,
+                terminated, created_at, last_login, "displayName", "avatarPath"
+         FROM users
+         WHERE (username ILIKE $1 OR email ILIKE $1)
+         ORDER BY created_at DESC NULLS LAST
+         LIMIT $2 OFFSET $3`,
+        [pattern, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*) FROM users WHERE (username ILIKE $1 OR email ILIKE $1)`,
+        [pattern]
+      ),
+    ]);
+
+    res.json({
+      users: usersR.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] users list error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// POST /api/admin/users/:userId/ban
+app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { type, expiresAt, reason } = req.body;
+
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: 'A reason is required for all bans.' });
+  }
+  if (!['temporary', 'permanent'].includes(type)) {
+    return res.status(400).json({ error: 'ban type must be "temporary" or "permanent"' });
+  }
+  if (type === 'temporary' && !expiresAt) {
+    return res.status(400).json({ error: 'expiresAt is required for temporary bans.' });
+  }
+
+  // Prevent admin from banning themselves
+  if (String(userId) === String(req.user.id)) {
+    return res.status(400).json({ error: 'You cannot ban your own account.' });
+  }
+
+  try {
+    const targetR = await pool.query('SELECT id, username, email, role FROM users WHERE id = $1', [userId]);
+    if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const target = targetR.rows[0];
+
+    if (target.role === 'admin') {
+      return res.status(400).json({ error: 'Admin accounts cannot be banned.' });
+    }
+
+    const isPermanent = type === 'permanent';
+    const expiry = isPermanent ? null : new Date(expiresAt);
+
+    // Update user row
+    await pool.query(
+      `UPDATE users SET
+         banned_until = $1,
+         is_permanently_banned = $2,
+         ban_reason = $3
+       WHERE id = $4`,
+      [isPermanent ? null : expiry, isPermanent, reason.trim(), userId]
+    );
+
+    // Insert into bans table
+    await pool.query(
+      `INSERT INTO bans (user_id, banned_by_admin_id, ban_type, scope, reason, expires_at, active)
+       VALUES ($1, $2, $3, 'global', $4, $5, TRUE)`,
+      [String(userId), String(req.user.id), type, reason.trim(), expiry]
+    );
+
+    // Audit log
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, reason, details)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        String(req.user.id), req.adminEmail,
+        isPermanent ? 'PERMANENT_BAN_USER' : 'TEMP_BAN_USER',
+        String(userId), reason.trim(),
+        JSON.stringify({ banType: type, expiresAt: expiry, targetUsername: target.username }),
+      ]
+    );
+
+    // Force-disconnect the user's active sockets with account_banned event
+    const sids = connectedSockets.get(target.username.toLowerCase());
+    if (sids && sids.size > 0) {
+      for (const sid of [...sids]) {
+        const sock = io.sockets.sockets.get(sid);
+        if (sock) {
+          sock.emit('account_banned', { reason: reason.trim(), isPermanent, expiresAt: expiry });
+          setTimeout(() => { try { sock.disconnect(true); } catch (_) {} }, 600);
+        }
+      }
+    }
+
+    console.log(`[ADMIN] ${req.user.username} banned ${target.username} (${type}): ${reason}`);
+    res.json({ success: true, message: `User ${target.username} has been ${isPermanent ? 'permanently' : 'temporarily'} banned.` });
+  } catch (err) {
+    console.error('[ADMIN] ban error:', err);
+    res.status(500).json({ error: 'Failed to ban user' });
+  }
+});
+
+// POST /api/admin/users/:userId/terminate
+app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { reason } = req.body;
+
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: 'A reason is required for termination.' });
+  }
+  if (String(userId) === String(req.user.id)) {
+    return res.status(400).json({ error: 'You cannot terminate your own account.' });
+  }
+
+  try {
+    const targetR = await pool.query('SELECT id, username, role FROM users WHERE id = $1', [userId]);
+    if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const target = targetR.rows[0];
+
+    if (target.role === 'admin') {
+      return res.status(400).json({ error: 'Admin accounts cannot be terminated.' });
+    }
+
+    await pool.query(
+      `UPDATE users SET terminated = TRUE, ban_reason = $1 WHERE id = $2`,
+      [reason.trim(), userId]
+    );
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, reason, details)
+       VALUES ($1, $2, 'TERMINATE_USER', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, String(userId), reason.trim(),
+       JSON.stringify({ targetUsername: target.username })]
+    );
+
+    // Force-disconnect active sockets
+    const sids = connectedSockets.get(target.username.toLowerCase());
+    if (sids && sids.size > 0) {
+      for (const sid of [...sids]) {
+        const sock = io.sockets.sockets.get(sid);
+        if (sock) {
+          sock.emit('account_terminated', { reason: reason.trim() });
+          setTimeout(() => { try { sock.disconnect(true); } catch (_) {} }, 600);
+        }
+      }
+    }
+
+    console.log(`[ADMIN] ${req.user.username} terminated ${target.username}: ${reason}`);
+    res.json({ success: true, message: `Account ${target.username} has been terminated.` });
+  } catch (err) {
+    console.error('[ADMIN] terminate error:', err);
+    res.status(500).json({ error: 'Failed to terminate account' });
+  }
+});
+
+// POST /api/admin/users/:userId/unban
+app.post('/api/admin/users/:userId/unban', authenticateToken, requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+
+  // Self-check (can't accidentally lock yourself out by unbanning either)
+  if (String(userId) === String(req.user.id)) {
+    return res.status(400).json({ error: 'Action not allowed on your own account.' });
+  }
+
+  try {
+    const targetR = await pool.query('SELECT id, username FROM users WHERE id = $1', [userId]);
+    if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const target = targetR.rows[0];
+
+    // Clear ban fields on user row
+    await pool.query(
+      `UPDATE users SET banned_until = NULL, is_permanently_banned = FALSE, ban_reason = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    // Mark all active bans for this user as inactive
+    await pool.query(`UPDATE bans SET active = FALSE WHERE user_id = $1 AND active = TRUE`, [String(userId)]);
+
+    // Audit log
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, reason)
+       VALUES ($1, $2, 'UNBAN_USER', $3, 'Admin unban')`,
+      [String(req.user.id), req.adminEmail, String(userId)]
+    );
+
+    console.log(`[ADMIN] ${req.user.username} unbanned ${target.username}`);
+    res.json({ success: true, message: `User ${target.username} has been unbanned.` });
+  } catch (err) {
+    console.error('[ADMIN] unban error:', err);
+    res.status(500).json({ error: 'Failed to unban user' });
+  }
+});
+
+// ─── Phase 2 Admin Routes ─────────────────────────────────────────────────────
+
+// GET /api/admin/rooms/detailed — rooms with member lists
+app.get('/api/admin/rooms/detailed', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const list = [];
+    for (const [roomId, room] of rooms.entries()) {
+      list.push({
+        roomId,
+        roomName: room.roomName || roomId,
+        hostUsername: room.hostUsername || '—',
+        isPublic: !!room.isPublic,
+        category: room.category || 'other',
+        members: (room.users || []).map(u => ({
+          username: u.username || 'Anonymous',
+          socketId: u.socketId,
+          avatarPath: u.avatarPath || null,
+          isHost: u.socketId === room.hostId || (room.hostUsername && u.username?.toLowerCase() === room.hostUsername?.toLowerCase()),
+        })),
+      });
+    }
+    list.sort((a, b) => b.members.length - a.members.length);
+    res.json({ rooms: list, count: list.length });
+  } catch (err) {
+    console.error('[ADMIN] rooms/detailed error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/admin/rooms/:roomId/force-close
+app.post('/api/admin/rooms/:roomId/force-close', authenticateToken, requireAdmin, async (req, res) => {
+  const { roomId } = req.params;
+  const { reason = 'Room closed by admin' } = req.body;
+
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found or already closed' });
+
+  try {
+    io.in(roomId).emit('kicked_out', { reason: 'room_closed_by_admin' });
+    rooms.delete(roomId);
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, room_id, reason, details)
+       VALUES ($1, $2, 'FORCE_CLOSE_ROOM', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, roomId, reason,
+       JSON.stringify({ roomName: room.roomName || roomId })]
+    );
+
+    console.log(`[ADMIN] ${req.user.username} force-closed room ${roomId}`);
+    res.json({ success: true, message: `Room "${room.roomName || roomId}" has been closed.` });
+  } catch (err) {
+    console.error('[ADMIN] force-close error:', err.message);
+    res.status(500).json({ error: 'Failed to close room' });
+  }
+});
+
+// POST /api/admin/rooms/:roomId/kick-member
+app.post('/api/admin/rooms/:roomId/kick-member', authenticateToken, requireAdmin, async (req, res) => {
+  const { roomId } = req.params;
+  const { username } = req.body;
+
+  if (!username) return res.status(400).json({ error: 'username is required' });
+
+  const room = rooms.get(roomId);
+  if (!room) return res.status(404).json({ error: 'Room not found' });
+
+  const userEntry = (room.users || []).find(u =>
+    u.username?.toLowerCase() === username.toLowerCase()
+  );
+  if (!userEntry) return res.status(404).json({ error: 'User not found in this room' });
+
+  try {
+    const sock = io.sockets.sockets.get(userEntry.socketId);
+    if (sock) {
+      sock.emit('kicked_out', { reason: 'admin_kick' });
+      sock.leave(roomId);
+    }
+    room.users = (room.users || []).filter(u => u.socketId !== userEntry.socketId);
+    io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, room_id, reason, details)
+       VALUES ($1, $2, 'KICK_USER_FROM_ROOM', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, roomId, `Admin kicked ${username}`,
+       JSON.stringify({ username, roomName: room.roomName || roomId })]
+    );
+
+    console.log(`[ADMIN] ${req.user.username} kicked ${username} from room ${roomId}`);
+    res.json({ success: true, message: `${username} has been removed from the room.` });
+  } catch (err) {
+    console.error('[ADMIN] kick-member error:', err.message);
+    res.status(500).json({ error: 'Failed to kick member' });
+  }
+});
+
+// GET /api/admin/audit-logs
+app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+
+    const [logsR, countR] = await Promise.all([
+      pool.query(
+        `SELECT l.id, l.admin_user_id, l.admin_email, l.action, l.target_user_id,
+                l.room_id, l.reason, l.details, l.created_at,
+                u.username AS target_username
+         FROM admin_audit_logs l
+         LEFT JOIN users u ON l.target_user_id = u.id::TEXT
+         ORDER BY l.created_at DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      pool.query('SELECT COUNT(*) FROM admin_audit_logs'),
+    ]);
+
+    res.json({
+      logs: logsR.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] audit-logs error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// GET /api/admin/reports
+app.get('/api/admin/reports', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+    const filter = req.query.filter || 'all';
+
+    let where = '';
+    if (filter === 'unresolved') where = `WHERE (status IS NULL OR status = 'open' OR status = 'in_review') AND resolved IS NOT TRUE`;
+    else if (filter === 'in_review') where = `WHERE status = 'in_review'`;
+    else if (filter === 'resolved') where = `WHERE status = 'resolved' OR resolved = TRUE`;
+    else if (filter === 'dismissed') where = `WHERE status = 'dismissed'`;
+
+    const [reportsR, countR] = await Promise.all([
+      pool.query(
+        `SELECT id, "roomId", "reporterUsername", "reportedUsername", message, "createdAt", resolved,
+                status, admin_notes, resolved_by_admin_id, resolved_at, priority
+         FROM reports ${where}
+         ORDER BY "createdAt" DESC
+         LIMIT $1 OFFSET $2`,
+        [limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM reports ${where}`),
+    ]);
+
+    res.json({
+      reports: reportsR.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] reports error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch reports' });
+  }
+});
+
+// POST /api/admin/reports/:id/resolve
+app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { admin_notes, action: resolveAction } = req.body;
+  const newStatus = resolveAction === 'dismiss' ? 'dismissed' : 'resolved';
+  const auditAction = newStatus === 'dismissed' ? 'REPORT_DISMISSED' : 'REPORT_RESOLVED';
+  try {
+    await pool.query(
+      `UPDATE reports SET resolved = TRUE, status = $1, resolved_by_admin_id = $2, resolved_at = NOW(), admin_notes = COALESCE($3, admin_notes) WHERE id = $4`,
+      [newStatus, String(req.user.id), admin_notes || null, id]
+    );
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason)
+       VALUES ($1, $2, $3, $4)`,
+      [String(req.user.id), req.adminEmail, auditAction, `Report #${id}${admin_notes ? ': ' + admin_notes.substring(0, 200) : ''}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] resolve report error:', err.message);
+    res.status(500).json({ error: 'Failed to resolve report' });
+  }
+});
+
+// PATCH /api/admin/reports/:id — update status or admin notes
+app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { status, admin_notes, priority } = req.body;
+  const allowed = ['open', 'in_review', 'resolved', 'dismissed'];
+  if (status && !allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  try {
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+    if (status) { updates.push(`status = $${idx++}`); vals.push(status); }
+    if (admin_notes !== undefined) { updates.push(`admin_notes = $${idx++}`); vals.push(admin_notes); }
+    if (priority) { updates.push(`priority = $${idx++}`); vals.push(priority); }
+    if (status === 'resolved' || status === 'dismissed') {
+      updates.push(`resolved = TRUE`, `resolved_by_admin_id = $${idx++}`, `resolved_at = NOW()`);
+      vals.push(String(req.user.id));
+    }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    vals.push(id);
+    await pool.query(`UPDATE reports SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] patch report error:', err.message);
+    res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+// GET /api/admin/db-rooms — paginated rooms from DB with search and filter
+app.get('/api/admin/db-rooms', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const search = (req.query.search || '').trim();
+    const filter = req.query.filter || 'all';
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    const baseParams = [];
+
+    if (search) {
+      baseParams.push(`%${search}%`);
+      conditions.push(`("roomId" ILIKE $${baseParams.length} OR "roomName" ILIKE $${baseParams.length})`);
+    }
+    if (filter === 'public') conditions.push(`"isPublic" = 1`);
+    if (filter === 'private') conditions.push(`("isPublic" = 0 OR "isPublic" IS NULL)`);
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const dataParams = [...baseParams, limit, offset];
+
+    const [roomsR, countR] = await Promise.all([
+      pool.query(
+        `SELECT "roomId", "roomName", "hostUsername", "isPublic", "category", "created_at"
+         FROM room_names ${whereClause}
+         ORDER BY "created_at" DESC NULLS LAST
+         LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams
+      ),
+      pool.query(`SELECT COUNT(*) FROM room_names ${whereClause}`, baseParams),
+    ]);
+
+    const total = parseInt(countR.rows[0].count);
+    res.json({
+      rooms: roomsR.rows,
+      total,
+      page,
+      limit,
+      pages: Math.max(1, Math.ceil(total / limit)),
+    });
+  } catch (err) {
+    console.error('[ADMIN] db-rooms error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/admin/rooms/:roomId — permanently delete room, chat history, and kick all live members
+app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, async (req, res) => {
+  const { roomId } = req.params;
+  const { reason = 'Room deleted by admin' } = req.body || {};
+
+  try {
+    const roomDbR = await pool.query(
+      `SELECT "roomName", "hostUsername", "thumbnailPath" FROM room_names WHERE "roomId" = $1`,
+      [roomId]
+    );
+
+    const liveRoom = rooms.get(roomId);
+    if (roomDbR.rows.length === 0 && !liveRoom) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    const roomName = roomDbR.rows[0]?.roomName || roomId;
+    const thumbnailPath = roomDbR.rows[0]?.thumbnailPath;
+
+    if (liveRoom) {
+      io.in(roomId).emit('kicked_out', { reason: 'room_closed_by_admin' });
+      rooms.delete(roomId);
+    }
+
+    await pool.query(`DELETE FROM messages WHERE "roomId" = $1 AND type IN ('room', 'group')`, [roomId]);
+    await pool.query(`DELETE FROM room_names WHERE "roomId" = $1`, [roomId]);
+
+    if (thumbnailPath) {
+      const fullPath = path.join(__dirname, thumbnailPath.replace(/^\//, ''));
+      fs.unlink(fullPath, () => {});
+    }
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, room_id, reason, details)
+       VALUES ($1, $2, 'DELETE_ROOM', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, roomId, reason, JSON.stringify({ roomName })]
+    );
+
+    console.log(`[ADMIN] ${req.user.username} permanently deleted room ${roomId} (${roomName})`);
+    res.json({ success: true, message: `Room "${roomName}" has been permanently deleted.` });
+  } catch (err) {
+    console.error('[ADMIN] delete-room error:', err.message);
+    res.status(500).json({ error: 'Failed to delete room' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUPPORT INBOX ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/badge-counts
+app.get('/api/admin/badge-counts', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const [openSupport, unresolvedReports, pendingInvites] = await Promise.all([
+      pool.query(`SELECT COUNT(*) FROM support_requests WHERE status = 'open'`),
+      pool.query(`SELECT COUNT(*) FROM reports WHERE resolved IS NOT TRUE AND (status IS NULL OR status NOT IN ('resolved','dismissed'))`),
+      req.adminRole === 'super_admin'
+        ? pool.query(`SELECT COUNT(*) FROM admin_invites WHERE status = 'pending' AND expires_at > NOW()`)
+        : Promise.resolve({ rows: [{ count: '0' }] }),
+    ]);
+    res.json({
+      openSupportRequests: parseInt(openSupport.rows[0].count),
+      unresolvedReports: parseInt(unresolvedReports.rows[0].count),
+      pendingInvites: parseInt(pendingInvites.rows[0].count),
+    });
+  } catch (err) {
+    console.error('[ADMIN] badge-counts error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch badge counts' });
+  }
+});
+
+// GET /api/admin/support-requests
+app.get('/api/admin/support-requests', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const filter = req.query.filter || 'all';
+    const search = (req.query.search || '').trim();
+    const type = req.query.type || '';
+    const priority = req.query.priority || '';
+
+    const conditions = [];
+    const vals = [];
+    let idx = 1;
+
+    if (filter !== 'all') { conditions.push(`status = $${idx++}`); vals.push(filter); }
+    if (type) { conditions.push(`request_type = $${idx++}`); vals.push(type); }
+    if (priority) { conditions.push(`priority = $${idx++}`); vals.push(priority); }
+    if (search) {
+      conditions.push(`(subject ILIKE $${idx} OR submitted_by_email ILIKE $${idx} OR submitted_by_name ILIKE $${idx})`);
+      vals.push(`%${search}%`); idx++;
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const countWhere = where;
+
+    const [rows, countR] = await Promise.all([
+      pool.query(
+        `SELECT id, request_type, subject, submitted_by_email, submitted_by_name, priority, status,
+                assigned_to_admin_id, resolved_at, created_at, updated_at, email_notification_status,
+                attachment_deleted,
+                CASE WHEN attachments IS NOT NULL AND jsonb_typeof(attachments) = 'array' THEN jsonb_array_length(attachments)
+                     WHEN metadata IS NOT NULL AND metadata->>'attachmentCount' IS NOT NULL THEN (metadata->>'attachmentCount')::int
+                     ELSE 0 END AS attachment_count
+         FROM support_requests ${where}
+         ORDER BY
+           CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+           created_at DESC
+         LIMIT $${idx++} OFFSET $${idx++}`,
+        [...vals, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM support_requests ${countWhere}`, vals),
+    ]);
+
+    res.json({
+      requests: rows.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] support-requests list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch support requests' });
+  }
+});
+
+// GET /api/admin/support-requests/:id
+app.get('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, request_type, subject, message, submitted_by_user_id, submitted_by_email, submitted_by_name,
+              room_id, target_user_id, priority, status, admin_notes, assigned_to_admin_id,
+              resolved_by_admin_id, resolved_at, attachments, metadata, attachment_deleted, attachment_deleted_at,
+              email_notification_status, created_at, updated_at
+       FROM support_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Request not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[ADMIN] support-request fetch error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch request' });
+  }
+});
+
+// PATCH /api/admin/support-requests/:id
+app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+  const { id } = req.params;
+  const { status, priority, admin_notes, resolution_message } = req.body;
+  const allowedStatus = ['open', 'in_progress', 'resolved', 'dismissed'];
+  if (status && !allowedStatus.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  try {
+    const updates = [];
+    const vals = [];
+    let idx = 1;
+    if (status) {
+      updates.push(`status = $${idx++}`); vals.push(status);
+      if (status === 'resolved' || status === 'dismissed') {
+        updates.push(`resolved_by_admin_id = $${idx++}`, `resolved_at = NOW()`);
+        vals.push(String(req.user.id));
+      }
+    }
+    if (priority) { updates.push(`priority = $${idx++}`); vals.push(priority); }
+    if (admin_notes !== undefined) { updates.push(`admin_notes = $${idx++}`); vals.push(admin_notes); }
+    if (resolution_message !== undefined) { updates.push(`resolution_message = $${idx++}`); vals.push(resolution_message); }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    updates.push(`updated_at = NOW()`);
+    vals.push(id);
+    await pool.query(`UPDATE support_requests SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
+
+    const auditAction = status === 'resolved' ? 'SUPPORT_REQUEST_RESOLVED'
+      : status === 'dismissed' ? 'SUPPORT_REQUEST_DISMISSED'
+      : 'SUPPORT_REQUEST_UPDATED';
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, support_request_id, reason)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, auditAction, String(id), `Request #${id} → ${status || 'updated'}`]
+    );
+
+    // Send resolution email to the original submitter
+    if (status === 'resolved') {
+      try {
+        const ticketR = await pool.query(
+          `SELECT subject, submitted_by_email, submitted_by_name, resolution_message FROM support_requests WHERE id = $1`, [id]
+        );
+        const ticket = ticketR.rows[0];
+        if (ticket && ticket.submitted_by_email) {
+          const escR = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+          const resolveHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#10b981,#059669);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">✅ Your request has been resolved</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">SahaPlay Support</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#e5e7eb;font-size:16px;line-height:1.75;margin:0 0 20px">Hi <strong style="color:#fff">${escR(ticket.submitted_by_name || 'there')}</strong>,</p>
+    <p style="color:#9ca3af;font-size:15px;line-height:1.75;margin:0 0 24px">Good news! Your support request has been reviewed and resolved by our team.</p>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:${ticket.resolution_message ? '20px' : '24px'}">
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px">Your Request</p>
+      <p style="color:#fff;font-size:15px;font-weight:600;margin:0">${escR(ticket.subject)}</p>
+    </div>
+    ${ticket.resolution_message ? `<div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:20px;margin-bottom:24px">
+      <p style="color:#818cf8;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px">Message from our team</p>
+      <p style="color:#e5e7eb;font-size:14px;line-height:1.75;margin:0">${escR(ticket.resolution_message)}</p>
+    </div>` : ''}
+    <p style="color:#6b7280;font-size:14px;line-height:1.6;margin:0">If you have further questions, email us at <a href="mailto:sahaaplay@gmail.com" style="color:#818cf8;text-decoration:none">sahaaplay@gmail.com</a></p>
+  </div>
+  <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
+    <p style="color:#6b7280;font-size:12px;margin:0">— SahaPlay Team</p>
+  </div>
+</div>
+</body></html>`;
+          sendEmail({
+            to: ticket.submitted_by_email,
+            subject: `Your request has been resolved — SahaPlay`,
+            html: resolveHtml,
+            text: `Hi ${ticket.submitted_by_name || 'there'},\n\nYour support request "${ticket.subject}" has been resolved by our team.\n\n${ticket.resolution_message ? `Message from our team:\n${ticket.resolution_message}\n\n` : ''}If you have further questions, email us at sahaaplay@gmail.com.\n\n— SahaPlay Team`,
+          }).catch(() => {});
+        }
+      } catch (emailErr) {
+        console.warn('[ADMIN] resolve email error (non-fatal):', emailErr.message);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] patch support-request error:', err.message);
+    res.status(500).json({ error: 'Failed to update request' });
+  }
+});
+
+// POST /api/admin/support-requests/:id/assign
+app.post('/api/admin/support-requests/:id/assign', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+  const { id } = req.params;
+  const { targetAdminId } = req.body;
+  let assignedTo = String(req.user.id);
+  let assignedEmail = req.adminEmail;
+  try {
+    if (targetAdminId && String(targetAdminId) !== String(req.user.id)) {
+      if (!['super_admin', 'admin'].includes(req.adminRole)) {
+        return res.status(403).json({ error: 'Only admins can assign tickets to other team members' });
+      }
+      const check = await pool.query('SELECT id, email FROM users WHERE id = $1 AND role = ANY($2)', [String(targetAdminId), ALL_ADMIN_ROLES]);
+      if (!check.rows[0]) return res.status(400).json({ error: 'Target user is not an admin team member' });
+      assignedTo = String(targetAdminId);
+      assignedEmail = check.rows[0].email;
+    }
+    await pool.query(
+      `UPDATE support_requests SET assigned_to_admin_id = $1, status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END, updated_at = NOW() WHERE id = $2`,
+      [assignedTo, id]
+    );
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, support_request_id, reason)
+       VALUES ($1, $2, 'SUPPORT_REQUEST_ASSIGNED', $3, $4)`,
+      [String(req.user.id), req.adminEmail, String(id), `Request #${id} assigned to ${assignedEmail}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] assign support-request error:', err.message);
+    res.status(500).json({ error: 'Failed to assign request' });
+  }
+});
+
+// GET /api/admin/team/:userId/tickets — assigned tickets for a team member
+app.get('/api/admin/team/:userId/tickets', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT id, subject, request_type, status, priority, created_at, submitted_by_name, submitted_by_email
+       FROM support_requests
+       WHERE assigned_to_admin_id = $1
+       ORDER BY CASE status WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 ELSE 3 END, created_at DESC
+       LIMIT 50`,
+      [String(userId)]
+    );
+    res.json({ tickets: result.rows });
+  } catch (err) {
+    console.error('[ADMIN] member tickets error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// POST /api/admin/support-requests/:id/note
+app.post('/api/admin/support-requests/:id/note', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body;
+  if (!note || !note.trim()) return res.status(400).json({ error: 'Note is required' });
+  try {
+    const ts = new Date().toISOString();
+    const noteEntry = `[${ts} - ${req.adminEmail}] ${note.trim()}`;
+    await pool.query(
+      `UPDATE support_requests SET admin_notes = CASE WHEN admin_notes IS NULL OR admin_notes = '' THEN $1 ELSE admin_notes || E'\n' || $1 END, updated_at = NOW() WHERE id = $2`,
+      [noteEntry, id]
+    );
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, support_request_id, reason)
+       VALUES ($1, $2, 'SUPPORT_REQUEST_NOTE_ADDED', $3, $4)`,
+      [String(req.user.id), req.adminEmail, String(id), `Note added to request #${id}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] add note error:', err.message);
+    res.status(500).json({ error: 'Failed to add note' });
+  }
+});
+
+// POST /api/admin/support-requests/cleanup-attachments — 90-day retention
+app.post('/api/admin/support-requests/cleanup-attachments', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const toClean = await pool.query(
+      `SELECT id, attachments FROM support_requests
+       WHERE attachment_deleted = FALSE
+         AND (status = 'resolved' OR status = 'dismissed')
+         AND COALESCE(resolved_at, updated_at) < $1
+         AND attachments IS NOT NULL AND attachments != 'null'::jsonb`,
+      [cutoff]
+    );
+
+    let cleaned = 0;
+    for (const row of toClean.rows) {
+      try {
+        const atts = Array.isArray(row.attachments) ? row.attachments : JSON.parse(row.attachments || '[]');
+        for (const att of atts) {
+          if (att.storagePath) {
+            await supabase.storage.from('support-attachments').remove([att.storagePath]).catch(() => {});
+          }
+        }
+        await pool.query(
+          `UPDATE support_requests SET attachment_deleted = TRUE, attachment_deleted_at = NOW(), attachments = NULL, updated_at = NOW() WHERE id = $1`,
+          [row.id]
+        );
+        cleaned++;
+      } catch (rowErr) {
+        console.warn('[cleanup-attachments] row', row.id, 'error:', rowErr.message);
+      }
+    }
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason)
+       VALUES ($1, $2, 'SUPPORT_ATTACHMENT_DELETED', $3)`,
+      [String(req.user.id), req.adminEmail, `Cleaned ${cleaned} of ${toClean.rows.length} expired attachment sets`]
+    );
+
+    res.json({ success: true, cleaned, total: toClean.rows.length });
+  } catch (err) {
+    console.error('[ADMIN] cleanup-attachments error:', err.message);
+    res.status(500).json({ error: 'Failed to run attachment cleanup' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN TEAM MANAGEMENT ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/team
+app.get('/api/admin/team', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.username, u.email, u.role, u.created_at, u.last_login,
+              (SELECT COUNT(*) FROM support_requests sr
+               WHERE sr.assigned_to_admin_id = u.id::TEXT
+                 AND sr.status NOT IN ('resolved', 'dismissed'))::int AS open_ticket_count
+       FROM users u
+       WHERE u.role = ANY($1)
+       ORDER BY CASE u.role WHEN 'super_admin' THEN 1 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 3 ELSE 4 END, u.username ASC`,
+      [ALL_ADMIN_ROLES]
+    );
+    res.json({ members: result.rows });
+  } catch (err) {
+    console.error('[ADMIN] team list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch team' });
+  }
+});
+
+// PATCH /api/admin/team/:userId/role — super_admin only
+app.patch('/api/admin/team/:userId/role', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body;
+  const allowed = ['super_admin', 'admin', 'moderator', 'support', 'user'];
+  if (!role || !allowed.includes(role)) return res.status(400).json({ error: 'Invalid role' });
+  if (userId === String(req.user.id)) return res.status(400).json({ error: 'Cannot change your own role' });
+  try {
+    const check = await pool.query('SELECT email, role FROM users WHERE id = $1', [userId]);
+    if (!check.rows[0]) return res.status(404).json({ error: 'User not found' });
+    const prev = check.rows[0];
+    await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_ROLE_CHANGED', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, userId, prev.email, `Role changed from ${prev.role} to ${role}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] change role error:', err.message);
+    res.status(500).json({ error: 'Failed to update role' });
+  }
+});
+
+// PATCH /api/admin/team/:userId/disable — super_admin only (set role to 'user' = revoke access)
+app.patch('/api/admin/team/:userId/disable', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  const { userId } = req.params;
+  if (userId === String(req.user.id)) return res.status(400).json({ error: 'Cannot disable your own account' });
+  try {
+    const check = await pool.query('SELECT email, role FROM users WHERE id = $1', [userId]);
+    if (!check.rows[0]) return res.status(404).json({ error: 'User not found' });
+    const prev = check.rows[0];
+    await pool.query(`UPDATE users SET role = 'user' WHERE id = $1`, [userId]);
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_ACCESS_DISABLED', $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail, userId, prev.email, `Admin access revoked (was ${prev.role})`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] disable admin error:', err.message);
+    res.status(500).json({ error: 'Failed to disable admin access' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN INVITE ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/invites — super_admin only
+app.get('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, email, role, status, expires_at, accepted_at, created_at,
+              (SELECT email FROM users WHERE id::text = ai.invited_by_admin_id LIMIT 1) AS invited_by_email
+       FROM admin_invites ai ORDER BY created_at DESC`
+    );
+    res.json({ invites: result.rows });
+  } catch (err) {
+    console.error('[ADMIN] invites list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch invites' });
+  }
+});
+
+// POST /api/admin/invites — super_admin only
+app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  const { email, role } = req.body;
+  const allowed = ['admin', 'moderator', 'support'];
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return res.status(400).json({ error: 'Valid email required' });
+  if (!role || !allowed.includes(role)) return res.status(400).json({ error: 'Valid role required (admin, moderator, support)' });
+
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const existing = await pool.query(`SELECT id FROM admin_invites WHERE email = $1 AND status = 'pending' AND expires_at > NOW()`, [cleanEmail]);
+    if (existing.rows.length) return res.status(409).json({ error: 'A pending invite already exists for this email' });
+
+    const rawToken = require('crypto').randomBytes(32).toString('hex');
+    const tokenHash = require('crypto').createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+
+    await pool.query(
+      `INSERT INTO admin_invites (email, role, token_hash, invited_by_admin_id, status, expires_at) VALUES ($1, $2, $3, $4, 'pending', $5)`,
+      [cleanEmail, role, tokenHash, String(req.user.id), expiresAt]
+    );
+
+    const inviteUrl = `${process.env.FRONTEND_URL || 'https://sahaplay.com'}/admin/accept-invite?token=${rawToken}&email=${encodeURIComponent(cleanEmail)}`;
+    const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[role] || role;
+
+    const inviteHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:32px 40px">
+    <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0">You're invited to SahaPlay Admin</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px">Role: ${roleLabel}</p>
+  </div>
+  <div style="padding:32px 40px">
+    <p style="color:#e5e7eb;font-size:15px;line-height:1.75;margin:0 0 24px">You have been invited to join the SahaPlay admin team as a <strong style="color:#a855f7">${roleLabel}</strong>.</p>
+    <a href="${inviteUrl}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:700;font-size:15px;margin-bottom:24px">Accept Invitation</a>
+    <p style="color:#6b7280;font-size:13px;margin:0">This link expires in 48 hours and can only be used once.</p>
+    <p style="color:#6b7280;font-size:13px;margin:8px 0 0">If you did not expect this invitation, you can safely ignore this email.</p>
+  </div>
+</div>
+</body></html>`;
+
+    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      sendEmail({ to: cleanEmail, subject: `You're invited to SahaPlay Admin — ${roleLabel}`, html: inviteHtml, text: `You've been invited to SahaPlay as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.` })
+        .catch(e => console.warn('[admin-invite] Email failed (non-fatal):', e.message));
+    } else {
+      console.warn('[admin-invite] Email not sent — Gmail not configured. Invite URL:', inviteUrl);
+    }
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_INVITE_SENT', $3, $4)`,
+      [String(req.user.id), req.adminEmail, cleanEmail, `Invited ${cleanEmail} as ${role}`]
+    );
+
+    res.json({ success: true, message: `Invite sent to ${cleanEmail}` });
+  } catch (err) {
+    console.error('[ADMIN] send invite error:', err.message);
+    res.status(500).json({ error: 'Failed to send invite' });
+  }
+});
+
+// DELETE /api/admin/invites/:id — super_admin only
+app.delete('/api/admin/invites/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const check = await pool.query(`SELECT email, status FROM admin_invites WHERE id = $1`, [id]);
+    if (!check.rows[0]) return res.status(404).json({ error: 'Invite not found' });
+    await pool.query(`UPDATE admin_invites SET status = 'revoked' WHERE id = $1`, [id]);
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_INVITE_REVOKED', $3, $4)`,
+      [String(req.user.id), req.adminEmail, check.rows[0].email, `Invite #${id} revoked`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] revoke invite error:', err.message);
+    res.status(500).json({ error: 'Failed to revoke invite' });
+  }
+});
+
+// POST /api/admin/invites/:id/resend — super_admin only
+app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const check = await pool.query(`SELECT email, role, status FROM admin_invites WHERE id = $1`, [id]);
+    if (!check.rows[0]) return res.status(404).json({ error: 'Invite not found' });
+    if (check.rows[0].status === 'accepted') return res.status(400).json({ error: 'Invite already accepted' });
+    if (check.rows[0].status === 'revoked') return res.status(400).json({ error: 'Invite has been revoked' });
+
+    const crypto = require('crypto');
+    const newToken = crypto.randomBytes(32).toString('hex');
+    const newHash = crypto.createHash('sha256').update(newToken).digest('hex');
+    const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await pool.query(
+      `UPDATE admin_invites SET token_hash = $1, expires_at = $2, status = 'pending' WHERE id = $3`,
+      [newHash, newExpiry, id]
+    );
+
+    const inv = check.rows[0];
+    const appUrl = process.env.APP_URL || `http://localhost:${process.env.FRONTEND_PORT || 5173}`;
+    const inviteLink = `${appUrl}/admin/accept-invite?token=${newToken}&email=${encodeURIComponent(inv.email)}`;
+
+    if (process.env.SMTP_HOST) {
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        to: inv.email,
+        subject: 'SahaPlay Admin Invite (Resent)',
+        html: `<p>You have been invited to join the SahaPlay admin team as <strong>${inv.role}</strong>.</p>
+               <p><a href="${inviteLink}">Accept Invite</a></p>
+               <p>This link expires in 7 days.</p>`,
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_INVITE_RESENT', $3, $4)`,
+      [String(req.user.id), req.adminEmail, inv.email, `Invite #${id} resent`]
+    );
+
+    res.json({ success: true, message: `Invite resent to ${inv.email}`, inviteLink: process.env.SMTP_HOST ? undefined : inviteLink });
+  } catch (err) {
+    console.error('[ADMIN] resend invite error:', err.message);
+    res.status(500).json({ error: 'Failed to resend invite' });
+  }
+});
+
+// POST /api/admin/accept-invite — authenticated user accepts invite
+app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
+  const { token, email } = req.body;
+  if (!token || !email) return res.status(400).json({ error: 'Token and email required' });
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    const tokenHash = require('crypto').createHash('sha256').update(token).digest('hex');
+    const invite = await pool.query(
+      `SELECT id, email, role, status, expires_at FROM admin_invites WHERE token_hash = $1 AND status = 'pending' AND expires_at > NOW()`,
+      [tokenHash]
+    );
+    if (!invite.rows[0]) return res.status(400).json({ error: 'Invalid or expired invite link' });
+    const inv = invite.rows[0];
+    if (inv.email !== cleanEmail) return res.status(400).json({ error: 'Email mismatch' });
+
+    const userCheck = await pool.query('SELECT id, email FROM users WHERE id = $1', [req.user.id]);
+    if (!userCheck.rows[0]) return res.status(404).json({ error: 'User not found' });
+    if (userCheck.rows[0].email.toLowerCase() !== cleanEmail) {
+      return res.status(403).json({ error: 'Your account email does not match the invite' });
+    }
+
+    await pool.query(`UPDATE users SET role = $1 WHERE id = $2`, [inv.role, req.user.id]);
+    await pool.query(`UPDATE admin_invites SET status = 'accepted', accepted_at = NOW() WHERE id = $1`, [inv.id]);
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
+       VALUES ($1, $2, 'ADMIN_INVITE_ACCEPTED', $3, $4)`,
+      [String(req.user.id), cleanEmail, cleanEmail, `Accepted invite as ${inv.role}`]
+    );
+
+    res.json({ success: true, role: inv.role, message: `Welcome to the SahaPlay admin team as ${inv.role}!` });
+  } catch (err) {
+    console.error('[admin-accept-invite] error:', err.message);
+    res.status(500).json({ error: 'Failed to accept invite' });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Global Express Error Handler

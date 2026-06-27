@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, Globe } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 
@@ -43,9 +43,7 @@ const Footer = () => {
         {/* Brand Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Play fill="#fff" size={14} style={{ marginLeft: 2 }} />
-            </div>
+            <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
             <h3 style={{ fontSize: 20, fontWeight: 900, color: '#fff', margin: 0 }}>SahaPlay</h3>
           </div>
           <p style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300, color: '#6b7280', margin: 0, cursor: 'text' }}>

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import PinSetupModal from './PinSetupModal';
@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
+import { getMessagePreview } from '../utils/messagePreview';
+import { clearUserSession } from '../lib/authUtils.js';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -616,6 +618,84 @@ const typingCss = `
     color: #ef4444 !important;
     stroke: #ef4444 !important;
   }
+
+  /* msg-menu-unsend = "Unsend" (sent) + "Delete" (received): always RED.
+     html[data-theme] prefix lifts specificity to (0,3,1) to beat the
+     html[data-theme='light'] .msg-bubble * white rule (0,2,1) from index.css. */
+  .chat-widget-main-panel .msg-menu-unsend {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+  }
+  .chat-widget-main-panel .msg-menu-unsend svg {
+    color: #ef4444 !important;
+    stroke: #ef4444 !important;
+  }
+  .chat-widget-main-panel .msg-menu-unsend:hover {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+  .chat-widget-main-panel .msg-menu-unsend:hover svg {
+    color: #ef4444 !important;
+    stroke: #ef4444 !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend,
+  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend svg,
+  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend svg {
+    color: #ef4444 !important;
+    stroke: #ef4444 !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend:hover,
+  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend:hover {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend:hover svg,
+  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend:hover svg {
+    color: #ef4444 !important;
+    stroke: #ef4444 !important;
+  }
+
+  /* msg-menu-delete = "Delete for me" (sent only): WHITE in dark mode, BLACK in light mode. */
+  .chat-widget-main-panel .msg-menu-delete {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
+  .chat-widget-main-panel .msg-menu-delete svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+  }
+  .chat-widget-main-panel .msg-menu-delete:hover {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+  .chat-widget-main-panel .msg-menu-delete:hover svg {
+    color: #ffffff !important;
+    stroke: #ffffff !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete {
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete svg {
+    color: #1e293b !important;
+    stroke: #1e293b !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete:hover {
+    color: #1e293b !important;
+    -webkit-text-fill-color: #1e293b !important;
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete:hover svg {
+    color: #1e293b !important;
+    stroke: #1e293b !important;
+  }
 `;
 
 // Avatar helpers
@@ -636,6 +716,23 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+function getDateKey(ts) {
+  const d = new Date(Number(ts));
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateSeparator(ts) {
+  const date = new Date(Number(ts));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today - msgDay) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
 // Second-pass resolver: after history decryption, fix any ciphertext stored in
 // replyTo.message by substituting the decryptedText of the original message.
 function resolveReplyMessages(messages) {
@@ -653,53 +750,284 @@ function resolveReplyMessages(messages) {
   });
 }
 
+function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== username.toLowerCase());
+  
+  if (readers.length === 0) return null;
+  
+  const formatSeenTime = (ts) => {
+    if (!ts) return '';
+    const date = new Date(ts);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div 
+      className="read-receipt-container"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 2,
+        fontSize: 11,
+        color: isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.4)',
+        cursor: 'pointer',
+        position: 'relative',
+        userSelect: 'none'
+      }}
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+      onClick={() => setIsOpen(!isOpen)}
+    >
+      {isGroup ? (
+        <>
+          {/* Avatar stack */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {readers.slice(0, 3).map((r, idx) => {
+              const avatar = r.avatar;
+              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              return (
+                <div 
+                  key={r.username} 
+                  style={{
+                    marginLeft: idx > 0 ? -8 : 0,
+                    border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    width: 16,
+                    height: 16,
+                    background: '#6366f1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 8,
+                    color: '#fff',
+                    zIndex: 10 - idx
+                  }}
+                >
+                  {avatarSrc ? (
+                    <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    r.username.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+              );
+            })}
+            {readers.length > 3 && (
+              <div 
+                style={{
+                  marginLeft: -8,
+                  border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
+                  borderRadius: '50%',
+                  width: 16,
+                  height: 16,
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 7,
+                  color: '#fff',
+                  fontWeight: 600,
+                  zIndex: 5
+                }}
+              >
+                +{readers.length - 3}
+              </div>
+            )}
+          </div>
+          <span style={{ color: isLight ? '#475569' : 'var(--text-muted, #94a3b8)', opacity: 0.8 }}>Seen</span>
+        </>
+      ) : (
+        <span style={{ color: isLight ? '#475569' : 'var(--text-muted, #94a3b8)', opacity: 0.8 }}>Seen</span>
+      )}
+
+      {/* Tooltip */}
+      {isOpen && (
+        <div 
+          className="read-receipt-tooltip"
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            right: 0,
+            marginBottom: 6,
+            background: isLight ? 'rgba(100, 116, 139, 0.98)' : 'rgba(15, 15, 26, 0.95)',
+            backdropFilter: 'blur(10px)',
+            border: isLight ? '1px solid rgba(0, 0, 0, 0.05)' : '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 8,
+            padding: '8px 12px',
+            boxShadow: isLight ? '0 10px 25px rgba(0,0,0,0.15)' : '0 10px 25px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            minWidth: 150,
+            maxWidth: 250,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            pointerEvents: 'auto'
+          }}
+        >
+          <div className="stay-color" style={{ fontWeight: 600, fontSize: 10, color: isLight ? '#cbd5e1' : '#ffffff', borderBottom: isLight ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.08)', paddingBottom: 4 }}>
+            Seen by
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto' }}>
+            {readers.map(r => {
+              const avatar = r.avatar;
+              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              return (
+                <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div 
+                    style={{
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      width: 14,
+                      height: 14,
+                      background: '#6366f1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 8,
+                      color: '#fff',
+                      flexShrink: 0
+                    }}
+                  >
+                    {avatarSrc ? (
+                      <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      r.username.slice(0, 1).toUpperCase()
+                    )}
+                  </div>
+                  <span className="stay-color" style={{ fontSize: 10, color: isLight ? '#cbd5e1' : '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {r.username}
+                  </span>
+                  <span className="stay-white" style={{ fontSize: 9, color: isLight ? '#ffffff' : 'rgba(255,255,255,0.9)', flexShrink: 0 }}>
+                    {formatSeenTime(r.seenAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const getEffectiveSeenBy = (messages, username) => {
+  if (!Array.isArray(messages)) return new Map();
+  const latestSeenMap = new Map();
+  messages.forEach((msg, idx) => {
+    const sender = (msg.senderName || msg.username || '').toLowerCase();
+    const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== sender);
+    readers.forEach(r => {
+      const rName = r.username.toLowerCase();
+      if (rName !== username.toLowerCase()) {
+        latestSeenMap.set(rName, { msgId: msg.id || msg.timestamp, reader: r, idx });
+      }
+    });
+  });
+
+  const messageSeenByMap = new Map();
+  for (const [rName, val] of latestSeenMap.entries()) {
+    const key = String(val.msgId);
+    if (!messageSeenByMap.has(key)) {
+      messageSeenByMap.set(key, []);
+    }
+    messageSeenByMap.get(key).push(val.reader);
+  }
+  return messageSeenByMap;
+};
+
+
 // â”€â”€ Media Lightbox â”€â”€
-function MediaLightbox({ url, type, onClose }) {
+function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
+  const item = items?.[index];
+  const url = item?.url;
+  const type = item?.type;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
+  const hasMultiple = items?.length > 1;
+
   useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && hasMultiple && index > 0) onPrev?.();
+      if (e.key === 'ArrowRight' && hasMultiple && index < items.length - 1) onNext?.();
+    };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext, hasMultiple, index, items?.length]);
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    if (!url) return;
+    try {
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`;
+      a.click();
+    } catch {}
+  };
+
+  if (!item) return null;
+
   return (
     <div
-      onMouseDown={e => e.stopPropagation()}
-      onClick={e => { e.stopPropagation(); onClose(); }}
+      onClick={onClose}
+      className="media-lightbox-overlay gcw-force-dark"
       style={{
         position: 'fixed', inset: 0, zIndex: 999999,
-        background: 'rgba(0,0,0,0.92)',
+        background: 'rgba(0,0,0,0.7)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(6px)'
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)'
       }}
     >
-      <button
-        onClick={e => { e.stopPropagation(); onClose(); }}
+      <div
+        onClick={e => e.stopPropagation()}
+        className="media-lightbox-card"
         style={{
-          position: 'absolute', top: 16, right: 16,
-          background: 'rgba(255,255,255,0.1)', border: 'none',
-          borderRadius: '50%', width: 40, height: 40,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', cursor: 'pointer', zIndex: 1
+          position: 'relative', background: '#111', borderRadius: 16, overflow: 'hidden',
+          width: 'min(640px, 92vw)', height: 'min(520px, 88vh)',
+          display: 'flex', flexDirection: 'column', boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
         }}
       >
-        <X size={20} />
-      </button>
-      <div onClick={e => e.stopPropagation()} style={{ maxWidth: '90vw', maxHeight: '90vh' }}>
-        {isImg ? (
-          <img
-            src={url}
-            alt="Media"
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, display: 'block', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-          />
-        ) : isVid ? (
-          <video
-            src={url}
-            controls
-            autoPlay
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, display: 'block', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}
-          />
-        ) : null}
+        {/* Top bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1a1a1a', borderBottom: '1px solid #2e2e2e', flexShrink: 0 }}>
+          <span style={{ color: '#ccc', fontSize: 13, fontWeight: 600 }}>
+            {hasMultiple ? `${index + 1} / ${items.length}` : ''}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleDownload} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 14px', color: '#111', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#111', display: 'flex' }}><Download size={14} /></span> Save
+            </button>
+            <button onClick={onClose} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 10px', color: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <span style={{ color: '#111', display: 'flex' }}><X size={16} /></span>
+            </button>
+          </div>
+        </div>
+
+        {/* Media area */}
+        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}>
+          {isImg ? (
+            <img src={url} alt="Media" style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain' }} />
+          ) : isVid ? (
+            <video src={url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+          ) : null}
+
+          {hasMultiple && index > 0 && (
+            <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              <span style={{ color: '#fff', display: 'flex' }}><ChevronLeft size={20} /></span>
+            </button>
+          )}
+          {hasMultiple && index < items.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); onNext?.(); }}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              <span style={{ color: '#fff', display: 'flex' }}><ChevronRight size={20} /></span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -829,7 +1157,7 @@ const GlobalChatWidget = forwardRef(({
   const [historyLoading, setHistoryLoading] = useState(false);
   const paginationStateRef = useRef({});
   const scrollContainerRef = useRef(null);
-  const scrollPosRef = useRef(null);
+  const scrollAnchorRef = useRef(null);
   const [conversations, setConversations] = useState(() => {
     try {
       const cached = localStorage.getItem('watch_recent_chats');
@@ -956,7 +1284,7 @@ const GlobalChatWidget = forwardRef(({
   const [searchResults, setSearchResults] = useState([]);
   const [activeRelation, setActiveRelation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [lightbox, setLightbox] = useState(null); // { url, type }
+  const [lightbox, setLightbox] = useState(null); // { items: [{url, type}], index }
   const [typingStatuses, setTypingStatuses] = useState({}); // chatKey -> Set of usernames typing
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -967,13 +1295,18 @@ const GlobalChatWidget = forwardRef(({
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
-  const [showMediaPolicyBanner, setShowMediaPolicyBanner] = useState(() => !localStorage.getItem('media_policy_banner_seen'));
   // Re-auth overlay state (shown when sessionStorage key is missing after tab close)
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState('');
   const [reauthLoading, setReauthLoading] = useState(false);
   // Async-decrypted media blob URLs: msgId -> objectURL
   const decryptedMediaUrls = useRef({});
+  // Incremented after each async media decrypt to force a re-render that picks up the new blob URL
+  const [mediaUrlVersion, setMediaUrlVersion] = useState(0);
+  // Tracks the most recently sent tempId per partner so that stale server echoes (message 1's
+  // server timestamp may exceed the client-optimistic timestamp of message 2) don't revert the
+  // sidebar preview to an older message.
+  const lastSentTempIdRef = useRef({});
   const [autoLockOnClose, setAutoLockOnClose] = useState(localStorage.getItem('chat_lock_auto_on_close') === 'true');
   const [autoLockMinutes, setAutoLockMinutes] = useState(parseInt(localStorage.getItem('chat_lock_auto_minutes') || '5'));
 
@@ -1029,9 +1362,29 @@ const GlobalChatWidget = forwardRef(({
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
   useEffect(() => { viewRef.current = view; }, [view]);
 
+  useLayoutEffect(() => {
+    if (scrollAnchorRef.current && scrollContainerRef.current) {
+      const el = scrollContainerRef.current;
+      const { prevScrollHeight, prevScrollTop } = scrollAnchorRef.current;
+      el.scrollTop = el.scrollHeight - prevScrollHeight + prevScrollTop;
+      scrollAnchorRef.current = null;
+    }
+  }, [messages]);
+
   const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(messagesEndRef);
   const conversationsRef = useRef([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+  // Persist every conversations state change to localStorage so that:
+  //  - handleNewMsg updates survive widget close/reopen (which triggers fetchConversations)
+  //  - Media sends (which have no optimistic conversations update) persist immediately after socket bounce
+  //  - Page refresh always loads the latest preview without relying solely on the server fetch
+  useEffect(() => {
+    if (Array.isArray(conversations) && conversations.length > 0) {
+      try {
+        localStorage.setItem('watch_recent_chats', JSON.stringify(conversations));
+      } catch(e) {}
+    }
+  }, [conversations]);
 
   useEffect(() => {
     const closeMenus = (e) => {
@@ -1048,6 +1401,13 @@ const GlobalChatWidget = forwardRef(({
       setShowVaultMenu(false);
       setActiveConvMenu(null);
       setActiveMessageMenu(null);
+
+      // Close input emoji picker when clicking outside of it or its toggle button
+      const inEmojiPicker = e.target.closest('.emoji-picker-container');
+      const isEmojiToggle = e.target.closest('.emoji-toggle-btn');
+      if (!inEmojiPicker && !isEmojiToggle) {
+        setShowEmojiPicker(false);
+      }
     };
     window.addEventListener('mousedown', closeMenus);
     return () => window.removeEventListener('mousedown', closeMenus);
@@ -1386,6 +1746,21 @@ const GlobalChatWidget = forwardRef(({
       });
     });
 
+    sock.on('account_banned', ({ reason, isPermanent, expiresAt }) => {
+      clearUserSession();
+      sock.disconnect();
+      const msg = isPermanent
+        ? `Your account has been permanently banned by an admin.\nReason: ${reason}`
+        : `Your account has been banned until ${new Date(expiresAt).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}.\nReason: ${reason}`;
+      navigate('/login', { state: { banMessage: msg } });
+    });
+
+    sock.on('account_terminated', ({ reason }) => {
+      clearUserSession();
+      sock.disconnect();
+      navigate('/login', { state: { terminateMessage: `Your account has been permanently terminated by an admin.\nReason: ${reason}\nYou can no longer use this account.` } });
+    });
+
     sock.on('chat:mark_read', ({ chatId, timestamp }) => {
       // Sync unread status across multiple browser tabs/windows
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => 
@@ -1393,6 +1768,36 @@ const GlobalChatWidget = forwardRef(({
       ));
       if (onMarkRead && activeChatRef.current?.id === chatId) {
         onMarkRead(chatId);
+      }
+    });
+
+    sock.on('chat:messages_seen', ({ roomId: eventRoomId, username: readerName, messageIds, seenAt, avatar }) => {
+      const currentChat = activeChatRef.current;
+      if (!currentChat) return;
+
+      let isMatch = false;
+      if (currentChat.type === 'room') {
+        const activeRoomId = (currentChat.partner || currentChat.id || '').toLowerCase();
+        isMatch = (eventRoomId || '').toLowerCase() === activeRoomId;
+      } else if (currentChat.type === 'private') {
+        const activePartner = (currentChat.partner || currentChat.id || '').toLowerCase();
+        const sorted = [myUsername.toLowerCase(), activePartner].sort().join('-');
+        const expectedDmRoomId = 'dm-' + sorted;
+        isMatch = (eventRoomId || '').toLowerCase() === expectedDmRoomId;
+      }
+
+      if (isMatch) {
+        setMessages(prev => prev.map(m => {
+          const msgIdStr = String(m.id);
+          if (messageIds.some(id => String(id) === msgIdStr)) {
+            const seenBy = m.seenBy ? [...m.seenBy] : [];
+            if (!seenBy.some(u => u.username.toLowerCase() === readerName.toLowerCase())) {
+              seenBy.push({ username: readerName, seenAt, avatar });
+            }
+            return { ...m, seenBy };
+          }
+          return m;
+        }));
       }
     });
 
@@ -1685,7 +2090,9 @@ const GlobalChatWidget = forwardRef(({
         : null;
 
       const finalizedPreview = finalizedMediaPreview ||
-        (msg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : (msg.message || 'New message')));
+        ((msg.decryptedText && !looksLikeCiphertext(msg.decryptedText))
+          ? msg.decryptedText
+          : (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : (msg.message || 'New message')));
 
       // If this message belongs to the currently open chat, append it to the message list
       if (isViewingThis) {
@@ -1726,7 +2133,9 @@ const GlobalChatWidget = forwardRef(({
         });
         
         // Notify Home/Navbar to clear unread if we're currently viewing it
-        if (!isMine && onMarkRead) onMarkRead(partner);
+        if (!isMine) {
+          markChatAsRead(partner, true);
+        }
       } else {
         // New message for a different/closed chat — notify for ALL non-own messages
         if (!isMine) {
@@ -1788,21 +2197,42 @@ const GlobalChatWidget = forwardRef(({
 
         let updatedList;
         if (exists) {
+          // For our own message echoes, use tempId to detect staleness instead of timestamps.
+          // Server timestamps can exceed the client-optimistic timestamp of a later message due
+          // to clock skew, which would otherwise make message-1's echo overwrite message-2's preview.
+          const isOwnEcho = isMine && !!msg.tempId;
+          const isLatestOwnEcho = isOwnEcho && msg.tempId === lastSentTempIdRef.current[partner];
+          const isNewer = isOwnEcho
+            ? isLatestOwnEcho
+            : msgTs >= (Number(exists.lastTimestamp) || 0);
+
           const _mt2 = msg.mediaType;
-          const convDecryptedText = _mt2
+          const rawConvDecryptedText = _mt2
             ? (_mt2.startsWith('video') ? 'Video' : _mt2.startsWith('image') ? 'Photo' : _mt2.startsWith('audio') ? 'Voice Note' : 'File')
             : (msg.decryptedText || null);
+          // If the sender's own key wasn't in e2ee.keys, decryption fails and msg.decryptedText
+          // is still ciphertext. Fall back to the existing value (set by the optimistic update).
+          const convDecryptedText = (!_mt2 && rawConvDecryptedText && looksLikeCiphertext(rawConvDecryptedText))
+            ? exists.decryptedText
+            : rawConvDecryptedText;
+          // Same guard for the preview string itself
+          const safePreview = (finalizedPreview && looksLikeCiphertext(finalizedPreview))
+            ? exists.message
+            : finalizedPreview;
           const updatedItem = {
             ...exists,
-            message: finalizedPreview,
-            decryptedText: convDecryptedText,
-            lastMediaType: msg.mediaType || null,
-            lastTimestamp: msgTs, 
-            lastSenderName: msg.senderName || msg.username, 
+            message: isNewer ? safePreview : exists.message,
+            decryptedText: isNewer ? convDecryptedText : exists.decryptedText,
+            lastMediaType: isNewer ? (msg.mediaType || null) : exists.lastMediaType,
+            lastMediaFileName: isNewer ? (msg.mediaFileName || null) : exists.lastMediaFileName,
+            lastMediaDuration: isNewer ? (msg.mediaDuration || null) : exists.lastMediaDuration,
+            lastTimestamp: isNewer ? msgTs : exists.lastTimestamp,
+            lastSenderName: isNewer ? (msg.senderName || msg.username) : exists.lastSenderName,
+            isMyLastMessage: isNewer ? isMine : exists.isMyLastMessage,
             unread: Number(exists.unread || 0) + (!isMine && !isViewingThis ? 1 : 0),
-            partner: partner, 
-            displayName: isGroup 
-              ? (msg.roomName || exists.displayName || 'Room Chat') 
+            partner: partner,
+            displayName: isGroup
+              ? (msg.roomName || exists.displayName || 'Room Chat')
               : (exists.displayName || (isMine ? partner : (msg.senderName || msg.username || partner))),
             partnerAvatar: exists.partnerAvatar || (isMine ? msg.partnerAvatar : msg.senderAvatar) || null,
             // Sync permissions from each incoming message so the widget stays current
@@ -1818,14 +2248,17 @@ const GlobalChatWidget = forwardRef(({
             : (msg.decryptedText || null);
           updatedList = [{
             id: isGroup ? partner : undefined,
-            partner, 
+            partner,
             displayName: isGroup ? (msg.roomName || 'Room Chat') : (isMine ? partner : (msg.senderName || msg.username || partner)),
             partnerAvatar: isMine ? (msg.partnerAvatar || null) : (msg.senderAvatar || msg.partnerAvatar || null),
             lastTimestamp: msgTs,
             message: finalizedPreview,
             decryptedText: convDecryptedText,
             lastMediaType: msg.mediaType || null,
+            lastMediaFileName: msg.mediaFileName || null,
+            lastMediaDuration: msg.mediaDuration || null,
             lastSenderName: msg.senderName || msg.username,
+            isMyLastMessage: isMine,
             type: isGroup ? 'room' : 'private',
             unread: !isMine && !isViewingThis ? 1 : 0
           }, ...conversations];
@@ -1877,17 +2310,28 @@ const GlobalChatWidget = forwardRef(({
     // Re-unified typing indicator is now handled by sock.on('chat:typing') at the top
     sock.on('dm_cleared', (data) => {
       const { userA, userB, targetUsername: legacyTarget } = data;
-      const targetUsername = legacyTarget || (userA === myUsername ? userB : userA);
+      // Case-insensitive: socket.username from backend may differ in casing from localStorage myUsername
+      const targetUsername = legacyTarget || (
+        (userA || '').toLowerCase() === myUsername ? userB : userA
+      );
+      const targetLower = (targetUsername || '').toLowerCase();
 
       // Only clear messages — keep the conversation entry in the list
-      if (activeChatRef.current && (activeChatRef.current.partner === targetUsername || activeChatRef.current.id === targetUsername)) {
+      // Prevent loadMoreHistory from fetching pre-clear pages
+      paginationStateRef.current[targetLower] = { hasMore: false, isLoading: false };
+      if (activeChatRef.current && (
+        (activeChatRef.current.partner || '').toLowerCase() === targetLower ||
+        (activeChatRef.current.id || '').toLowerCase() === targetLower
+      )) {
+        // Cancel any in-flight fetchHistory before clearing so a stale response can't restore messages
+        latestHistoryRequestRef.current++;
         setMessages([]);
       }
       // Update the conversation preview to show empty state (no message)
       setConversations(prev => {
         const updated = prev.map(c =>
-          c.partner === targetUsername
-            ? { ...c, message: '', decryptedText: '', mediaType: null, lastTimestamp: 0 }
+          (c.partner || '').toLowerCase() === targetLower
+            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
             : c
         );
         // Guard: only persist to chat_cleared_partners if the chat was NOT explicitly deleted.
@@ -1896,12 +2340,12 @@ const GlobalChatWidget = forwardRef(({
         const stillExists = (() => {
           try {
             const stored = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
-            return stored.some(c => c.partner === targetUsername);
+            return stored.some(c => (c.partner || '').toLowerCase() === targetLower);
           } catch { return false; }
         })();
-        const match = prev.find(c => c.partner === targetUsername);
+        const match = prev.find(c => (c.partner || '').toLowerCase() === targetLower);
         if (match && stillExists) {
-          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastTimestamp: 0 };
+          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 };
           clearedPartnersRef.current = { ...clearedPartnersRef.current, [targetUsername]: entry };
           try { localStorage.setItem('chat_cleared_partners', JSON.stringify(clearedPartnersRef.current)); } catch {}
         }
@@ -1911,25 +2355,27 @@ const GlobalChatWidget = forwardRef(({
     });
 
     sock.on('room_chat_cleared', ({ roomId }) => {
-      if (activeChatRef.current && activeChatRef.current.type === 'room' && activeChatRef.current.partner === roomId) {
+      const roomLower = (roomId || '').toLowerCase();
+      if (activeChatRef.current && activeChatRef.current.type === 'room' &&
+          (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
         setMessages([]);
       }
       setConversations(prev => {
         const updated = prev.map(c =>
-          (c.type === 'room' && c.partner === roomId)
-            ? { ...c, message: '', decryptedText: '', mediaType: null, lastTimestamp: 0 }
+          (c.type === 'room' && (c.partner || '').toLowerCase() === roomLower)
+            ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
             : c
         );
         // Guard: only persist to chat_cleared_partners if the chat was NOT explicitly deleted.
         const roomStillExists = (() => {
           try {
             const stored = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
-            return stored.some(c => c.partner === roomId || c.id === roomId);
+            return stored.some(c => (c.partner || '').toLowerCase() === roomLower || (c.id || '').toLowerCase() === roomLower);
           } catch { return false; }
         })();
-        const match = prev.find(c => c.type === 'room' && c.partner === roomId);
+        const match = prev.find(c => c.type === 'room' && (c.partner || '').toLowerCase() === roomLower);
         if (match && roomStillExists) {
-          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastTimestamp: 0 };
+          const entry = { ...match, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() };
           clearedPartnersRef.current = { ...clearedPartnersRef.current, [roomId]: entry };
           try { localStorage.setItem('chat_cleared_partners', JSON.stringify(clearedPartnersRef.current)); } catch {}
         }
@@ -1938,8 +2384,8 @@ const GlobalChatWidget = forwardRef(({
         try {
           const stored = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
           const cleaned = stored.map(c =>
-            (c.type === 'room' && (c.partner === roomId || c.id === roomId))
-              ? { ...c, message: '', decryptedText: '', mediaType: null, lastTimestamp: 0 }
+            (c.type === 'room' && ((c.partner || '').toLowerCase() === roomLower || (c.id || '').toLowerCase() === roomLower))
+              ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
               : c
           );
           localStorage.setItem('watch_recent_chats', JSON.stringify(cleaned));
@@ -2056,18 +2502,7 @@ const GlobalChatWidget = forwardRef(({
       if (e.detail?.roomId?.toLowerCase() === rid) {
         syncMessages();
         
-        // If we were waiting for scroll restoration
-        const el = scrollContainerRef.current;
-        const pos = scrollPosRef.current;
-        if (el && pos) {
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              el.scrollTop = el.scrollHeight - pos.prevScrollHeight + pos.prevScrollTop;
-            }, 0);
-          });
-          scrollContainerRef.current = null;
-          scrollPosRef.current = null;
-        }
+        // Scroll restoration is handled synchronously in useLayoutEffect
 
         // Reset loading flags
         if (paginationStateRef.current[rid]) {
@@ -2206,14 +2641,15 @@ const GlobalChatWidget = forwardRef(({
             // Always attach lastMediaType for room media so the list renderer never shows ciphertext
             const _rmt = c.mediaType;
             const mediaMeta = _rmt ? { lastMediaType: _rmt, message: _rmt.startsWith('video') ? 'Video' : _rmt.startsWith('image') ? 'Photo' : _rmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
-            if (c.e2ee && c.nonce) {
+            if (c.e2ee && (c.e2ee.nonce || c.nonce)) {
               if (!kp) return { ...c, ...mediaMeta, decryptedText: null };
               try {
                 const myLower = myUsername?.toLowerCase();
                 const myEncKey = c.e2ee.keys?.[myLower] || Object.entries(c.e2ee.keys || {}).find(([k]) => k.toLowerCase() === myLower)?.[1];
                 if (myEncKey && c.e2ee.senderPublicKey) {
                   const senderPubKey = decodeBase64(c.e2ee.senderPublicKey);
-                  const plain = decryptGroupMessage(c.message, c.nonce, myEncKey, senderPubKey, kp.secretKey);
+                  const msgNonce = c.e2ee.nonce || c.nonce;
+                  const plain = decryptGroupMessage(c.message, msgNonce, myEncKey, senderPubKey, kp.secretKey);
                   if (plain !== null) {
                     if (c.mediaType) {
                       const mediaLabel = c.mediaType.startsWith('video') ? 'Video' : c.mediaType.startsWith('image') ? 'Photo' : c.mediaType.startsWith('audio') ? 'Voice Note' : 'File';
@@ -2234,21 +2670,38 @@ const GlobalChatWidget = forwardRef(({
       
       // Merge: preserve dynamically-added real-time conversations not returned by server
       setConversations(prev => {
-        const fetchedPartners = new Set(decryptedFetched.map(c => c.partner));
+        // Build a lowercase set so username casing differences (e.g. "Krishna" vs "krishna")
+        // don't cause local conversations to be treated as missing from the server response.
+        const fetchedPartners = new Set(decryptedFetched.map(c => (c.partner || '').toLowerCase()));
         // Keep conversations (private AND room) that server didn't return this cycle.
-        // For ROOM type: if the server didn't return it, all messages are hidden (cleared) —
-        // zero out the preview so it shows "Start a conversation" instead of stale text.
+        // NOTE: The server only returns rooms where the user *sent* a message (SQL query uses
+        // senderName filter). Rooms where the user only received messages won't appear in the
+        // server response — DO NOT zero them out. Only zero a room if it was explicitly cleared
+        // (local state already has lastTimestamp:0 from the room_chat_cleared socket event,
+        // or it's recorded in clearedRoomsMap).
+        const clearedRoomsMapForPreserved = (() => {
+          try {
+            const ref = clearedPartnersRef.current;
+            if (typeof ref === 'function') return JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}');
+            return (typeof ref === 'object' && ref !== null) ? ref : {};
+          } catch { return {}; }
+        })();
         const preserved = (Array.isArray(prev) ? prev : [])
-          .filter(c => !fetchedPartners.has(c.partner))
+          .filter(c => !fetchedPartners.has((c.partner || '').toLowerCase()))
           .map(c => {
             if (c.type === 'room') {
-              return { ...c, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null };
+              // Only zero out if there are genuinely no new messages (timestamp stayed at 0 from the clear).
+              // If handleNewMsg has updated the timestamp with a new message, preserve that preview.
+              const isExplicitlyCleared = !c.lastTimestamp || c.lastTimestamp === 0;
+              if (isExplicitlyCleared) {
+                return { ...c, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null };
+              }
             }
             return c;
           });
         // Merge cleared-partner extras
         const extrasMap = clearedPartnersRef.current || {};
-        const extras = Object.values(extrasMap).filter(c => !fetchedPartners.has(c.partner) && !preserved.find(p => p.partner === c.partner));
+        const extras = Object.values(extrasMap).filter(c => !fetchedPartners.has((c.partner || '').toLowerCase()) && !preserved.find(p => (p.partner || '').toLowerCase() === (c.partner || '').toLowerCase()));
 
         // Bug 4 fix: If we already have lastSeen for a partner, trust local read state
         // and zero out any server unread count so going back from chat view doesn't re-show badge
@@ -2267,38 +2720,79 @@ const GlobalChatWidget = forwardRef(({
           const chatKey = c.id || c.partner;
           const finalC = { ...c, targetId: c.partnerId || c.targetId };
 
-          // CLEARED ROOM OVERRIDE: if this room was cleared by the user, always show it as empty
-          // regardless of what the server returned (handles partial hiddenFor DB updates gracefully)
+          // CLEARED ROOM OVERRIDE: zero out if no new messages arrived after the clear.
+          // Compare server's lastTimestamp against the moment the user cleared the chat.
+          // Only show the preview if a truly NEW message (sent after the clear) exists.
           if (c.type === 'room' && clearedRoomsMap[chatKey]) {
-            return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, unread: 0 };
+            const clearTs = clearedRoomsMap[chatKey]?.clearedAt || 0;
+            const serverTs = Number(finalC.lastTimestamp) || 0;
+            if (!serverTs || (clearTs && serverTs <= clearTs)) {
+              return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null, unread: 0 };
+            }
           }
           
           // Bug 5 fix: Keep real-time local state if it's newer than the cached server response.
-          // But always apply freshly-decrypted text from the server fetch if available,
-          // to prevent 'Encrypted message' from localStorage persisting.
-          const existing = Array.isArray(prev) ? prev.find(p => (p.id || p.partner) === chatKey) : null;
-          if (existing && Number(existing.lastTimestamp) > Number(c.lastTimestamp)) {
-            // Prefer fresh decryptedText from server if existing has none or has a stale encrypted value
+          // Merge strategy: server data (finalC) is authoritative for structure/unread.
+          // Local state (existing) is authoritative for decrypted preview text and media labels
+          // when both refer to the same message (same or close timestamp).
+          const existing = Array.isArray(prev) ? prev.find(p => {
+            // Case-insensitive partner match so username casing differences don't create duplicates
+            const pKey = ((p.id || p.partner) || '').toLowerCase();
+            return pKey === chatKey.toLowerCase();
+          }) : null;
+
+          const existingTs = Number(existing?.lastTimestamp) || 0;
+          const serverTs   = Number(c.lastTimestamp) || 0;
+
+          if (existing && existingTs > serverTs) {
+            // Local state is ahead of server (e.g. optimistic update not yet flushed to DB).
+            // Keep local structure, but apply any fresher decryptedText from the server fetch.
             const betterDecryptedText = finalC.decryptedText || existing.decryptedText;
             return { ...existing, targetId: finalC.targetId, decryptedText: betterDecryptedText };
           }
 
-          // Media-preview stability fix: If local entry has lastMediaType set for the same message,
-          // preserve the human-readable message label ("Photo"/"Video") and lastMediaType
-          // so fetchConversations() never overwrites them with raw server ciphertext.
-          if (existing && existing.lastMediaType && Number(existing.lastTimestamp) >= Number(c.lastTimestamp)) {
-            // Still apply fresh decryptedText so preview is correct
-            const betterDecryptedText = finalC.decryptedText || existing.decryptedText;
-            return { ...finalC, lastMediaType: existing.lastMediaType, message: existing.message, decryptedText: betterDecryptedText };
-          }
+          // Server timestamp is equal-or-newer. Use server data as base but rescue any good
+          // local decryption / media label that the server response can't provide.
+          //
+          // mediaType/Duration: always fall back to local state regardless of timestamp.
+          // Rationale: if the server sends the same message but without mediaType (legacy
+          // rows where mediaType was never stored, or the DB field is null), we should keep
+          // whatever the real-time socket update gave us. We only clear them when the SERVER
+          // returned a genuinely NEWER message — but in that case finalC would have the new
+          // message's own mediaType set, so the fallback never fires anyway.
+          const betterMediaType     = finalC.lastMediaType || existing?.lastMediaType || null;
+          const betterMediaFileName = finalC.lastMediaFileName || existing?.lastMediaFileName || null;
+          const betterMediaDuration = finalC.lastMediaDuration || existing?.lastMediaDuration || null;
 
-          const seenTs = lastSeen[chatKey];
-          // If we have a lastSeen entry for this chat AND the existing conv already has unread=0,
-          // then the user opened this chat and it should stay 0
-          if (seenTs && existing && existing.unread === 0) {
-            return { ...finalC, unread: 0 };
-          }
-          return finalC;
+          // betterDecryptedText: server wins if available, then local (regardless of timestamp).
+          const betterDecryptedText = finalC.decryptedText || existing?.decryptedText || null;
+
+          // betterMessage: recompute from mediaType when possible so we never show raw filenames
+          // or ciphertext stored in the message column for legacy/encrypted uploads.
+          // For text messages (no mediaType) fall back to server message then local.
+          const _computedLabel = betterMediaType
+            ? (betterMediaType.startsWith('video') ? 'Video'
+               : betterMediaType.startsWith('image') ? 'Photo'
+               : betterMediaType.startsWith('audio') ? 'Voice Note'
+               : 'File')
+            : null;
+          const betterMessage = _computedLabel
+            || finalC.message
+            || (existingTs === serverTs ? existing?.message : null)
+            || '';
+
+          const seenTs = lastSeen[chatKey] || lastSeen[chatKey.toLowerCase()] || 0;
+          const keepUnreadZero = seenTs && existing && existing.unread === 0;
+
+          return {
+            ...finalC,
+            decryptedText: betterDecryptedText,
+            lastMediaType: betterMediaType,
+            lastMediaFileName: betterMediaFileName,
+            lastMediaDuration: betterMediaDuration,
+            message: betterMessage,
+            ...(keepUnreadZero ? { unread: 0 } : {})
+          };
         });
 
         const all = [...finalFetched, ...preserved, ...extras];
@@ -2434,6 +2928,32 @@ const GlobalChatWidget = forwardRef(({
       
       // Replace messages atomically — no merge needed since we cleared before fetching
       setMessages(resolveReplyMessages(decrypted));
+
+      // Sync the sidebar preview with the latest message from history.
+      // This fixes rooms that show "Start a conversation" because fetchConversations didn't
+      // find them (e.g. user never sent a message, or room was restarted from memory).
+      if (decrypted.length > 0 && type === 'room') {
+        const latestMsg = decrypted[decrypted.length - 1];
+        const latestTs = Number(latestMsg.timestamp) || 0;
+        const _mtype = latestMsg.mediaType || '';
+        const latestPreview = _mtype
+          ? (_mtype.startsWith('video') ? 'Video' : _mtype.startsWith('image') ? 'Photo' : _mtype.startsWith('audio') ? 'Voice Note' : 'File')
+          : (latestMsg.decryptedText || 'Message');
+        setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => {
+          if ((c.partner || c.id || '').toLowerCase() !== cleanPartner) return c;
+          if (Number(c.lastTimestamp) >= latestTs) return c; // already up to date
+          return {
+            ...c,
+            lastTimestamp: latestTs,
+            message: latestPreview,
+            decryptedText: latestPreview,
+            lastSenderName: latestMsg.senderName || latestMsg.username || c.lastSenderName,
+            isMyLastMessage: (latestMsg.senderName || latestMsg.username || '').toLowerCase() === (myUsername || '').toLowerCase(),
+            lastMediaType: latestMsg.mediaType || null,
+            lastMediaDuration: latestMsg.mediaDuration || null,
+          };
+        }));
+      }
     } catch(e) {
       if (requestId === latestHistoryRequestRef.current) console.error(e);
     } finally {
@@ -2467,6 +2987,7 @@ const GlobalChatWidget = forwardRef(({
 
     const prevScrollHeight = scrollEl.scrollHeight;
     const prevScrollTop = scrollEl.scrollTop;
+    scrollAnchorRef.current = { prevScrollHeight, prevScrollTop };
 
     const limit = 200;
 
@@ -2503,11 +3024,6 @@ const GlobalChatWidget = forwardRef(({
           state.hasMore = false;
         }
 
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            scrollEl.scrollTop = scrollEl.scrollHeight - prevScrollHeight + prevScrollTop;
-          }, 0);
-        });
       } catch (err) {
         console.error('[loadMoreHistory] Error:', err);
       } finally {
@@ -2515,8 +3031,6 @@ const GlobalChatWidget = forwardRef(({
         setHistoryLoading(false);
       }
     } else if (isGuest) {
-      scrollContainerRef.current = scrollEl;
-      scrollPosRef.current = { prevScrollHeight, prevScrollTop };
 
       window.dispatchEvent(new CustomEvent('guest_request_more_history', {
         detail: {
@@ -2608,9 +3122,7 @@ const GlobalChatWidget = forwardRef(({
       return updated.sort((a,b) => (Number(b.lastTimestamp)||0) - (Number(a.lastTimestamp)||0));
     });
     // Mark this chat as read
-    if (onMarkRead) {
-      onMarkRead(targetPartner);
-    }
+    markChatAsRead(targetPartner, true);
     // NOTE: fetchHistory is intentionally NOT called here.
     // The useEffect([activeChat, view, keyPair]) handles it, and it always uses
     // keyPairRef.current so it's immune to stale-closure key issues.
@@ -2732,7 +3244,12 @@ const GlobalChatWidget = forwardRef(({
     setMessages(prev => [...prev, optimisticMsg]);
     setInputValue('');
     setReplyToMsg(null);
-    
+
+    // Register this as the most-recently-sent message for this partner.
+    // handleNewMsg uses this to ignore stale server echoes (message 1's echo arriving after
+    // message 2 was already sent) which would otherwise revert the sidebar preview.
+    lastSentTempIdRef.current[activeChat.partner || activeChat.id] = tempId;
+
     // Immediately update sidebar preview and order for sender
     setConversations(prev => {
       const convs = Array.isArray(prev) ? prev : [];
@@ -2741,9 +3258,9 @@ const GlobalChatWidget = forwardRef(({
       const isGroup = activeChat.type === 'room';
       
       const previewText = inputValue.slice(0, 50);
-      const updatedItem = exists 
-        ? { ...exists, message: previewText, decryptedText: previewText, lastTimestamp: optimisticMsg.timestamp, lastSenderName: myUsername, unread: 0 }
-        : { 
+      const updatedItem = exists
+        ? { ...exists, message: previewText, decryptedText: previewText, lastMediaType: null, lastMediaDuration: null, lastTimestamp: optimisticMsg.timestamp, lastSenderName: myUsername, isMyLastMessage: true, unread: 0 }
+        : {
             id: isGroup ? partner : undefined,
             partner,
             displayName: activeChat.displayName,
@@ -2751,7 +3268,10 @@ const GlobalChatWidget = forwardRef(({
             lastTimestamp: optimisticMsg.timestamp,
             message: previewText,
             decryptedText: previewText,
+            lastMediaType: null,
+            lastMediaDuration: null,
             lastSenderName: myUsername,
+            isMyLastMessage: true,
             type: activeChat.type,
             unread: 0
           };
@@ -2874,7 +3394,7 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
-  const handleMediaUpload = async (file) => {
+  const handleMediaUpload = async (file, mediaDuration = null) => {
     const validation = validateFile(file);
     if (!validation.valid) { toast.error(validation.error); return; }
 
@@ -2893,11 +3413,31 @@ const GlobalChatWidget = forwardRef(({
       message: '',
       mediaUrl: objectUrl,
       mediaType: file.type,
+      mediaDuration: mediaDuration || null,
       timestamp: ts,
       _isOptimistic: true,
-      _fileName: file.name
+      _fileName: file.name,
+      _fileSize: file.size
     };
     setMessages(prev => [...prev, optimisticMsg]);
+
+    // Optimistically update the conversations list for the sender so the preview
+    // shows the media type immediately (before the socket bounce arrives).
+    const _mType = file.type;
+    const _mLabel = _mType.startsWith('video') ? 'Video' : _mType.startsWith('image') ? 'Photo' : _mType.startsWith('audio') ? 'Voice Note' : 'File';
+    setConversations(prev => {
+      const convs = Array.isArray(prev) ? prev : [];
+      const _partner = activeChat?.partner || activeChat?.id;
+      if (!_partner) return convs;
+      const _exists = convs.find(c => c.partner === _partner || c.id === _partner);
+      const _isGroup = activeChat?.type === 'room';
+      const _updated = _exists
+        ? { ..._exists, message: _mLabel, decryptedText: _mLabel, lastMediaType: _mType, lastMediaFileName: file.name || null, lastMediaDuration: mediaDuration || null, lastTimestamp: optimisticMsg.timestamp, lastSenderName: myUsername, isMyLastMessage: true, unread: 0 }
+        : { id: _isGroup ? _partner : undefined, partner: _partner, displayName: activeChat?.displayName, partnerAvatar: activeChat?.partnerAvatar, lastTimestamp: optimisticMsg.timestamp, message: _mLabel, decryptedText: _mLabel, lastMediaType: _mType, lastMediaFileName: file.name || null, lastMediaDuration: mediaDuration || null, lastSenderName: myUsername, isMyLastMessage: true, type: activeChat?.type, unread: 0 };
+      const _others = convs.filter(c => c.partner !== _partner && c.id !== _partner);
+      return [_updated, ..._others].sort((a, b) => (Number(b.lastTimestamp) || 0) - (Number(a.lastTimestamp) || 0));
+    });
+
     setIsUploading(true);
 
     try {
@@ -3008,7 +3548,10 @@ const GlobalChatWidget = forwardRef(({
             username: replyToMsg.senderName || replyToMsg.username || activeChat?.displayName,
             message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : replyToMsg.mediaType.startsWith('image') ? 'Photo' : replyToMsg.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : (replyToMsg.decryptedText || replyToMsg.message)
           } : null,
-          tempId: tempId
+          tempId: tempId,
+          mediaFileName: file.name || null,
+          mediaFileSize: file.size || null,
+          mediaDuration: mediaDuration ? Number(mediaDuration) : null
         })
       });
       if (!sendResp.ok) {
@@ -3095,11 +3638,12 @@ const GlobalChatWidget = forwardRef(({
     const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
     const file = new File([audioBlob], `voice_${Date.now()}.${ext}`, { type: mimeType });
     const prevUrl = audioUrl;
+    const duration = recordingTime;
     setAudioBlob(null);
     setAudioUrl(null);
     setRecordingTime(0);
     if (prevUrl) URL.revokeObjectURL(prevUrl);
-    await handleMediaUpload(file);
+    await handleMediaUpload(file, duration);
   }
 
   const handleReact = async (msgId, emoji) => {
@@ -3152,7 +3696,20 @@ const GlobalChatWidget = forwardRef(({
     } catch(e) { console.error('delete error', e); }
   };
 
-  const openLightbox = (url, type) => setLightbox({ url, type });
+  const buildMediaItems = (msgs) => msgs.map(m => {
+    const mt = m.mediaType || '';
+    if (!mt.startsWith('image/') && !mt.startsWith('video/')) return null;
+    const msgKey = String(m.id || m.timestamp);
+    const url = decryptedMediaUrls.current[msgKey] || m._localMediaUrl ||
+      ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
+    return url ? { url, type: mt } : null;
+  }).filter(Boolean);
+
+  const openLightbox = (url, type) => {
+    const items = buildMediaItems(messages);
+    const idx = items.findIndex(i => i.url === url);
+    setLightbox({ items: items.length ? items : [{ url, type }], index: idx >= 0 ? idx : 0 });
+  };
 
   const perms = activeChat?.permissions || roomPermissions;
   const isHost = activeChat?.isHost || isRoomHost;
@@ -3346,9 +3903,16 @@ const GlobalChatWidget = forwardRef(({
         transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         fontFamily: "'Inter', sans-serif"
       }}>
-        {/* Lightbox — rendered inside widget so clicks don't escape to parent */}
-        {lightbox && (
-          <MediaLightbox url={lightbox.url} type={lightbox.type} onClose={() => setLightbox(null)} />
+        {/* Lightbox portal — fixed overlay above everything */}
+        {lightbox && createPortal(
+          <MediaLightbox
+            items={lightbox.items}
+            index={lightbox.index}
+            onClose={() => setLightbox(null)}
+            onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
+            onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+          />,
+          document.body
         )}
         {/* Header */}
         <div style={{ 
@@ -3418,7 +3982,7 @@ const GlobalChatWidget = forwardRef(({
                           style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='block' ? 'rgba(239,68,68,0.12)' : 'transparent', border:'none', color: hoveredMenuBtn==='block' ? '#dc2626' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='block' ? '#dc2626' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
                             <Ban size={14} color={hoveredMenuBtn==='block' ? '#dc2626' : undefined}/> {blockedChats.some(k => k.toLowerCase() === (activeChat.partner || activeChat.id).toLowerCase()) ? t('unblockUser', 'Unblock User') : t('blockUser', 'Block User')}
                           </button>
-                          <button onClick={() => { setClearChatModalOpen(activeChat); setShowChatMenu(false); }}
+                          <button onClick={() => { setClearChatModalOpen(activeChat); setClearForBoth(false); setShowChatMenu(false); }}
                           data-hovertype="danger" className="chat-menu-item menu-btn menu-btn-danger"
                           onMouseEnter={() => setHoveredMenuBtn('clearPrivate')}
                           onMouseLeave={() => setHoveredMenuBtn(null)}
@@ -4188,9 +4752,18 @@ const GlobalChatWidget = forwardRef(({
                         )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                          <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display:'flex', alignItems:'center', color: 'var(--header-text)' }}>
-                            {displayName}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', flex: 1, minWidth: 0 }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--header-text)' }}>
+                              {displayName}
+                            </span>
+                            <span className="chat-tag" style={{
+                              background: chat.type === 'room' ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.2)',
+                              color: chat.type === 'room' ? '#818cf8' : '#4ade80',
+                              padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 600, flexShrink: 0
+                            }}>
+                              {chat.type}
+                            </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                             {typingStatuses[chatKey] ? (
@@ -4211,29 +4784,11 @@ const GlobalChatWidget = forwardRef(({
 
                         <div style={{ fontSize: '0.85rem', color: isLight ? 'var(--header-btn)' : '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                            <span className="chat-tag" style={{ 
-                              background: chat.type === 'room' ? 'rgba(99,102,241,0.2)' : 'rgba(34,197,94,0.2)', 
-                              color: chat.type === 'room' ? '#818cf8' : '#4ade80',
-                              padding: '2px 6px', borderRadius: 4, fontSize: '0.65rem', marginRight: 6, textTransform: 'uppercase', fontWeight: 600, flexShrink: 0
-                            }}>
-                              {chat.type}
-                            </span>
                             <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {(() => {
-                                // If chat has been cleared / no messages yet, show a friendly placeholder
-                                if (chat.type === 'room' && (!chat.lastTimestamp || chat.lastTimestamp === 0)) {
-                                  return <span style={{ color: 'var(--menu-icon)' }}>Start a conversation</span>;
-                                }
-                                const _lmt = chat.lastMediaType;
-                                const mediaLabel = _lmt ? (_lmt.startsWith('video') ? 'Video' : _lmt.startsWith('image') ? 'Photo' : _lmt.startsWith('audio') ? 'Voice Note' : 'File') : null;
-                                const rawMsg = chat.message || '';
-                                const msgLabel = mediaLabel || chat.decryptedText || (looksLikeCiphertext(rawMsg) ? (isMe ? 'Message sent' : 'Message') : (rawMsg || ''));
-                                if (chat.type === 'room') {
-                                  const senderLabel = isMe ? 'You' : (chat.lastSenderName || '');
-                                  return senderLabel ? `${senderLabel}: ${msgLabel}` : msgLabel;
-                                }
-                                return `${isMe ? 'You: ' : ''}${msgLabel}`;
-                              })()}
+                              {(!chat.lastTimestamp || chat.lastTimestamp === 0)
+                                ? <span style={{ color: 'var(--menu-icon)' }}>{chat.type === 'room' ? 'Start a conversation' : 'Start a private chat'}</span>
+                                : getMessagePreview(chat, myUsername)
+                              }
                             </span>
                           </div>
                           
@@ -4359,7 +4914,7 @@ const GlobalChatWidget = forwardRef(({
                     <div className="chat-menu-item menu-btn-destructive" onClick={() => {
                       setActiveConvMenu(null);
                       if (chat.type === 'room') setClearGroupChatModalOpen(chat);
-                      else setClearChatModalOpen(chat);
+                      else { setClearChatModalOpen(chat); setClearForBoth(false); }
                     }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       <MessageSquareX size={16} className="menu-icon" color="var(--menu-icon)" /> {t('clearChat', 'Clear chat')}
                     </div>
@@ -4415,22 +4970,6 @@ const GlobalChatWidget = forwardRef(({
                   <div style={{ width: 18, height: 18, border: '2px solid rgba(99,102,241,0.2)', borderTop: '2px solid #6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                 </div>
               )}
-              {/* Media Policy Banner — shown once per user */}
-              {showMediaPolicyBanner && (
-                <div style={{ margin: '0 0 10px', background: isLight ? '#f0f9ff' : 'rgba(99,102,241,0.1)', border: `1px solid ${isLight ? '#bae6fd' : 'rgba(99,102,241,0.25)'}`, borderRadius: 12, padding: '12px 14px', fontSize: 12, color: isLight ? '#0369a1' : '#93c5fd' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 700, marginBottom: 4, color: isLight ? '#0369a1' : '#a5b4fc' }}>ℹ️ Media Storage Policy</div>
-                      <div style={{ lineHeight: 1.6, color: isLight ? '#0369a1' : '#93c5fd' }}>
-                        Images: 30 days · Videos &amp; Files: 7 days<br />
-                        Voice Notes: 14 days · Text: Kept forever
-                      </div>
-                    </div>
-                    <button onClick={() => { setShowMediaPolicyBanner(false); localStorage.setItem('media_policy_banner_seen', '1'); }} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 2, flexShrink: 0 }}><X size={14} /></button>
-                  </div>
-                </div>
-              )}
-
               {messages.length === 0 ? (
                 loading ? (
                   <div style={{ textAlign: 'center', color: '#888', marginTop: 20, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -4440,15 +4979,30 @@ const GlobalChatWidget = forwardRef(({
                   <div style={{ textAlign: 'center', color: '#888', marginTop: 20, fontSize: 13 }}>No messages yet. Say hi!</div>
                 )
               ) : (
-                messages.map((msg, i) => {
-                  const mUserLower = myUsername?.toLowerCase();
-                  const isMe = msg.isMe || 
-                               (msg.senderName && msg.senderName.toLowerCase() === mUserLower) || 
-                               (msg.username && msg.username.toLowerCase() === mUserLower);
+                (() => {
+                  const effectiveSeenMap = getEffectiveSeenBy(messages, myUsername);
+                  const lastMsg = messages[messages.length - 1];
+                  const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
+                  const renderReceiptIndex = isLastSentByMe ? messages.length - 1 : -1;
+                  return messages.map((msg, i) => {
+                    const mUserLower = myUsername?.toLowerCase();
+                    const isMe = msg.isMe ||
+                                 (msg.senderName && msg.senderName.toLowerCase() === mUserLower) ||
+                                 (msg.username && msg.username.toLowerCase() === mUserLower);
                   const reactions = msg.reactions || {};
                   const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+                  const prevMsg = i > 0 ? messages[i - 1] : null;
+                  const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
                   return (
-                    <div key={msg.tempId || msg.id || i} 
+                    <React.Fragment key={msg.tempId || msg.id || i}>
+                    {showDateSep && (
+                      <div style={{display:'flex',alignItems:'center',gap:8,margin:'10px 0 4px',userSelect:'none'}}>
+                        <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                        <span style={{fontSize:11,color:'var(--menu-icon)',whiteSpace:'nowrap',padding:'0 4px'}}>{formatDateSeparator(msg.timestamp)}</span>
+                        <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
+                      </div>
+                    )}
+                    <div
                          id={`gcw-msg-${msg.id || msg.tempId || i}`}
                          style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
                       {msg.replyTo && (
@@ -4554,7 +5108,7 @@ const GlobalChatWidget = forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)'),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
@@ -4567,15 +5121,15 @@ const GlobalChatWidget = forwardRef(({
                                     }} onClick={e => e.stopPropagation()}>
                                       {isMe ? (
                                         <>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                          <button onClick={() => { handleDeleteMessage(msg.id, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                             <Trash2 size={12} color="#ef4444"/> {t('unsend', 'Unsend')}
                                           </button>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'var(--menu-item-text)', WebkitTextFillColor:'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='var(--menu-item-hover)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                                            <Trash2 size={12} color={isLight ? '#475569' : '#aaa'}/> {t('deleteForMe', 'Delete for me')}
+                                          <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-delete" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                            <Trash2 size={12} color="currentColor"/> {t('deleteForMe', 'Delete for me')}
                                           </button>
                                         </>
                                       ) : (
-                                        <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(239,68,68,0.08)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                                        <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                           <Trash2 size={12} color="#ef4444"/> {t('delete', 'Delete')}
                                         </button>
                                       )}
@@ -4629,11 +5183,25 @@ const GlobalChatWidget = forwardRef(({
                             <span style={{fontSize:10,color:'#444'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                           </div>
+                          {i === renderReceiptIndex && (
+                            <ReadReceipt 
+                              msg={{
+                                ...msg,
+                                seenBy: effectiveSeenMap.get(String(msg.id || msg.timestamp)) || []
+                              }}
+                              isGroup={activeChat.type === 'room'} 
+                              username={myUsername} 
+                              socketServerUrl={API} 
+                              isLight={isLight}
+                            />
+                          )}
                         </div>
                       </div>
                    </div>
+                    </React.Fragment>
                   );
-                })
+                });
+              })()
               )}
               <div ref={messagesEndRef} style={{ height: 1 }} />
             </div>
@@ -4767,8 +5335,8 @@ const GlobalChatWidget = forwardRef(({
                 )}
                 
                 {showEmojiPicker && (
-                  <div style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onClick={(e) => e.stopPropagation()}>
-                    <Picker data={data} onEmojiSelect={(e) => { setInputValue(prev => prev + e.native); }} theme="dark" previewPosition="none" searchPosition="none" navPosition="bottom" />
+                  <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onMouseDown={(e) => e.stopPropagation()}>
+                    <Picker data={data} onEmojiSelect={(e) => { setInputValue(prev => prev + e.native); }} theme={isLight ? 'light' : 'dark'} previewPosition="none" searchPosition="none" navPosition="bottom" />
                   </div>
                 )}
                 
@@ -4903,7 +5471,7 @@ const GlobalChatWidget = forwardRef(({
 
                         {!inputValue && !isUploading && (
                           <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
+                            <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
                               <SmilePlus size={20} />
                             </button>
                             {/* Attachment button — opens unified file picker */}
@@ -5007,10 +5575,26 @@ const GlobalChatWidget = forwardRef(({
               </label>
               <div style={{display:'flex',gap:14,justifyContent:'flex-end'}}>
                 <button onClick={()=>setClearChatModalOpen(false)} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
-                <button onClick={()=>{ 
-                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: clearChatModalOpen.partner, clearForBoth }); 
-                  setClearChatModalOpen(false); 
-                  setClearForBoth(false); 
+                <button onClick={()=>{
+                  const dmPartner = clearChatModalOpen?.partner;
+                  const dmPartnerLower = (dmPartner || '').toLowerCase();
+                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: dmPartner, clearForBoth });
+                  // Cancel any in-flight history fetch so it can't restore cleared messages
+                  latestHistoryRequestRef.current++;
+                  // Prevent loadMoreHistory from fetching pre-clear pages
+                  paginationStateRef.current[dmPartnerLower] = { hasMore: false, isLoading: false };
+                  // Optimistic UI clear for both "clear for me" and "clear for both"
+                  if ((activeChatRef.current?.partner || '').toLowerCase() === dmPartnerLower ||
+                      (activeChatRef.current?.id || '').toLowerCase() === dmPartnerLower) {
+                    setMessages([]);
+                  }
+                  setConversations(prev => prev.map(c =>
+                    (c.partner || '').toLowerCase() === dmPartnerLower
+                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+                      : c
+                  ));
+                  setClearChatModalOpen(false);
+                  setClearForBoth(false);
                   toast.success('Chat history cleared');
                 }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>
                   <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
@@ -5043,6 +5627,16 @@ const GlobalChatWidget = forwardRef(({
                     try { sessionStorage.setItem(`guest_room_messages_${rid}`, '[]'); } catch {}
                     window.dispatchEvent(new CustomEvent('guest_room_messages_updated', { detail: { roomId: rid } }));
                   }
+                  // Optimistic UI clear — don't wait for room_chat_cleared socket event
+                  if (activeChatRef.current?.type === 'room' &&
+                      (activeChatRef.current?.partner || '').toLowerCase() === rid) {
+                    setMessages([]);
+                  }
+                  setConversations(prev => prev.map(c =>
+                    (c.type === 'room' && (c.partner || '').toLowerCase() === rid)
+                      ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+                      : c
+                  ));
                   setClearGroupChatModalOpen(false);
                   toast.success('Chat history cleared');
                 }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>

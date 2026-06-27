@@ -24,6 +24,8 @@ const Navbar = () => {
     : rawUsername;
   const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && localStorage.getItem('watch_is_guest') !== 'true';
+  const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
+  const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
 
   const [scrolled, setScrolled] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -60,6 +62,19 @@ const Navbar = () => {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.role) {
+          localStorage.setItem('watch_role', d.role);
+          setWatchRole(d.role);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -366,10 +381,8 @@ const Navbar = () => {
           <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
             {/* Left: Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-                <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
-              </div>
-              <h1 className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
+              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
+              <h1 className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</h1>
             </div>
 
             {/* Right: Actions & Hamburger */}
@@ -567,10 +580,8 @@ const Navbar = () => {
           <div className="nav-bar-row">
             {/* Left: Logo */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
-                <Play fill="#fff" size={16} style={{ marginLeft: 2 }} />
-              </div>
-              <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>WatchTogether</h1>
+              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
+              <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</h1>
             </div>
 
             {/* Center: Nav Links */}
@@ -763,6 +774,17 @@ const Navbar = () => {
                             </div>
                             {t('contactSupport', 'Contact Support')}
                           </button>
+                          {isAdminRole && (
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Sparkles size={16} color="#a855f7" />
+                              </div>
+                              {t('adminDashboard', 'Admin Dashboard')}
+                            </button>
+                          )}
                           <div className="profile-divider" />
                           <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
@@ -913,6 +935,13 @@ const Navbar = () => {
                     <Settings size={16} />
                     {t('app', 'App Settings')}
                   </button>
+
+                  {isAdminRole && (
+                    <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/admin'); setShowMobileMenu(false); }}>
+                      <Sparkles size={16} color="#a855f7" />
+                      {t('adminDashboard', 'Admin Dashboard')}
+                    </button>
+                  )}
 
                   {isGuest ? (
                     <>

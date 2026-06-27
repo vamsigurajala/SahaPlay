@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import { appCache } from './cache/appCache.js';
@@ -264,6 +264,8 @@ const AppSettings = () => {
     }
     return null;
   });
+  const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
+  const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -288,6 +290,14 @@ const AppSettings = () => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (isGuest) return;
+    fetch(`${API}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.role) { localStorage.setItem('watch_role', d.role); setWatchRole(d.role); } })
+      .catch(() => {});
   }, []);
 
   const ReactIsAwesome = React; // just dummy not to conflict
@@ -1102,6 +1112,17 @@ const AppSettings = () => {
                         <HelpCircle size={16} color="#f59e0b" />
                       </div>
                       {t('contactSupport', 'Contact Support')}
+                    </button>
+                  )}
+                  {isAdminRole && (
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'rgba(168,85,247,0.1)', border: 'none', color: '#c084fc', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
+                    >
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Sparkles size={16} color="#a855f7" />
+                      </div>
+                      {t('adminDashboard', 'Admin Dashboard')}
                     </button>
                   )}
                   <div className="profile-divider" />

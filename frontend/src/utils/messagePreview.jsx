@@ -23,7 +23,7 @@ function fmtDur(secs) {
   const total = Math.round(secs)
   const mins = Math.floor(total / 60)
   const s = total % 60
-  return `${mins}:${String(s).padStart(2, '0')}s`
+  return `${mins}:${String(s).padStart(2, '0')}`
 }
 
 function mediaContent(mediaType, fileName, mediaDuration) {
@@ -68,7 +68,7 @@ export function getMessagePreview(chat, myUsername) {
   const fName = chat.lastMediaFileName || chat.mediaFileName || chat._fileName || ''
   const mDur = chat.lastMediaDuration || chat.mediaDuration || 0
 
-  const media = mType ? mediaContent(mType, fName, mDur) : null
+  let media = mType ? mediaContent(mType, fName, mDur) : null
 
   let content
   if (media) {
@@ -78,7 +78,21 @@ export function getMessagePreview(chat, myUsername) {
     if (!text || looksLikeCiphertext(text)) {
       content = isMe ? 'Message sent' : 'Message'
     } else {
-      content = text.length > 40 ? text.substring(0, 40) + '…' : text
+      // Infer media type from filename extension when lastMediaType is missing.
+      // This handles legacy DB rows where mediaType was null but the message field
+      // contains the filename (e.g. "voice_1782205656002.webm").
+      const ext = text.split('.').pop().toLowerCase()
+      const inferredType =
+        ['webm', 'mp3', 'ogg', 'wav', 'm4a', 'aac'].includes(ext) ? `audio/${ext}` :
+        ['mp4', 'mov', 'avi', 'mkv'].includes(ext) ? `video/${ext}` :
+        ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? `image/${ext}` :
+        null
+      if (inferredType && /^[^\s]{5,}$/.test(text)) {
+        media = mediaContent(inferredType, text, mDur)
+        content = media
+      } else {
+        content = text.length > 40 ? text.substring(0, 40) + '…' : text
+      }
     }
   }
 
