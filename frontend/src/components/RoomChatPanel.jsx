@@ -1644,6 +1644,11 @@ export default function RoomChatPanel({ p }) {
       const recent = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
       const nextRecent = recent.filter(c => (c.id || c.partner || '').toLowerCase() !== key);
       localStorage.setItem('watch_recent_chats', JSON.stringify(nextRecent));
+
+      // Clean up chat_cleared_partners map too
+      const cleared = JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}');
+      delete cleared[key];
+      localStorage.setItem('chat_cleared_partners', JSON.stringify(cleared));
     } catch {}
 
     // 2. Emit socket event
@@ -1674,6 +1679,7 @@ export default function RoomChatPanel({ p }) {
     }
 
     window.dispatchEvent(new Event('conversations_updated'));
+    window.dispatchEvent(new Event('chat_cleared_updated'));
     toast.success('Chat deleted');
   };
 

@@ -1102,9 +1102,14 @@ const GlobalChatWidget = forwardRef(({
           return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
         });
         
+        try {
+          const savedCleared = JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}');
+          clearedPartnersRef.current = savedCleared;
+        } catch {}
+
         // Only sync conversations for external storage changes or explicit updates
         // to prevent local state changes from triggering recursive sync loops
-        if (e && (e.type === 'storage' || e.type === 'conversations_updated' || e.type === 'hidden_chats_updated')) {
+        if (e && (e.type === 'storage' || e.type === 'conversations_updated' || e.type === 'hidden_chats_updated' || e.type === 'chat_cleared_updated')) {
           const cached = localStorage.getItem('watch_recent_chats');
           if (cached) {
             const parsed = JSON.parse(cached);
@@ -1140,6 +1145,7 @@ const GlobalChatWidget = forwardRef(({
     window.addEventListener('pinned_chats_updated', handleSync);
     window.addEventListener('hidden_chats_updated', handleSync);
     window.addEventListener('conversations_updated', handleSync);
+    window.addEventListener('chat_cleared_updated', handleSync);
     window.addEventListener('storage', handleSync);
 
     return () => {
@@ -1149,6 +1155,7 @@ const GlobalChatWidget = forwardRef(({
       window.removeEventListener('pinned_chats_updated', handleSync);
       window.removeEventListener('hidden_chats_updated', handleSync);
       window.removeEventListener('conversations_updated', handleSync);
+      window.removeEventListener('chat_cleared_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, []);
@@ -1953,6 +1960,23 @@ const GlobalChatWidget = forwardRef(({
       const isGroup = msg.type === 'group' || msg.type === 'room' || !!msg.roomId;
       const partner = isGroup ? (msg.roomId || msg.partner) : ((msg.isMe || (msg.senderName && msg.senderName === myUsername)) ? msg.targetName : msg.senderName);
       if (!partner) return;
+
+      // Purge partner from clearedPartnersRef if a new message arrives
+      if (clearedPartnersRef.current) {
+        const cRef = typeof clearedPartnersRef.current === 'object' ? { ...clearedPartnersRef.current } : {};
+        let changed = false;
+        Object.keys(cRef).forEach(k => {
+          if (k.toLowerCase() === partner.toLowerCase()) {
+            delete cRef[k];
+            changed = true;
+          }
+        });
+        if (changed) {
+          clearedPartnersRef.current = cRef;
+          try { localStorage.setItem('chat_cleared_partners', JSON.stringify(cRef)); } catch {}
+        }
+      }
+
       const myUname = (myUsername || '').toLowerCase();
       const isMine = msg.isMe || 
         (msg.senderName && msg.senderName.toLowerCase() === myUname) || 
@@ -2808,6 +2832,10 @@ const GlobalChatWidget = forwardRef(({
   };
 
   // Auto-track rooms whenever conversation list changes to ensure we get typing/messages for all active chats
+  const activeRoomIdsStr = Array.isArray(conversations) 
+    ? conversations.filter(c => c.type === 'room').map(c => (c.id || c.partner)?.toLowerCase()).sort().join(',') 
+    : '';
+
   useEffect(() => {
     if (socketRef.current && Array.isArray(conversations)) {
       const roomIds = conversations.filter(c => c.type === 'room').map(c => (c.id || c.partner)?.toLowerCase());
@@ -2815,7 +2843,7 @@ const GlobalChatWidget = forwardRef(({
         socketRef.current.emit('track_rooms', { roomIds });
       }
     }
-  }, [conversations.length]);
+  }, [activeRoomIdsStr]);
 
 
   const latestHistoryRequestRef = useRef(0);

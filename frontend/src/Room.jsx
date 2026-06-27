@@ -1567,29 +1567,26 @@ const Room = () => {
     setHideCustomControls(false);
   }, [mediaUrl]);
 
-  // Guest-only: bridge groupMessages to GlobalChatWidget (which has no socket/token for guests)
-  // via sessionStorage. Also keeps the conversation list preview text up to date.
+  // Synchronize groupMessages to sessionStorage (for guest bridge) and watch_recent_chats in localStorage
+  // for ALL users (so GlobalChatWidget and navigation drawers update previews seamlessly).
   useEffect(() => {
-    if (localStorage.getItem('watch_is_guest') !== 'true') return;
     if (!roomId || !groupMessages.length) return;
     const rid = roomId.toLowerCase();
     try {
-      sessionStorage.setItem(
-        `guest_room_messages_${rid}`,
-        JSON.stringify(groupMessages)
-      );
-      sessionStorage.setItem(
-        `guest_room_has_more_${rid}`,
-        String(hasMoreGroupHistory)
-      );
-      window.dispatchEvent(new CustomEvent('guest_room_messages_updated', { detail: { roomId: rid } }));
+      const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+      if (isGuest) {
+        sessionStorage.setItem(`guest_room_messages_${rid}`, JSON.stringify(groupMessages));
+        sessionStorage.setItem(`guest_room_has_more_${rid}`, String(hasMoreGroupHistory));
+        window.dispatchEvent(new CustomEvent('guest_room_messages_updated', { detail: { roomId: rid } }));
+      }
       const cached = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
       const lastMsg = groupMessages[groupMessages.length - 1];
-      const preview = lastMsg?.decryptedText || (lastMsg?.mediaType ? '📎 Media' : '');
+      const _mt = lastMsg?.mediaType;
+      const mediaLabel = _mt ? (_mt.startsWith('video') ? 'Video' : _mt.startsWith('image') ? 'Photo' : _mt.startsWith('audio') ? 'Voice Note' : 'File') : null;
+      const preview = mediaLabel || lastMsg?.decryptedText || (lastMsg?.message && !lastMsg.message.startsWith('🔒') ? lastMsg.message : (lastMsg?.mediaUrl ? 'File' : ''));
       const lastSender = lastMsg?.senderName || lastMsg?.username || '';
       const isMyLast = lastMsg?.isMe || (lastSender && username && lastSender.toLowerCase() === username.toLowerCase());
 
-      // Deduplicate by (type+partner) key before writing back, in case old duplicates remain
       const seen = new Set();
       const deduped = cached.filter(c => {
         const k = `${c.type}:${(c.partner || c.id || '').toLowerCase()}`;
@@ -1597,28 +1594,86 @@ const Room = () => {
         seen.add(k);
         return true;
       });
-      const updatedCache = deduped.map(c =>
-        (c.type === 'room' && c.partner?.toLowerCase() === rid)
-          ? { 
-              ...c, 
-              message: preview, 
-              decryptedText: lastMsg?.decryptedText || null,
-              lastTimestamp: lastMsg?.timestamp || c.lastTimestamp,
-              lastSenderName: lastSender,
-              isMyLastMessage: isMyLast,
-              lastMediaType: lastMsg?.mediaType || null,
-              mediaType: lastMsg?.mediaType || null,
-              lastMediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
-              mediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
-              lastMediaDuration: lastMsg?.mediaDuration || null,
-              mediaDuration: lastMsg?.mediaDuration || null
-            }
-          : c
-      );
+      let found = false;
+      const updatedCache = deduped.map(c => {
+        if (c.type === 'room' && (c.partner || c.id || '').toLowerCase() === rid) {
+          found = true;
+          return { 
+            ...c, 
+            message: preview, 
+            decryptedText: lastMsg?.decryptedText || mediaLabel || null,
+            lastTimestamp: lastMsg?.timestamp || c.lastTimestamp,
+            lastSenderName: lastSender,
+            isMyLastMessage: isMyLast,
+            lastMediaType: _mt || null,
+            mediaType: _mt || null,
+            lastMediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+            mediaFileName: lastMsg?.mediaFileName || lastMsg?._fileName || null,
+            lastMediaDuration: lastMsg?.mediaDuration || null,
+            mediaDuration: lastMsg?.mediaDuration || null
+          };
+        }
+        return c;
+      });
+      if (!found && roomName) {
+        updatedCache.unshift({
+          type: 'room',
+          id: rid,
+          partner: rid,
+          displayName: roomName,
+          partnerAvatar: roomThumbnail || null,
+          message: preview,
+          decryptedText: lastMsg?.decryptedText || mediaLabel || null,
+          lastTimestamp: lastMsg?.timestamp || Date.now(),
+          lastSenderName: lastSender,
+          isMyLastMessage: isMyLast,
+          unread: 0
+        });
+      }
       localStorage.setItem('watch_recent_chats', JSON.stringify(updatedCache));
       window.dispatchEvent(new Event('conversations_updated'));
     } catch (e) {}
-  }, [groupMessages, roomId, username]);
+  }, [groupMessages, roomId, username, roomName, roomThumbnail]);
+
+  // Synchronize DM threads to watch_recent_chats in localStorage whenever DM messages update in Room view
+  useEffect(() => {
+    if (!dmThreads || !Object.keys(dmThreads).length) return;
+    try {
+      const cached = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+      let updatedCache = [...cached];
+      let changed = false;
+
+      Object.entries(dmThreads).forEach(([partnerKey, msgs]) => {
+        if (!Array.isArray(msgs) || msgs.length === 0) return;
+        const lastMsg = msgs[msgs.length - 1];
+        const _mt = lastMsg?.mediaType;
+        const mediaLabel = _mt ? (_mt.startsWith('video') ? 'Video' : _mt.startsWith('image') ? 'Photo' : _mt.startsWith('audio') ? 'Voice Note' : 'File') : null;
+        const preview = mediaLabel || lastMsg?.decryptedText || (lastMsg?.message && !lastMsg.message.startsWith('🔒') ? lastMsg.message : (lastMsg?.mediaUrl ? 'File' : ''));
+        const lastSender = lastMsg?.senderName || lastMsg?.username || '';
+        const isMyLast = lastMsg?.isMe || (lastSender && username && lastSender.toLowerCase() === username.toLowerCase());
+
+        const idx = updatedCache.findIndex(c => c.type === 'private' && (c.partner || c.id || '').toLowerCase() === partnerKey.toLowerCase());
+        if (idx !== -1) {
+          updatedCache[idx] = {
+            ...updatedCache[idx],
+            message: preview,
+            decryptedText: lastMsg?.decryptedText || mediaLabel || null,
+            lastTimestamp: lastMsg?.timestamp || updatedCache[idx].lastTimestamp,
+            lastSenderName: lastSender,
+            isMyLastMessage: isMyLast,
+            lastMediaType: _mt || null,
+            mediaType: _mt || null
+          };
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        localStorage.setItem('watch_recent_chats', JSON.stringify(updatedCache));
+        window.dispatchEvent(new Event('conversations_updated'));
+      }
+    } catch (e) {}
+  }, [dmThreads, username]);
 
   // Stale scroll effects commented out: RoomChatPanel.jsx now manages all scroll restoration and scrolling behaviors.
   /*
@@ -4079,13 +4134,40 @@ const Room = () => {
     return () => window.removeEventListener('guest_request_more_history', handler);
   }, [roomId, socket]);
 
+  const handleClearRoomChat = (targetRoomId = roomId) => {
+    setGroupMessages([]);
+    const rid = (targetRoomId || roomId || '').toLowerCase();
+    if (socket) socket.emit('clear_room_chat', { roomId: rid });
+    try {
+      const cached = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+      const cleaned = cached.map(c =>
+        (c.type === 'room' && (c.partner || c.id || '').toLowerCase() === rid)
+          ? { ...c, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0 }
+          : c
+      );
+      localStorage.setItem('watch_recent_chats', JSON.stringify(cleaned));
+
+      const match = cached.find(c => c.type === 'room' && (c.partner || c.id || '').toLowerCase() === rid);
+      const clearedMap = JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}');
+      if (match) {
+        clearedMap[rid] = { ...match, message: '', decryptedText: '', mediaType: null, lastMediaType: null, lastMediaDuration: null, lastSenderName: null, isMyLastMessage: false, lastTimestamp: 0, clearedAt: Date.now() };
+      } else {
+        clearedMap[rid] = { type: 'room', partner: rid, id: rid, message: '', decryptedText: '', lastTimestamp: 0, clearedAt: Date.now() };
+      }
+      localStorage.setItem('chat_cleared_partners', JSON.stringify(clearedMap));
+
+      window.dispatchEvent(new Event('conversations_updated'));
+      window.dispatchEvent(new Event('chat_cleared_updated'));
+    } catch(e){}
+  };
+
   // Guest bridge: GlobalChatWidget has no socket, so it delegates clear room chat here via event.
   useEffect(() => {
     const handler = (e) => {
       if (localStorage.getItem('watch_is_guest') !== 'true') return;
       const { roomId: reqRoomId } = e.detail || {};
-      if (reqRoomId?.toLowerCase() === roomId?.toLowerCase() && socket) {
-        socket.emit('clear_room_chat', { roomId });
+      if (reqRoomId?.toLowerCase() === roomId?.toLowerCase()) {
+        handleClearRoomChat(reqRoomId);
       }
     };
     window.addEventListener('guest_widget_clear_room_chat', handler);
@@ -8937,7 +9019,7 @@ const Room = () => {
                     setClearChatTarget, setClearChatModalOpen, setClearForBoth,
                     SOCKET_SERVER_URL, roomId,
                     onMarkRead: handleMarkRead,
-                    clearRoomChat: () => { setGroupMessages([]); if (socket) socket.emit('clear_room_chat', { roomId }); },
+                    clearRoomChat: handleClearRoomChat,
                     setDmThreads,
                     socket,
                     reactionPreviews, setReactionPreviews,
@@ -9208,7 +9290,7 @@ const Room = () => {
                 setClearChatTarget, setClearChatModalOpen, setClearForBoth,
                 SOCKET_SERVER_URL, roomId,
                 onMarkRead: handleMarkRead,
-                clearRoomChat: () => { setGroupMessages([]); if (socket) socket.emit('clear_room_chat', { roomId }); },
+                clearRoomChat: handleClearRoomChat,
                 setDmThreads,
                 socket,
                 reactionPreviews, setReactionPreviews,
