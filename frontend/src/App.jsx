@@ -355,8 +355,8 @@ function App() {
       
       /* ── Chat widget container (fixed positioned floating panel) ── */
 
-      html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn):not(.media-lightbox-overlay):not(.media-selector-overlay):not(.subtitle-modal-overlay):not(.customize-room-overlay):not(.block-confirm-overlay):not(.admin-modal-overlay):not(.gcw-force-dark):not(.gcw-force-dark *),
-      html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.block-confirm-overlay):not(.admin-modal-card):not(.gcw-force-dark):not(.gcw-force-dark *):not(.media-lightbox-card) {
+       html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.report-modal-card):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn):not(.media-lightbox-overlay):not(.media-selector-overlay):not(.subtitle-modal-overlay):not(.customize-room-overlay):not(.block-confirm-overlay):not(.admin-modal-overlay):not(.gcw-force-dark):not(.gcw-force-dark *),
+       html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.block-confirm-overlay):not(.admin-modal-card):not(.report-modal-overlay):not(.report-modal-card):not(.gcw-force-dark):not(.gcw-force-dark *):not(.media-lightbox-card) {
         background: #f7f8fc !important;
         border-color: rgba(0,0,0,0.1) !important;
       }

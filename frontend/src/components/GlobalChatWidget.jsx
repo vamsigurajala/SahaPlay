@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
+import ReportMessageModal from './ReportMessageModal';
 import PinSetupModal from './PinSetupModal';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
@@ -1350,6 +1351,7 @@ const GlobalChatWidget = forwardRef(({
   const [showAllEmojis, setShowAllEmojis] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
+  const [reportMsgTarget, setReportMsgTarget] = useState(null);
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
@@ -5480,6 +5482,9 @@ const GlobalChatWidget = forwardRef(({
                           <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             <span style={{fontSize:10,color:'#444'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                            {activeChat?.type === 'room' && !isMe && (
+                              <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
+                            )}
                           </div>
                           {i === renderReceiptIndex && (
                             <ReadReceipt 
@@ -6067,6 +6072,17 @@ const GlobalChatWidget = forwardRef(({
           </div>
         )}
       </div>
+    {/* Report Message Modal - group chat flag */}
+    {reportMsgTarget && (
+      <ReportMessageModal
+        msg={reportMsgTarget}
+        roomId={activeChat?.partner || activeChat?.roomId || null}
+        reporterUsername={myUsername}
+        apiBase={API}
+        isDark={!isLight}
+        onClose={() => setReportMsgTarget(null)}
+      />
+    )}
     </div>
   );
 });
@@ -6074,6 +6090,7 @@ const GlobalChatWidget = forwardRef(({
 GlobalChatWidget.displayName = 'GlobalChatWidget';
 
 export default GlobalChatWidget;
+
 
 
 

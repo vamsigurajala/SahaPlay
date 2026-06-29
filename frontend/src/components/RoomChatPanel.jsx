@@ -2403,7 +2403,9 @@ export default function RoomChatPanel({ p }) {
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
-                        <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color:'rgba(255,255,255,0.15)',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
+                        {!isMe && (
+                          <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
+                        )}
                       </div>
                     </div>
                   </div>

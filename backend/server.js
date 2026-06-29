@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const http = require('http');
@@ -797,6 +797,13 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium'`)
     .catch(e => console.warn('[Migration] reports.priority column:', e.message));
 
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS reason VARCHAR(50)`)
+    .catch(e => console.warn('[Migration] reports.reason column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS description TEXT`)
+    .catch(e => console.warn('[Migration] reports.description column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS attachments JSONB`)
+    .catch(e => console.warn('[Migration] reports.attachments column:', e.message));
+
   console.log('[Migration] Admin system migrations complete');
 })();
 
@@ -1015,6 +1022,115 @@ app.get('/api/reports', (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     res.json(rows);
   });
+});
+
+// POST /api/report-message — full message report with mandatory proof images + email
+app.post('/api/report-message', async (req, res) => {
+  const { roomId, reporterUsername, reportedUsername, message, reason, description, images } = req.body;
+
+  // ── Validation ──────────────────────────────────────────────
+  if (!reporterUsername || !reportedUsername || !message) {
+    return res.status(400).json({ success: false, error: 'reporterUsername, reportedUsername, and message are required.' });
+  }
+  if (!Array.isArray(images) || images.length === 0) {
+    return res.status(400).json({ success: false, error: 'At least 1 proof image is required to submit a report.' });
+  }
+  if (images.length > 5) {
+    return res.status(400).json({ success: false, error: 'Maximum 5 images allowed.' });
+  }
+
+  // ── Image validation ─────────────────────────────────────────
+  const OK_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const attachments = [];
+  const dbAttachments = [];
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (!img || !img.data || !img.type) continue;
+    if (!OK_TYPES.includes(img.type))
+      return res.status(400).json({ success: false, error: `Image ${i + 1}: only JPG, PNG, GIF, WEBP allowed.` });
+    const raw = img.data.replace(/^data:[^;]+;base64,/, '');
+    const bytes = Math.ceil((raw.length * 3) / 4);
+    if (bytes > 5 * 1024 * 1024)
+      return res.status(400).json({ success: false, error: `Image ${i + 1} exceeds the 5 MB limit.` });
+    attachments.push({ filename: img.name || `proof-${i + 1}`, content: raw, encoding: 'base64', contentType: img.type });
+    dbAttachments.push({ filename: img.name || `proof-${i + 1}`, type: img.type, data: img.data });
+  }
+
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+  const reasonLabel = {
+    harassment: 'Harassment / Abuse', spam: 'Spam / Advertising',
+    hate_speech: 'Hate Speech / Discrimination', inappropriate_content: 'Inappropriate / Explicit Content',
+    threats: 'Threats / Violence', other: 'Other',
+  }[reason] || reason || 'Not specified';
+
+  // ── Save to reports DB ─────────────────────────────────────────────────────
+  let reportId = null;
+  try {
+    const dbInsert = await pool.query(
+      `INSERT INTO reports ("roomId", "reporterUsername", "reportedUsername", message, reason, description, attachments, status, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', 'high') RETURNING id`,
+      [
+        roomId || null,
+        reporterUsername,
+        reportedUsername,
+        (message || '').substring(0, 1000),
+        reason || 'other',
+        (description || '').substring(0, 2000),
+        JSON.stringify(dbAttachments),
+      ]
+    );
+    reportId = dbInsert.rows[0]?.id;
+    if (reportId) broadcastAdminBadges();
+  } catch (dbErr) {
+    console.error('[report-message] DB save error:', dbErr.message);
+    return res.status(500).json({ success: false, error: 'Failed to save report. Please try again.' });
+  }
+
+  // ── Email notification ─────────────────────────────────────────────────────
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    const msgSnippet = (message || '').slice(0, 400) + ((message || '').length > 400 ? '…' : '');
+    const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
+<div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:28px 36px">
+    <h1 style="color:#fff;font-size:20px;font-weight:800;margin:0">🚩 Message Report #${reportId}</h1>
+    <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px">via SahaPlay Group Chat</p>
+  </div>
+  <div style="padding:28px 36px">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+      <tr><td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px;width:120px">Reporter</td>
+          <td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px;font-weight:600">@${esc(reporterUsername)}</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Reported User</td>
+          <td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#f87171;font-size:14px;font-weight:700">@${esc(reportedUsername)}</td></tr>
+      <tr><td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Room</td>
+          <td style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px">${esc(roomId || 'Global Chat')}</td></tr>
+      <tr><td style="padding:9px 0;color:#9ca3af;font-size:13px">Reason</td>
+          <td style="padding:9px 0;color:#fbbf24;font-size:14px;font-weight:700">${esc(reasonLabel)}</td></tr>
+    </table>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-bottom:16px">
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px">Reported Message</p>
+      <p style="color:#e5e7eb;font-size:14px;line-height:1.7;margin:0;font-style:italic">"${esc(msgSnippet)}"</p>
+    </div>
+    ${description ? `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:16px;margin-bottom:16px">
+      <p style="color:#9ca3af;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px">Reporter Notes</p>
+      <p style="color:#e5e7eb;font-size:14px;line-height:1.7;margin:0">${esc(description)}</p>
+    </div>` : ''}
+    <p style="color:#9ca3af;font-size:13px;margin:0">📎 ${attachments.length} proof image${attachments.length > 1 ? 's' : ''} attached</p>
+  </div>
+</div>
+</body></html>`;
+
+    gmailTransporter.sendMail({
+      from: `"SahaPlay Reports" <${process.env.GMAIL_USER}>`,
+      to: process.env.GMAIL_USER,
+      subject: `[SahaPlay Report] ${reasonLabel} — @${reporterUsername} reported @${reportedUsername}`,
+      html: notifyHtml,
+      text: `Message Report #${reportId}\nReporter: @${reporterUsername}\nReported: @${reportedUsername}\nRoom: ${roomId || 'Global Chat'}\nReason: ${reasonLabel}\nMessage: "${(message || '').slice(0, 400)}"\nNotes: ${description || 'None'}`,
+      attachments,
+    }).catch(err => console.warn('[report-message] Email failed (non-fatal):', err.message));
+  }
+
+  return res.json({ success: true, reportId });
 });
 
 // Auth Endpoints
@@ -7490,13 +7606,19 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
     return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
   }
   const reporter = req.user.username;
-  const { reportedUsername, reason, description } = req.body;
+  const { reportedUsername, reason, description, images } = req.body;
 
   if (!reportedUsername) {
     return res.status(400).json({ success: false, error: 'Reported username is required.' });
   }
   if (!reason) {
     return res.status(400).json({ success: false, error: 'Reason for report is required.' });
+  }
+  if (!Array.isArray(images) || images.length === 0) {
+    return res.status(400).json({ success: false, error: 'At least 1 proof image is required to submit a report.' });
+  }
+  if (images.length > 5) {
+    return res.status(400).json({ success: false, error: 'Maximum 5 images allowed.' });
   }
 
   // Credentials guard
@@ -7508,7 +7630,23 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
     });
   }
 
-  const reportId = 'REP-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  // ── Image validation ─────────────────────────────────────────
+  const OK_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+  const attachments = [];
+  const dbAttachments = [];
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    if (!img || !img.data || !img.type) continue;
+    if (!OK_TYPES.includes(img.type))
+      return res.status(400).json({ success: false, error: `Image ${i + 1}: only JPG, PNG, GIF, WEBP allowed.` });
+    const raw = img.data.replace(/^data:[^;]+;base64,/, '');
+    const bytes = Math.ceil((raw.length * 3) / 4);
+    if (bytes > 5 * 1024 * 1024)
+      return res.status(400).json({ success: false, error: `Image ${i + 1} exceeds the 5 MB limit.` });
+    attachments.push({ filename: img.name || `proof-${i + 1}`, content: raw, encoding: 'base64', contentType: img.type });
+    dbAttachments.push({ filename: img.name || `proof-${i + 1}`, type: img.type, data: img.data });
+  }
+
   const trim = (v) => (v ? String(v).trim() : '');
   const rReported = trim(reportedUsername);
   const rReason = trim(reason);
@@ -7517,12 +7655,42 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
   const esc = (s) =>
     String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 
+  const reasonLabel = {
+    harassment: 'Harassment / Abuse',
+    spam: 'Spam / Advertising',
+    inappropriate_profile: 'Inappropriate Username, Avatar, or Bio',
+    other: 'Other',
+  }[rReason] || rReason || 'Other';
+
+  // ── Save to reports DB ─────────────────────────────────────────────────────
+  let reportId = null;
+  try {
+    const dbInsert = await pool.query(
+      `INSERT INTO reports ("roomId", "reporterUsername", "reportedUsername", message, reason, description, attachments, status, priority)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'open', 'high') RETURNING id`,
+      [
+        null,
+        reporter,
+        rReported,
+        'User Profile Report',
+        rReason,
+        rDesc,
+        JSON.stringify(dbAttachments),
+      ]
+    );
+    reportId = dbInsert.rows[0]?.id;
+    if (reportId) broadcastAdminBadges();
+  } catch (dbErr) {
+    console.error('[report-user] DB save error:', dbErr.message);
+    return res.status(500).json({ success: false, error: 'Failed to save report. Please try again.' });
+  }
+
   const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
 <div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
   <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px 40px">
     <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px">🚨 USER REPORT FILED</h1>
-    <p style="margin:8px 0 0;color:rgba(255,255,255,0.7);font-size:14px">Report ID: ${esc(reportId)}</p>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,0.7);font-size:14px">Report ID: #${reportId}</p>
   </div>
   <div style="padding:40px">
     <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:20px;margin-bottom:32px">
@@ -7538,28 +7706,30 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
         </tr>
         <tr>
           <td style="color:#888;font-size:14px;padding:8px 0;font-weight:600">Reason:</td>
-          <td style="color:#ef4444;font-size:15px;padding:8px 0;font-weight:700">${esc(rReason)}</td>
+          <td style="color:#ef4444;font-size:15px;padding:8px 0;font-weight:700">${esc(reasonLabel)}</td>
         </tr>
       </table>
     </div>
     
-    <div style="margin-bottom:32px">
+    ${rDesc ? `<div style="margin-bottom:32px">
       <h3 style="color:#fff;font-size:14px;margin:0 0 12px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Details provided:</h3>
       <p style="color:#ccc;font-size:14px;line-height:1.6;margin:0;background:rgba(255,255,255,0.03);padding:16px;border-radius:8px;border:1px solid rgba(255,255,255,0.05)">
-        \${rDesc ? esc(rDesc) : '<em>No additional details provided.</em>'}
+        ${esc(rDesc)}
       </p>
-    </div>
+    </div>` : ''}
+    <p style="color:#9ca3af;font-size:13px;margin:0">📎 ${attachments.length} proof image${attachments.length > 1 ? 's' : ''} attached</p>
   </div>
 </div>
 </body></html>`;
 
   try {
     await gmailTransporter.sendMail({
-      from:    `"SahaPlay User Reports" <\${process.env.GMAIL_USER}>`,
+      from:    `"SahaPlay User Reports" <${process.env.GMAIL_USER}>`,
       to:      process.env.GMAIL_USER,
-      subject: `[USER REPORT] @\${rReported} reported by @\${reporter} | \${reportId}`,
+      subject: `[USER REPORT] @${rReported} reported by @${reporter} | #${reportId}`,
       html:    notifyHtml,
-      text:    `User Report \${reportId}\\nReported User: @\${rReported}\\nReporter: @\${reporter}\\nReason: \${rReason}\\n\\nDescription:\\n\${rDesc || 'No details provided.'}`,
+      text:    `User Report #${reportId}\nReported User: @${rReported}\nReporter: @${reporter}\nReason: ${reasonLabel}\n\nDescription:\n${rDesc || 'No details provided.'}`,
+      attachments,
     });
 
     return res.json({ success: true, reportId });
@@ -8042,7 +8212,7 @@ app.get('/api/admin/reports', authenticateToken, requireAdmin, requireAdminRole(
     const [reportsR, countR] = await Promise.all([
       pool.query(
         `SELECT id, "roomId", "reporterUsername", "reportedUsername", message, "createdAt", resolved,
-                status, admin_notes, resolved_by_admin_id, resolved_at, priority
+                status, admin_notes, resolved_by_admin_id, resolved_at, priority, reason, description, attachments
          FROM reports ${where}
          ORDER BY "createdAt" DESC
          LIMIT $1 OFFSET $2`,

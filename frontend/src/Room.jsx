@@ -9,6 +9,7 @@ import io from 'socket.io-client';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import RoomChatPanel from './components/RoomChatPanel';
 import RoomModals from './components/RoomModals';
+import ReportMessageModal from './components/ReportMessageModal';
 import RoomSettingsModal from './components/RoomSettingsModal';
 import YouTubeBrowserModal from './components/YouTubeBrowserModal';
 import TwitchBrowserModal from './components/TwitchBrowserModal';
@@ -5591,8 +5592,10 @@ const Room = () => {
 
   const copyRoomLink = () => { if (copied) return; navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); toast.success('Link copied!'); };
 
-  const reportMsg = async (msg) => {
-    try { await fetch(`${SOCKET_SERVER_URL}/api/reports`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId, reporterUsername: username, reportedUsername: msg.username, message: msg.message }) }); toast.success('Reported'); } catch { }
+  const [reportMsgTarget, setReportMsgTarget] = React.useState(null);
+
+  const reportMsg = (msg) => {
+    setReportMsgTarget(msg);
   };
 
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true';
@@ -9324,6 +9327,18 @@ const Room = () => {
             </button>
           </div>
         </>
+      )}
+
+      {/* Report Message Modal */}
+      {reportMsgTarget && (
+        <ReportMessageModal
+          msg={reportMsgTarget}
+          roomId={roomId}
+          reporterUsername={username}
+          apiBase={SOCKET_SERVER_URL}
+          isDark={!isLight}
+          onClose={() => setReportMsgTarget(null)}
+        />
       )}
 
     </div>

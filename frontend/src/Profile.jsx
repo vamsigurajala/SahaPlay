@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign } from 'lucide-react';
+import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, FaRedditAlien, FaDiscord, FaFacebookF, FaPinterestP, FaTwitch } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
@@ -154,6 +154,53 @@ const Profile = () => {
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
   const reportDropdownRef = useRef(null);
+
+  const [reportImages, setReportImages] = useState([]);
+  const [reportImgErr, setReportImgErr] = useState('');
+  const [draggingReport, setDraggingReport] = useState(false);
+  const dragReportCount = useRef(0);
+  const reportFileInputRef = useRef(null);
+
+  const processReportFiles = useCallback((files) => {
+    setReportImgErr('');
+    const MAX_IMAGES = 5;
+    const MAX_BYTES = 5 * 1024 * 1024;
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+    const slots = MAX_IMAGES - reportImages.length;
+    if (slots <= 0) {
+      setReportImgErr(`Maximum ${MAX_IMAGES} images allowed.`);
+      return;
+    }
+    const toAdd = [];
+    let errMsg = '';
+    for (const f of Array.from(files).slice(0, slots)) {
+      if (!ALLOWED_TYPES.includes(f.type)) {
+        errMsg = 'Only JPG, PNG, GIF, WEBP images allowed.';
+        continue;
+      }
+      if (f.size > MAX_BYTES) {
+        errMsg = `"${f.name}" exceeds 5 MB limit.`;
+        continue;
+      }
+      toAdd.push({
+        file: f,
+        preview: URL.createObjectURL(f),
+        name: f.name,
+        type: f.type
+      });
+    }
+    if (errMsg) setReportImgErr(errMsg);
+    if (toAdd.length) setReportImages(prev => [...prev, ...toAdd]);
+  }, [reportImages.length]);
+
+  const removeReportImg = (i) => {
+    setReportImages(prev => {
+      URL.revokeObjectURL(prev[i].preview);
+      return prev.filter((_, j) => j !== i);
+    });
+    setReportImgErr('');
+  };
 
   // Fetch flag from restcountries if otherProfile has a country
   const handleBlockConfirmed = async () => {
@@ -858,6 +905,15 @@ const Profile = () => {
   const followBtnIcon = followStatus === 'accepted' ? <UserCheck size={16} /> : followStatus === 'pending' ? <UserX size={16} /> : <UserPlus size={16} />;
   const followBtnColor = followStatus ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg,#6366f1,#a855f7)';
   const followBtnTextColor = followStatus ? (isLight ? '#444' : '#aaa') : '#fff';
+
+  const closeReportModal = () => {
+    setShowReportUserModal(false);
+    setReportDescription('');
+    setReportDropdownOpen(false);
+    reportImages.forEach(img => URL.revokeObjectURL(img.preview));
+    setReportImages([]);
+    setReportImgErr('');
+  };
 
   return (
     <>
@@ -2094,121 +2150,35 @@ const Profile = () => {
           </div>
         </div>
       )}
-      {/* Report User Modal */}
-      {showReportUserModal && (
-        <div className="report-modal-overlay" onClick={() => { setShowReportUserModal(false); setReportDropdownOpen(false); }} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
-            <button className="report-modal-close" onClick={() => { setShowReportUserModal(false); setReportDropdownOpen(false); }} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: isLight ? '#fff' : '#2a2a3e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 4px 12px rgba(0,0,0,0.5)', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f8fafc' : '#3a3a4e'; e.currentTarget.style.transform='scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : '#2a2a3e'; e.currentTarget.style.transform='scale(1)' }}>
-              <X size={20} />
-            </button>
-            <div className="report-modal-content" style={{ background: isLight ? '#fff' : '#141420', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', padding: 32, borderRadius: 24, width: '90vw', maxWidth: 480, animation: 'slideUp 0.3s ease-out', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.9)' }}>
-              <h3 style={{ margin: '0 0 8px', color: isLight ? '#1e293b' : '#fff', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Flag size={20} color="#ef4444" /> {t('reportUserTitle', 'Report @{{username}}', { username: otherProfile?.username })}
-              </h3>
-              <p style={{ color: isLight ? '#64748b' : '#9ca3af', fontSize: 13, margin: '0 0 24px', lineHeight: 1.5 }}>
-                {t('reportUserDesc', 'Help us keep SahaPlay safe. Describe what is wrong with this user profile or their behavior, and our team will investigate.')}
-              </p>
-
-              {/* Custom Dropdown for Reason */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isLight ? '#475569' : '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                  {t('reportReasonLabel', 'Reason for Report')}
-                </label>
-                <div ref={reportDropdownRef} style={{ position: 'relative', userSelect: 'none' }}>
-                  <div
-                    onClick={() => setReportDropdownOpen(o => !o)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: reportDropdownOpen ? '12px 12px 0 0' : 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.15)', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.06)', color: isLight ? '#1e293b' : '#fff', fontSize: 14, cursor: 'pointer', transition: 'border-radius 0.15s', boxSizing: 'border-box' }}
-                  >
-                    <span>{
-                      reportReason === 'spam' ? t('reportReasonSpam', 'Spam / Advertising')
-                      : reportReason === 'harassment' ? t('reportReasonHarassment', 'Harassment / Abuse')
-                      : reportReason === 'inappropriate_profile' ? t('reportReasonInappropriate', 'Inappropriate Username, Avatar, or Bio')
-                      : t('reportReasonOther', 'Other')
-                    }</span>
-                    <ChevronDown size={16} style={{ transition: 'transform 0.25s', transform: reportDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)', flexShrink: 0, marginLeft: 8 }} />
-                  </div>
-                  {reportDropdownOpen && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: isLight ? '#fff' : '#1e1e2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.15)', borderTop: 'none', borderRadius: '0 0 12px 12px', overflow: 'hidden', zIndex: 100, boxShadow: isLight ? '0 8px 24px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)' }}>
-                      {[
-                        { value: 'spam', label: t('reportReasonSpam', 'Spam / Advertising') },
-                        { value: 'harassment', label: t('reportReasonHarassment', 'Harassment / Abuse') },
-                        { value: 'inappropriate_profile', label: t('reportReasonInappropriate', 'Inappropriate Username, Avatar, or Bio') },
-                        { value: 'other', label: t('reportReasonOther', 'Other') },
-                      ].map(opt => (
-                        <div
-                          key={opt.value}
-                          onClick={() => { setReportReason(opt.value); setReportDropdownOpen(false); }}
-                          style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: isLight ? '#1e293b' : '#e2e8f0', background: reportReason === opt.value ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.18)') : 'transparent', fontWeight: reportReason === opt.value ? 700 : 400, transition: 'background 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.08)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = reportReason === opt.value ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.18)') : 'transparent'; }}
-                        >
-                          {opt.label}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isLight ? '#475569' : '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                  {t('reportDetailsLabel', 'Details')}
-                </label>
-                <textarea rows={4} value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder={t('reportPlaceholder', 'Please provide details or links to evidence to help our team take action...')} style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)', color: isLight ? '#1e293b' : '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5 }} />
-              </div>
-
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowReportUserModal(false); setReportDescription(''); setReportDropdownOpen(false); }} style={{ padding: '10px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: isLight ? '#475569' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  {t('cancelBtn', 'Cancel')}
-                </button>
-                <button disabled={submittingReport} onClick={async () => {
-                  setSubmittingReport(true);
-                  try {
-                    const res = await fetch(`${API}/api/report-user`, {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                      },
-                      body: JSON.stringify({
-                        reportedUsername: otherProfile?.username,
-                        reason: reportReason,
-                        description: reportDescription
-                      })
-                    });
-                    const data = await res.json();
-                    if (res.ok && data.success) {
-                      toast.success(t('reportSuccess', 'User reported successfully. Thank you!'));
-                      setShowReportUserModal(false);
-                      setReportDescription('');
-                    } else {
-                      toast.error(data.error || t('reportError', 'Failed to submit report. Please try again.'));
-                    }
-                  } catch (err) {
-                    toast.error(t('reportError', 'Failed to submit report. Please try again.'));
-                  } finally {
-                    setSubmittingReport(false);
-                  }
-                }} style={{ padding: '10px 20px', borderRadius: 12, border: 'none', background: '#ef4444', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: submittingReport ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, WebkitTextFillColor: '#ffffff' }}>
-                  {submittingReport ? '...' : t('submitReport', 'Submit Report')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Global Chat Widget */}
       <GlobalChatWidget ref={chatWidgetRef} isOpen={showRecentChats} onClose={() => setShowRecentChats(false)} unreadCounts={unreadCounts} onMarkRead={handleMarkRead} onNewMessage={handleNewMessage} />
 
     </div>
     {/* Report User Modal — outside blurring div so it stays sharp */}
       {showReportUserModal && (
-        <div className="report-modal-overlay" onClick={() => { setShowReportUserModal(false); setReportDropdownOpen(false); }} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+        <div className="report-modal-overlay" onClick={closeReportModal} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none !important; }
+            .no-scrollbar { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+            .report-modal-card {
+              padding: 32px !important;
+              max-height: 85vh !important;
+              overflow-y: auto !important;
+            }
+            @media (max-width: 600px) {
+              .report-modal-card {
+                padding: 16px 20px 20px !important;
+                border-radius: 16px !important;
+                max-height: 92vh !important;
+                width: 95vw !important;
+              }
+            }
+          `}</style>
           <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
-            <button className="report-modal-close" onClick={() => { setShowReportUserModal(false); setReportDropdownOpen(false); }} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: isLight ? '#fff' : '#2a2a3e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 4px 12px rgba(0,0,0,0.5)', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f8fafc' : '#3a3a4e'; e.currentTarget.style.transform='scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : '#2a2a3e'; e.currentTarget.style.transform='scale(1)' }}>
+            <button className="report-modal-close" onClick={closeReportModal} style={{ position: 'absolute', top: -2, right: -64, width: 44, height: 44, borderRadius: '50%', background: isLight ? '#fff' : '#2a2a3e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 4px 12px rgba(0,0,0,0.5)', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f8fafc' : '#3a3a4e'; e.currentTarget.style.transform='scale(1.05)' }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : '#2a2a3e'; e.currentTarget.style.transform='scale(1)' }}>
               <X size={20} />
             </button>
-            <div className="report-modal-content" style={{ background: isLight ? '#fff' : '#141420', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', padding: 32, borderRadius: 24, width: '90vw', maxWidth: 480, animation: 'slideUp 0.3s ease-out', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.9)' }}>
+            <div className="report-modal-card no-scrollbar" style={{ background: isLight ? '#fff' : '#141420', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 24, width: '90vw', maxWidth: 480, animation: 'slideUp 0.3s ease-out', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.9)' }}>
               <h3 style={{ margin: '0 0 8px', color: isLight ? '#1e293b' : '#fff', fontSize: 20, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Flag size={20} color="#ef4444" /> {t('reportUserTitle', 'Report @{{username}}', { username: otherProfile?.username })}
               </h3>
@@ -2257,20 +2227,109 @@ const Profile = () => {
                 </div>
               </div>
 
-              <div style={{ marginBottom: 24 }}>
+              <div style={{ marginBottom: 20 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isLight ? '#475569' : '#9ca3af', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                   {t('reportDetailsLabel', 'Details')}
                 </label>
                 <textarea rows={4} value={reportDescription} onChange={e => setReportDescription(e.target.value)} placeholder={t('reportPlaceholder', 'Please provide details or links to evidence to help our team take action...')} style={{ width: '100%', boxSizing: 'border-box', padding: '12px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)', color: isLight ? '#1e293b' : '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'none', lineHeight: 1.5 }} />
               </div>
 
+              {/* Proof Images Upload - Mandatory */}
+              <div style={{ marginBottom: 22 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: isLight ? '#475569' : '#9ca3af', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  Proof Images <span style={{ color: '#ef4444', fontWeight: 800 }}>*</span>
+                </label>
+                <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#9ca3af', margin: '0 0 10px' }}>
+                  At least 1 screenshot is required. Max 5 images, 5 MB each.
+                </p>
+
+                {reportImages.length < 5 && (
+                  <div
+                    onDragEnter={(e) => { e.preventDefault(); dragReportCount.current++; setDraggingReport(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); dragReportCount.current--; if (dragReportCount.current === 0) setDraggingReport(false); }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); dragReportCount.current = 0; setDraggingReport(false); processReportFiles(e.dataTransfer.files); }}
+                    onClick={() => reportFileInputRef.current?.click()}
+                    style={{
+                      border: `2px dashed ${draggingReport ? '#6366f1' : (reportImgErr && reportImages.length === 0 ? '#ef4444' : (isLight ? '#94a3b8' : 'rgba(255,255,255,0.2)'))}`,
+                      borderRadius: 12, padding: '20px 16px', textAlign: 'center',
+                      cursor: 'pointer', background: draggingReport ? (isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.1)') : 'transparent',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <Upload size={22} style={{ color: '#6366f1', marginBottom: 8, display: 'inline-block' }} />
+                    <div style={{ fontSize: 13, color: isLight ? '#1e293b' : '#ffffff', fontWeight: 600, marginBottom: 2 }}>
+                      <span style={{ color: '#818cf8' }}>Click to attach</span> or drag and drop
+                    </div>
+                    <div style={{ fontSize: 12, color: isLight ? '#64748b' : '#9ca3af' }}>JPG, PNG, GIF, WEBP — up to 5 MB each</div>
+                    <input
+                      ref={reportFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={e => { processReportFiles(e.target.files); e.target.value = ''; }}
+                    />
+                  </div>
+                )}
+
+                {reportImgErr && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, color: '#ef4444', fontSize: 12 }}>
+                    <AlertCircle size={13} />
+                    {reportImgErr}
+                  </div>
+                )}
+
+                {reportImages.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                    {reportImages.map((img, i) => (
+                      <div key={i} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.12)', flexShrink: 0 }}>
+                        <img src={img.preview} alt={img.name} style={{ width: 72, height: 56, objectFit: 'cover', display: 'block' }} />
+                        <button
+                          onClick={() => removeReportImg(i)}
+                          style={{
+                            position: 'absolute', top: 2, right: 2, width: 18, height: 18,
+                            borderRadius: '50%', background: 'rgba(0,0,0,0.75)', border: 'none',
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', padding: 0,
+                          }}
+                        >
+                          <X size={10} color="#ffffff" style={{ color: '#ffffff' }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reportImages.length > 0 && (
+                  <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#9ca3af', margin: '8px 0 0' }}>
+                    {reportImages.length} / 5 images attached
+                  </p>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowReportUserModal(false); setReportDescription(''); setReportDropdownOpen(false); }} style={{ padding: '10px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: isLight ? '#475569' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <button onClick={closeReportModal} style={{ padding: '10px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: isLight ? '#475569' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {t('cancelBtn', 'Cancel')}
                 </button>
-                <button disabled={submittingReport} onClick={async () => {
+                <button disabled={submittingReport || reportImages.length === 0} onClick={async () => {
+                  if (reportImages.length === 0) {
+                    setReportImgErr('At least 1 proof image is required to submit a report.');
+                    return;
+                  }
                   setSubmittingReport(true);
                   try {
+                    const toB64 = (f) => new Promise((res, rej) => {
+                      const r = new FileReader();
+                      r.onload = () => res(r.result);
+                      r.onerror = rej;
+                      r.readAsDataURL(f);
+                    });
+                    const imagePayload = await Promise.all(reportImages.map(async img => ({
+                      data: await toB64(img.file),
+                      type: img.type,
+                      name: img.name,
+                    })));
+
                     const res = await fetch(`${API}/api/report-user`, {
                       method: 'POST',
                       headers: {
@@ -2280,14 +2339,14 @@ const Profile = () => {
                       body: JSON.stringify({
                         reportedUsername: otherProfile?.username,
                         reason: reportReason,
-                        description: reportDescription
+                        description: reportDescription,
+                        images: imagePayload
                       })
                     });
                     const data = await res.json();
                     if (res.ok && data.success) {
                       toast.success(t('reportSuccess', 'User reported successfully. Thank you!'));
-                      setShowReportUserModal(false);
-                      setReportDescription('');
+                      closeReportModal();
                     } else {
                       toast.error(data.error || t('reportError', 'Failed to submit report. Please try again.'));
                     }
@@ -2296,10 +2355,16 @@ const Profile = () => {
                   } finally {
                     setSubmittingReport(false);
                   }
-                }} style={{ padding: '10px 20px', borderRadius: 12, border: 'none', background: '#ef4444', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: submittingReport ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, WebkitTextFillColor: '#ffffff' }}>
+                }} style={{ padding: '10px 20px', borderRadius: 12, border: 'none', background: reportImages.length === 0 ? (isLight ? '#d1d5db' : 'rgba(255,255,255,0.1)') : '#ef4444', color: reportImages.length === 0 ? (isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)') : '#ffffff', fontSize: 13, fontWeight: 700, cursor: (submittingReport || reportImages.length === 0) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, WebkitTextFillColor: reportImages.length === 0 ? (isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)') : '#ffffff' }}>
                   {submittingReport ? '...' : t('submitReport', 'Submit Report')}
                 </button>
               </div>
+              {reportImages.length === 0 && (
+                <p style={{ textAlign: 'center', fontSize: 12, color: '#ef4444', marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                  <AlertCircle size={12} />
+                  Proof images are required to submit this report
+                </p>
+              )}
             </div>
           </div>
         </div>

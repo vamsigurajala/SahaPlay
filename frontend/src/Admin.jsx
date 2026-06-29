@@ -1686,6 +1686,8 @@ function ReportsPage({ refreshBadges }) {
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState('all');
   const [resolveLoading, setResolveLoading] = useState(null);
+  const [selected, setSelected] = useState(null); // currently open detail
+  const [lightbox, setLightbox] = useState(null); // { src, filename }
 
   function load(p = 1, f = filter) {
     setLoading(true);
@@ -1702,125 +1704,240 @@ function ReportsPage({ refreshBadges }) {
     setResolveLoading(id + action);
     try {
       await apiFetch(`/api/admin/reports/${id}/resolve`, { method: 'POST', body: JSON.stringify({ action }) });
+      // Update selected detail pane if open
+      if (selected?.id === id) setSelected(prev => ({ ...prev, status: action === 'dismiss' ? 'dismissed' : 'resolved', resolved: true }));
       load(page, filter);
       if (refreshBadges) refreshBadges();
     } catch (e) { alert(`Failed: ${e.message}`); }
     finally { setResolveLoading(null); }
   }
 
+  async function markInReview(id) {
+    setResolveLoading(id + 'in_review');
+    try {
+      await apiFetch(`/api/admin/reports/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'in_review' }) });
+      if (selected?.id === id) setSelected(prev => ({ ...prev, status: 'in_review' }));
+      load(page, filter);
+    } catch (e) { alert(`Failed: ${e.message}`); }
+    finally { setResolveLoading(null); }
+  }
+
   const reports = data?.reports || [];
 
+  const REASON_LABELS = {
+    harassment: 'Harassment / Abuse', spam: 'Spam / Advertising',
+    hate_speech: 'Hate Speech', inappropriate_content: 'Inappropriate Content',
+    threats: 'Threats / Violence', other: 'Other',
+  };
+
+  function StatusBadge({ status, resolved }) {
+    const st = status || (resolved ? 'resolved' : 'open');
+    const sc = {
+      open: isLight ? ['rgba(245,158,11,0.1)','#d97706','rgba(245,158,11,0.25)'] : ['rgba(245,158,11,0.12)','#fbbf24','rgba(245,158,11,0.3)'],
+      in_review: isLight ? ['rgba(59,130,246,0.1)','#2563eb','rgba(59,130,246,0.25)'] : ['rgba(59,130,246,0.12)','#60a5fa','rgba(59,130,246,0.3)'],
+      resolved: isLight ? ['rgba(16,185,129,0.1)','#16a34a','rgba(16,185,129,0.25)'] : ['rgba(16,185,129,0.12)','#34d399','rgba(16,185,129,0.3)'],
+      dismissed: isLight ? ['#f3f4f6','#4b5563','#d1d5db'] : ['rgba(255,255,255,0.06)','rgba(255,255,255,0.35)','rgba(255,255,255,0.12)'],
+    }[st] || ['rgba(245,158,11,0.12)','#fbbf24','rgba(245,158,11,0.3)'];
+    return <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: sc[0], color: sc[1], border: `1px solid ${sc[2]}` }}>{st}</span>;
+  }
+
   return (
-    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div className="admin-reports-header">
-        <div className="admin-reports-header-left">
-          <div className="admin-reports-title-row">
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Reports</h1>
-            <button className="mobile-refresh-btn" onClick={() => load(page, filter)} style={{
-              display: 'none', alignItems: 'center', gap: 6, padding: '7px 13px',
-              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
-              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600
-            }}>
+    <div className="admin-page-container" style={{ overflowY: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
+      {/* Left: list pane */}
+      <div style={{ flex: selected ? '0 0 55%' : 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '28px 32px', borderRight: selected ? (isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)') : 'none' }}>
+        <div className="admin-reports-header">
+          <div className="admin-reports-header-left">
+            <div className="admin-reports-title-row">
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Reports</h1>
+              <button className="mobile-refresh-btn" onClick={() => load(page, filter)} style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 13px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                <RefreshCw size={13} /> Refresh
+              </button>
+            </div>
+            <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} report{total !== 1 ? 's' : ''}</p>
+          </div>
+          <div className="admin-reports-filters">
+            {[['all','All'], ['unresolved','Unresolved'], ['in_review','In Review'], ['resolved','Resolved'], ['dismissed','Dismissed']].map(([f, label]) => {
+              const active = filter === f;
+              return (
+                <button key={f} onClick={() => handleFilter(f)} style={{ padding: '7px 13px', borderRadius: 9, border: active ? '1px solid #6366f1' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'), background: active ? 'rgba(99,102,241,0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'), color: active ? '#818cf8' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'), fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {label}
+                </button>
+              );
+            })}
+            <button className="desktop-refresh-btn" onClick={() => load(page, filter)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               <RefreshCw size={13} /> Refresh
             </button>
           </div>
-          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} report{total !== 1 ? 's' : ''}</p>
         </div>
-        <div className="admin-reports-filters">
-          {[['all','All'], ['unresolved','Unresolved'], ['in_review','In Review'], ['resolved','Resolved'], ['dismissed','Dismissed']].map(([f, label]) => {
-            const active = filter === f;
-            return (
-              <button
-                key={f}
-                onClick={() => handleFilter(f)}
-                style={{
-                  padding: '7px 13px', borderRadius: 9,
-                  border: active ? '1px solid #6366f1' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
-                  background: active ? 'rgba(99,102,241,0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'),
-                  color: active ? '#818cf8' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
-                  fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                  transition: 'all 0.15s'
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-          <button className="desktop-refresh-btn" onClick={() => load(page, filter)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px',
-            background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
-            border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600
-          }}>
-            <RefreshCw size={13} /> Refresh
-          </button>
-        </div>
-      </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
+        {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
 
-      <div style={{ overflowX: 'auto', borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
-          <thead>
-            <tr style={{ borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
-              {['Date', 'Reporter', 'Reported User', 'Room', 'Message', 'Status', 'Action'].map(h => (
-                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)' }}>Loading…</td></tr>
-            ) : reports.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)' }}>No reports{filter === 'unresolved' ? ' pending review' : ' yet'}</td></tr>
-            ) : reports.map(r => (
-              <tr key={r.id} style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f9fafb' : 'rgba(255,255,255,0.02)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                <td style={{ padding: '10px 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)', fontSize: 12, whiteSpace: 'nowrap' }}>
-                  {r.createdAt ? new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                </td>
-                <td style={{ padding: '10px 16px', color: isLight ? '#111827' : '#fff', fontWeight: 600 }}>@{r.reporterUsername || '—'}</td>
-                <td style={{ padding: '10px 16px', color: isLight ? '#374151' : 'rgba(255,255,255,0.7)' }}>@{r.reportedUsername || '—'}</td>
-                <td style={{ padding: '10px 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12 }}>
-                  {r.roomId ? r.roomId.substring(0, 14) + (r.roomId.length > 14 ? '…' : '') : '—'}
-                </td>
-                <td style={{ padding: '10px 16px', maxWidth: 220 }}>
-                  <span style={{ display: 'block', color: isLight ? '#374151' : 'rgba(255,255,255,0.6)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.message || ''}>{r.message || '—'}</span>
-                </td>
-                <td style={{ padding: '10px 16px' }}>
-                  {(() => {
-                    const st = r.status || (r.resolved ? 'resolved' : 'open');
-                    const sc = {
-                      open: isLight ? ['rgba(245,158,11,0.1)','#d97706','rgba(245,158,11,0.25)'] : ['rgba(245,158,11,0.12)','#fbbf24','rgba(245,158,11,0.3)'],
-                      in_review: isLight ? ['rgba(59,130,246,0.1)','#2563eb','rgba(59,130,246,0.25)'] : ['rgba(59,130,246,0.12)','#60a5fa','rgba(59,130,246,0.3)'],
-                      resolved: isLight ? ['rgba(16,185,129,0.1)','#16a34a','rgba(16,185,129,0.25)'] : ['rgba(16,185,129,0.12)','#34d399','rgba(16,185,129,0.3)'],
-                      dismissed: isLight ? ['#f3f4f6','#4b5563','#d1d5db'] : ['rgba(255,255,255,0.06)','rgba(255,255,255,0.35)','rgba(255,255,255,0.12)']
-                    }[st] || ['rgba(245,158,11,0.12)','#fbbf24','rgba(245,158,11,0.3)'];
-                    return <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: sc[0], color: sc[1], border: `1px solid ${sc[2]}` }}>{st}</span>;
-                  })()}
-                </td>
-                <td style={{ padding: '10px 16px' }}>
-                  {!r.resolved && r.status !== 'resolved' && r.status !== 'dismissed' ? (
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      <button onClick={() => resolve(r.id, 'resolve')} disabled={!!resolveLoading} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-                        <CheckCircle size={11} /> {resolveLoading === r.id + 'resolve' ? '…' : 'Resolve'}
-                      </button>
-                      <button onClick={() => resolve(r.id, 'dismiss')} disabled={!!resolveLoading} style={{ padding: '5px 10px', borderRadius: 7, background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.12)', color: isLight ? '#374151' : 'rgba(255,255,255,0.4)', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
-                        {resolveLoading === r.id + 'dismiss' ? '…' : 'Dismiss'}
-                      </button>
-                    </div>
-                  ) : (
-                    <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>
-                  )}
-                </td>
+        <div style={{ overflowX: 'auto', borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
+            <thead>
+              <tr style={{ borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
+                {['Date', 'Reporter', 'Reported User', 'Reason', 'Images', 'Status', 'Action'].map(h => (
+                  <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)' }}>Loading…</td></tr>
+              ) : reports.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)' }}>No reports{filter === 'unresolved' ? ' pending review' : ' yet'}</td></tr>
+              ) : reports.map(r => (
+                <tr key={r.id}
+                  onClick={() => setSelected(r)}
+                  style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s', cursor: 'pointer', background: selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.1)') : 'transparent' }}
+                  onMouseEnter={e => { if (selected?.id !== r.id) e.currentTarget.style.background = isLight ? '#f9fafb' : 'rgba(255,255,255,0.02)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.1)') : 'transparent'; }}>
+                  <td style={{ padding: '10px 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {r.createdAt ? new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </td>
+                  <td style={{ padding: '10px 16px', color: isLight ? '#111827' : '#fff', fontWeight: 600 }}>@{r.reporterUsername || '—'}</td>
+                  <td style={{ padding: '10px 16px', color: '#ef4444', fontWeight: 700 }}>@{r.reportedUsername || '—'}</td>
+                  <td style={{ padding: '10px 16px', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+                    {REASON_LABELS[r.reason] || r.reason || '—'}
+                  </td>
+                  <td style={{ padding: '10px 16px' }}>
+                    {Array.isArray(r.attachments) && r.attachments.length > 0 ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)' }}>
+                        🖼 {r.attachments.length}
+                      </span>
+                    ) : <span style={{ color: isLight ? '#d1d5db' : 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
+                  </td>
+                  <td style={{ padding: '10px 16px' }}><StatusBadge status={r.status} resolved={r.resolved} /></td>
+                  <td style={{ padding: '10px 16px' }}>
+                    {!r.resolved && r.status !== 'resolved' && r.status !== 'dismissed' ? (
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        <button onClick={e => { e.stopPropagation(); resolve(r.id, 'resolve'); }} disabled={!!resolveLoading} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                          <CheckCircle size={11} /> {resolveLoading === r.id + 'resolve' ? '…' : 'Resolve'}
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); resolve(r.id, 'dismiss'); }} disabled={!!resolveLoading} style={{ padding: '5px 10px', borderRadius: 7, background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.12)', color: isLight ? '#374151' : 'rgba(255,255,255,0.4)', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                          {resolveLoading === r.id + 'dismiss' ? '…' : 'Dismiss'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p, filter); }} />}
       </div>
-      {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p, filter); }} />}
+
+      {/* Right: detail pane */}
+      {selected && (
+        <div style={{ flex: '0 0 45%', overflowY: 'auto', padding: '28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Report #{selected.id}</h2>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: isLight ? '#6b7280' : 'rgba(255,255,255,0.45)' }}>
+                {selected.createdAt ? new Date(selected.createdAt).toLocaleString() : ''}
+              </p>
+            </div>
+            <button onClick={() => setSelected(null)} style={{ background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: isLight ? '#374151' : '#fff', flexShrink: 0 }}>
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Meta */}
+          <div style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <tbody>
+                {[
+                  ['Reporter', `@${selected.reporterUsername || '—'}`],
+                  ['Reported', `@${selected.reportedUsername || '—'}`],
+                  selected.message === 'User Profile Report'
+                    ? ['Type', 'User Profile Report']
+                    : ['Room', selected.roomId || 'Global Chat'],
+                  ['Reason', REASON_LABELS[selected.reason] || selected.reason || '—'],
+                  ['Status', null],
+                ].map(([label, value]) => (
+                  <tr key={label} style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '7px 0', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.4)', fontWeight: 600, fontSize: 12, width: 90, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</td>
+                    <td style={{ padding: '7px 0', color: label === 'Reported' ? '#ef4444' : (isLight ? '#111827' : '#fff'), fontWeight: label === 'Reporter' || label === 'Reported' ? 700 : 400 }}>
+                      {label === 'Status' ? <StatusBadge status={selected.status} resolved={selected.resolved} /> : value}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Message snippet */}
+          {selected.message && selected.message !== 'User Profile Report' && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Reported Message</div>
+              <div style={{ background: isLight ? '#fff7ed' : 'rgba(239,68,68,0.06)', border: isLight ? '1px solid #fed7aa' : '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: isLight ? '#374151' : 'rgba(255,255,255,0.7)', lineHeight: 1.6, fontStyle: 'italic' }}>
+                "{selected.message}"
+              </div>
+            </div>
+          )}
+
+          {/* Reporter notes */}
+          {selected.description && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Reporter Notes</div>
+              <div style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: isLight ? '#374151' : 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+                {selected.description}
+              </div>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {Array.isArray(selected.attachments) && selected.attachments.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Paperclip size={12} /> Proof Images ({selected.attachments.length})
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {selected.attachments.map((att, i) => (
+                  <button key={i} onClick={() => setLightbox({ src: att.data, filename: att.filename })}
+                    title={`View ${att.filename}`}
+                    style={{ display: 'block', position: 'relative', borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', flexShrink: 0, padding: 0, background: 'none' }}>
+                    <img src={att.data} alt={att.filename} style={{ width: 120, height: 90, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.72)', padding: '3px 6px' }}>
+                      <span style={{ fontSize: 9, color: '#fff', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          {!selected.resolved && selected.status !== 'resolved' && selected.status !== 'dismissed' && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {selected.status !== 'in_review' && (
+                <button onClick={() => markInReview(selected.id)} disabled={!!resolveLoading} style={{ padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(59,130,246,0.4)', background: 'rgba(59,130,246,0.1)', color: '#2563eb', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  {resolveLoading === selected.id + 'in_review' ? '…' : 'Mark In Review'}
+                </button>
+              )}
+              <button onClick={() => resolve(selected.id, 'resolve')} disabled={!!resolveLoading} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 9, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                <CheckCircle size={13} /> {resolveLoading === selected.id + 'resolve' ? '…' : 'Resolve'}
+              </button>
+              <button onClick={() => resolve(selected.id, 'dismiss')} disabled={!!resolveLoading} style={{ padding: '8px 14px', borderRadius: 9, background: isLight ? '#fff' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.12)', color: isLight ? '#374151' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                {resolveLoading === selected.id + 'dismiss' ? '…' : 'Dismiss'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Image lightbox */}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}><X size={18} /></button>
+          <img src={lightbox.src} alt={lightbox.filename} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 12, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{lightbox.filename}</p>
+        </div>
+      )}
     </div>
   );
 }
