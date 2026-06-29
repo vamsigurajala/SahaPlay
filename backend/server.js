@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const http = require('http');
@@ -7722,21 +7722,20 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
 </div>
 </body></html>`;
 
-  try {
-    await gmailTransporter.sendMail({
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    gmailTransporter.sendMail({
       from:    `"SahaPlay User Reports" <${process.env.GMAIL_USER}>`,
       to:      process.env.GMAIL_USER,
       subject: `[USER REPORT] @${rReported} reported by @${reporter} | #${reportId}`,
       html:    notifyHtml,
       text:    `User Report #${reportId}\nReported User: @${rReported}\nReporter: @${reporter}\nReason: ${reasonLabel}\n\nDescription:\n${rDesc || 'No details provided.'}`,
       attachments,
+    }).catch(err => {
+      console.error('[report-user] background email error:', err.message);
     });
-
-    return res.json({ success: true, reportId });
-  } catch (err) {
-    console.error('[report-user] Full error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to submit report. Please try again later.' });
   }
+
+  return res.json({ success: true, reportId });
 });
 // ─────────────────────────────────────────────────────────────────────────────
 

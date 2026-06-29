@@ -2311,7 +2311,10 @@ const Profile = () => {
                 <button onClick={closeReportModal} style={{ padding: '10px 16px', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: isLight ? '#475569' : '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {t('cancelBtn', 'Cancel')}
                 </button>
-                <button disabled={submittingReport || reportImages.length === 0} onClick={async () => {
+                <button
+                  disabled={submittingReport || reportImages.length === 0}
+                  className={reportImages.length === 0 ? "" : "stay-white"}
+                  onClick={async () => {
                   if (reportImages.length === 0) {
                     setReportImgErr('At least 1 proof image is required to submit a report.');
                     return;

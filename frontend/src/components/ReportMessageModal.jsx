@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Flag, X, ChevronDown, Upload, AlertCircle } from "lucide-react";
+import { Flag, X, ChevronDown, Upload, AlertCircle, CheckCircle } from "lucide-react";
 
 const MAX_IMAGES = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -155,13 +155,14 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
         submitted ? (
           /* Success state */
           React.createElement("div", { style: { textAlign: "center", padding: "8px 0 8px" } },
-            React.createElement("div", { style: { fontSize: 48, marginBottom: 16 } }, "✅"),
+            React.createElement(CheckCircle, { size: 52, color: "#22c55e", style: { display: "inline-block", marginBottom: 16 } }),
             React.createElement("h3", { style: { margin: "0 0 8px", color: textPrimary, fontSize: 20, fontWeight: 800 } }, "Report Submitted"),
             React.createElement("p", { style: { color: textSecondary, fontSize: 14, lineHeight: 1.6, margin: "0 0 24px" } },
               "Thank you. Our team will review this report and take appropriate action."
             ),
             React.createElement("button", {
               onClick: onClose,
+              className: "stay-white",
               style: {
                 padding: "10px 28px", borderRadius: 12, border: "none",
                 background: "linear-gradient(135deg, #6366f1, #a855f7)",
@@ -332,6 +333,7 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
                 disabled: submitting || images.length === 0,
                 onClick: handleSubmit,
                 title: images.length === 0 ? "At least 1 proof image is required" : undefined,
+                className: images.length === 0 ? "" : "stay-white",
                 style: {
                   padding: "10px 22px", borderRadius: 12, border: "none",
                   background: images.length === 0 ? (isLight ? "#d1d5db" : "rgba(255,255,255,0.1)") : "#ef4444",
