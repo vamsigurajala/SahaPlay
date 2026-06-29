@@ -26,12 +26,20 @@ const gmailTransporter = nodemailer.createTransport({
   },
 });
 
-async function sendEmail({ to, subject, html, text, headers }) {
+async function sendEmail({ to, subject, html, text, headers, attachments = [] }) {
   if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
     console.warn('[Email] Gmail credentials not configured — skipping email to:', to);
     return null;
   }
   try {
+    const finalAttachments = [...attachments];
+    if (html && html.includes('cid:sahaplay-logo')) {
+      finalAttachments.push({
+        filename: 'trans_webl.png',
+        path: path.join(__dirname, '../frontend/public/logos/trans_webl.png'),
+        cid: 'sahaplay-logo'
+      });
+    }
     const info = await gmailTransporter.sendMail({
       from: `"SahaPlay" <${process.env.GMAIL_USER}>`,
       to,
@@ -39,6 +47,7 @@ async function sendEmail({ to, subject, html, text, headers }) {
       text: text || subject,
       html,
       headers: headers || {},
+      attachments: finalAttachments,
     });
     console.log('[Email] Sent successfully to:', to, '| Message ID:', info.messageId);
     return info;
@@ -49,18 +58,198 @@ async function sendEmail({ to, subject, html, text, headers }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Inline logo for emails (base64 data URI so Gmail never needs to fetch it) ───
-let EMAIL_LOGO_DATA_URI = '';
-try {
-  const logoPath = path.join(__dirname, '../frontend/public/logos/trans_webl.png');
-  const logoBuffer = fs.readFileSync(logoPath);
-  EMAIL_LOGO_DATA_URI = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-  console.log('[Email] Logo embedded as base64 data URI ✅');
-} catch (e) {
-  console.warn('[Email] Could not load logo for emails — will use URL fallback:', e.message);
-  EMAIL_LOGO_DATA_URI = `${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_webl.png`;
-}
+// ─── Inline logo for emails (CID referenced in Gmail-compatible email templates) ───
+const EMAIL_LOGO_DATA_URI = 'cid:sahaplay-logo';
 // ─────────────────────────────────────────────────────────────────────────────
+
+async function sendReporterConfirmationEmail(reportId, reporterUsername, reportedUsername, reason, knownEmail) {
+  try {
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    let toEmail = knownEmail || null;
+    if (!toEmail) {
+      const userRes = await pool.query('SELECT email FROM users WHERE LOWER(username) = LOWER($1)', [reporterUsername]);
+      toEmail = userRes.rows[0]?.email;
+    }
+    if (!toEmail) {
+      console.log(`[Email] Reporter @${reporterUsername} has no email — skipping confirmation`);
+      return;
+    }
+
+    const reasonLabel = {
+      harassment: 'Harassment / Abuse',
+      spam: 'Spam / Advertising',
+      hate_speech: 'Hate Speech / Discrimination',
+      inappropriate_content: 'Inappropriate / Explicit Content',
+      threats: 'Threats / Violence',
+      inappropriate_profile: 'Inappropriate Username, Avatar, or Bio',
+      other: 'Other'
+    }[reason] || reason || 'Other';
+
+    const subject = `[SahaPlay Support] Report Filed Successfully (Ticket #${reportId})`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:2px">We have received your report</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Report Filed Successfully</h1>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6">Hello <strong style="color:#111827">@${esc(reporterUsername)}</strong>,</p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Thank you for submitting a report. We have successfully registered your report regarding the user <strong style="color:#111827">@${esc(reportedUsername)}</strong> for <strong>${esc(reasonLabel)}</strong>.
+    </p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Our moderation team is currently reviewing the details and screenshots you submitted. Once we resolve this issue, we will notify you immediately.
+    </p>
+    <!-- Ticket Info Box -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px">
+        <p style="margin:0 0 10px;color:#6366f1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Ticket Information</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151;line-height:1.6">
+          <tr><td style="width:120px;color:#6b7280;font-weight:600">Ticket ID:</td><td>#${reportId}</td></tr>
+          <tr><td style="color:#6b7280;font-weight:600">Reported User:</td><td>@${esc(reportedUsername)}</td></tr>
+          <tr><td style="color:#6b7280;font-weight:600">Reason:</td><td>${esc(reasonLabel)}</td></tr>
+        </table>
+      </td></tr>
+    </table>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      If you have any additional information, please contact us at <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">This is an automated confirmation from <strong>SahaPlay</strong>. Please do not reply directly to this email.</p>
+    <p style="margin:6px 0 0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    await sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      text: `Hello @${reporterUsername},\n\nWe have received your report regarding @${reportedUsername} for ${reasonLabel} (Ticket #${reportId}).\n\nOur team is currently reviewing it.\n\nSahaPlay Moderation Team`
+    });
+  } catch (err) {
+    console.error('[Email] Failed to send report confirmation:', err.message);
+  }
+}
+
+async function sendReporterResolutionEmail(reportId, resolverAdminUsername, adminNotes) {
+  try {
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    const reportRes = await pool.query('SELECT "reporterUsername", "reportedUsername", reason, status FROM reports WHERE id = $1', [reportId]);
+    const report = reportRes.rows[0];
+    if (!report) return;
+
+    const { reporterUsername, reportedUsername, reason, status } = report;
+    const userRes = await pool.query('SELECT email FROM users WHERE LOWER(username) = LOWER($1)', [reporterUsername]);
+    const toEmail = userRes.rows[0]?.email;
+    if (!toEmail) return;
+
+    const reasonLabel = {
+      harassment: 'Harassment / Abuse',
+      spam: 'Spam / Advertising',
+      hate_speech: 'Hate Speech / Discrimination',
+      inappropriate_content: 'Inappropriate / Explicit Content',
+      threats: 'Threats / Violence',
+      inappropriate_profile: 'Inappropriate Username, Avatar, or Bio',
+      other: 'Other'
+    }[reason] || reason || 'Other';
+
+    const isResolved = status === 'resolved';
+    const statusText = isResolved ? 'Resolved' : 'Dismissed';
+    const subject = `[SahaPlay Support] Report Status Update: ${statusText} (Ticket #${reportId})`;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#10b981,#059669);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:13px;margin-top:2px">Report Status Update: ${statusText}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 8px;color:#111827;font-size:22px;font-weight:700">Your Report Has Been ${statusText}</h1>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6">Hello <strong style="color:#111827">@${esc(reporterUsername)}</strong>,</p>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      This is a notification that the report you filed regarding the user <strong style="color:#111827">@${esc(reportedUsername)}</strong> (Ticket #${reportId}) has been marked as <strong>${statusText.toLowerCase()}</strong> by our moderation team.
+    </p>
+    ${adminNotes ? `
+    <!-- Notes Box -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px">
+      <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px">
+        <p style="margin:0 0 10px;color:#10b981;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Moderation Notes</p>
+        <p style="margin:0;color:#374151;font-size:14px;line-height:1.75">${esc(adminNotes)}</p>
+      </td></tr>
+    </table>
+    ` : ''}
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Thank you for helping us keep SahaPlay a safe and welcoming platform for everyone.
+    </p>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      Best regards,<br>
+      <strong>SahaPlay Moderation Team</strong>
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">This is an automated confirmation from <strong>SahaPlay</strong>. Please do not reply directly to this email.</p>
+    <p style="margin:6px 0 0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    await sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      text: `Hello @${reporterUsername},\n\nYour report regarding @${reportedUsername} (Ticket #${reportId}) has been resolved.\n\n${adminNotes ? 'Notes: ' + adminNotes : ''}\n\nSahaPlay Moderation Team`
+    });
+  } catch (err) {
+    console.error('[Email] Failed to send report resolution email:', err.message);
+  }
+}
 
 
 // ─── Detect LAN IP at startup ───
@@ -107,6 +296,30 @@ pool.on('error', (err, client) => {
 // ─── Server-side message encryption ───
 const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET || 'sahaplay-static-default-secret-key-12345';
 const chatKey = crypto.createHash('sha256').update(CHAT_ENCRYPTION_SECRET).digest();
+
+function looksLikeCiphertext(str) {
+  if (!str || typeof str !== 'string' || str.length < 20) return false;
+  if (str.startsWith('🔒') || str.startsWith('🎥') || str.startsWith('📷')) return false;
+  return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
+}
+
+function truncateToWordLimit(text, limit = 250) {
+  if (!text || typeof text !== 'string') return text;
+  if (looksLikeCiphertext(text)) return text;
+  const parts = text.split(/(\s+)/);
+  let wordCount = 0;
+  const truncatedParts = [];
+  for (const part of parts) {
+    if (part.trim() !== '') {
+      wordCount++;
+    }
+    if (wordCount > limit) {
+      break;
+    }
+    truncatedParts.push(part);
+  }
+  return truncatedParts.join('');
+}
 
 function encryptServerText(text) {
   if (!text) return text;
@@ -803,6 +1016,8 @@ const migrationsReady = (async () => {
     .catch(e => console.warn('[Migration] reports.description column:', e.message));
   await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS attachments JSONB`)
     .catch(e => console.warn('[Migration] reports.attachments column:', e.message));
+  await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS assigned_to_admin_id TEXT`)
+    .catch(e => console.warn('[Migration] reports.assigned_to_admin_id column:', e.message));
 
   console.log('[Migration] Admin system migrations complete');
 })();
@@ -1080,7 +1295,10 @@ app.post('/api/report-message', async (req, res) => {
       ]
     );
     reportId = dbInsert.rows[0]?.id;
-    if (reportId) broadcastAdminBadges();
+    if (reportId) {
+      broadcastAdminBadges();
+      sendReporterConfirmationEmail(reportId, reporterUsername, reportedUsername, reason);
+    }
   } catch (dbErr) {
     console.error('[report-message] DB save error:', dbErr.message);
     return res.status(500).json({ success: false, error: 'Failed to save report. Please try again.' });
@@ -1092,7 +1310,8 @@ app.post('/api/report-message', async (req, res) => {
     const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
 <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:28px 36px">
+  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:28px 36px;text-align:center">
+    <img src="cid:sahaplay-logo" alt="SahaPlay" width="48" height="48" style="width:48px;height:48px;margin:0 auto 12px;display:block;" />
     <h1 style="color:#fff;font-size:20px;font-weight:800;margin:0">🚩 Message Report #${reportId}</h1>
     <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px">via SahaPlay Group Chat</p>
   </div>
@@ -1120,8 +1339,7 @@ app.post('/api/report-message', async (req, res) => {
 </div>
 </body></html>`;
 
-    gmailTransporter.sendMail({
-      from: `"SahaPlay Reports" <${process.env.GMAIL_USER}>`,
+    sendEmail({
       to: process.env.GMAIL_USER,
       subject: `[SahaPlay Report] ${reasonLabel} — @${reporterUsername} reported @${reportedUsername}`,
       html: notifyHtml,
@@ -2722,7 +2940,12 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   // message can be empty if there's a media attachment
   if (!type || !partner || (!message && !mediaUrl)) return res.status(400).json({ error: 'invalid payload' });
 
-  const actualMessage = message || '';
+  let actualMessage = message || '';
+  actualMessage = truncateToWordLimit(actualMessage, 250);
+  let senderMessageVal = senderMessage || null;
+  if (senderMessageVal) {
+    senderMessageVal = truncateToWordLimit(senderMessageVal, 250);
+  }
   const ts = Date.now();
   try {
     const senderUser = await queryGet('SELECT "avatarPath" FROM users WHERE username = ?', [username]);
@@ -2755,7 +2978,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
-         actualMessage, senderMessage || null,
+         actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
          nonce || null, ephemeralPublicKey || null,
@@ -2778,7 +3001,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         senderAvatar: senderAvatar,
         targetName: partner,
         message: actualMessage,
-        senderMessage: senderMessage || null,
+        senderMessage: senderMessageVal,
         mediaUrl: mediaUrl || null,
         mediaType: mediaType || null,
         mediaFileName: mediaFileName || null,
@@ -5058,7 +5281,8 @@ io.on('connection', (socket) => {
 
     if (room.mutedUsers.has(socket.id)) { socket.emit('you_are_muted'); return; }
 
-    const safeMessage = message || '';
+    let safeMessage = message || '';
+    safeMessage = truncateToWordLimit(safeMessage, 250);
     
     // â"€â"€ Content Filtering â"€â"€
     if (room.permissions && room.permissions.allowLinks === false && !isRoomAdminOrHost) {
@@ -5082,7 +5306,7 @@ io.on('connection', (socket) => {
       id: `${socket.id}-${ts}`,
       userId: socket.id,
       username,
-      message: message || '',
+      message: safeMessage,
       timestamp: ts,
       reactions: {},
       replyTo: replyTo || null,
@@ -5115,7 +5339,7 @@ io.on('connection', (socket) => {
         media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [
-        roomId, 'group', socket.id, username, message || '', msg.timestamp,
+        roomId, 'group', socket.id, username, safeMessage, msg.timestamp,
         replyTo ? JSON.stringify(replyTo) : null,
         msg.mediaUrl, msg.mediaType, nonceText, ephemText,
         mediaFileName || null, mediaFileSize || null,
@@ -5633,6 +5857,15 @@ io.on('connection', (socket) => {
   socket.on('private_message', async (data) => {
     const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId } = data;
     if (!socket.username || !targetName) return;
+
+    let finalMessage = message;
+    if (finalMessage) {
+      finalMessage = truncateToWordLimit(finalMessage, 250);
+    }
+    let finalSenderMessage = senderMessage || null;
+    if (finalSenderMessage) {
+      finalSenderMessage = truncateToWordLimit(finalSenderMessage, 250);
+    }
     
     const sender = socket.username.toLowerCase();
     const recipient = targetName.toLowerCase();
@@ -5660,8 +5893,8 @@ io.on('connection', (socket) => {
       senderId: socket.id,
       senderName: socket.username,
       targetName,
-      message,
-      senderMessage: senderMessage || null,
+      message: finalMessage,
+      senderMessage: finalSenderMessage,
       nonce,
       ephemeralPublicKey,
       replyTo,
@@ -5680,7 +5913,7 @@ io.on('connection', (socket) => {
     const dmSocketExpiry = payload.mediaUrl ? computeMediaExpiry(payload.mediaType) : null;
     payload.mediaExpiresAt = dmSocketExpiry ? dmSocketExpiry.toISOString() : null;
     db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType, media_file_name, media_file_size, media_expires_at, media_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, message, senderMessage || null, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null, mediaFileName || null, mediaFileSize || null, dmSocketExpiry || null, mediaDuration ? Number(mediaDuration) : null], function(err) {
+      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, finalMessage, finalSenderMessage, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null, mediaFileName || null, mediaFileSize || null, dmSocketExpiry || null, mediaDuration ? Number(mediaDuration) : null], function(err) {
         if (err) { console.error('Error saving private message:', err); return; }
         const dbId = this.lastID;
         if (dbId) {
@@ -7662,6 +7895,13 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
     other: 'Other',
   }[rReason] || rReason || 'Other';
 
+  // ── Look up reporter email by user ID (reliable, avoids username lookup issues) ──
+  let reporterEmail = null;
+  try {
+    const emailRes = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.id]);
+    reporterEmail = emailRes.rows[0]?.email || null;
+  } catch (_) {}
+
   // ── Save to reports DB ─────────────────────────────────────────────────────
   let reportId = null;
   try {
@@ -7679,7 +7919,10 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
       ]
     );
     reportId = dbInsert.rows[0]?.id;
-    if (reportId) broadcastAdminBadges();
+    if (reportId) {
+      broadcastAdminBadges();
+      sendReporterConfirmationEmail(reportId, reporter, rReported, rReason, reporterEmail);
+    }
   } catch (dbErr) {
     console.error('[report-user] DB save error:', dbErr.message);
     return res.status(500).json({ success: false, error: 'Failed to save report. Please try again.' });
@@ -7688,7 +7931,8 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
   const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
 <div style="max-width:640px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
-  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px 40px">
+  <div style="background:linear-gradient(135deg,#ef4444,#dc2626);padding:32px 40px;text-align:center">
+    <img src="cid:sahaplay-logo" alt="SahaPlay" width="48" height="48" style="width:48px;height:48px;margin:0 auto 12px;display:block;" />
     <h1 style="margin:0;color:#fff;font-size:24px;font-weight:800;letter-spacing:-0.5px">🚨 USER REPORT FILED</h1>
     <p style="margin:8px 0 0;color:rgba(255,255,255,0.7);font-size:14px">Report ID: #${reportId}</p>
   </div>
@@ -7723,8 +7967,7 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
 </body></html>`;
 
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    gmailTransporter.sendMail({
-      from:    `"SahaPlay User Reports" <${process.env.GMAIL_USER}>`,
+    sendEmail({
       to:      process.env.GMAIL_USER,
       subject: `[USER REPORT] @${rReported} reported by @${reporter} | #${reportId}`,
       html:    notifyHtml,
@@ -8250,6 +8493,7 @@ app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, requ
        VALUES ($1, $2, $3, $4)`,
       [String(req.user.id), req.adminEmail, auditAction, `Report #${id}${admin_notes ? ': ' + admin_notes.substring(0, 200) : ''}`]
     );
+    sendReporterResolutionEmail(id, req.user.username, admin_notes || null);
     res.json({ success: true });
   } catch (err) {
     console.error('[ADMIN] resolve report error:', err.message);
@@ -8278,10 +8522,89 @@ app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, requireAdmi
     vals.push(id);
     await pool.query(`UPDATE reports SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
     broadcastAdminBadges();
+
+    if (status === 'resolved' || status === 'dismissed') {
+      sendReporterResolutionEmail(id, req.user.username, admin_notes || null);
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('[ADMIN] patch report error:', err.message);
     res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
+// GET /api/admin/reports/:id
+app.get('/api/admin/reports/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT id, "roomId", "reporterUsername", "reportedUsername", message, "createdAt", resolved,
+              status, admin_notes, resolved_by_admin_id, resolved_at, priority, reason, description, attachments, assigned_to_admin_id
+       FROM reports WHERE id = $1`,
+      [id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Report not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[ADMIN] fetch report error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch report details' });
+  }
+});
+
+// POST /api/admin/reports/:id/assign
+app.post('/api/admin/reports/:id/assign', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
+  const { id } = req.params;
+  const { targetAdminId } = req.body;
+  let assignedTo = String(req.user.id);
+  let assignedEmail = req.adminEmail;
+  try {
+    if (targetAdminId && String(targetAdminId) !== String(req.user.id)) {
+      if (!['super_admin', 'admin'].includes(req.adminRole)) {
+        return res.status(403).json({ error: 'Only admins can assign reports to other team members' });
+      }
+      const check = await pool.query('SELECT id, email FROM users WHERE id = $1 AND role = ANY($2)', [String(targetAdminId), ALL_ADMIN_ROLES]);
+      if (!check.rows[0]) return res.status(400).json({ error: 'Target user is not an admin team member' });
+      assignedTo = String(targetAdminId);
+      assignedEmail = check.rows[0].email;
+    }
+    await pool.query(
+      `UPDATE reports SET assigned_to_admin_id = $1, status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END WHERE id = $2`,
+      [assignedTo, id]
+    );
+    broadcastAdminBadges();
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason)
+       VALUES ($1, $2, 'REPORT_ASSIGNED', $3)`,
+      [String(req.user.id), req.adminEmail, `Report #${id} assigned to ${assignedEmail}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] assign report error:', err.message);
+    res.status(500).json({ error: 'Failed to assign report' });
+  }
+});
+
+// POST /api/admin/reports/:id/note
+app.post('/api/admin/reports/:id/note', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
+  const { id } = req.params;
+  const { note } = req.body;
+  if (!note || !note.trim()) return res.status(400).json({ error: 'Note is required' });
+  try {
+    const ts = new Date().toISOString();
+    const noteEntry = `[${ts} - ${req.adminEmail}] ${note.trim()}`;
+    await pool.query(
+      `UPDATE reports SET admin_notes = CASE WHEN admin_notes IS NULL OR admin_notes = '' THEN $1 ELSE admin_notes || E'\n' || $1 END WHERE id = $2`,
+      [noteEntry, id]
+    );
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason)
+       VALUES ($1, $2, 'REPORT_NOTE_ADDED', $3)`,
+      [String(req.user.id), req.adminEmail, `Note added to report #${id}`]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] add note to report error:', err.message);
+    res.status(500).json({ error: 'Failed to add note to report' });
   }
 });
 

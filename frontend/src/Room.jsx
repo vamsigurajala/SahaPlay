@@ -936,32 +936,32 @@ const Room = () => {
             const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
             
             if (myEncKey && resolvedSenderKey) {
-              const senderPubKey = decodeBase64(resolvedSenderKey);
-              const plain = decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPubKey, kp.secretKey);
-              if (plain !== null) {
-                if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                  try {
-                    const mediaKeyBytes = robustDecode(plain);
-                    const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
-                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
-                    const msgKey = String(msg.id || msg.timestamp);
-                    groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-                    
-                    const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
-                    msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
-                    
-                    decryptedText = '';
-                    displayMediaUrl = objectUrl;
-                  } catch (e) {
-                    console.warn('[E2EE] Group messages media decrypt failed:', e);
-                    displayMediaUrl = null;
-                  }
-                } else {
-                  decryptedText = plain;
-                }
-              }
+               const senderPubKey = decodeBase64(resolvedSenderKey);
+               const plain = decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPubKey, kp.secretKey);
+               if (plain !== null) {
+                 if (msg.mediaUrl && msg.mediaUrl.length > 50) {
+                   try {
+                     const mediaKeyBytes = robustDecode(plain);
+                     const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                     const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
+                     const msgKey = String(msg.id || msg.timestamp);
+                     groupDecryptedMediaUrls.current[msgKey] = objectUrl;
+                     
+                     const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
+                     msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
+                     
+                     decryptedText = '';
+                     displayMediaUrl = objectUrl;
+                   } catch (e) {
+                     console.warn('[E2EE] Group messages media decrypt failed:', e);
+                     displayMediaUrl = null;
+                   }
+                 } else {
+                   decryptedText = plain;
+                 }
+               }
             }
           } catch (e2eeErr) {
             console.warn('[E2EE] Group messages decrypt failed:', e2eeErr);
@@ -969,6 +969,9 @@ const Room = () => {
           if (msg.mediaUrl && msg.mediaUrl.length > 50 && !decryptedText && decryptedText !== '') {
             displayMediaUrl = null;
           }
+        } else {
+          // If not E2EE, it is plaintext (or server-side encrypted and decrypted)
+          decryptedText = msg.message || '';
         }
 
         return { 
@@ -1243,7 +1246,8 @@ const Room = () => {
       if (showRecentChats && chatWidgetRef.current && !chatWidgetRef.current.contains(e.target)) {
         // Lightbox is portalled to document.body — don't treat those clicks as "outside"
         const inLightbox = !!e.target.closest?.('.media-lightbox-overlay');
-        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox) setShowRecentChats(false);
+        const inReportModal = !!e.target.closest?.('.report-modal-overlay');
+        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox && !inReportModal) setShowRecentChats(false);
       }
       // Close room menus if clicking outside
       if (showGroupMenu && groupMenuRef.current && !groupMenuRef.current.contains(e.target)) {
@@ -2131,67 +2135,7 @@ const Room = () => {
         const msgs = await res.json();
         if (!Array.isArray(msgs)) return;
 
-        const kp = myKeyPair.current;
-        const myUserLower = username?.toLowerCase();
-
-        const processedMsgs = await Promise.all(msgs.map(async (msg) => {
-          try {
-            const isMine = msg.isMe !== undefined ? msg.isMe
-              : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
-            let displayMediaUrl = msg.mediaUrl;
-
-            if (msg.e2ee && msg.e2ee.keys && kp) {
-              try {
-                const msgKey = String(msg.id || msg.timestamp);
-                const myEncKey = msg.e2ee.keys[myUserLower]
-                  || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myUserLower)?.[1];
-                const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
-                if (myEncKey && resolvedSenderKey) {
-                  const senderPubKey = decodeBase64(resolvedSenderKey);
-                  const plain = decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPubKey, kp.secretKey);
-                  if (plain !== null) {
-                    if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                      try {
-                        const mediaKeyBytes = robustDecode(plain);
-                        const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
-                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
-                        groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-                        msg.decryptedText = '';
-                        displayMediaUrl = objectUrl;
-                      } catch (e) {
-                        console.warn('[E2EE] Group history media decrypt failed:', e);
-                        displayMediaUrl = null;
-                      }
-                    } else {
-                      msg.decryptedText = plain;
-                    }
-                  }
-                }
-              } catch (e2eeErr) {
-                console.warn('[E2EE] Group history decrypt failed:', e2eeErr);
-              }
-              // Hide ciphertext media URLs that weren't decrypted
-              if (msg.mediaUrl && msg.mediaUrl.length > 50 && !msg.decryptedText && msg.decryptedText !== '') {
-                displayMediaUrl = null;
-              }
-            }
-
-            const safeReactions = (() => {
-              try { return fixReactions(msg.reactions); } catch { return {}; }
-            })();
-            return { ...msg, mediaUrl: displayMediaUrl, isMe: isMine, reactions: safeReactions };
-          } catch (itemErr) {
-            console.warn('[chat_history] item process error:', itemErr);
-            const isMine = (msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
-            return { ...msg, isMe: isMine, reactions: {} };
-          }
-        }));
-
-        const resolvedMsgs = (() => {
-          try { return resolveReplyMessages(processedMsgs); } catch { return processedMsgs; }
-        })();
+        const resolvedMsgs = await decryptRoomGroupMessages(msgs);
 
         setGroupMessages(resolvedMsgs);
         groupMessagesRef.current = resolvedMsgs;
@@ -2520,6 +2464,8 @@ const Room = () => {
         } catch (err) {
           console.warn('[E2EE] Group decrypt failed:', err);
         }
+      } else {
+        decryptedText = msg.message || '';
       }
       // ─────────────────────────────────────────────────────────────────────────
 
@@ -4083,7 +4029,7 @@ const Room = () => {
       return next;
     });
     let encryptedPayload = null;
-    if (myKeyPair.current && userList.length > 0) {
+    if (false && myKeyPair.current && userList.length > 0) {
       try {
         const mergedKeys = { ...dbPublicKeys.current };
         userList.forEach(u => {
@@ -4215,7 +4161,7 @@ const Room = () => {
     const ts = Date.now();
     const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // Optimistic Update (show plaintext locally, server gets ciphertext)
+    // Optimistic Update
     const optimisticMsg = {
       id: tempId,
       username,
@@ -4235,7 +4181,7 @@ const Room = () => {
 
     // ─── E2EE: Encrypt group message for all current room members ────────────
     let encryptedPayload = null;
-    if (myKeyPair.current && userList.length > 0) {
+    if (false && myKeyPair.current && userList.length > 0) {
       try {
         // Build a merged username → publicKey map:
         //   1. dbPublicKeys.current  — fetched from API/DB, always current, keyed by username
@@ -4325,21 +4271,15 @@ const Room = () => {
     });
 
     let finalUrl = url;
-    let encryptedPayload = null;
-    let isEncrypted = false;
     const token = localStorage.getItem('watch_token');
 
-    // ─── E2EE: AES blob encryption + metadata wrap ───
-    if (rawFile && myKeyPair.current && userList.length > 0) {
+    // Group chats are NOT E2EE client-side. They are securely encrypted server-side instead.
+    if (rawFile) {
       try {
-        const { encryptedBlob, mediaKeyBytes } = await encryptMedia(rawFile);
-        const mediaKeyB64 = encodeBase64(mediaKeyBytes);
-
-        // Upload encrypted blob to endpoint
         const fd = new FormData();
-        fd.append('file', encryptedBlob, rawFile.name || 'media');
+        fd.append('file', rawFile, rawFile.name || 'media');
         if (roomId) fd.append('roomId', roomId);
-        console.log('[CLIENT UPLOAD] Sending file:', { name: rawFile.name, size: encryptedBlob.size, type: rawFile.type });
+        console.log('[CLIENT UPLOAD] Sending raw file:', { name: rawFile.name, size: rawFile.size, type: rawFile.type });
         const uploadHeaders = {};
         if (token) {
           uploadHeaders['Authorization'] = `Bearer ${token}`;
@@ -4361,31 +4301,6 @@ const Room = () => {
         console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
         finalUrl = resolveMediaUrl(uploadData.url, SOCKET_SERVER_URL);
-
-        // Merge socket-based and DB-based public keys for recipients
-        const mergedKeys = { ...dbPublicKeys.current };
-        userList.forEach(u => {
-          if (u.socketId && peerPublicKeys.current[u.socketId]) {
-            mergedKeys[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
-          }
-        });
-
-        const recipients = userList
-          .filter(u => u.username.toLowerCase() !== username.toLowerCase())
-          .map(u => ({
-            username: u.username,
-            publicKey: mergedKeys[u.username.toLowerCase()] || null
-          }))
-          .filter(r => r.publicKey);
-          
-        recipients.push({
-          username: username,
-          publicKey: myKeyPair.current.publicKey
-        });
-
-        // Encrypt the AES key for group recipients
-        encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
-        isEncrypted = true;
       } catch (err) {
         console.error('[MEDIA] Error:', err);
         const msg = (err.message || '').toLowerCase();
@@ -4410,54 +4325,11 @@ const Room = () => {
         URL.revokeObjectURL(optimisticUrl);
         return;
       }
-    } else if (myKeyPair.current && userList.length > 0) {
-      // Fallback: URL string encryption only
-      try {
-        const mergedKeys2 = { ...dbPublicKeys.current };
-        userList.forEach(u => {
-          if (u.socketId && peerPublicKeys.current[u.socketId]) {
-            mergedKeys2[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
-          }
-        });
-        const recipients = userList
-          .filter(u => u.username !== username)
-          .map(u => ({
-            username: u.username,
-            publicKey: mergedKeys2[u.username.toLowerCase()] || null
-          }))
-          .filter(r => r.publicKey);
-          
-        recipients.push({
-          username: username,
-          publicKey: myKeyPair.current.publicKey
-        });
-        encryptedPayload = encryptGroupMessage(url, recipients, myKeyPair.current, username);
-        finalUrl = encryptedPayload.ciphertext; // stored encrypted string
-        isEncrypted = true;
-      } catch (err) {
-        console.warn('[E2EE] Room Group URL media encrypt failed:', err);
-      }
     }
-
-    if (!isEncrypted) {
-      console.error('[E2EE] Blocking Room group media — encryption failed.');
-      toast.error('Could not encrypt media. Please try again.');
-      setGroupMessages(prev => {
-        const next = prev.filter(m => m.id !== tempId);
-        groupMessagesRef.current = next;
-        return next;
-      });
-      return;
-    }
-
-    // IMPORTANT: For Group AES Media, `message` holds the encrypted AES key and `mediaUrl` holds the ciphertext URL.
-    // If it's the fallback URL encryption, both get the ciphertext to maintain backward compat.
-    // However, our new standard is to put the encrypted AES mediaKey in `message` and the actual URL in `mediaUrl`.
-    const msgPayload = (rawFile && encryptedPayload) ? encryptedPayload.ciphertext : (encryptedPayload ? encryptedPayload.ciphertext : '');
 
     socket.emit('chat_message', {
       roomId: (roomId || '').toLowerCase(),
-      message: msgPayload,
+      message: '',
       username,
       mediaUrl: finalUrl,
       mediaType: type,
@@ -4465,11 +4337,7 @@ const Room = () => {
       mediaFileSize: rawFile?.size || null,
       mediaDuration: mediaDuration || null,
       tempId,
-      e2ee: encryptedPayload ? {
-        nonce: encryptedPayload.nonce,
-        keys: encryptedPayload.keys,
-        senderPublicKey: encodeBase64(myKeyPair.current.publicKey)
-      } : null,
+      e2ee: null,
       replyTo: optimisticMsg.replyTo
     });
   };

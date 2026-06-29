@@ -2156,7 +2156,7 @@ const Profile = () => {
     </div>
     {/* Report User Modal — outside blurring div so it stays sharp */}
       {showReportUserModal && (
-        <div className="report-modal-overlay" onClick={closeReportModal} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+        <div className="report-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) closeReportModal(); }} style={{ position: 'fixed', inset: 0, backgroundColor: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
           <style>{`
             .no-scrollbar::-webkit-scrollbar { display: none !important; }
             .no-scrollbar { -ms-overflow-style: none !important; scrollbar-width: none !important; }

@@ -17,6 +17,18 @@ const REPORT_REASONS = [
 
 export default function ReportMessageModal({ msg, roomId, reporterUsername, onClose, apiBase, isDark }) {
   const isLight = !isDark;
+  const resolvedText = (() => {
+    let txt = msg.decryptedText || msg.message || "";
+    if (!txt && msg.mediaType) {
+      const mt = msg.mediaType;
+      txt = mt.startsWith('image/') ? '[Photo]'
+        : mt.startsWith('video/') ? '[Video]'
+        : mt.startsWith('audio/') ? '[Voice Note]'
+        : '[File]';
+    }
+    return txt;
+  })();
+
   const [reason, setReason] = useState("harassment");
   const [reasonOpen, setReasonOpen] = useState(false);
   const [description, setDescription] = useState("");
@@ -99,7 +111,7 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
           roomId: roomId || null,
           reporterUsername,
           reportedUsername: msg.username || msg.senderName || "Unknown",
-          message: msg.decryptedText || msg.message || "",
+          message: resolvedText,
           reason,
           description: description.trim(),
           images: imagePayload,
@@ -123,7 +135,7 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
 
   const modal = (
     React.createElement("div", {
-      onClick: onClose,
+      onClick: (e) => { if (e.target === e.currentTarget) onClose(); },
       className: "report-modal-overlay",
       style: {
         position: "fixed", inset: 0, background: isLight ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.7)",
@@ -204,8 +216,8 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
                 fontSize: 13, color: textSecondary, lineHeight: 1.5, maxHeight: 72, overflow: "hidden",
               }
             }, React.createElement("em", null,
-              "\u201c" + (msg.decryptedText || msg.message || "").slice(0, 180) +
-              ((msg.decryptedText || msg.message || "").length > 180 ? "\u2026" : "") + "\u201d"
+              "\u201c" + resolvedText.slice(0, 180) +
+              (resolvedText.length > 180 ? "\u2026" : "") + "\u201d"
             )),
 
             /* Reason */

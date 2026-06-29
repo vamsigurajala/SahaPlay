@@ -1399,6 +1399,9 @@ const GlobalChatWidget = forwardRef(({
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerRef = useRef(null);
+  const [waveHeights, setWaveHeights] = useState(() => Array(20).fill(3));
+  const analyserRef = useRef(null);
+  const waveAnimRef = useRef(null);
   // Re-auth overlay state (shown when sessionStorage key is missing after tab close)
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState('');
@@ -3120,7 +3123,7 @@ const GlobalChatWidget = forwardRef(({
       const mUserLower = myUsername?.toLowerCase();
       const msgIsMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
 
-      if (!m.nonce) return { ...m, decryptedText: null }; 
+      if (!m.nonce) return { ...m, decryptedText: m.message || '' }; 
       if (!kp) return { ...m, decryptedText: null, mediaUrl: null }; 
       const msgKey = String(m.id || m.timestamp);
       let decryptedText = null;
@@ -3623,7 +3626,7 @@ const GlobalChatWidget = forwardRef(({
              // isEncrypted remains false
            }
         }
-      } else if (activeChat.type === 'room' && keyPair) {
+      } else if (false && activeChat.type === 'room' && keyPair) {
         const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
         const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -3735,12 +3738,21 @@ const GlobalChatWidget = forwardRef(({
     setIsUploading(true);
 
     try {
-      const { encryptedBlob, mediaKeyBytes } = await encryptMedia(file);
-      const mediaKeyB64 = encodeBase64(mediaKeyBytes);
+      const isRoom = activeChat?.type === 'room';
+      let encryptedBlob = null;
+      let mediaKeyBytes = null;
+      let mediaKeyB64 = null;
+
+      if (!isRoom) {
+        const enc = await encryptMedia(file);
+        encryptedBlob = enc.encryptedBlob;
+        mediaKeyBytes = enc.mediaKeyBytes;
+        mediaKeyB64 = encodeBase64(mediaKeyBytes);
+      }
 
       const fd = new FormData();
-      fd.append('media', encryptedBlob, file.name);
-      if (activeChat?.type === 'room') {
+      fd.append('media', isRoom ? file : encryptedBlob, file.name);
+      if (isRoom) {
         fd.append('roomId', (activeChat.partner || activeChat.id).toLowerCase());
       }
       const uploadResp = await fetch(`${API}/api/upload/chat`, {
@@ -3766,7 +3778,7 @@ const GlobalChatWidget = forwardRef(({
       let e2eeKeysGroup = null;
 
       try {
-        if (activeChat.type === 'private' && keyPair) {
+        if (activeChat.type === 'private' && keyPair && mediaKeyB64) {
           let targetPubKey = null;
           const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
           if (pkRes.ok) {
@@ -3782,19 +3794,6 @@ const GlobalChatWidget = forwardRef(({
             mediaNonce = enc.nonce;
             mediaEphemeral = enc.ephemeralPublicKey;
             senderMessagePayload = enc.senderCiphertext;
-            isEncrypted = true;
-          }
-        } else if (activeChat.type === 'room' && keyPair) {
-          const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
-          const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
-          if (pkRes.ok) {
-            const pkData = await pkRes.json();
-            const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
-            const enc = encryptGroupMessage(mediaKeyB64, recipients, keyPair, myUsername);
-            messagePayload = enc.ciphertext;
-            mediaNonce = enc.nonce;
-            e2eeKeysGroup = enc.keys;
-            mediaEphemeral = encodeBase64(keyPair.publicKey);
             isEncrypted = true;
           }
         }
@@ -3890,8 +3889,35 @@ const GlobalChatWidget = forwardRef(({
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
         stream.getTracks().forEach(t => t.stop());
+        if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
+        if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
+        setWaveHeights(Array(20).fill(3));
       };
       recorder.start(100);
+      
+      // Set up Web Audio analyser for real waveform
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+        const dataArr = new Uint8Array(analyser.frequencyBinCount);
+        const animate = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteFrequencyData(dataArr);
+          const bars = Array.from({ length: 20 }, (_, i) => {
+            const idx = Math.floor(i * dataArr.length / 20);
+            const v = dataArr[idx] / 255;
+            return Math.max(3, Math.round(v * 100));
+          });
+          setWaveHeights(bars);
+          waveAnimRef.current = requestAnimationFrame(animate);
+        };
+        animate();
+      } catch {}
+
       setIsRecording(true);
       setRecordingTime(0);
       timerRef.current = setInterval(() => {
@@ -3914,6 +3940,8 @@ const GlobalChatWidget = forwardRef(({
   }
 
   function cancelRecording() {
+    if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
+    if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
     if (mediaRecorderRef.current) {
       try { mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop()); } catch {}
       try { if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop(); } catch {}
@@ -3923,6 +3951,7 @@ const GlobalChatWidget = forwardRef(({
     setRecordingTime(0);
     setAudioBlob(null);
     if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
+    setWaveHeights(Array(20).fill(3));
   }
 
   async function sendVoiceNote() {
@@ -5480,8 +5509,8 @@ const GlobalChatWidget = forwardRef(({
                           )}
 
                           <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
-                            <span style={{fontSize:10,color:'#444'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
-                            <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color:'#555',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                            <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
+                            <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
                               <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
                             )}
@@ -5704,29 +5733,29 @@ const GlobalChatWidget = forwardRef(({
 
                   {/* ── Voice recording UI ── */}
                   {isRecording && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 14, padding: '10px 14px' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 600, minWidth: 32 }}>{formatRecordingTime(recordingTime)}</span>
-                      <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'center', height: 20, overflow: 'hidden' }}>
-                        {Array.from({ length: 12 }).map((_, i) => (
-                          <div key={i} style={{ width: 3, borderRadius: 2, background: '#ef4444', opacity: 0.6, height: `${20 + Math.sin(Date.now()/200 + i) * 10}%`, animation: `wave-bar 0.8s ease-in-out ${i * 0.07}s infinite alternate` }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
+                      <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
+                        {waveHeights.map((h, i) => (
+                          <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, #6366f1, #a855f7)', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
                         ))}
                       </div>
-                      <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
-                      <button type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 8, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: '#fff' }}>
-                        <Check size={12} color="#fff" strokeWidth={2.5} /> Done
+                      <button type="button" onClick={cancelRecording} title="Delete Recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
+                      <button className="stay-white" type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                        <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
                       </button>
                     </div>
                   )}
 
                   {/* ── Voice note preview ── */}
                   {!isRecording && audioBlob && audioUrl && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 14, padding: '10px 14px' }}>
-                      <Music size={16} color="#a855f7" style={{ flexShrink: 0 }} />
-                      <audio src={audioUrl} controls style={{ height: 28, flex: 1 }} />
-                      <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
-                      <button type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, color: '#fff' }}>
-                        {isUploading ? <Loader2 size={12} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={12} color="#fff" /> Send</>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                      <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
+                      <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
+                      <button type="button" onClick={cancelRecording} title="Delete Recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
+                      <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                        {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
                       </button>
                     </div>
                   )}

@@ -495,3 +495,8 @@ Consider adding an error boundary to your tree to customize error handling behav
 Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
 
 [2m1:59:15 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m2:03:12 am[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:07:13 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:07:20 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:07:25 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m12:07:26 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
