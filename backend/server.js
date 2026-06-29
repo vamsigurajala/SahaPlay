@@ -49,6 +49,20 @@ async function sendEmail({ to, subject, html, text, headers }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Inline logo for emails (base64 data URI so Gmail never needs to fetch it) ───
+let EMAIL_LOGO_DATA_URI = '';
+try {
+  const logoPath = path.join(__dirname, '../frontend/public/logos/trans_webl.png');
+  const logoBuffer = fs.readFileSync(logoPath);
+  EMAIL_LOGO_DATA_URI = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+  console.log('[Email] Logo embedded as base64 data URI ✅');
+} catch (e) {
+  console.warn('[Email] Could not load logo for emails — will use URL fallback:', e.message);
+  EMAIL_LOGO_DATA_URI = `${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_webl.png`;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 // ─── Detect LAN IP at startup ───
 function getLanIp() {
   const nets = os.networkInterfaces();
@@ -90,6 +104,112 @@ pool.on('error', (err, client) => {
   console.error('Unexpected error on idle client', err);
 });
 
+// ─── Server-side message encryption ───
+const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET || 'sahaplay-static-default-secret-key-12345';
+const chatKey = crypto.createHash('sha256').update(CHAT_ENCRYPTION_SECRET).digest();
+
+function encryptServerText(text) {
+  if (!text) return text;
+  try {
+    const IV_LENGTH = 16;
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv('aes-256-cbc', chatKey, iv);
+    let encrypted = cipher.update(text, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    return 'encv1:' + iv.toString('hex') + ':' + encrypted;
+  } catch (e) {
+    console.error('[encryptServerText] Error:', e.message);
+    return text;
+  }
+}
+
+function decryptServerText(text) {
+  if (!text || typeof text !== 'string') return text;
+  if (!text.startsWith('encv1:')) return text;
+  try {
+    const parts = text.split(':');
+    if (parts.length < 3) return text;
+    const iv = Buffer.from(parts[1], 'hex');
+    const encryptedText = parts[2];
+    const decipher = crypto.createDecipheriv('aes-256-cbc', chatKey, iv);
+    let decrypted = decipher.update(encryptedText, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    console.error('[decryptServerText] Failed to decrypt:', e.message);
+    return text;
+  }
+}
+
+function encryptParamsInQuery(sql, params) {
+  if (!params || params.length === 0) return params;
+  const isInsert = /insert\s+into\s+messages/i.test(sql);
+  if (isInsert) {
+    const match = sql.match(/insert\s+into\s+messages\s*\(([^)]+)\)/i);
+    if (match) {
+      const columns = match[1].split(',').map(c => c.trim().replace(/['"`]/g, ''));
+      const msgIdx = columns.indexOf('message');
+      const senderMsgIdx = columns.indexOf('senderMessage');
+      
+      const nonceIdx = columns.indexOf('nonce');
+      const hasNonce = nonceIdx !== -1 && params[nonceIdx] !== null && params[nonceIdx] !== undefined && params[nonceIdx] !== '';
+      
+      if (!hasNonce) {
+        if (msgIdx !== -1 && typeof params[msgIdx] === 'string' && params[msgIdx]) {
+          params[msgIdx] = encryptServerText(params[msgIdx]);
+        }
+        if (senderMsgIdx !== -1 && typeof params[senderMsgIdx] === 'string' && params[senderMsgIdx]) {
+          params[senderMsgIdx] = encryptServerText(params[senderMsgIdx]);
+        }
+      }
+    }
+  }
+  return params;
+}
+
+const originalQuery = pool.query;
+pool.query = function (sql, params, callback) {
+  let actualSql = sql;
+  let actualParams = params;
+  let actualCallback = callback;
+
+  if (typeof actualParams === 'function') {
+    actualCallback = actualParams;
+    actualParams = [];
+  }
+
+  if (actualSql && typeof actualSql === 'object' && typeof actualSql.text === 'string') {
+    actualSql.values = encryptParamsInQuery(actualSql.text, actualSql.values);
+  } else if (typeof actualSql === 'string') {
+    actualParams = encryptParamsInQuery(actualSql, actualParams);
+  }
+
+  const decryptResult = (result) => {
+    if (result && result.rows && Array.isArray(result.rows)) {
+      result.rows.forEach(row => {
+        if (row.message && typeof row.message === 'string' && row.message.startsWith('encv1:')) {
+          row.message = decryptServerText(row.message);
+        }
+        if (row.senderMessage && typeof row.senderMessage === 'string' && row.senderMessage.startsWith('encv1:')) {
+          row.senderMessage = decryptServerText(row.senderMessage);
+        }
+      });
+    }
+    return result;
+  };
+
+  if (actualCallback) {
+    return originalQuery.call(pool, actualSql, actualParams, (err, result) => {
+      if (err) return actualCallback(err, null);
+      actualCallback(null, decryptResult(result));
+    });
+  } else {
+    return originalQuery.call(pool, actualSql, actualParams).then(result => {
+      return decryptResult(result);
+    });
+  }
+};
+
 class SupabaseAdapter {
   constructor() {
     this.serialize = (cb) => { if (cb) cb(); };
@@ -111,7 +231,7 @@ class SupabaseAdapter {
         'verificationToken', 'resetToken', 'resetTokenExpiry', 'displayName', 
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
         'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
-        'lastSeen', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus'
+        'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -341,6 +461,10 @@ function broadcastMessage(roomId, msg, senderSocketId, senderUsername) {
   });
 }
 
+function broadcastAdminBadges() {
+  io.to('admins').emit('admin_badges_updated');
+}
+
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
@@ -505,6 +629,10 @@ const migrationsReady = (async () => {
   // country_code: ISO 3166-1 alpha-2 code (e.g. "IN") for emoji flag display
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] country_code:', e.message);
+  });
+  // firstJoined: JSON object mapping roomId -> join timestamp
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "firstJoined" TEXT DEFAULT '{}'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] firstJoined:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -877,6 +1005,7 @@ app.post('/api/reports', (req, res) => {
     function(err) {
       if (err) return res.status(500).json({ error: 'Database error' });
       res.json({ success: true, reportId: this.lastID });
+      broadcastAdminBadges();
     }
   );
 });
@@ -941,9 +1070,13 @@ app.post('/api/signup', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -1176,9 +1309,13 @@ app.post('/api/auth/google', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -1266,9 +1403,13 @@ app.post('/api/forgot-password', async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#7c3aed,#4f46e5);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -1922,6 +2063,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   if (req.query.lastSeen) {
     try { lastSeen = JSON.parse(decodeURIComponent(req.query.lastSeen)); } catch{}
   }
+  let localRooms = [];
+  if (req.query.localRooms) {
+    try { localRooms = JSON.parse(decodeURIComponent(req.query.localRooms)); } catch{}
+  }
 
   try {
     // 1. Private chats: get latest message per partner
@@ -1944,7 +2089,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       WHERE m.type = 'private' 
         AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
         AND (m.hiddenFor IS NULL OR m.hiddenFor NOT LIKE '%' || $5 || '%')
-      ORDER BY partner, m.timestamp DESC
+      ORDER BY partner, m.timestamp DESC, m.id DESC
     `, [username, username, username, username, `"${username}"`]);
 
     const finalPrivate = await Promise.all(privateRows.map(async (row) => {
@@ -2015,7 +2160,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
           WHERE LOWER("senderName") = LOWER($3) AND type IN ('room', 'group')
           AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $4 || '%')
         )
-      ORDER BY m."roomId", m.timestamp DESC
+      ORDER BY m."roomId", m.timestamp DESC, m.id DESC
     `, [username, `"${username}"`, username, `"${username}"`]);
     
     // Fill in room names + unread counts
@@ -2147,8 +2292,25 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         unread: roomUnread
       });
     }
+    const deletedRooms = [];
+    if (Array.isArray(localRooms) && localRooms.length > 0) {
+      for (const rid of localRooms) {
+        if (!rid) continue;
+        const memRoom = rooms.get(rid);
+        if (memRoom) continue;
+        const dbRoom = await queryGet('SELECT 1 FROM room_names WHERE "roomId" = $1', [rid]);
+        if (!dbRoom) {
+          deletedRooms.push({
+            id: rid,
+            partner: rid,
+            type: 'room',
+            isDeleted: true
+          });
+        }
+      }
+    }
 
-    let finalArr = [...finalPrivate, ...finalGroup];
+    let finalArr = [...finalPrivate, ...finalGroup, ...deletedRooms];
 
     // Handle blocks (case-insensitive)
     const blockRows = await queryAll('SELECT blocker, blocked FROM blocks WHERE LOWER(blocker) = LOWER($1) OR LOWER(blocked) = LOWER($1)', [username]);
@@ -2254,6 +2416,7 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
       }
       res.json(filtered.map(r => ({ ...r, seenBy: seenMap[r.id] || [] })));
     } else if (type === 'room') {
+      const joinTs = await getOrInitFirstJoined(username, partner);
       let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
@@ -2263,8 +2426,12 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
       `;
       const queryParams = [partner, `%"${username}"%`];
+      if (joinTs) {
+        queryStr += ` AND m.timestamp >= $3 `;
+        queryParams.push(joinTs);
+      }
       if (before) {
-        queryStr += ` AND m.timestamp < $3 `;
+        queryStr += ` AND m.timestamp < $${queryParams.length + 1} `;
         queryParams.push(before);
       }
       queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
@@ -3450,6 +3617,30 @@ function getSerializableRoom(room) {
   };
 }
 
+async function getOrInitFirstJoined(username, roomId) {
+  if (!username || !roomId || username === 'Anonymous') return null;
+  const lowerRoom = roomId.toLowerCase();
+  
+  try {
+    const row = await queryGet('SELECT "firstJoined" FROM users WHERE username = ?', [username]);
+    let fj = {};
+    if (row && row.firstJoined) {
+      try { fj = JSON.parse(row.firstJoined); } catch(e){}
+    }
+    
+    if (fj[lowerRoom] === undefined) {
+      fj[lowerRoom] = Date.now();
+      await pool.query('UPDATE users SET "firstJoined" = $1 WHERE username = $2', [JSON.stringify(fj), username]);
+      console.log(`[firstJoined] Initialized first join timestamp for ${username} in ${lowerRoom} to ${fj[lowerRoom]}`);
+    }
+    
+    return fj[lowerRoom];
+  } catch (err) {
+    console.error(`[getOrInitFirstJoined] error for ${username} in ${lowerRoom}:`, err.message);
+    return null;
+  }
+}
+
 // Helper to check if a user has admin privileges in a room
 function isUserAdmin(room, userOrSocket) {
   if (!room || !userOrSocket) return false;
@@ -3922,6 +4113,16 @@ io.on('connection', (socket) => {
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
 
+  socket.on('admin:join', () => {
+    if (!socket.username) return;
+    db.get('SELECT role FROM users WHERE username = ?', [socket.username], (err, row) => {
+      if (row && (row.role === 'admin' || row.role === 'superadmin' || row.role === 'super_admin' || row.role === 'moderator' || row.role === 'support')) {
+        socket.join('admins');
+        console.log(`[ADMIN SOCKET] Joined admins room: ${socket.username}`);
+      }
+    });
+  });
+
   socket.on('client_log', (msg) => {
     console.log('[CLIENT_LOG]', socket.username || socket.id, msg);
   });
@@ -4028,7 +4229,7 @@ io.on('connection', (socket) => {
   });
 
   // ─── Helper for Finalizing Room Join ───
-  function executeFinalJoin(targetSocket, roomObj, roomId, username) {
+  async function executeFinalJoin(targetSocket, roomObj, roomId, username) {
     console.log(`[JOIN_FLOW] executeFinalJoin for ${username} in ${roomId}`);
     if (!roomObj) {
       console.warn(`[JOIN_FLOW] roomObj null for ${roomId} in executeFinalJoin`);
@@ -4127,16 +4328,27 @@ io.on('connection', (socket) => {
       );
     }
 
-    pool.query(`
+    const joinTs = await getOrInitFirstJoined(username, roomId);
+
+    let queryStr = `
       SELECT * FROM (
         SELECT m.*, u."avatarPath" as "senderAvatarPath"
         FROM messages m
         LEFT JOIN users u ON u.username = m."senderName"
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
+    `;
+    const queryParams = [roomId];
+    if (joinTs) {
+      queryStr += ` AND m.timestamp >= $2 `;
+      queryParams.push(joinTs);
+    }
+    queryStr += `
         ORDER BY m.timestamp DESC LIMIT 100
       ) sub
       ORDER BY sub.timestamp ASC
-    `, [roomId], async (err, pgRes) => {
+    `;
+
+    pool.query(queryStr, queryParams, async (err, pgRes) => {
       const groupRows = pgRes ? pgRes.rows : null;
       console.log('[executeFinalJoin] groupRows count for', roomId, 'is', groupRows ? groupRows.length : 0, 'error:', err ? err.message : null);
       if (!err && groupRows && groupRows.length > 0) {
@@ -4249,11 +4461,14 @@ io.on('connection', (socket) => {
         });
         const merged = [...history, ...inMemExtra].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-200);
         console.log(`[executeFinalJoin] history: ${history.length} DB rows + ${inMemExtra.length} in-memory extra → ${merged.length} total for ${username}`);
-        targetSocket.emit('chat_history', merged);
+        const filteredMerged = joinTs ? merged.filter(m => Number(m.timestamp) >= joinTs) : merged;
+        targetSocket.emit('chat_history', filteredMerged);
         roomObj.groupMessages = merged;
       } else {
         console.log(`[executeFinalJoin] 0 DB rows for ${roomId}, falling back to ${(roomObj.groupMessages||[]).length} in-memory messages`);
-        targetSocket.emit('chat_history', (roomObj.groupMessages || []).slice(-200));
+        const fallbackHistory = (roomObj.groupMessages || []).slice(-200);
+        const filteredFallback = joinTs ? fallbackHistory.filter(m => Number(m.timestamp) >= joinTs) : fallbackHistory;
+        targetSocket.emit('chat_history', filteredFallback);
       }
     });
 
@@ -4403,6 +4618,7 @@ io.on('connection', (socket) => {
         settings: { 
           audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player',
           lockRoom: false, onlyLoggedIn: false, newMembersAdmins: false,
+          allUsersPlayerSettings: true,
           ...JSON.parse(row.settings || '{}')
         }
       });
@@ -4594,6 +4810,7 @@ io.on('connection', (socket) => {
       const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
       if (!roomId) return;
 
+      const joinTs = await getOrInitFirstJoined(username, roomId);
       let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
@@ -4603,8 +4820,12 @@ io.on('connection', (socket) => {
           AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
       `;
       const queryParams = [roomId, `%"${username}"%`];
+      if (joinTs) {
+        queryStr += ` AND m.timestamp >= $3 `;
+        queryParams.push(joinTs);
+      }
       if (cleanBefore) {
-        queryStr += ` AND m.timestamp < $3 `;
+        queryStr += ` AND m.timestamp < $${queryParams.length + 1} `;
         queryParams.push(cleanBefore);
       }
       queryStr += ` ORDER BY m.timestamp DESC LIMIT $${queryParams.length + 1} `;
@@ -5460,7 +5681,8 @@ io.on('connection', (socket) => {
 
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
-    if (allowMedia === 'host' && !isUserAdmin(room, socket)) {
+    const allUsersPlayerSettings = room.settings?.allUsersPlayerSettings !== false && room.settings?.allUsersPlayerSettings !== 'false';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket) && !allUsersPlayerSettings) {
       socket.emit('error_notification', 'Only administrators can change media.');
       return;
     }
@@ -5495,10 +5717,23 @@ io.on('connection', (socket) => {
     
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
-    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+    const allUsersPlayerSettings = room.settings?.allUsersPlayerSettings !== false && room.settings?.allUsersPlayerSettings !== 'false';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket) && !allUsersPlayerSettings) return;
 
-    room.isPlaying = true; room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
-    socket.to(roomId).emit('action_play', currentTime);
+    // Check if the sender is the host/admin
+    const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+    let targetTime = currentTime;
+    if (!isHost) {
+      targetTime = room.isPlaying 
+        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000 
+        : room.currentTime;
+    }
+
+    room.isPlaying = true; room.currentTime = targetTime; room.timestampUpdatedAt = Date.now();
+    socket.to(roomId).emit('action_play', targetTime);
+    if (!isHost) {
+      socket.emit('action_play', targetTime);
+    }
   });
   socket.on('pause', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
@@ -5507,10 +5742,23 @@ io.on('connection', (socket) => {
 
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
-    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+    const allUsersPlayerSettings = room.settings?.allUsersPlayerSettings !== false && room.settings?.allUsersPlayerSettings !== 'false';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket) && !allUsersPlayerSettings) return;
 
-    room.isPlaying = false; room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
-    socket.to(roomId).emit('action_pause', currentTime);
+    // Check if the sender is the host/admin
+    const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+    let targetTime = currentTime;
+    if (!isHost) {
+      targetTime = room.isPlaying 
+        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000 
+        : room.currentTime;
+    }
+
+    room.isPlaying = false; room.currentTime = targetTime; room.timestampUpdatedAt = Date.now();
+    socket.to(roomId).emit('action_pause', targetTime);
+    if (!isHost) {
+      socket.emit('action_pause', targetTime);
+    }
   });
   socket.on('seek', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
@@ -5519,7 +5767,8 @@ io.on('connection', (socket) => {
 
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
-    if (allowMedia === 'host' && !isUserAdmin(room, socket)) return;
+    const allUsersPlayerSettings = room.settings?.allUsersPlayerSettings !== false && room.settings?.allUsersPlayerSettings !== 'false';
+    if (allowMedia === 'host' && !isUserAdmin(room, socket) && !allUsersPlayerSettings) return;
 
     room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_seek', currentTime);
@@ -6835,9 +7084,13 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
@@ -6891,6 +7144,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
       ]
     );
     dbRequestId = dbInsert.rows[0]?.id;
+    if (dbRequestId) broadcastAdminBadges();
   } catch (dbErr) {
     console.error('[contact] DB save error (non-fatal):', dbErr.message);
   }
@@ -7057,7 +7311,10 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
       ]
     );
     dbRequestId = dbInsert.rows[0]?.id;
-    if (dbRequestId) reportId = `BUG-${dbRequestId}`;
+    if (dbRequestId) {
+      reportId = `BUG-${dbRequestId}`;
+      broadcastAdminBadges();
+    }
   } catch (dbErr) {
     console.error('[report-bug] DB save error (non-fatal):', dbErr.message);
   }
@@ -7133,9 +7390,13 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Bug Tracker</div>
@@ -7366,7 +7627,7 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) =>
 });
 
 // GET /api/admin/online-users — only accounts with email (truly registered)
-app.get('/api/admin/online-users', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/online-users', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
@@ -7382,7 +7643,7 @@ app.get('/api/admin/online-users', authenticateToken, requireAdmin, async (req, 
 });
 
 // GET /api/admin/guest-users — accounts without email (guests) currently online
-app.get('/api/admin/guest-users', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/guest-users', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
@@ -7398,7 +7659,7 @@ app.get('/api/admin/guest-users', authenticateToken, requireAdmin, async (req, r
 });
 
 // GET /api/admin/active-rooms
-app.get('/api/admin/active-rooms', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/active-rooms', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const filter = req.query.filter || 'all'; // 'all' | 'public' | 'private'
     const list = [];
@@ -7422,7 +7683,7 @@ app.get('/api/admin/active-rooms', authenticateToken, requireAdmin, async (req, 
 });
 
 // GET /api/admin/users?search=&page=&limit=
-app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/users', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const search = (req.query.search || '').trim();
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -7460,9 +7721,13 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) =>
 });
 
 // POST /api/admin/users/:userId/ban
-app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   const { userId } = req.params;
   const { type, expiresAt, reason } = req.body;
+
+  if (req.adminRole === 'moderator' && type === 'permanent') {
+    return res.status(403).json({ error: 'Moderators are not authorized to issue permanent bans.' });
+  }
 
   if (!reason || !reason.trim()) {
     return res.status(400).json({ error: 'A reason is required for all bans.' });
@@ -7484,8 +7749,8 @@ app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, async 
     if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const target = targetR.rows[0];
 
-    if (target.role === 'admin') {
-      return res.status(400).json({ error: 'Admin accounts cannot be banned.' });
+    if (target.role === 'admin' || target.role === 'super_admin') {
+      return res.status(400).json({ error: 'Admin and Super Admin accounts cannot be banned.' });
     }
 
     const isPermanent = type === 'permanent';
@@ -7541,7 +7806,7 @@ app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, async 
 });
 
 // POST /api/admin/users/:userId/terminate
-app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   const { userId } = req.params;
   const { reason } = req.body;
 
@@ -7557,8 +7822,8 @@ app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, 
     if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     const target = targetR.rows[0];
 
-    if (target.role === 'admin') {
-      return res.status(400).json({ error: 'Admin accounts cannot be terminated.' });
+    if (target.role === 'admin' || target.role === 'super_admin') {
+      return res.status(400).json({ error: 'Admin and Super Admin accounts cannot be terminated.' });
     }
 
     await pool.query(
@@ -7594,7 +7859,7 @@ app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, 
 });
 
 // POST /api/admin/users/:userId/unban
-app.post('/api/admin/users/:userId/unban', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/users/:userId/unban', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   const { userId } = req.params;
 
   // Self-check (can't accidentally lock yourself out by unbanning either)
@@ -7634,7 +7899,7 @@ app.post('/api/admin/users/:userId/unban', authenticateToken, requireAdmin, asyn
 // ─── Phase 2 Admin Routes ─────────────────────────────────────────────────────
 
 // GET /api/admin/rooms/detailed — rooms with member lists
-app.get('/api/admin/rooms/detailed', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/rooms/detailed', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const list = [];
     for (const [roomId, room] of rooms.entries()) {
@@ -7661,7 +7926,7 @@ app.get('/api/admin/rooms/detailed', authenticateToken, requireAdmin, async (req
 });
 
 // POST /api/admin/rooms/:roomId/force-close
-app.post('/api/admin/rooms/:roomId/force-close', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/rooms/:roomId/force-close', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   const { roomId } = req.params;
   const { reason = 'Room closed by admin' } = req.body;
 
@@ -7688,7 +7953,7 @@ app.post('/api/admin/rooms/:roomId/force-close', authenticateToken, requireAdmin
 });
 
 // POST /api/admin/rooms/:roomId/kick-member
-app.post('/api/admin/rooms/:roomId/kick-member', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/rooms/:roomId/kick-member', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   const { roomId } = req.params;
   const { username } = req.body;
 
@@ -7727,7 +7992,7 @@ app.post('/api/admin/rooms/:roomId/kick-member', authenticateToken, requireAdmin
 });
 
 // GET /api/admin/audit-logs
-app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
@@ -7761,7 +8026,7 @@ app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, async (req, re
 });
 
 // GET /api/admin/reports
-app.get('/api/admin/reports', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/reports', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
@@ -7800,7 +8065,7 @@ app.get('/api/admin/reports', authenticateToken, requireAdmin, async (req, res) 
 });
 
 // POST /api/admin/reports/:id/resolve
-app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   const { id } = req.params;
   const { admin_notes, action: resolveAction } = req.body;
   const newStatus = resolveAction === 'dismiss' ? 'dismissed' : 'resolved';
@@ -7810,6 +8075,7 @@ app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, asyn
       `UPDATE reports SET resolved = TRUE, status = $1, resolved_by_admin_id = $2, resolved_at = NOW(), admin_notes = COALESCE($3, admin_notes) WHERE id = $4`,
       [newStatus, String(req.user.id), admin_notes || null, id]
     );
+    broadcastAdminBadges();
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason)
        VALUES ($1, $2, $3, $4)`,
@@ -7823,7 +8089,7 @@ app.post('/api/admin/reports/:id/resolve', authenticateToken, requireAdmin, asyn
 });
 
 // PATCH /api/admin/reports/:id — update status or admin notes
-app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, async (req, res) => {
+app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   const { id } = req.params;
   const { status, admin_notes, priority } = req.body;
   const allowed = ['open', 'in_review', 'resolved', 'dismissed'];
@@ -7842,6 +8108,7 @@ app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, async (req,
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
     vals.push(id);
     await pool.query(`UPDATE reports SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
+    broadcastAdminBadges();
     res.json({ success: true });
   } catch (err) {
     console.error('[ADMIN] patch report error:', err.message);
@@ -7850,7 +8117,7 @@ app.patch('/api/admin/reports/:id', authenticateToken, requireAdmin, async (req,
 });
 
 // GET /api/admin/db-rooms — paginated rooms from DB with search and filter
-app.get('/api/admin/db-rooms', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/admin/db-rooms', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const search = (req.query.search || '').trim();
     const filter = req.query.filter || 'all';
@@ -7897,7 +8164,7 @@ app.get('/api/admin/db-rooms', authenticateToken, requireAdmin, async (req, res)
 });
 
 // DELETE /api/admin/rooms/:roomId — permanently delete room, chat history, and kick all live members
-app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   const { roomId } = req.params;
   const { reason = 'Room deleted by admin' } = req.body || {};
 
@@ -7934,6 +8201,9 @@ app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, async (r
       [String(req.user.id), req.adminEmail, roomId, reason, JSON.stringify({ roomName })]
     );
 
+    // Notify ALL connected clients to purge this room from their global chat widget
+    io.emit('admin_room_deleted', { roomId, roomName });
+
     console.log(`[ADMIN] ${req.user.username} permanently deleted room ${roomId} (${roomName})`);
     res.json({ success: true, message: `Room "${roomName}" has been permanently deleted.` });
   } catch (err) {
@@ -7968,7 +8238,7 @@ app.get('/api/admin/badge-counts', authenticateToken, requireAdmin, async (req, 
 });
 
 // GET /api/admin/support-requests
-app.get('/api/admin/support-requests', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+app.get('/api/admin/support-requests', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
@@ -8025,7 +8295,7 @@ app.get('/api/admin/support-requests', authenticateToken, requireAdmin, requireA
 });
 
 // GET /api/admin/support-requests/:id
-app.get('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+app.get('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, request_type, subject, message, submitted_by_user_id, submitted_by_email, submitted_by_name,
@@ -8044,7 +8314,7 @@ app.get('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requ
 });
 
 // PATCH /api/admin/support-requests/:id
-app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
   const { id } = req.params;
   const { status, priority, admin_notes, resolution_message } = req.body;
   const allowedStatus = ['open', 'in_progress', 'resolved', 'dismissed'];
@@ -8067,6 +8337,7 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
     updates.push(`updated_at = NOW()`);
     vals.push(id);
     await pool.query(`UPDATE support_requests SET ${updates.join(', ')} WHERE id = $${idx}`, vals);
+    broadcastAdminBadges();
 
     const auditAction = status === 'resolved' ? 'SUPPORT_REQUEST_RESOLVED'
       : status === 'dismissed' ? 'SUPPORT_REQUEST_DISMISSED'
@@ -8095,9 +8366,13 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
   <tr><td style="background:linear-gradient(135deg,#059669,#10b981);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:-0.5px">SahaPlay Support</div>
@@ -8167,7 +8442,7 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
 });
 
 // POST /api/admin/support-requests/:id/assign
-app.post('/api/admin/support-requests/:id/assign', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'support']), async (req, res) => {
+app.post('/api/admin/support-requests/:id/assign', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
   const { id } = req.params;
   const { targetAdminId } = req.body;
   let assignedTo = String(req.user.id);
@@ -8186,6 +8461,7 @@ app.post('/api/admin/support-requests/:id/assign', authenticateToken, requireAdm
       `UPDATE support_requests SET assigned_to_admin_id = $1, status = CASE WHEN status = 'open' THEN 'in_progress' ELSE status END, updated_at = NOW() WHERE id = $2`,
       [assignedTo, id]
     );
+    broadcastAdminBadges();
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, support_request_id, reason)
        VALUES ($1, $2, 'SUPPORT_REQUEST_ASSIGNED', $3, $4)`,
@@ -8199,7 +8475,7 @@ app.post('/api/admin/support-requests/:id/assign', authenticateToken, requireAdm
 });
 
 // GET /api/admin/team/:userId/tickets — assigned tickets for a team member
-app.get('/api/admin/team/:userId/tickets', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+app.get('/api/admin/team/:userId/tickets', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator', 'support']), async (req, res) => {
   const { userId } = req.params;
   try {
     const result = await pool.query(
@@ -8321,6 +8597,9 @@ app.patch('/api/admin/team/:userId/role', authenticateToken, requireAdmin, requi
     const check = await pool.query('SELECT email, role FROM users WHERE id = $1', [userId]);
     if (!check.rows[0]) return res.status(404).json({ error: 'User not found' });
     const prev = check.rows[0];
+    if (prev.role === 'super_admin') {
+      return res.status(403).json({ error: 'Cannot modify or demote a super_admin account' });
+    }
     await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
@@ -8342,6 +8621,9 @@ app.patch('/api/admin/team/:userId/disable', authenticateToken, requireAdmin, re
     const check = await pool.query('SELECT email, role FROM users WHERE id = $1', [userId]);
     if (!check.rows[0]) return res.status(404).json({ error: 'User not found' });
     const prev = check.rows[0];
+    if (prev.role === 'super_admin') {
+      return res.status(403).json({ error: 'Cannot disable or revoke a super_admin account' });
+    }
     await pool.query(`UPDATE users SET role = 'user' WHERE id = $1`, [userId]);
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
@@ -8395,7 +8677,8 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
       [cleanEmail, role, tokenHash, String(req.user.id), expiresAt]
     );
 
-    const inviteUrl = `${process.env.FRONTEND_URL || 'https://sahaplay.com'}/admin/accept-invite?token=${rawToken}&email=${encodeURIComponent(cleanEmail)}`;
+    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const inviteUrl = `${clientOrigin}/admin/accept-invite?token=${rawToken}&email=${encodeURIComponent(cleanEmail)}`;
     const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[role] || role;
 
     const inviteHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -8407,9 +8690,13 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
   <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
     <table cellpadding="0" cellspacing="0"><tr>
       <td style="padding-right:14px;vertical-align:middle">
-        <div style="width:40px;height:40px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden">
-          <img src="${process.env.FRONTEND_URL || 'https://sahaplay.com'}/logos/trans_favicon.png" alt="SahaPlay" width="28" height="28" style="width:28px;height:28px;display:block;border:none" />
-        </div>
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
       </td>
       <td style="vertical-align:middle">
         <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
@@ -8451,6 +8738,7 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
        VALUES ($1, $2, 'ADMIN_INVITE_SENT', $3, $4)`,
       [String(req.user.id), req.adminEmail, cleanEmail, `Invited ${cleanEmail} as ${role}`]
     );
+    broadcastAdminBadges();
 
     res.json({ success: true, message: `Invite sent to ${cleanEmail}` });
   } catch (err) {
@@ -8471,6 +8759,7 @@ app.delete('/api/admin/invites/:id', authenticateToken, requireAdmin, requireAdm
        VALUES ($1, $2, 'ADMIN_INVITE_REVOKED', $3, $4)`,
       [String(req.user.id), req.adminEmail, check.rows[0].email, `Invite #${id} revoked`]
     );
+    broadcastAdminBadges();
     res.json({ success: true });
   } catch (err) {
     console.error('[ADMIN] revoke invite error:', err.message);
@@ -8498,10 +8787,59 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
     );
 
     const inv = check.rows[0];
-    const appUrl = process.env.APP_URL || `http://localhost:${process.env.FRONTEND_PORT || 5173}`;
-    const inviteLink = `${appUrl}/admin/accept-invite?token=${newToken}&email=${encodeURIComponent(inv.email)}`;
+    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const inviteLink = `${clientOrigin}/admin/accept-invite?token=${newToken}&email=${encodeURIComponent(inv.email)}`;
+    const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[inv.role] || inv.role;
 
-    if (process.env.SMTP_HOST) {
+    const inviteHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Admin Invitation (Resent)</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Team Invitation</h1>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.75">
+      You have been invited to join the SahaPlay team as an administrator with the role of <strong style="color:#6366f1">${roleLabel}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${inviteLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Accept Invitation</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.6">This invitation link will expire in 7 days and can only be used once.</p>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">If you did not request or expect this invitation, you can safely ignore this email.</p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      sendEmail({ to: inv.email, subject: `You're invited to SahaPlay Admin — ${roleLabel} (Resent)`, html: inviteHtml, text: `You've been invited to SahaPlay as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.` })
+        .catch(e => console.warn('[admin-invite-resend] Email failed:', e.message));
+    } else if (process.env.SMTP_HOST) {
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587),
@@ -8511,10 +8849,8 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
       await transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to: inv.email,
-        subject: 'SahaPlay Admin Invite (Resent)',
-        html: `<p>You have been invited to join the SahaPlay admin team as <strong>${inv.role}</strong>.</p>
-               <p><a href="${inviteLink}">Accept Invite</a></p>
-               <p>This link expires in 7 days.</p>`,
+        subject: `You're invited to SahaPlay Admin — ${roleLabel} (Resent)`,
+        html: inviteHtml,
       });
     }
 
@@ -8523,6 +8859,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
        VALUES ($1, $2, 'ADMIN_INVITE_RESENT', $3, $4)`,
       [String(req.user.id), req.adminEmail, inv.email, `Invite #${id} resent`]
     );
+    broadcastAdminBadges();
 
     res.json({ success: true, message: `Invite resent to ${inv.email}`, inviteLink: process.env.SMTP_HOST ? undefined : inviteLink });
   } catch (err) {
@@ -8559,6 +8896,59 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
        VALUES ($1, $2, 'ADMIN_INVITE_ACCEPTED', $3, $4)`,
       [String(req.user.id), cleanEmail, cleanEmail, `Accepted invite as ${inv.role}`]
     );
+    broadcastAdminBadges();
+
+    // Send confirmation email
+    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[inv.role] || inv.role;
+    const acceptHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#10b981,#059669);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Access Approved</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Invitation Approved!</h1>
+    <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.75">
+      Your invitation to join the SahaPlay team has been approved. You now have access as a <strong style="color:#10b981">${roleLabel}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${clientOrigin}/admin" style="display:inline-block;background:linear-gradient(135deg,#10b981,#059669);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(16,185,129,0.2)">Go to Admin Dashboard</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">You can now access the admin panel using your registered account email: ${cleanEmail}.</p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+      sendEmail({ to: cleanEmail, subject: `SahaPlay Admin Access Approved — ${roleLabel}`, html: acceptHtml, text: `Your invitation to join the SahaPlay team has been approved.\n\nAccess the dashboard here: ${clientOrigin}/admin` })
+        .catch(e => console.warn('[admin-accept-invite-email] Email failed:', e.message));
+    }
 
     res.json({ success: true, role: inv.role, message: `Welcome to the SahaPlay admin team as ${inv.role}!` });
   } catch (err) {

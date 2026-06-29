@@ -11,7 +11,7 @@ import { prefetchAll } from './cache/prefetch.js';
 const originalFetch = window.fetch;
 window.fetch = async (...args) => {
   const response = await originalFetch(...args);
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
     const token = localStorage.getItem('watch_token');
 

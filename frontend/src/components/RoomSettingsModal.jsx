@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Camera, Shield, Zap, Volume2, Video, Settings, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe, ChevronRight, ChevronLeft } from 'lucide-react';
+import { X, Camera, Shield, Zap, Volume2, Video, Settings, Settings2, Trash2, Check, UserMinus, ShieldAlert, Image as ImageIcon, ZoomIn, ZoomOut, Save, Lock, UserCheck, Link2, Mic, Globe, ChevronRight, ChevronLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Cropper from 'react-easy-crop';
@@ -73,7 +73,7 @@ export default function RoomSettingsModal({
   const [activeTab, setActiveTab] = useState('general');
   const [roomName, setRoomName] = useState(room?.roomName || '');
   const [permissions, setPermissions] = useState(room?.permissions || { changeMedia: 'all', chat: 'all', cam: 'all' });
-  const [settings, setSettings] = useState(room?.settings || { playerCustomName: 'SahaPlay Player' });
+  const [settings, setSettings] = useState(room?.settings ? { allUsersPlayerSettings: true, ...room.settings } : { playerCustomName: 'SahaPlay Player', allUsersPlayerSettings: true });
   const [thumbnail, setThumbnail] = useState(room?.thumbnailPath || null);
   const [isUploading, setIsUploading] = useState(false);
   const [bannedUsers, setBannedUsers] = useState(room?.bannedUsers || []);
@@ -109,7 +109,7 @@ export default function RoomSettingsModal({
     if (room) {
       setRoomName(room.roomName);
       if (room.permissions) setPermissions(room.permissions);
-      if (room.settings) setSettings(room.settings);
+      if (room.settings) setSettings({ allUsersPlayerSettings: true, ...room.settings });
       setThumbnail(room.thumbnailPath);
       // Removed setBannedUsers sync here to prevent global room_state heartbeats from overwriting the fetched bans list.
     }
@@ -385,6 +385,27 @@ export default function RoomSettingsModal({
                     </button>
                   </div>
                   <p style={{ fontSize: 11, color: isLight ? '#94a3b8' : '#4b5563', margin: 0, paddingLeft: 54 }}>{t('audioDuckingNote', 'Uses your microphone only while your Mic is turned on. No mic access happens just from enabling this setting.')}</p>
+                </div>
+
+                {/* Enable Player Controls for All Users */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', flexShrink: 0 }}>
+                        <Settings2 size={20} />
+                      </div>
+                      <div>
+                        <h4 style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#000' : '#fff', margin: 0 }}>{t('allUsersPlayerSettings', 'Enable Player Controls for All Users')}</h4>
+                        <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#6b7280', margin: '4px 0 0' }}>{t('allUsersPlayerSettingsDesc', 'Allow any user in the room to play/pause, seek, load media, and upload subtitles.')}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSettings(s => ({ ...s, allUsersPlayerSettings: !s.allUsersPlayerSettings }))}
+                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.allUsersPlayerSettings ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                    >
+                      <div style={{ position: 'absolute', top: 3, left: settings.allUsersPlayerSettings ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

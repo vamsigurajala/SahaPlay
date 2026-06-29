@@ -716,6 +716,17 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+function truncateToFewWords(str) {
+  if (!str) return 'New message';
+  const lines = str.split('\n');
+  const firstLine = lines[0] || '';
+  const words = firstLine.trim().split(/\s+/);
+  if (lines.length > 1 || words.length > 10) {
+    return words.slice(0, 10).join(' ') + '...';
+  }
+  return firstLine;
+}
+
 function getDateKey(ts) {
   const d = new Date(Number(ts));
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -1033,6 +1044,89 @@ function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
   );
 }
 
+function MessageText({ text, isMe, isLight }) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  if (!text) return null;
+
+  const words = text.trim().split(/\s+/);
+  const lines = text.split('\n');
+  const isLong = lines.length > 3 || words.length > 30 || text.length > 150;
+
+  let displayText = text;
+  if (isLong && !isExpanded) {
+    if (lines.length > 3) {
+      displayText = lines.slice(0, 3).join('\n') + '...';
+    } else if (words.length > 30) {
+      const parts = text.split(/(\s+)/);
+      let wordCount = 0;
+      const previewParts = [];
+      for (const part of parts) {
+        if (part.trim() !== '') {
+          wordCount++;
+        }
+        previewParts.push(part);
+        if (wordCount >= 30) {
+          break;
+        }
+      }
+      displayText = previewParts.join('') + '...';
+    } else {
+      displayText = text.substring(0, 150) + '...';
+    }
+  }
+
+  const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
+  const parts = displayText.split(urlRegex);
+  const renderedText = parts.map((part, i) => {
+    if (!part) return null;
+    if (typeof part === 'string' && part.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i)) {
+      let href = part;
+      if (!href.match(/^https?:\/\//i)) href = 'http://' + href;
+      return (
+        <a 
+          key={i} 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          style={{color: isMe ? '#fff' : (isLight ? '#2563eb' : '#38bdf8'), textDecoration: 'underline'}} 
+          onClick={e => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+
+  return (
+    <div>
+      <div style={{ whiteSpace: "pre-wrap" }}>{renderedText}</div>
+      {isLong && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: isMe ? '#93c5fd' : (isLight ? '#2563eb' : '#38bdf8'),
+            cursor: 'pointer',
+            padding: '2px 0 0 0',
+            fontSize: '11px',
+            fontWeight: 700,
+            textDecoration: 'underline',
+            display: 'inline-block',
+            marginTop: 4
+          }}
+        >
+          {isExpanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 const GlobalChatWidget = forwardRef(({ 
   isOpen, 
   onClose, 
@@ -1056,9 +1150,9 @@ const GlobalChatWidget = forwardRef(({
   const keyPairRef = useRef(null);
   useEffect(() => { keyPairRef.current = keyPair; }, [keyPair]);
   // Tracks partners whose chat was cleared — persisted in localStorage so they survive page refresh
-  const clearedPartnersRef = useRef(() => {
+  const clearedPartnersRef = useRef((() => {
     try { return JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}'); } catch { return {}; }
-  });
+  })());
   // Initialise from localStorage once on mount
   useEffect(() => {
     try {
@@ -1577,11 +1671,13 @@ const GlobalChatWidget = forwardRef(({
   };
 
   const markChatAsRead = (chatKey, silent = false) => {
+    const conv = (conversations || []).find(c => c.id === chatKey || c.partner === chatKey);
+    const isDm = conv ? conv.type === 'private' : true;
     setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
       (c.id === chatKey || c.partner === chatKey) ? { ...c, unread: 0 } : c
     ));
     if (socketRef.current) {
-      socketRef.current.emit('chat:mark_read', { chatId: chatKey });
+      socketRef.current.emit('chat:mark_read', { chatId: chatKey, isDm });
     }
     // Also notify parent (Room.jsx) so the global badge updates immediately
     if (typeof onMarkRead === 'function') {
@@ -1691,6 +1787,22 @@ const GlobalChatWidget = forwardRef(({
     }
   }));
 
+  const enforceWordLimit = (val) => {
+    const parts = val.split(/(\s+)/);
+    let wordCount = 0;
+    const result = [];
+    for (const part of parts) {
+      if (part.trim() !== '') {
+        wordCount++;
+      }
+      if (wordCount > 250) {
+        break;
+      }
+      result.push(part);
+    }
+    return result.join('');
+  };
+
   const renderMessageText = (text, isMe) => {
     if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
@@ -1743,6 +1855,8 @@ const GlobalChatWidget = forwardRef(({
     socketRef.current = sock;
 
     sock.on('connect', () => {
+      console.log('[WIDGET SOCKET] Connected/Reconnected');
+      fetchConversations();
       // Vital for retaining real-time tracking if socket reconnects gracefully after a brief dropout or server bounce
       setConversations(currentConvos => {
         if (!Array.isArray(currentConvos)) return currentConvos;
@@ -1830,28 +1944,30 @@ const GlobalChatWidget = forwardRef(({
       ));
     });
 
-    sock.on('chat:message_deleted', ({ messageId, originalId, timestampId, roomId }) => {
+    const handleRemoteDelete = ({ messageId, originalId, timestampId }) => {
       setMessages(prev => prev.filter(m => 
         !flexibleMatch(messageId, m) && 
-        !flexibleMatch(originalId, m) &&
+        (!originalId || !flexibleMatch(originalId, m)) &&
         (!timestampId || !flexibleMatch(timestampId, m))
       ));
       
-      // Sync Sidebar: If the deleted message was the latest preview, refresh conversation list
       setConversations(prev => {
         const conversations = Array.isArray(prev) ? prev : [];
         const match = conversations.find(c => 
           String(c.lastTimestamp) === String(timestampId) || 
-          String(c.lastTimestamp) === String(originalId) ||
+          (originalId && String(c.lastTimestamp) === String(originalId)) ||
           String(c.lastTimestamp) === String(messageId)
         );
         if (match) {
-          // Trigger a silent re-fetch to get correct new preview and timestamps
           fetchConversations();
         }
         return conversations;
       });
-    });
+    };
+
+    sock.on('chat:message_deleted', handleRemoteDelete);
+    sock.on('message:unsent', handleRemoteDelete);
+    sock.on('message:removed-for-me', handleRemoteDelete);
 
 
 
@@ -2116,8 +2232,8 @@ const GlobalChatWidget = forwardRef(({
 
       const finalizedPreview = finalizedMediaPreview ||
         ((msg.decryptedText && !looksLikeCiphertext(msg.decryptedText))
-          ? msg.decryptedText
-          : (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : (msg.message || 'New message')));
+          ? truncateToFewWords(msg.decryptedText)
+          : (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : truncateToFewWords(msg.message || 'New message')));
 
       // If this message belongs to the currently open chat, append it to the message list
       if (isViewingThis) {
@@ -2230,9 +2346,23 @@ const GlobalChatWidget = forwardRef(({
           const isLatestOwnEcho = hasTrackedTempId 
             ? msg.tempId === lastSentTempIdRef.current[partner]
             : msgTs >= (Number(exists.lastTimestamp) || 0);
+
+          const isNewerTs = msgTs > (Number(exists.lastTimestamp) || 0);
+          const isSameTs = msgTs === (Number(exists.lastTimestamp) || 0);
+          let isNewerId = false;
+          if (isSameTs) {
+            const newIdNum = Number(msg.id);
+            const oldIdNum = Number(exists.lastMessageId);
+            if (!isNaN(newIdNum) && !isNaN(oldIdNum)) {
+              isNewerId = newIdNum >= oldIdNum;
+            } else {
+              isNewerId = String(msg.id) >= String(exists.lastMessageId || '');
+            }
+          }
+
           const isNewer = isOwnEcho
             ? isLatestOwnEcho
-            : msgTs >= (Number(exists.lastTimestamp) || 0);
+            : (isNewerTs || (isSameTs && isNewerId));
 
           const _mt2 = msg.mediaType;
           const rawConvDecryptedText = _mt2
@@ -2255,6 +2385,7 @@ const GlobalChatWidget = forwardRef(({
             lastMediaFileName: isNewer ? (msg.mediaFileName || null) : exists.lastMediaFileName,
             lastMediaDuration: isNewer ? (msg.mediaDuration || null) : exists.lastMediaDuration,
             lastTimestamp: isNewer ? msgTs : exists.lastTimestamp,
+            lastMessageId: isNewer ? (msg.id || null) : (exists.lastMessageId || null),
             lastSenderName: isNewer ? (msg.senderName || msg.username) : exists.lastSenderName,
             isMyLastMessage: isNewer ? isMine : exists.isMyLastMessage,
             unread: Number(exists.unread || 0) + (!isMine && !isViewingThis ? 1 : 0),
@@ -2280,6 +2411,7 @@ const GlobalChatWidget = forwardRef(({
             displayName: isGroup ? (msg.roomName || 'Room Chat') : (isMine ? partner : (msg.senderName || msg.username || partner)),
             partnerAvatar: isMine ? (msg.partnerAvatar || null) : (msg.senderAvatar || msg.partnerAvatar || null),
             lastTimestamp: msgTs,
+            lastMessageId: msg.id || null,
             message: finalizedPreview,
             decryptedText: convDecryptedText,
             lastMediaType: msg.mediaType || null,
@@ -2421,6 +2553,63 @@ const GlobalChatWidget = forwardRef(({
         return updated;
       });
     });
+
+    // ── Admin permanently deleted a room ─────────────────────────────────────
+    // Remove the room from this user's conversation list, messages, and all
+    // localStorage stores — for every connected user, instantly.
+    sock.on('admin_room_deleted', ({ roomId }) => {
+      const roomLower = (roomId || '').toLowerCase();
+
+      // If the user is currently viewing this chat, kick them back to the list
+      if (activeChatRef.current && activeChatRef.current.type === 'room' &&
+          (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
+        latestHistoryRequestRef.current++;
+        setMessages([]);
+        setView('list');
+        setActiveChat(null);
+      }
+
+      // Remove from conversations state and localStorage
+      setConversations(prev => {
+        const next = prev.filter(c =>
+          !((c.type === 'room') &&
+            ((c.partner || '').toLowerCase() === roomLower || (c.id || '').toLowerCase() === roomLower))
+        );
+        try { localStorage.setItem('watch_recent_chats', JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Remove from pinned, muted, hidden lists
+      setPinnedChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`pinned_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setMutedChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`muted_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setHiddenChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`hidden_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      // Purge from cleared-partners tracking
+      try {
+        const cleared = { ...clearedPartnersRef.current };
+        Object.keys(cleared).forEach(k => {
+          if (k.toLowerCase() === roomLower) delete cleared[k];
+        });
+        clearedPartnersRef.current = cleared;
+        localStorage.setItem('chat_cleared_partners', JSON.stringify(cleared));
+      } catch {}
+
+      // Stop pagination for this room
+      delete paginationStateRef.current[roomLower];
+    });
+    // ─────────────────────────────────────────────────────────────────────────
 
     return () => { sock.disconnect(); socketRef.current = null; };
   }, [token, onNewMessage, isReady]);
@@ -2631,6 +2820,15 @@ const GlobalChatWidget = forwardRef(({
     
     // Only show blocking loader if we have no cached data at all
     const cached = localStorage.getItem('watch_recent_chats');
+    let localRooms = [];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          localRooms = parsed.filter(c => c.type === 'room').map(c => c.id || c.partner);
+        }
+      } catch {}
+    }
     if (!cached || JSON.parse(cached).length === 0) {
       setLoading(true);
     }
@@ -2638,11 +2836,65 @@ const GlobalChatWidget = forwardRef(({
     try {
       const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
       const param = encodeURIComponent(JSON.stringify(lastSeen));
-      const res = await fetch(`${API}/api/chats/recent?lastSeen=${param}`, {
+      const roomsParam = encodeURIComponent(JSON.stringify(localRooms));
+      const res = await fetch(`${API}/api/chats/recent?lastSeen=${param}&localRooms=${roomsParam}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      const fetched = Array.isArray(data) ? data : [];
+      const rawFetched = Array.isArray(data) ? data : [];
+      
+      const fetched = rawFetched.filter(c => {
+        if (c.isDeleted && c.type === 'room') {
+          const roomLower = (c.id || c.partner || '').toLowerCase();
+          
+          setConversations(prev => {
+            const next = (Array.isArray(prev) ? prev : []).filter(item =>
+              !((item.type === 'room') &&
+                ((item.partner || '').toLowerCase() === roomLower || (item.id || '').toLowerCase() === roomLower))
+            );
+            try { localStorage.setItem('watch_recent_chats', JSON.stringify(next)); } catch {}
+            return next;
+          });
+
+          setPinnedChats(prev => {
+            const next = prev.filter(k => k.toLowerCase() !== roomLower);
+            try { localStorage.setItem(`pinned_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+            return next;
+          });
+          setMutedChats(prev => {
+            const next = prev.filter(k => k.toLowerCase() !== roomLower);
+            try { localStorage.setItem(`muted_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+            return next;
+          });
+          setHiddenChats(prev => {
+            const next = prev.filter(k => k.toLowerCase() !== roomLower);
+            try { localStorage.setItem(`hidden_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+            return next;
+          });
+
+          try {
+            const cleared = { ...clearedPartnersRef.current };
+            Object.keys(cleared).forEach(k => {
+              if (k.toLowerCase() === roomLower) delete cleared[k];
+            });
+            clearedPartnersRef.current = cleared;
+            localStorage.setItem('chat_cleared_partners', JSON.stringify(cleared));
+          } catch {}
+
+          delete paginationStateRef.current[roomLower];
+
+          if (activeChatRef.current && activeChatRef.current.type === 'room' &&
+              (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
+            latestHistoryRequestRef.current++;
+            setMessages([]);
+            setView('list');
+            setActiveChat(null);
+          }
+
+          return false;
+        }
+        return true;
+      });
       const kp = keyPairRef.current;
 
       const decryptedFetched = fetched.map(c => {
@@ -2660,14 +2912,14 @@ const GlobalChatWidget = forwardRef(({
                }
             }
             // For private media: attach lastMediaType so list can show "Photo"/"Video" regardless of decryption status
-            const _pmt = c.mediaType;
+            const _pmt = c.mediaType || c.lastMediaType;
             const privateMeta = _pmt ? { lastMediaType: _pmt, message: _pmt.startsWith('video') ? 'Video' : _pmt.startsWith('image') ? 'Photo' : _pmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
             // Also normalize message to decrypted text for non-media so localStorage never stores ciphertext
-            const msgNormalize = (!c.mediaType && plainText) ? { message: plainText } : {};
+            const msgNormalize = (!(_pmt) && plainText) ? { message: plainText } : {};
             return { ...c, ...privateMeta, ...msgNormalize, decryptedText: plainText };
           } else if (c.type === 'room') {
             // Always attach lastMediaType for room media so the list renderer never shows ciphertext
-            const _rmt = c.mediaType;
+            const _rmt = c.mediaType || c.lastMediaType;
             const mediaMeta = _rmt ? { lastMediaType: _rmt, message: _rmt.startsWith('video') ? 'Video' : _rmt.startsWith('image') ? 'Photo' : _rmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
             if (c.e2ee && (c.e2ee.nonce || c.nonce)) {
               if (!kp) return { ...c, ...mediaMeta, decryptedText: null };
@@ -2755,7 +3007,8 @@ const GlobalChatWidget = forwardRef(({
             const clearTs = clearedRoomsMap[chatKey]?.clearedAt || 0;
             const serverTs = Number(finalC.lastTimestamp) || 0;
             if (!serverTs || (clearTs && serverTs <= clearTs)) {
-              return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null, unread: 0 };
+              // Carry clearedAt forward so getSortTime keeps this chat at its cleared position
+              return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null, unread: 0, clearedAt: clearTs };
             }
           }
           
@@ -2812,6 +3065,12 @@ const GlobalChatWidget = forwardRef(({
           const seenTs = lastSeen[chatKey] || lastSeen[chatKey.toLowerCase()] || 0;
           const keepUnreadZero = seenTs && existing && existing.unread === 0;
 
+          // Preserve clearedAt from local state so getSortTime keeps a cleared chat at the
+          // correct sort position even after a server fetch overwrites lastTimestamp.
+          // Only carry it forward when no genuinely newer message arrived after the clear.
+          const localClearedAt = Number(existing?.clearedAt) || 0;
+          const keepClearedAt = localClearedAt > 0 && serverTs <= localClearedAt;
+
           return {
             ...finalC,
             decryptedText: betterDecryptedText,
@@ -2819,6 +3078,7 @@ const GlobalChatWidget = forwardRef(({
             lastMediaFileName: betterMediaFileName,
             lastMediaDuration: betterMediaDuration,
             message: betterMessage,
+            ...(keepClearedAt ? { clearedAt: localClearedAt } : {}),
             ...(keepUnreadZero ? { unread: 0 } : {})
           };
         });
@@ -3713,8 +3973,9 @@ const GlobalChatWidget = forwardRef(({
   };
 
   const handleDeleteMessage = async (msgId, mode = 'global') => {
+    const idStr = String(msgId);
     // Optimistic delete
-    setMessages(prev => prev.filter(m => m.id !== msgId));
+    setMessages(prev => prev.filter(m => String(m.id) !== idStr && String(m.timestamp) !== idStr));
     try {
       const qs = mode === 'local' ? '?action=local' : '';
       const resp = await fetch(`${API}/api/chats/message/${msgId}${qs}`, {
@@ -4725,7 +4986,7 @@ const GlobalChatWidget = forwardRef(({
             const bPinned = pinnedChats.includes(bKey);
             if (aPinned && !bPinned) return -1;
             if (!aPinned && bPinned) return 1;
-            return b.lastTimestamp - a.lastTimestamp;
+            return getSortTime(b) - getSortTime(a);
           }).map((chat, idx, arr) => {
             const chatKey = chat.id || chat.partner;
             // unreadCounts from Home.jsx is for the navbar badge only — don't add it here or it doubles the count
@@ -5092,24 +5353,29 @@ const GlobalChatWidget = forwardRef(({
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)} 
                                onMouseLeave={() => setHoveredRowId(null)}>
-                            <div className={`msg-bubble ${isMe ? 'msg-sent stay-white' : 'msg-received'}`} style={{
-                               position: 'relative',
-                               background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
-                               padding: isMediaOnly ? '0' : '10px 16px',
-                               borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                               fontSize: 14, color: transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
-                               textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
-                               maxWidth: '100%', wordBreak: 'break-word'
-                             }}
-                               onMouseEnter={() => setHoveredMsgId(msg.id||i)} 
-                               onMouseLeave={() => setHoveredMsgId(null)}>
+                            <div
+                              className={`msg-bubble ${isMe ? 'msg-sent stay-white' : 'msg-received'}`}
+                              onMouseEnter={() => setHoveredMsgId(msg.id || i)}
+                              onMouseLeave={() => setHoveredMsgId(null)}
+                              style={{
+                                position: 'relative',
+                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
+                                padding: isMediaOnly ? '0' : '10px 16px',
+                                borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                                fontSize: 14,
+                                color: transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
+                                textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
+                                maxWidth: '100%',
+                                wordBreak: 'break-word'
+                              }}
+                            >
                               {msg.decryptedText !== null ? (
-                                <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
+                                <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
                               ) : (
                                 (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (
                                   <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                 ) : (
-                                  msg.message && !msg.mediaType && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
+                                  msg.message && !msg.mediaType && <MessageText text={msg.message} isMe={isMe} isLight={isLight} />
                                 )
                               )}
                               {(() => {
@@ -5153,15 +5419,15 @@ const GlobalChatWidget = forwardRef(({
                                     }} onClick={e => e.stopPropagation()}>
                                       {isMe ? (
                                         <>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                             <Trash2 size={12} color="#ef4444"/> {t('unsend', 'Unsend')}
                                           </button>
-                                          <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-delete" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-delete" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                             <Trash2 size={12} color="currentColor"/> {t('deleteForMe', 'Delete for me')}
                                           </button>
                                         </>
                                       ) : (
-                                        <button onClick={() => { handleDeleteMessage(msg.id, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                           <Trash2 size={12} color="#ef4444"/> {t('delete', 'Delete')}
                                         </button>
                                       )}
@@ -5470,13 +5736,13 @@ const GlobalChatWidget = forwardRef(({
                           disabled={!!(activeChat?.type === 'room' && chatLocked && !isHost)}
                           value={inputValue}
                           onChange={e => {
-                            setInputValue(e.target.value);
+                            setInputValue(enforceWordLimit(e.target.value));
                             if (socketRef.current && activeChat) {
-                               socketRef.current.emit('chat:typing', {
-                                 partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
-                                 type: activeChat.type
-                               });
-                               if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                              socketRef.current.emit('chat:typing', {
+                                partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                                type: activeChat.type
+                              });
+                              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
                                typingTimeoutRef.current = setTimeout(() => {
                                  socketRef.current.emit('chat:stop_typing', {
                                    partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,

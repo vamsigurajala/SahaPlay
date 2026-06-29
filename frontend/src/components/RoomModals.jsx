@@ -218,131 +218,58 @@ export default function RoomModals({
       {/* ── CAST TO TV MODAL ── */}
       {showCastDiscovery && (
         <div style={overlayStyle} onClick={() => setShowCastDiscovery(false)}>
-          <div style={{ ...modalStyle, maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+          <div style={{ ...modalStyle, maxWidth: 420, overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
 
             {/* Header gradient strip */}
             <div style={{
               background: 'linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(168,85,247,0.1) 100%)',
               borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)',
-              padding: '24px 24px 20px',
+              padding: '20px 24px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px rgba(99,102,241,0.4)' }}>
-                  <Cast size={20} color="#fff" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(99,102,241,0.3)' }}>
+                  <Cast size={18} color="#fff" />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, color: textPrimary, fontSize: 18, fontWeight: 900 }}>Cast to TV</h3>
-                  <p style={{ margin: 0, color: textSecondary, fontSize: 12, fontWeight: 600 }}>Works on any network — no WiFi pairing needed</p>
-                </div>
+                <h3 style={{ margin: 0, color: textPrimary, fontSize: 16, fontWeight: 800 }}>Cast Screen</h3>
               </div>
               <button onClick={() => setShowCastDiscovery(false)} style={{ background: 'transparent', border: 'none', color: textSecondary, cursor: 'pointer', padding: 6, borderRadius: 8, display: 'flex' }}>
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Step 1 — Open on TV */}
-            <div style={{ padding: '20px 24px 0' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#fff', flexShrink: 0, marginTop: 2 }}>1</div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ color: textPrimary, fontWeight: 800, fontSize: 14, margin: '0 0 10px' }}>Open on your TV browser</p>
-                  {/* URL row */}
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    background: isLight ? '#fff' : 'rgba(0,0,0,0.3)',
-                    border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(99,102,241,0.3)'}`,
-                    borderRadius: 12, padding: '10px 12px',
-                    marginBottom: 8,
-                  }}>
-                    <Tv size={14} color="#6366f1" style={{ flexShrink: 0 }} />
-                    <span style={{ flex: 1, color: isLight ? '#1e293b' : '#c7d2fe', fontSize: 13, fontWeight: 700, fontFamily: 'monospace', wordBreak: 'break-all' }}>{tvUrl}</span>
-                    <button onClick={handleCopyUrl} title="Copy URL" style={{ background: 'none', border: 'none', cursor: 'pointer', color: urlCopied ? '#10b981' : '#6366f1', padding: 4, flexShrink: 0, display: 'flex' }}>
-                      {urlCopied ? <Check size={15} /> : <Copy size={15} />}
-                    </button>
-                    <a href={tvUrl} target="_blank" rel="noreferrer" style={{ color: '#6366f1', display: 'flex', flexShrink: 0 }} title="Open in new tab">
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                  <p style={{ color: textSecondary, fontSize: 12, margin: 0 }}>
-                    Works on Smart TV, Fire Stick, Chromecast, phone, or any browser. Make sure both devices are on the same WiFi network.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 2 — Enter code */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900, color: '#fff', flexShrink: 0, marginTop: 2 }}>2</div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ color: textPrimary, fontWeight: 800, fontSize: 14, margin: '0 0 10px' }}>Enter the code shown on your TV</p>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      type="text"
-                      placeholder="e.g. A1B2C3"
-                      value={tvPairingCode}
-                      onChange={e => setTvPairingCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                      maxLength={6}
-                      className="rm-code-input"
-                      onKeyDown={e => { if (e.key === 'Enter') handleLinkTv(); }}
-                      style={{
-                        flex: 1, background: isLight ? '#fff' : 'rgba(0,0,0,0.25)',
-                        border: `${tvPairingCode.length === 6 ? '1.5px solid #6366f1' : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)')}`,
-                        borderRadius: 12, padding: '14px 16px', color: textPrimary,
-                        fontSize: 24, fontWeight: 900, textAlign: 'center',
-                        letterSpacing: 6, fontFamily: 'monospace', transition: 'border-color 0.2s',
-                      }}
-                    />
-                    <button
-                      className="rm-link-btn"
-                      onClick={handleLinkTv}
-                      disabled={tvPairingCode.length !== 6 || isLinking}
-                      style={{
-                        padding: '0 22px',
-                        background: tvPairingCode.length === 6 && !isLinking
-                          ? 'linear-gradient(135deg,#6366f1,#a855f7)'
-                          : (isLight ? '#e2e8f0' : '#1e2035'),
-                        color: tvPairingCode.length === 6 ? '#fff' : textSecondary,
-                        border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 14,
-                        cursor: tvPairingCode.length === 6 && !isLinking ? 'pointer' : 'not-allowed',
-                        boxShadow: tvPairingCode.length === 6 ? '0 4px 14px rgba(99,102,241,0.4)' : 'none',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {isLinking ? 'Linking…' : 'Connect'}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            {/* Modal Body */}
+            <div style={{ padding: '24px', textAlign: 'center' }}>
+              <div style={{
+                fontSize: 48,
+                marginBottom: 16,
+                animation: 'pulse-slow 2s infinite'
+              }}>🛠️</div>
+              <h4 style={{ margin: '0 0 8px 0', color: textPrimary, fontSize: 18, fontWeight: 800 }}>Work is in Progress</h4>
+              <p style={{ margin: '0 0 24px 0', color: textSecondary, fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>
+                This option is currently under development. It will be fully functional and available in the next version of SahaPlay!
+              </p>
+              <button
+                onClick={() => setShowCastDiscovery(false)}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 12,
+                  padding: '12px 24px',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Got it
+              </button>
             </div>
-
-            {/* In-room users (collapsed section) */}
-            {userList.filter(u => u.username !== username).length > 0 && (
-              <div style={{ padding: '0 24px 20px' }}>
-                <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '0 0 16px' }} />
-                <p style={{ margin: '0 0 10px', fontSize: 11, color: textSecondary, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Or cast to someone in this room</p>
-                {userList.filter(u => u.username !== username).map(user => {
-                  const isTV = user.username.toLowerCase().includes('tv') || user.username.toLowerCase().includes('smart');
-                  return (
-                    <button key={user.socketId} onClick={() => pushToDevice(user.socketId, user.username)} className="rm-user-row"
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: surfaceBg, border, borderRadius: 12, marginBottom: 6, textAlign: 'left' }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 9, background: isTV ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {isTV ? <Tv size={16} color="#6366f1" /> : <Monitor size={16} color="#94a3b8" />}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: textPrimary, fontSize: 13, fontWeight: 700 }}>{user.username}</div>
-                        <div style={{ color: textSecondary, fontSize: 11, fontWeight: 600 }}>{isTV ? 'Smart TV' : 'Computer'}</div>
-                      </div>
-                      <ChevronRight size={14} color="#6366f1" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Bottom padding if no users list */}
-            {userList.filter(u => u.username !== username).length === 0 && (
-              <div style={{ height: 20 }} />
-            )}
 
           </div>
         </div>

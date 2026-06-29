@@ -215,6 +215,17 @@ function resolveReplyMessages(messages) {
   });
 }
 
+function truncateToFewWords(str) {
+  if (!str) return 'New message';
+  const lines = str.split('\n');
+  const firstLine = lines[0] || '';
+  const words = firstLine.trim().split(/\s+/);
+  if (lines.length > 1 || words.length > 10) {
+    return words.slice(0, 10).join(' ') + '...';
+  }
+  return firstLine;
+}
+
 const Room = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -2570,7 +2581,7 @@ const Room = () => {
           
           if (!isViewingInGCW) {
              const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
-             const previewText = mediaPreview || (fixed.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
+             const previewText = mediaPreview || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : truncateToFewWords(fixed.decryptedText || msg.message));
              // ─── Mute Check: skip toast if this room chat is muted ───
              let isChatMuted = false;
              try {
@@ -3047,7 +3058,7 @@ const Room = () => {
 
             if (!isViewingInGCW) {
               const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
-              const previewText = mediaPreview || (newMsg.decryptedText || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : (msg.message?.slice(0, 45) || 'New message')));
+              const previewText = mediaPreview || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : truncateToFewWords(newMsg.decryptedText || msg.message));
               // ─── Mute Check: skip toast if this DM partner is muted ───
               let isDmMuted = false;
               try {
@@ -3852,6 +3863,8 @@ const Room = () => {
   // isAdmin is derived from the server-sent user list status
   const isAdmin = !!(myUserObj?.isAdmin);
   const isEffectiveHost = isHost || isAdmin; // use this everywhere host features are gated
+  const allUsersPlayerSettings = room?.settings?.allUsersPlayerSettings !== false && room?.settings?.allUsersPlayerSettings !== 'false';
+  const hasPlayerPrivileges = isEffectiveHost || allUsersPlayerSettings;
 
   // ── Audio Ducking — room-wide, socket-synced ──
 
@@ -7992,62 +8005,6 @@ const Room = () => {
                   </>
                 )}
               </>
-            ) : streamPending ? (
-              <div style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(0,0,0,0.8)',
-                color: 'white',
-                gap: '16px',
-                zIndex: 20
-              }}>
-                <div style={{ fontSize: '2.5rem' }}>📤</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>
-                  Host is uploading video...
-                </div>
-                <div style={{
-                  width: '240px',
-                  height: '8px',
-                  background: 'rgba(255,255,255,0.2)',
-                  borderRadius: '999px',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{
-                    width: `${streamPending.progress || 0}%`,
-                    height: '100%',
-                    background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
-                    borderRadius: '999px',
-                    transition: 'width 0.3s ease'
-                  }} />
-                </div>
-                <div style={{ 
-                  fontSize: '0.9rem', 
-                  color: '#9ca3af' 
-                }}>
-                  {streamPending.progress || 0}% — Video will play when ready
-                </div>
-              </div>
-            ) : uploadState.isUploading ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', gap: 16 }}>
-                <div style={{ fontSize: '2.5rem' }}>📤</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Uploading video...</div>
-                <div style={{
-                  width: 220, height: 8,
-                  background: 'rgba(255,255,255,0.15)', borderRadius: 999, overflow: 'hidden'
-                }}>
-                  <div style={{
-                    width: `${uploadState.progress}%`, height: '100%',
-                    background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
-                    borderRadius: 999, transition: 'width 0.3s ease'
-                  }} />
-                </div>
-                <div style={{ fontSize: 14, color: '#9ca3af' }}>
-                  {uploadState.progress}% — Video plays when upload completes
-                </div>
-              </div>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
                 <div style={{
@@ -8061,7 +8018,7 @@ const Room = () => {
                   <MonitorPlay size={44} color={isLight ? '#6366f1' : '#fff'} strokeWidth={2} />
                 </div>
                 <h3 className={`no-media-title${(isFullscreen || isTvMode) ? ' stay-white' : ''}`} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
-                {!isTvMode && (
+                {!isTvMode && hasPlayerPrivileges && (
                 <button
                   onClick={() => setShowMediaSelector(true)}
                   style={{
@@ -8137,20 +8094,7 @@ const Room = () => {
               }}
             />
 
-            {/* --- Chunked upload progress bar (host-only) — shows even before mediaUrl is set --- */}
-            <StreamUploadProgress uploadState={uploadState} onCancel={cancelUpload} />
-
-            {/* --- Viewer waiting indicator while host uploads --- */}
-            {streamPending && !uploadState.isUploading && (
-              <div style={{
-                position: 'absolute', bottom: '80px', left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(0,0,0,0.82)', borderRadius: '10px', padding: '10px 20px',
-                color: 'rgba(255,255,255,0.8)', fontSize: '0.8rem', zIndex: 1100,
-                border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap'
-              }}>
-                Host is loading: {streamPending.filename}
-              </div>
-            )}
+            {/* Upload progress and loading status indicators hidden to run silently in the background */}
 
             {/* Custom Control Bar Ã¢â‚¬â€ visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
             {/* Bottom control bar — shown for direct video AND web-iframe/HB URLs */}
@@ -8168,8 +8112,8 @@ const Room = () => {
                 pointerEvents: 'none',
                 borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
               }}>
-                {/* Scrubber — hidden for web iframes + embed platforms (no seekable duration) */}
-                {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && !isEmbedPlatform(mediaUrl) && (
+                {/* Scrubber — hidden for web iframes */}
+                {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && duration > 0 && (
                   <div style={{ position: 'relative', height: 4, marginBottom: 10, display: 'flex', alignItems: 'center', pointerEvents: showControls ? 'auto' : 'none' }}>
                     <div style={{
                       position: 'absolute', left: 0, height: 4, borderRadius: 2,
@@ -8186,9 +8130,12 @@ const Room = () => {
                       min={0} max={duration || 100} step={0.1}
                       value={currentTime}
                       onChange={handleScrubberChange}
+                      disabled={!hasPlayerPrivileges}
                       style={{
                         position: 'absolute', inset: 0, zIndex: 2, width: '100%',
-                        '--track-fill': `${duration > 0 ? (currentTime / duration) * 100 : 0}%`
+                        '--track-fill': `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                        cursor: hasPlayerPrivileges ? 'pointer' : 'default',
+                        pointerEvents: hasPlayerPrivileges ? 'auto' : 'none'
                       }}
                     />
                   </div>
@@ -8197,7 +8144,7 @@ const Room = () => {
                 <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isLocalStream ? (showControls ? 'auto' : 'none') : 'auto') }}>
 
                   {/* 1. Load Media — opens App Directory without stopping current playback */}
-                  {isEffectiveHost && (
+                  {hasPlayerPrivileges && (
                     <button
                       className="player-ctrl-btn player-ctrl-load-btn"
                       onClick={() => setShowMediaSelector(true)}
@@ -8209,19 +8156,21 @@ const Room = () => {
 
                   {/* Play/Pause — only for ReactPlayer URLs (can actually control) and local streams.
                       Hidden for web iframes (webpage, can't control playback) */}
-                  {!isWebIframe(mediaUrl) && (
+                  {hasPlayerPrivileges && !isWebIframe(mediaUrl) && (
                     <button className="player-ctrl-btn" onClick={togglePlayPause} title={isPlaying ? 'Pause' : 'Play'}>
                       {isPlaying ? <Pause size={20} fill="#fff" /> : <Play size={20} fill="#fff" />}
                     </button>
                   )}
 
                   {/* Stop button — should be there no matter which video url we pasted */}
-                  <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
-                    <Square size={18} fill="#fff" />
-                  </button>
+                  {hasPlayerPrivileges && (
+                    <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
+                      <Square size={18} fill="#fff" />
+                    </button>
+                  )}
 
-                  {/* Skip -10s and +10s (Host Only, and Only for local video uploads) */}
-                  {isLocalStream && isEffectiveHost && (
+                  {/* Skip -10s and +10s (Only for videos with valid seekable duration) */}
+                  {duration > 0 && hasPlayerPrivileges && (
                     <>
                       <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
                         <RotateCcw size={18} />
@@ -8251,8 +8200,8 @@ const Room = () => {
                       <Mic size={10} /> DUCKED
                     </div>
                   )}
-                  {/* Time — local streams only (URL media durations are unreliable or meaningless) */}
-                  {!(isScreensharing || isViewer) && isLocalStream && (
+                  {/* Time — shown for any video with duration */}
+                  {!(isScreensharing || isViewer) && duration > 0 && (
                     <span style={{ fontSize: 11, color: '#ccc', whiteSpace: 'nowrap', marginLeft: 2, fontVariantNumeric: 'tabular-nums' }}>
                       {formatDuration(currentTime)} / {formatDuration(duration)}
                     </span>
@@ -8450,7 +8399,7 @@ const Room = () => {
                   )}
 
                   {/* CC Subtitles — shown for all media types */}
-                  {(isEffectiveHost || subtitlesUrl) && (
+                  {(hasPlayerPrivileges || subtitlesUrl) && (
                     <div ref={subtitleMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <button
                         className="player-ctrl-btn"
@@ -8527,7 +8476,7 @@ const Room = () => {
                                   {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
                                 </button>
                               )}
-                              {isEffectiveHost && (
+                              {hasPlayerPrivileges && (
                                 <button
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: 10,

@@ -660,6 +660,85 @@ function formatTime(ts) {
 // Detect URLs (http/https AND bare domains like .com/.in/.org etc) and make them clickable
 const URL_REGEX = /(https?:\/\/[^\s]+|(?:www\.)[^\s]+|[a-zA-Z0-9-]+\.(?:com|in|org|net|io|co|app|dev|xyz|info|me|tv|ai|uk|us|au|ca|gg|to|link|ly|store|online|tech|live)[^\s]*)/g;
 
+function enforceWordLimit(val) {
+  const parts = val.split(/(\s+)/);
+  let wordCount = 0;
+  const result = [];
+  for (const part of parts) {
+    if (part.trim() !== '') {
+      wordCount++;
+    }
+    if (wordCount > 250) {
+      break;
+    }
+    result.push(part);
+  }
+  return result.join('');
+}
+
+function MessageText({ text, isMe }) {
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  if (!text) return null;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+
+  const words = text.trim().split(/\s+/);
+  const lines = text.split('\n');
+  const isLong = lines.length > 3 || words.length > 30 || text.length > 150;
+
+  let displayText = text;
+  if (isLong && !isExpanded) {
+    if (lines.length > 3) {
+      displayText = lines.slice(0, 3).join('\n') + '...';
+    } else if (words.length > 30) {
+      const parts = text.split(/(\s+)/);
+      let wordCount = 0;
+      const previewParts = [];
+      for (const part of parts) {
+        if (part.trim() !== '') {
+          wordCount++;
+        }
+        previewParts.push(part);
+        if (wordCount >= 30) {
+          break;
+        }
+      }
+      displayText = previewParts.join('') + '...';
+    } else {
+      displayText = text.substring(0, 150) + '...';
+    }
+  }
+
+  const renderedText = renderMessageText(displayText, isMe);
+
+  return (
+    <div>
+      <div style={{ whiteSpace: "pre-wrap" }}>{renderedText}</div>
+      {isLong && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: isMe ? '#93c5fd' : (isLight ? '#2563eb' : '#38bdf8'),
+            cursor: 'pointer',
+            padding: '2px 0 0 0',
+            fontSize: '11px',
+            fontWeight: 700,
+            textDecoration: 'underline',
+            display: 'inline-block',
+            marginTop: 4
+          }}
+        >
+          {isExpanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function renderMessageText(text, isMe) {
   if (!text) return null;
   const parts = text.split(URL_REGEX);
@@ -2244,12 +2323,12 @@ export default function RoomChatPanel({ p }) {
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}>
                           {msg.decryptedText !== null ? (
-                            <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
+                            <MessageText text={msg.decryptedText} isMe={isMe} />
                           ) : (
                             (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                               <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                             ) : (
-                              !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
+                              !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
                             )
                           )}
                           {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup)}
@@ -2441,7 +2520,7 @@ export default function RoomChatPanel({ p }) {
                       <input 
                         ref={p.groupInputRef} 
                         value={p.groupChatInput} 
-                        onChange={e=>{p.handleChatInputChange(e.target.value, 'room'); p.setGroupChatInput(e.target.value);}} 
+                        onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}} 
                         onFocus={() => p.setShowGroupEmojiPicker(false)} 
                         placeholder={t('msgRoomPlace', 'Message the room...')} 
                         disabled={isDisabled} 
@@ -2681,12 +2760,12 @@ export default function RoomChatPanel({ p }) {
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}>
                                 {msg.decryptedText !== null ? (
-                                  <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.decryptedText, isMe)}</div>
+                                  <MessageText text={msg.decryptedText} isMe={isMe} />
                                 ) : (
                                   (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                   ) : (
-                                    !msg.mediaType && msg.message && <div style={{whiteSpace:"pre-wrap"}}>{renderMessageText(msg.message, isMe)}</div>
+                                    !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
                                   )
                                 )}
                                 {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm)}
@@ -2945,7 +3024,7 @@ export default function RoomChatPanel({ p }) {
                           <input 
                             ref={p.dmInputRef} 
                             value={p.dmChatInput} 
-                            onChange={e=>{p.handleChatInputChange(e.target.value, 'private'); p.setDmChatInput(e.target.value);}} 
+                            onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}} 
                             onFocus={() => p.setShowDmEmojiPicker(false)} 
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')} 
                             style={{

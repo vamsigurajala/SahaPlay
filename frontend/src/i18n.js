@@ -1,4 +1,4 @@
-﻿import i18n from 'i18next';
+import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
 // Comprehensive translations for 14 languages across all pages
@@ -31237,6 +31237,98 @@ const resources = {
     }
   }
 };
+
+const extraTranslations = {
+  "en": {
+    "allUsersPlayerSettings": "Enable Player Controls for All Users",
+    "allUsersPlayerSettingsDesc": "Allow any user in the room to play/pause, seek, load media, and upload subtitles."
+  },
+  "es": {
+    "allUsersPlayerSettings": "Habilitar controles del reproductor para todos los usuarios",
+    "allUsersPlayerSettingsDesc": "Permitir que cualquier usuario en la sala reproduzca/pause, busque, cargue contenido multimedia y suba subtítulos."
+  },
+  "fr": {
+    "allUsersPlayerSettings": "Activer les commandes du lecteur pour tous les utilisateurs",
+    "allUsersPlayerSettingsDesc": "Autoriser tout utilisateur de la salle à lire/mettre en pause, chercher, charger des médias et télécharger des sous-titres."
+  },
+  "de": {
+    "allUsersPlayerSettings": "Player-Steuerung für alle Benutzer aktivieren",
+    "allUsersPlayerSettingsDesc": "Jedem Benutzer im Raum erlauben, Medien abzuspielen/anzuhalten, zu spulen, zu laden und Untertitel hochzuladen."
+  },
+  "ja": {
+    "allUsersPlayerSettings": "すべてのユーザーのプレーヤーコントロールを有効にする",
+    "allUsersPlayerSettingsDesc": "室内のすべてのユーザーが、再生/一時停止、シーク、メディアの読み込み、および字幕のアップロードを行えるようにします。"
+  },
+  "ko": {
+    "allUsersPlayerSettings": "모든 사용자에 대한 플레이어 제어 활성화",
+    "allUsersPlayerSettingsDesc": "대화방의 모든 사용자가 재생/일시 중지, 탐색, 미디어 로드 및 자막 업로드를 수행할 수 있도록 허용합니다."
+  },
+  "zh": {
+    "allUsersPlayerSettings": "为所有用户启用播放器控制",
+    "allUsersPlayerSettingsDesc": "允许房间内的任何用户播放/暂停、快进/快退、加载媒体和上传字幕。"
+  },
+  "hi": {
+    "allUsersPlayerSettings": "सभी उपयोगकर्ताओं के लिए प्लेयर नियंत्रण सक्षम करें",
+    "allUsersPlayerSettingsDesc": "कमरे में किसी भी उपयोगकर्ता को चलाने/रोकने, खोजने, मीडिया लोड करने और उपशीर्षक अपलोड करने की अनुमति दें।"
+  },
+  "pt": {
+    "allUsersPlayerSettings": "Habilitar controles do reprodutor para todos os usuários",
+    "allUsersPlayerSettingsDesc": "Permitir que qualquer usuário na sala reproduza/pause, busque, carregue mídia e envie legendas."
+  },
+  "ar": {
+    "allUsersPlayerSettings": "تمكين عناصر التحكم في المشغل لجميع المستخدمين",
+    "allUsersPlayerSettingsDesc": "السماح لأي مستخدم في الغرفة بالتشغيل/الإيقاف المؤقت، والبحث، وتحميل الوسائط، وتحميل الترجمة."
+  },
+  "ru": {
+    "allUsersPlayerSettings": "Включить управление плеером для всех пользователей",
+    "allUsersPlayerSettingsDesc": "Разрешить любому пользователю в комнате воспроизводить/приостанавливать, искать, загружать медиафайлы и загружать субтитры."
+  },
+  "it": {
+    "allUsersPlayerSettings": "Abilita i controlli del lettore per tutti gli utenti",
+    "allUsersPlayerSettingsDesc": "Consenti a qualsiasi utente nella stanza di riprodurre/mettere in pausa, cercare, caricare file multimediali e caricare sottotitoli."
+  },
+  "te": {
+    "allUsersPlayerSettings": "వినియోగదారులందరికీ ప్లేయర్ నియంత్రణలను ప్రారంభించండి",
+    "allUsersPlayerSettingsDesc": "గదిలోని ఏ వినియోగదారునైనా ప్లే చేయడానికి/పాజ్ చేయడానికి, సీక్ చేయడానికి, మీడియాను లోడ్ చేయడానికి మరియు ఉపశీర్షికలను అప్‌లోడ్ చేయడానికి అనుమతించండి."
+  },
+  "ta": {
+    "allUsersPlayerSettings": "அனைத்து பயனர்களுக்கும் பிளேயர் கட்டுப்பாடுகளை இயக்கவும்",
+    "allUsersPlayerSettingsDesc": "அறையில் உள்ள எந்தவொரு பயனரையும் இயக்க/இடைநிறுத்த, தேட, மீடியாவை ஏற்ற மற்றும் வசனங்களை பதிவேற்ற அனுமதிக்கவும்."
+  },
+  "bn": {
+    "allUsersPlayerSettings": "সকল ব্যবহারকারীর জন্য প্লেয়ার নিয়ন্ত্রণ সক্রিয় করুন",
+    "allUsersPlayerSettingsDesc": "রুমের যেকোনো ব্যবহারকারীকে প্লে/পজ, সিক, মিডিয়া লোড এবং সাবটাইটেল আপলোড করার অনুমতি দিন।"
+  },
+  "mr": {
+    "allUsersPlayerSettings": "सर्व वापरकर्त्यांसाठी प्लेअर नियंत्रणे सक्षम करा",
+    "allUsersPlayerSettingsDesc": "खोलीतील कोणत्याही वापरकर्त्याला प्ले/पॉज, शोधणे, मीडिया लोड करणे आणि उपशीर्षक अपलोड करण्याची परवानगी द्या."
+  },
+  "gu": {
+    "allUsersPlayerSettings": "બધા વપરાશકર્તાઓ માટે પ્લેયર નિયંત્રણો સક્ષમ કરો",
+    "allUsersPlayerSettingsDesc": "રૂમમાં કોઈપણ વપરાશકર્તાને પ્લે/પોઝ કરવા, સીક કરવા, મીડિયા લોડ કરવા અને સબટાઈટલ અપલોડ કરવાની મંજૂરી આપો."
+  },
+  "ml": {
+    "allUsersPlayerSettings": "എല്ലാ ഉപയോക്താക്കൾക്കുമായി പ്ലേയർ നിയന്ത്രണങ്ങൾ പ്രവർത്തനക്ഷമമാക്കുക",
+    "allUsersPlayerSettingsDesc": "മുറിയിലുള്ള ഏത് ഉപയോക്താവിനും പ്ലേ ചെയ്യാനും/താൽക്കാലികമായി നിർത്താനും, തിരയാനും, മീഡിയ ലോഡ് ചെയ്യാനും, സബ്‌ടൈറ്റിൽ അപ്‌ലോഡ് ചെയ്യാനും അനുമതി നൽകുക."
+  },
+  "kn": {
+    "allUsersPlayerSettings": "ಎಲ್ಲಾ ಬಳಕೆದಾರರಿಗೆ ಪ್ಲೇಯರ್ ನಿಯಂತ್ರಣಗಳನ್ನು ಸಕ್ರಿಯಗೊಳಿಸಿ",
+    "allUsersPlayerSettingsDesc": "ಕೋಣೆಯಲ್ಲಿರುವ ಯಾವುದೇ ಬಳಕೆದಾರರಿಗೆ ಪ್ಲೇ/ಪಾಸ್ ಮಾಡಲು, ಹುಡುಕಲು, ಮಾಧ್ಯಮವನ್ನು ಲೋಡ್ ಮಾಡಲು ಮತ್ತು ಉಪಶೀರ್ಷಿಕೆಗಳನ್ನು ಅಪ್ಲೋಡ್ ಮಾಡಲು ಅನುಮತಿಸಿ."
+  },
+  "pa": {
+    "allUsersPlayerSettings": "ਸਾਰੇ ਉਪਭੋਗਤਾਵਾਂ ਲਈ ਪਲੇਅਰ ਨਿਯੰਤਰਣ ਸਮਰੱਥ ਕਰੋ",
+    "allUsersPlayerSettingsDesc": "ਕਮਰੇ ਵਿੱਚ ਕਿਸੇ ਵੀ ਉਪਭੋਗਤਾ ਨੂੰ ਚਲਾਉਣ/ਰੋਕਣ, ਖੋਜਣ, ਮੀਡੀਆ ਲੋਡ ਕਰਨ ਅਤੇ ਉਪਸਿਰਲੇਖ ਅਪਲੋਡ ਕਰਨ ਦੀ ਆਗਿਆ ਦਿਓ."
+  }
+};
+
+for (const [lang, translations] of Object.entries(extraTranslations)) {
+  if (resources[lang] && resources[lang].translation) {
+    resources[lang].translation = {
+      ...resources[lang].translation,
+      ...translations
+    };
+  }
+}
 
 i18n
   .use(initReactI18next)

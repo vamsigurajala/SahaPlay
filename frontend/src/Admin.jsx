@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
+import { io } from 'socket.io-client';
 import './Admin.css';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -70,6 +71,7 @@ function StatCard({ label, value, icon: Icon, color = '#6366f1', sub, onClick })
 
 // ─── Terminate Modal ──────────────────────────────────────────────────────────
 function TerminateModal({ user, onClose, onTerminated }) {
+  const isLight = React.useContext(AdminThemeCtx);
   const [reason, setReason] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -96,25 +98,26 @@ function TerminateModal({ user, onClose, onTerminated }) {
   }
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.8)',
-      backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    <div className="admin-modal-overlay" onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 10000, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'linear-gradient(135deg,#1e0a0a,#130a0a)', border: '1px solid rgba(239,68,68,0.4)',
+      <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{
+        background: isLight ? '#ffffff' : '#000000', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
         borderRadius: 20, width: '100%', maxWidth: 420, padding: 32,
+        boxShadow: isLight ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={20} color="#ef4444" />
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Terminate @{user.username}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: isLight ? '#000000' : '#ffffff' }}>Terminate @{user.username}</h2>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4, display: 'flex' }}>
             <X size={20} />
           </button>
         </div>
 
-        <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.45)', fontSize: 13, lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 20px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 13, lineHeight: 1.5 }}>
           This permanently disables the account. The user will not be able to log in or use the platform ever again.
         </p>
 
@@ -125,21 +128,21 @@ function TerminateModal({ user, onClose, onTerminated }) {
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
+          <label style={{ display: 'block', fontSize: 12, color: isLight ? '#374151' : 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
           <textarea
             value={reason}
             onChange={e => setReason(e.target.value)}
             rows={3}
             placeholder="Describe why this account is being terminated…"
             style={{
-              width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
+              width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
             }}
           />
         </div>
 
         <div style={{ marginBottom: 22 }}>
-          <label style={{ display: 'block', fontSize: 12, color: '#f87171', fontWeight: 700, marginBottom: 6 }}>
+          <label style={{ display: 'block', fontSize: 12, color: '#ef4444', fontWeight: 700, marginBottom: 6 }}>
             TYPE "TERMINATE" TO CONFIRM
           </label>
           <input
@@ -147,19 +150,20 @@ function TerminateModal({ user, onClose, onTerminated }) {
             onChange={e => setConfirmText(e.target.value)}
             placeholder='Type "TERMINATE" here'
             style={{
-              width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.4)',
-              background: 'rgba(239,68,68,0.08)', color: '#fff', fontSize: 14, boxSizing: 'border-box',
+              width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, boxSizing: 'border-box',
             }}
           />
         </div>
 
         <button
+          className="stay-white"
           onClick={submit}
           disabled={!canSubmit || loading}
           style={{
             width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
-            background: canSubmit && !loading ? '#dc2626' : 'rgba(220,38,38,0.25)',
-            color: '#fff', fontWeight: 800, fontSize: 15, cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
+            background: canSubmit && !loading ? '#dc2626' : (isLight ? '#e2e8f0' : 'rgba(220,38,38,0.25)'),
+            color: isLight ? (canSubmit && !loading ? '#fff' : '#000') : '#fff', fontWeight: 800, fontSize: 15, cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
           }}
         >
           {loading ? 'Terminating…' : 'Terminate Account'}
@@ -172,6 +176,7 @@ function TerminateModal({ user, onClose, onTerminated }) {
 // ─── Detail Drawer ────────────────────────────────────────────────────────────
 function DetailDrawer({ title, type, filter = 'all', onClose }) {
   const isLight = React.useContext(AdminThemeCtx);
+  const watchRole = localStorage.getItem('watch_role') || 'user';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -208,8 +213,20 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
   useEffect(() => {
     setSearch('');
     setDbPage(1);
-    if (isDbRooms) fetchDbRooms('', 1);
-    else fetchData();
+    if (isDbRooms) {
+      fetchDbRooms('', 1);
+    } else {
+      fetchData();
+      const intervalId = setInterval(() => {
+        const path = type === 'online-users' ? '/api/admin/online-users'
+          : type === 'guest-users' ? '/api/admin/guest-users'
+          : `/api/admin/active-rooms?filter=${filter}`;
+        apiFetch(path)
+          .then(d => { setData(d); })
+          .catch(() => {});
+      }, 3000);
+      return () => clearInterval(intervalId);
+    }
   }, [type, filter]);
 
   function handleSearch(val) {
@@ -342,12 +359,16 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                       </div>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', flexShrink: 0 }} />
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button onClick={() => setBanTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Ban size={11} /> Ban
-                        </button>
-                        <button onClick={() => setTerminateTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.18)', color: '#ef4444', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <AlertTriangle size={11} /> Terminate
-                        </button>
+                        {['super_admin', 'admin', 'moderator'].includes(watchRole) && (
+                          <button onClick={() => setBanTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Ban size={11} /> Ban
+                          </button>
+                        )}
+                        {['super_admin', 'admin'].includes(watchRole) && (
+                          <button onClick={() => setTerminateTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.18)', color: '#ef4444', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <AlertTriangle size={11} /> Terminate
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -450,9 +471,40 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
   );
 }
 
+// ─── Access Denied Page ───────────────────────────────────────────────────────
+function AccessDeniedPage({ tabLabel }) {
+  const isLight = React.useContext(AdminThemeCtx);
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      flex: 1, padding: 40, textAlign: 'center', background: isLight ? '#f9fafb' : '#0a0a12'
+    }}>
+      <div style={{
+        background: isLight ? '#fee2e2' : 'rgba(239, 68, 68, 0.1)',
+        color: '#ef4444', borderRadius: '50%', padding: 16, marginBottom: 20
+      }}>
+        <Shield size={48} />
+      </div>
+      <h2 style={{
+        margin: '0 0 10px', fontSize: 22, fontWeight: 800,
+        color: isLight ? '#111827' : '#fff'
+      }}>
+        Access Denied
+      </h2>
+      <p style={{
+        margin: 0, fontSize: 15, maxWidth: 380, lineHeight: 1.5,
+        color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)'
+      }}>
+        You do not have access to the {tabLabel} page. Please contact a Super Admin if you believe this is an error.
+      </p>
+    </div>
+  );
+}
+
 // ─── Overview Page ────────────────────────────────────────────────────────────
 function OverviewPage({ onNavigate }) {
   const isLight = React.useContext(AdminThemeCtx);
+  const watchRole = localStorage.getItem('watch_role') || 'user';
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -531,37 +583,40 @@ function OverviewPage({ onNavigate }) {
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Users</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
             <StatCard label="Total Users" value={stats.totalUsers.toLocaleString()} icon={Users} color="#6366f1"
-              onClick={() => onNavigate('users')} sub="Click to manage all users" />
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to manage all users" : undefined} />
             <StatCard label="New This Month" value={stats.newThisMonth.toLocaleString()} icon={UserCheck} color="#10b981"
-              onClick={() => onNavigate('users')} sub="Click to view in user list" />
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
             <StatCard label="New This Week" value={stats.newThisWeek.toLocaleString()} icon={UserCheck} color="#a855f7"
-              onClick={() => onNavigate('users')} sub="Click to view in user list" />
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
           </div>
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Online Now</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
             <StatCard label="Logged-in Users" value={stats.loggedInOnline.toLocaleString()} icon={Activity} color="#6366f1"
-              sub="Click to see who's online"
-              onClick={() => setDrawer({ type: 'online-users', title: 'Logged-in Users Online' })} />
+              sub={['super_admin', 'admin'].includes(watchRole) ? "Click to see who's online" : undefined}
+              onClick={['super_admin', 'admin'].includes(watchRole) ? () => setDrawer({ type: 'online-users', title: 'Logged-in Users Online' }) : undefined} />
             <StatCard label="Guests" value={stats.guestsOnline.toLocaleString()} icon={Users} color="#f59e0b"
-              sub="Click to see guest accounts online"
-              onClick={() => setDrawer({ type: 'guest-users', title: 'Guest Accounts Online' })} />
+              sub={['super_admin', 'admin'].includes(watchRole) ? "Click to see guest accounts online" : undefined}
+              onClick={['super_admin', 'admin'].includes(watchRole) ? () => setDrawer({ type: 'guest-users', title: 'Guest Accounts Online' }) : undefined} />
           </div>
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Rooms</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
             <StatCard label="Active Rooms Now" value={stats.activeRoomsNow.toLocaleString()} icon={LayoutDashboard} color="#6366f1"
-              sub="Click to see active rooms"
-              onClick={() => setDrawer({ type: 'active-rooms', title: 'Active Rooms', filter: 'all' })} />
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Rooms', filter: 'all' }) : undefined} />
             <StatCard label="Active Public" value={stats.activePublicRooms.toLocaleString()} icon={LayoutDashboard} color="#10b981"
-              sub="Click to see active public rooms"
-              onClick={() => setDrawer({ type: 'active-rooms', title: 'Active Public Rooms', filter: 'public' })} />
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active public rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Public Rooms', filter: 'public' }) : undefined} />
             <StatCard label="Active Private" value={stats.activePrivateRooms.toLocaleString()} icon={LayoutDashboard} color="#f59e0b"
-              sub="Click to see active private rooms"
-              onClick={() => setDrawer({ type: 'active-rooms', title: 'Active Private Rooms', filter: 'private' })} />
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active private rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Private Rooms', filter: 'private' }) : undefined} />
             <StatCard label="Total Public Rooms (DB)" value={stats.totalPublicRooms.toLocaleString()} icon={LayoutDashboard} color="#a855f7"
-              sub="Click to browse all public rooms"
-              onClick={() => setDrawer({ type: 'db-rooms', title: 'All Public Rooms (DB)', filter: 'public' })} />
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to browse all public rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'db-rooms', title: 'All Public Rooms (DB)', filter: 'public' }) : undefined} />
           </div>
         </>
       ) : null}
@@ -577,6 +632,7 @@ function OverviewPage({ onNavigate }) {
 // ─── Ban Modal ────────────────────────────────────────────────────────────────
 function BanModal({ user, onClose, onBanned }) {
   const isLight = React.useContext(AdminThemeCtx);
+  const watchRole = localStorage.getItem('watch_role') || 'user';
   const [banType, setBanType] = useState('temporary');
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date();
@@ -686,20 +742,21 @@ function BanModal({ user, onClose, onBanned }) {
   }
 
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)',
-      backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    <div className="admin-modal-overlay" onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 9999, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)',
+      backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'linear-gradient(135deg,#1e1040,#0f0f1a)', border: '1px solid rgba(239,68,68,0.25)',
+      <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{
+        background: isLight ? '#ffffff' : '#000000', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
         borderRadius: 20, width: '100%', maxWidth: 460, padding: 32,
+        boxShadow: isLight ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Ban size={20} color="#ef4444" />
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Ban @{user.username}</h2>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: isLight ? '#000000' : '#ffffff' }}>Ban @{user.username}</h2>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4, display: 'flex' }}>
             <X size={20} />
           </button>
         </div>
@@ -711,66 +768,68 @@ function BanModal({ user, onClose, onBanned }) {
         )}
 
         {/* Ban type selector */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {['temporary', 'permanent'].map(t => (
-            <button key={t} onClick={() => setBanType(t)} style={{
-              flex: 1, padding: '10px 0', borderRadius: 10, border: banType === t ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
-              background: banType === t ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.04)',
-              color: banType === t ? '#f87171' : 'rgba(255,255,255,0.5)', fontWeight: 700, cursor: 'pointer', fontSize: 13,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            }}>
-              {t === 'temporary' ? <Clock size={14} /> : <InfinityIcon size={14} />}
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
+        {watchRole !== 'moderator' && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {['temporary', 'permanent'].map(t => (
+              <button key={t} onClick={() => setBanType(t)} style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: banType === t ? '1px solid #ef4444' : (isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)'),
+                background: banType === t ? 'rgba(239,68,68,0.15)' : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)'),
+                color: banType === t ? '#ef4444' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.5)'), fontWeight: 700, cursor: 'pointer', fontSize: 13,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                {t === 'temporary' ? <Clock size={14} /> : <InfinityIcon size={14} />}
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Expiry (temporary only) */}
         {!isPermanent && (
           <div style={{ marginBottom: 16, position: 'relative' }} ref={pickerRef}>
-            <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>EXPIRES AT</label>
+            <label style={{ display: 'block', fontSize: 12, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>EXPIRES AT</label>
             
             <div
               onClick={() => setPickerOpen(o => !o)}
               style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, boxSizing: 'border-box',
+                width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+                background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, boxSizing: 'border-box',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 userSelect: 'none'
               }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Calendar size={15} color="#818cf8" />
-                {formatDateString(expiresAt)}
+                <span style={{ color: isLight ? '#000000' : '#ffffff' }}>{formatDateString(expiresAt)}</span>
               </span>
-              <ChevronDown size={16} style={{ color: 'rgba(255,255,255,0.5)', transform: `rotate(${pickerOpen ? 180 : 0}deg)`, transition: 'transform 0.2s' }} />
+              <ChevronDown size={16} style={{ color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', transform: `rotate(${pickerOpen ? 180 : 0}deg)`, transition: 'transform 0.2s' }} />
             </div>
 
             {pickerOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 1000,
-                background: '#151522', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,0.4)', padding: 16
+                background: isLight ? '#ffffff' : '#151522', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 14, boxShadow: isLight ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : '0 12px 40px rgba(0,0,0,0.4)', padding: 16
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <button type="button" onClick={() => {
                     if (navMonth === 0) { setNavMonth(11); setNavYear(y => y - 1); } else { setNavMonth(m => m - 1); }
-                  }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  }} style={{ background: 'transparent', border: 'none', color: isLight ? '#374151' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <ChevronLeft size={16} />
                   </button>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: isLight ? '#111827' : '#fff' }}>
                     {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][navMonth]} {navYear}
                   </span>
                   <button type="button" onClick={() => {
                     if (navMonth === 11) { setNavMonth(0); setNavYear(y => y + 1); } else { setNavMonth(m => m + 1); }
-                  }} style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  }} style={{ background: 'transparent', border: 'none', color: isLight ? '#374151' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                     <ChevronRight size={16} />
                   </button>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, textAlign: 'center', marginBottom: 6 }}>
                   {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                    <span key={d} style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>{d}</span>
+                    <span key={d} style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)' }}>{d}</span>
                   ))}
                 </div>
 
@@ -795,14 +854,14 @@ function BanModal({ user, onClose, onBanned }) {
                           background: isSelected ? '#6366f1' : 'transparent',
                           border: isToday && !isSelected ? '1px solid rgba(99,102,241,0.5)' : 'none',
                           borderRadius: 8,
-                          color: isSelected ? '#fff' : (isPast ? 'rgba(255,255,255,0.15)' : '#fff'),
+                          color: isSelected ? '#fff' : (isPast ? (isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)') : (isLight ? '#000000' : '#fff')),
                           fontSize: 12,
                           fontWeight: isSelected || isToday ? 700 : 500,
                           padding: '6px 0',
                           cursor: isPast ? 'not-allowed' : 'pointer',
                           transition: 'all 0.1s'
                         }}
-                        onMouseEnter={e => { if (!isSelected && !isPast) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                        onMouseEnter={e => { if (!isSelected && !isPast) e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)'; }}
                         onMouseLeave={e => { if (!isSelected && !isPast) e.currentTarget.style.background = 'transparent'; }}
                       >
                         {day}
@@ -811,15 +870,15 @@ function BanModal({ user, onClose, onBanned }) {
                   })}
                 </div>
 
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>TIME</span>
+                <div style={{ borderTop: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.08)', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)' }}>TIME</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <select
                       value={hours12}
                       onChange={e => handleSelectTime('hour', e.target.value)}
                       style={{
-                        padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)',
-                        background: '#1a1a26', color: '#fff', fontSize: 12, cursor: 'pointer', outline: 'none'
+                        padding: '4px 6px', borderRadius: 6, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                        background: isLight ? '#ffffff' : '#1a1a26', color: isLight ? '#000000' : '#fff', fontSize: 12, cursor: 'pointer', outline: 'none'
                       }}
                     >
                       {Array.from({ length: 12 }).map((_, i) => (
@@ -827,14 +886,14 @@ function BanModal({ user, onClose, onBanned }) {
                       ))}
                     </select>
 
-                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>:</span>
+                    <span style={{ color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12 }}>:</span>
 
                     <select
                       value={parseInt(minutesVal, 10)}
                       onChange={e => handleSelectTime('minute', e.target.value)}
                       style={{
-                        padding: '4px 6px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.15)',
-                        background: '#1a1a26', color: '#fff', fontSize: 12, cursor: 'pointer', outline: 'none'
+                        padding: '4px 6px', borderRadius: 6, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                        background: isLight ? '#ffffff' : '#1a1a26', color: isLight ? '#000000' : '#fff', fontSize: 12, cursor: 'pointer', outline: 'none'
                       }}
                     >
                       {Array.from({ length: 60 }).map((_, i) => (
@@ -842,7 +901,7 @@ function BanModal({ user, onClose, onBanned }) {
                       ))}
                     </select>
 
-                    <div style={{ display: 'flex', background: '#1a1a26', borderRadius: 6, padding: 2, border: '1px solid rgba(255,255,255,0.15)' }}>
+                    <div style={{ display: 'flex', background: isLight ? '#f1f5f9' : '#1a1a26', borderRadius: 6, padding: 2, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)' }}>
                       {['AM', 'PM'].map(ampm => (
                         <button
                           key={ampm}
@@ -850,7 +909,7 @@ function BanModal({ user, onClose, onBanned }) {
                           onClick={() => handleSelectTime('ampm', ampm)}
                           style={{
                             background: ampmVal === ampm ? '#6366f1' : 'transparent',
-                            border: 'none', borderRadius: 4, color: ampmVal === ampm ? '#fff' : 'rgba(255,255,255,0.5)',
+                            border: 'none', borderRadius: 4, color: ampmVal === ampm ? '#fff' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.5)'),
                             fontSize: 10, fontWeight: 700, padding: '3px 7px', cursor: 'pointer'
                           }}
                         >
@@ -867,15 +926,15 @@ function BanModal({ user, onClose, onBanned }) {
 
         {/* Reason */}
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
+          <label style={{ display: 'block', fontSize: 12, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
           <textarea
             value={reason}
             onChange={e => setReason(e.target.value)}
             rows={3}
             placeholder="Describe the reason for this ban…"
             style={{
-              width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)',
-              background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
+              width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box',
             }}
           />
         </div>
@@ -883,7 +942,7 @@ function BanModal({ user, onClose, onBanned }) {
         {/* Permanent confirmation gate */}
         {isPermanent && (
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, color: '#f87171', fontWeight: 700, marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 12, color: '#ef4444', fontWeight: 700, marginBottom: 6 }}>
               TYPE "BAN" TO CONFIRM PERMANENT BAN
             </label>
             <input
@@ -891,20 +950,21 @@ function BanModal({ user, onClose, onBanned }) {
               onChange={e => setConfirmText(e.target.value)}
               placeholder='Type "BAN" here'
               style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.4)',
-                background: 'rgba(239,68,68,0.08)', color: '#fff', fontSize: 14, boxSizing: 'border-box',
+                width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)',
+                background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, boxSizing: 'border-box',
               }}
             />
           </div>
         )}
 
         <button
+          className="stay-white"
           onClick={submit}
           disabled={!canSubmit || loading}
           style={{
             width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
-            background: canSubmit && !loading ? '#ef4444' : 'rgba(239,68,68,0.3)',
-            color: '#fff', fontWeight: 800, fontSize: 15, cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
+            background: canSubmit && !loading ? '#dc2626' : (isLight ? '#e2e8f0' : 'rgba(239,68,68,0.3)'),
+            color: isLight ? (canSubmit && !loading ? '#fff' : '#000') : '#fff', fontWeight: 800, fontSize: 15, cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
           }}
         >
           {loading ? 'Banning…' : isPermanent ? 'Permanently Ban' : 'Apply Temporary Ban'}
@@ -985,6 +1045,7 @@ function Pagination({ page, pages, onPage }) {
 // ─── Users Page ───────────────────────────────────────────────────────────────
 function UsersPage() {
   const isLight = React.useContext(AdminThemeCtx);
+  const watchRole = localStorage.getItem('watch_role') || 'user';
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -1180,13 +1241,15 @@ function UsersPage() {
                             <CheckCircle size={12} />
                             {unbanLoading === u.id ? '…' : 'Unban'}
                           </button>
-                          <button
-                            onClick={() => setTerminateTarget(u)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-                          >
-                            <AlertTriangle size={12} />
-                            Terminate
-                          </button>
+                          {watchRole !== 'moderator' && (
+                            <button
+                              onClick={() => setTerminateTarget(u)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                            >
+                              <AlertTriangle size={12} />
+                              Terminate
+                            </button>
+                          )}
                         </>
                       ) : u.role !== 'admin' ? (
                         <>
@@ -1197,13 +1260,15 @@ function UsersPage() {
                             <Ban size={12} />
                             Ban
                           </button>
-                          <button
-                            onClick={() => setTerminateTarget(u)}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', color: '#ef4444', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-                          >
-                            <AlertTriangle size={12} />
-                            Terminate
-                          </button>
+                          {watchRole !== 'moderator' && (
+                            <button
+                              onClick={() => setTerminateTarget(u)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)', color: '#ef4444', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                            >
+                              <AlertTriangle size={12} />
+                              Terminate
+                            </button>
+                          )}
                         </>
                       ) : (
                         <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.2)', fontSize: 12, padding: '6px 0' }}>—</span>
@@ -1228,6 +1293,7 @@ function UsersPage() {
 // ─── Active Rooms Page ────────────────────────────────────────────────────────
 function ActiveRoomsPage() {
   const isLight = React.useContext(AdminThemeCtx);
+  const watchRole = localStorage.getItem('watch_role') || 'user';
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1308,24 +1374,27 @@ function ActiveRoomsPage() {
     <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Force Close Modal */}
       {closeTarget && (
-        <div onClick={() => setCloseTarget(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'linear-gradient(135deg,#1e0a0a,#130a0a)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <AlertTriangle size={20} color="#ef4444" />
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Force Close Room</h2>
+        <div className="admin-modal-overlay" onClick={() => setCloseTarget(null)} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#000000', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(239,68,68,0.4)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 32, boxShadow: isLight ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <AlertTriangle size={20} color="#ef4444" />
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: isLight ? '#000000' : '#ffffff' }}>Force Close Room</h2>
+              </div>
+              <button onClick={() => setCloseTarget(null)} style={{ background: 'none', border: 'none', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} /></button>
             </div>
-            <p style={{ margin: '0 0 4px', color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>
+            <p style={{ margin: '0 0 4px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)', fontSize: 13 }}>
               All users in "{closeTarget.roomName}" will be kicked immediately.
             </p>
-            <p style={{ margin: '0 0 20px', color: 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'monospace' }}>ID: {closeTarget.roomId}</p>
+            <p style={{ margin: '0 0 20px', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'monospace' }}>ID: {closeTarget.roomId}</p>
             <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
+              <label style={{ display: 'block', fontSize: 12, color: isLight ? '#374151' : 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
               <textarea value={closeReason} onChange={e => setCloseReason(e.target.value)} rows={3} placeholder="Why is this room being closed?"
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setCloseTarget(null)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-              <button onClick={forceClose} disabled={!closeReason.trim() || closeLoading} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: closeReason.trim() && !closeLoading ? '#dc2626' : 'rgba(220,38,38,0.25)', color: '#fff', fontWeight: 800, cursor: closeReason.trim() && !closeLoading ? 'pointer' : 'not-allowed', fontSize: 14 }}>
+              <button onClick={() => setCloseTarget(null)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.04)', color: isLight ? '#374151' : '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button className="stay-white" onClick={forceClose} disabled={!closeReason.trim() || closeLoading} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: closeReason.trim() && !closeLoading ? '#dc2626' : (isLight ? '#e2e8f0' : 'rgba(220,38,38,0.25)'), color: isLight ? (closeReason.trim() && !closeLoading ? '#fff' : '#000') : '#fff', fontWeight: 800, cursor: closeReason.trim() && !closeLoading ? 'pointer' : 'not-allowed', fontSize: 14 }}>
                 {closeLoading ? 'Closing…' : 'Close Room'}
               </button>
             </div>
@@ -1335,35 +1404,35 @@ function ActiveRoomsPage() {
 
       {/* Delete Room Modal */}
       {deleteTarget && (
-        <div onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'linear-gradient(135deg,#1a0a0a,#0f0a0a)', border: '1px solid rgba(220,38,38,0.5)', borderRadius: 20, width: '100%', maxWidth: 440, padding: 32 }}>
+        <div className="admin-modal-overlay" onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ position: 'fixed', inset: 0, zIndex: 9999, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#000000', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(220,38,38,0.5)', borderRadius: 20, width: '100%', maxWidth: 440, padding: 32, boxShadow: isLight ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Trash2 size={20} color="#ef4444" />
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff' }}>Delete Room</h2>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: isLight ? '#000000' : '#ffffff' }}>Delete Room</h2>
               </div>
-              <button onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4 }}><X size={18} /></button>
+              <button onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ background: 'none', border: 'none', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} /></button>
             </div>
-            <p style={{ margin: '0 0 2px', color: '#fff', fontWeight: 700, fontSize: 14 }}>{deleteTarget.roomName}</p>
-            <p style={{ margin: '0 0 12px', color: 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'monospace' }}>ID: {deleteTarget.roomId}</p>
+            <p style={{ margin: '0 0 2px', color: isLight ? '#000000' : '#fff', fontWeight: 700, fontSize: 14 }}>{deleteTarget.roomName}</p>
+            <p style={{ margin: '0 0 12px', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'monospace' }}>ID: {deleteTarget.roomId}</p>
             <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 18 }}>
               <p style={{ margin: 0, color: '#f87171', fontSize: 12, lineHeight: 1.5 }}>
                 This permanently deletes the room and ALL its group chat history. Live members will be kicked immediately. This action <strong>cannot be undone.</strong>
               </p>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
+              <label style={{ display: 'block', fontSize: 12, color: isLight ? '#374151' : 'rgba(255,255,255,0.5)', fontWeight: 600, marginBottom: 6 }}>REASON (required)</label>
               <textarea value={deleteReason} onChange={e => setDeleteReason(e.target.value)} rows={3} placeholder="Why is this room being permanently deleted?"
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.12)', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
             <div style={{ marginBottom: 22 }}>
-              <label style={{ display: 'block', fontSize: 12, color: '#f87171', fontWeight: 700, marginBottom: 6 }}>TYPE "DELETE" TO CONFIRM</label>
+              <label style={{ display: 'block', fontSize: 12, color: '#ef4444', fontWeight: 700, marginBottom: 6 }}>TYPE "DELETE" TO CONFIRM</label>
               <input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder='Type "DELETE" here'
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(220,38,38,0.4)', background: 'rgba(220,38,38,0.08)', color: '#fff', fontSize: 14, boxSizing: 'border-box' }} />
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(220,38,38,0.4)', background: isLight ? '#ffffff' : 'rgba(220,38,38,0.08)', color: isLight ? '#000000' : '#ffffff', fontSize: 14, boxSizing: 'border-box' }} />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
-              <button onClick={deleteRoom} disabled={!canDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: canDelete ? '#dc2626' : 'rgba(220,38,38,0.2)', color: '#fff', fontWeight: 800, cursor: canDelete ? 'pointer' : 'not-allowed', fontSize: 14 }}>
+              <button onClick={() => { setDeleteTarget(null); setDeleteReason(''); setDeleteConfirmText(''); }} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.04)', color: isLight ? '#374151' : '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+              <button className="stay-white" onClick={deleteRoom} disabled={!canDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: canDelete ? '#dc2626' : (isLight ? '#e2e8f0' : 'rgba(220,38,38,0.2)'), color: isLight ? (canDelete ? '#fff' : '#000') : '#fff', fontWeight: 800, cursor: canDelete ? 'pointer' : 'not-allowed', fontSize: 14 }}>
                 {deleteLoading ? 'Deleting…' : 'Delete Room'}
               </button>
             </div>
@@ -1436,18 +1505,22 @@ function ActiveRoomsPage() {
                 </div>
               </div>
               <div className="active-room-card-actions" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <button
-                  onClick={e => { e.stopPropagation(); setCloseTarget(room); setCloseReason(''); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
-                >
-                  <X size={11} /> Force Close
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setDeleteTarget(room); setDeleteReason(''); setDeleteConfirmText(''); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', color: '#ef4444', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
-                >
-                  <Trash2 size={11} /> Delete Room
-                </button>
+                {['super_admin', 'admin'].includes(watchRole) && (
+                  <>
+                    <button
+                      onClick={e => { e.stopPropagation(); setCloseTarget(room); setCloseReason(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+                    >
+                      <X size={11} /> Force Close
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(room); setDeleteReason(''); setDeleteConfirmText(''); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 8, background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.4)', color: '#ef4444', fontWeight: 700, fontSize: 11, cursor: 'pointer' }}
+                    >
+                      <Trash2 size={11} /> Delete Room
+                    </button>
+                  </>
+                )}
                 <div className="active-room-card-chevron-desktop" style={{ display: 'flex', alignItems: 'center' }}>
                   {isOpen ? <ChevronUp size={16} color={isLight ? '#374151' : 'rgba(255,255,255,0.4)'} /> : <ChevronDown size={16} color={isLight ? '#374151' : 'rgba(255,255,255,0.4)'} />}
                 </div>
@@ -1524,7 +1597,7 @@ function AuditLogsPage() {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="admin-page-container" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexShrink: 0 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Audit Logs</h1>
@@ -1540,9 +1613,9 @@ function AuditLogsPage() {
         </button>
       </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14, flexShrink: 0 }}>{error}</div>}
+      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, flexShrink: 0, fontSize: 14 }}>{error}</div>}
 
-      <div style={{ flex: 1, overflowY: 'auto', borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', background: isLight ? '#ffffff' : 'transparent', minHeight: 0 }}>
+      <div style={{ borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', background: isLight ? '#ffffff' : 'transparent', overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, minWidth: 700 }}>
           <thead>
             <tr>
@@ -1753,7 +1826,7 @@ function ReportsPage({ refreshBadges }) {
 }
 
 // ─── Support Inbox Page ────────────────────────────────────────────────────────
-function SupportInboxPage({ refreshBadges }) {
+function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsumed }) {
   const isLight = React.useContext(AdminThemeCtx);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1794,6 +1867,19 @@ function SupportInboxPage({ refreshBadges }) {
     load();
     apiFetch('/api/admin/team').then(d => setTeamMembers(d.members || [])).catch(() => {});
   }, []);
+
+  // Auto-open a specific ticket when navigated from Admin Team page
+  useEffect(() => {
+    if (!initialTicketId) return;
+    (async () => {
+      try {
+        const d = await apiFetch(`/api/admin/support-requests/${initialTicketId}`);
+        setSelected(d);
+        setDetailData(d);
+        if (onInitialTicketConsumed) onInitialTicketConsumed();
+      } catch { /* ignore */ }
+    })();
+  }, [initialTicketId]);
 
   useEffect(() => {
     if (!showAssignDropdown) return;
@@ -2365,16 +2451,20 @@ function ConfirmModal({ title, message, confirmWord, destructive, onConfirm, onC
   const isLight = React.useContext(AdminThemeCtx);
   const [typed, setTyped] = useState('');
   const canConfirm = !confirmWord || typed === confirmWord;
-  const bg = isLight ? '#ffffff' : '#13121f';
-  const border = isLight ? '#e5e7eb' : 'rgba(255,255,255,0.1)';
+  const border = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.1)';
   const text = isLight ? '#111827' : '#ffffff';
   const muted = isLight ? '#6b7280' : 'rgba(255,255,255,0.5)';
-  const inputBg = isLight ? '#f9fafb' : 'rgba(255,255,255,0.06)';
+  const inputBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.06)';
   useEffect(() => { setTyped(''); }, [confirmWord]);
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 16, padding: '28px 32px', width: 400, maxWidth: '90vw', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: text }}>{title}</h3>
+    <div className="admin-modal-overlay" onClick={onCancel} style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(3px)' }}>
+      <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#000000', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)', borderRadius: 16, padding: '28px 32px', width: 400, maxWidth: '90vw', boxShadow: isLight ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' : '0 25px 50px -12px rgba(0, 0, 0, 0.4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: text }}>{title}</h3>
+          <button onClick={onCancel} style={{ background: 'none', border: 'none', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: 4, display: 'flex' }}>
+            <X size={18} />
+          </button>
+        </div>
         <p style={{ margin: '0 0 20px', fontSize: 14, color: muted, lineHeight: 1.65 }}>{message}</p>
         {confirmWord && (
           <div style={{ marginBottom: 18 }}>
@@ -2384,13 +2474,23 @@ function ConfirmModal({ title, message, confirmWord, destructive, onConfirm, onC
             <input autoFocus value={typed} onChange={e => setTyped(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && canConfirm && !loading && onConfirm()}
               placeholder={confirmWord}
-              style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: `1px solid ${border}`, background: inputBg, color: text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace', letterSpacing: '0.05em' }} />
+              style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: isLight ? '1px solid #cbd5e1' : `1px solid ${border}`, background: inputBg, color: text, fontSize: 14, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace', letterSpacing: '0.05em' }} />
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '9px 20px', borderRadius: 9, border: `1px solid ${border}`, background: 'transparent', color: muted, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={onConfirm} disabled={!canConfirm || loading}
-            style={{ padding: '9px 20px', borderRadius: 9, border: 'none', fontWeight: 700, fontSize: 13, cursor: canConfirm && !loading ? 'pointer' : 'not-allowed', background: destructive ? '#ef4444' : '#6366f1', color: '#fff', opacity: !canConfirm || loading ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+          <button onClick={onCancel} style={{ padding: '9px 20px', borderRadius: 9, border: isLight ? '1px solid #d1d5db' : `1px solid ${border}`, background: isLight ? '#f3f4f6' : 'transparent', color: muted, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+          <button
+            className="stay-white"
+            onClick={onConfirm}
+            disabled={!canConfirm || loading}
+            style={{
+              padding: '9px 20px', borderRadius: 9, border: 'none', fontWeight: 700, fontSize: 13,
+              cursor: canConfirm && !loading ? 'pointer' : 'not-allowed',
+              background: canConfirm && !loading ? (destructive ? '#dc2626' : '#6366f1') : (isLight ? '#e2e8f0' : (destructive ? 'rgba(220,38,38,0.25)' : 'rgba(99,102,241,0.25)')),
+              color: isLight ? (canConfirm && !loading ? '#fff' : '#000') : '#fff',
+              transition: 'all 0.15s'
+            }}
+          >
             {loading ? 'Working…' : 'Confirm'}
           </button>
         </div>
@@ -2400,7 +2500,7 @@ function ConfirmModal({ title, message, confirmWord, destructive, onConfirm, onC
 }
 
 // ─── Admin Team Page ───────────────────────────────────────────────────────────
-function AdminTeamPage() {
+function AdminTeamPage({ onOpenTicket }) {
   const isLight = React.useContext(AdminThemeCtx);
   const watchRole = localStorage.getItem('watch_role') || 'user';
   const isSuperAdmin = watchRole === 'super_admin';
@@ -2896,10 +2996,16 @@ function AdminTeamPage() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {memberTickets.map(t => (
-                      <div key={t.id} style={{ background: isLight ? '#f9fafb' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div key={t.id}
+                        onClick={() => { if (onOpenTicket) { setSelectedMember(null); onOpenTicket(t.id); } }}
+                        style={{ background: isLight ? '#f9fafb' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: onOpenTicket ? 'pointer' : 'default', transition: 'background 0.15s' }}
+                        onMouseEnter={e => { if (onOpenTicket) e.currentTarget.style.background = isLight ? '#f0f0f5' : 'rgba(255,255,255,0.07)'; }}
+                        onMouseLeave={e => { if (onOpenTicket) e.currentTarget.style.background = isLight ? '#f9fafb' : 'rgba(255,255,255,0.03)'; }}
+                      >
                         <span style={{ color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>#{t.id}</span>
                         <span style={{ flex: 1, color: isLight ? '#111827' : '#fff', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</span>
                         {pill(t.status || 'open', TICKET_STATUS_COLORS[t.status] || TICKET_STATUS_COLORS.open)}
+                        {onOpenTicket && <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.25)', fontSize: 11, flexShrink: 0 }}>Open →</span>}
                       </div>
                     ))}
                   </div>
@@ -2915,13 +3021,13 @@ function AdminTeamPage() {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const BASE_NAV = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard, roles: null },
-  { id: 'users', label: 'Users', icon: Users, roles: null },
-  { id: 'rooms', label: 'Active Rooms', icon: Activity, roles: null },
-  { id: 'reports', label: 'Reports', icon: FileText, roles: null },
-  { id: 'audit', label: 'Audit Logs', icon: Shield, roles: null },
-  { id: 'support', label: 'Support Inbox', icon: Inbox, roles: ['super_admin', 'admin', 'support'] },
-  { id: 'team', label: 'Admin Team', icon: UserCog, roles: ['super_admin'] },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard, roles: ['super_admin', 'admin', 'moderator', 'support'] },
+  { id: 'users', label: 'Users', icon: Users, roles: ['super_admin', 'admin', 'moderator'] },
+  { id: 'rooms', label: 'Active Rooms', icon: Activity, roles: ['super_admin', 'admin', 'moderator'] },
+  { id: 'reports', label: 'Reports', icon: FileText, roles: ['super_admin', 'admin', 'moderator'] },
+  { id: 'audit', label: 'Audit Logs', icon: Shield, roles: ['super_admin', 'admin'] },
+  { id: 'support', label: 'Support Inbox', icon: Inbox, roles: ['super_admin', 'admin', 'moderator', 'support'] },
+  { id: 'team', label: 'Admin Team', icon: UserCog, roles: ['super_admin', 'admin', 'moderator', 'support'] },
 ];
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
@@ -2931,6 +3037,7 @@ export default function Admin() {
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   const [showMobileContent, setShowMobileContent] = useState(false);
+  const [pendingTicketId, setPendingTicketId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -2941,7 +3048,9 @@ export default function Admin() {
     return () => obs.disconnect();
   }, []);
 
-  const NAV = BASE_NAV.filter(n => !n.roles || n.roles.includes(watchRole));
+  const NAV = BASE_NAV;
+  const activeNavItem = BASE_NAV.find(n => n.id === tab);
+  const hasAccess = activeNavItem && (!activeNavItem.roles || activeNavItem.roles.includes(watchRole));
 
   useEffect(() => {
     apiFetch('/api/me').then(d => {
@@ -2955,6 +3064,25 @@ export default function Admin() {
   const refreshBadges = React.useCallback(() => {
     apiFetch('/api/admin/badge-counts').then(d => setBadges(d)).catch(() => {});
   }, []);
+
+  const socketRef = useRef(null);
+  useEffect(() => {
+    const token = localStorage.getItem('watch_token');
+    if (!token) return;
+    const socket = io(API_BASE, { auth: { token }, transports: ['websocket'] });
+    socketRef.current = socket;
+    socket.on('connect', () => {
+      console.log('[ADMIN SOCKET] Connected');
+      socket.emit('admin:join');
+    });
+    socket.on('admin_badges_updated', () => {
+      console.log('[ADMIN SOCKET] Badge updates received');
+      refreshBadges();
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [refreshBadges]);
 
   // Refresh on tab change
   useEffect(() => { refreshBadges(); }, [tab, refreshBadges]);
@@ -2999,7 +3127,9 @@ export default function Admin() {
             <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 28, height: 28 }} />
             <div>
               <div style={{ fontWeight: 800, fontSize: 15, color: isLight ? '#111827' : '#fff' }}>SahaPlay</div>
-              <div style={{ fontSize: 10, color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Admin</div>
+              <div style={{ fontSize: 10, color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                {watchRole.replace(/_/g, ' ')}
+              </div>
             </div>
           </div>
         </div>
@@ -3100,13 +3230,19 @@ export default function Admin() {
           </span>
         </header>
 
-        {tab === 'overview' && <OverviewPage onNavigate={setTab} />}
-        {tab === 'users' && <UsersPage />}
-        {tab === 'rooms' && <ActiveRoomsPage />}
-        {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}
-        {tab === 'audit' && <AuditLogsPage />}
-        {tab === 'support' && <SupportInboxPage refreshBadges={refreshBadges} />}
-        {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} />}
+        {!hasAccess ? (
+          <AccessDeniedPage tabLabel={activeNavItem?.label || 'this page'} />
+        ) : (
+          <>
+            {tab === 'overview' && <OverviewPage onNavigate={setTab} />}
+            {tab === 'users' && <UsersPage />}
+            {tab === 'rooms' && <ActiveRoomsPage />}
+            {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}
+            {tab === 'audit' && <AuditLogsPage />}
+            {tab === 'support' && <SupportInboxPage refreshBadges={refreshBadges} initialTicketId={pendingTicketId} onInitialTicketConsumed={() => setPendingTicketId(null)} />}
+            {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} onOpenTicket={(id) => { setPendingTicketId(id); setTab('support'); }} />}
+          </>
+        )}
       </main>
     </div>
     </AdminThemeCtx.Provider>
