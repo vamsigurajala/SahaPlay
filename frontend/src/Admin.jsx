@@ -224,7 +224,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
         apiFetch(path)
           .then(d => { setData(d); })
           .catch(() => {});
-      }, 3000);
+      }, 10000);
       return () => clearInterval(intervalId);
     }
   }, [type, filter]);
@@ -525,7 +525,7 @@ function OverviewPage({ onNavigate }) {
       }
     }
     poll();
-    const id = setInterval(poll, 5000);
+    const id = setInterval(poll, 30000);
     return () => { mounted = false; clearInterval(id); };
   }, []);
 
@@ -3000,7 +3000,7 @@ function AdminTeamPage({ onOpenTicket }) {
   }
   useEffect(() => {
     doRefresh(true);
-    const id = setInterval(() => doRefresh(false), 5000);
+    const id = setInterval(() => doRefresh(false), 30000);
     return () => clearInterval(id);
   }, []);
 
