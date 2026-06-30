@@ -1,5 +1,0 @@
-Database Engine Error [GET]: Connection terminated unexpectedly 
-SQL: SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND "roomId" = $1 AND timestamp > $2 AND "senderName" != $3 AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $4 || '%')
-Recent chats error: Error: Connection terminated unexpectedly
-    at C:\Users\KrishnavamsiGurajala\.gemini\antigravity\scratch\watch-together\backend\node_modules\pg-pool\index.js:45:11
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)

@@ -1019,6 +1019,34 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS assigned_to_admin_id TEXT`)
     .catch(e => console.warn('[Migration] reports.assigned_to_admin_id column:', e.message));
 
+  // ─── Performance Indexes ──────────────────────────────────────────────────
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_roomid_timestamp ON messages ("roomId", timestamp DESC)`)
+    .catch(e => console.warn('[Migration] idx_messages_roomid_timestamp:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_dm ON messages (type, LOWER("senderName"), LOWER("targetName"), timestamp DESC)`)
+    .catch(e => console.warn('[Migration] idx_messages_dm:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_lower_username ON users (LOWER(username))`)
+    .catch(e => console.warn('[Migration] idx_users_lower_username:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_follows_followingid_status ON follows ("followingId", status)`)
+    .catch(e => console.warn('[Migration] idx_follows_followingid_status:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_follows_followerid_status ON follows ("followerId", status)`)
+    .catch(e => console.warn('[Migration] idx_follows_followerid_status:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_created_at ON users (created_at)`)
+    .catch(e => console.warn('[Migration] idx_users_created_at:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON admin_audit_logs (created_at DESC)`)
+    .catch(e => console.warn('[Migration] idx_audit_logs_created_at:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_createdat ON reports ("createdAt" DESC)`)
+    .catch(e => console.warn('[Migration] idx_reports_createdat:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users ("verificationToken")`)
+    .catch(e => console.warn('[Migration] idx_users_verification_token:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users ("resetToken")`)
+    .catch(e => console.warn('[Migration] idx_users_reset_token:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_bans_user_active ON bans (user_id, active)`)
+    .catch(e => console.warn('[Migration] idx_bans_user_active:', e.message));
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`)
+    .catch(e => console.warn('[Migration] pg_trgm extension:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING GIN (username gin_trgm_ops)`)
+    .catch(e => console.warn('[Migration] idx_users_username_trgm:', e.message));
+
   console.log('[Migration] Admin system migrations complete');
 })();
 
@@ -1215,29 +1243,6 @@ app.get('/api/vimeo/search', (req, res) => {
   }]);
 });
 
-// Reports API
-app.post('/api/reports', (req, res) => {
-  const { roomId, reporterUsername, reportedUsername, message } = req.body;
-  if (!roomId || !reporterUsername || !message) {
-    return res.status(400).json({ error: 'roomId, reporterUsername, and message are required' });
-  }
-  db.run(
-    'INSERT INTO reports (roomId, reporterUsername, reportedUsername, message) VALUES (?, ?, ?, ?)',
-    [roomId, reporterUsername, reportedUsername || 'Unknown', message],
-    function(err) {
-      if (err) return res.status(500).json({ error: 'Database error' });
-      res.json({ success: true, reportId: this.lastID });
-      broadcastAdminBadges();
-    }
-  );
-});
-
-app.get('/api/reports', (req, res) => {
-  db.all('SELECT * FROM reports ORDER BY createdAt DESC LIMIT 100', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    res.json(rows);
-  });
-});
 
 // POST /api/report-message — full message report with mandatory proof images + email
 app.post('/api/report-message', async (req, res) => {

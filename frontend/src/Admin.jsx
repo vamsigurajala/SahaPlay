@@ -1597,8 +1597,8 @@ function AuditLogsPage() {
   useEffect(() => { load(); }, []);
 
   return (
-    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexShrink: 0 }}>
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Audit Logs</h1>
           <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total actions</p>
@@ -1613,22 +1613,18 @@ function AuditLogsPage() {
         </button>
       </div>
 
-      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, flexShrink: 0, fontSize: 14 }}>{error}</div>}
+      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
 
-      <div style={{ borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', background: isLight ? '#ffffff' : 'transparent', overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, minWidth: 700 }}>
+      <div style={{ borderRadius: 16, border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
           <thead>
-            <tr>
+            <tr style={{ borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
               {['Timestamp', 'Action', 'Admin', 'Target', 'Room', 'Reason'].map(h => (
                 <th key={h} style={{
-                  position: 'sticky', top: 0,
-                  background: isLight ? '#f9fafb' : '#11111d',
                   padding: '12px 16px', textAlign: 'left',
                   color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)',
                   fontWeight: 700, fontSize: 11, letterSpacing: '0.08em',
                   textTransform: 'uppercase', whiteSpace: 'nowrap',
-                  zIndex: 10,
-                  borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)'
                 }}>{h}</th>
               ))}
             </tr>
@@ -1666,11 +1662,7 @@ function AuditLogsPage() {
           </tbody>
         </table>
       </div>
-      {pages > 1 && (
-        <div style={{ flexShrink: 0, marginTop: 16 }}>
-          <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p); }} />
-        </div>
-      )}
+      {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p); }} />}
     </div>
   );
 }
@@ -1836,16 +1828,7 @@ function ReportsPage({ refreshBadges }) {
   }
 
   return (
-    <div className="admin-page-container" style={{ overflowY: 'hidden', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'row' }}>
-      {/* Left: list pane */}
-      <div 
-        onClick={(e) => {
-          if (!e.target.closest('tr') && !e.target.closest('button') && !e.target.closest('input')) {
-            setSelected(null);
-            setDetailData(null);
-          }
-        }}
-        style={{ flex: selected ? '0 0 55%' : 1, display: 'flex', flexDirection: 'column', overflowY: 'auto', padding: '28px 32px', borderRight: selected ? (isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)') : 'none' }}>
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
         <div className="admin-reports-header">
           <div className="admin-reports-header-left">
             <div className="admin-reports-title-row">
@@ -1929,11 +1912,13 @@ function ReportsPage({ refreshBadges }) {
           </table>
         </div>
         {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p, filter); }} />}
-      </div>
 
-      {/* Right: detail pane */}
+      {/* Report detail modal */}
       {selected && (
-        <div style={{ flex: '0 0 45%', overflowY: 'auto', padding: '28px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => { setSelected(null); setDetailData(null); }}>
+          <div style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
+            onClick={e => e.stopPropagation()}>
           {detailLoading ? (
             <div style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 13 }}>Loading…</div>
           ) : (
@@ -2123,6 +2108,7 @@ function ReportsPage({ refreshBadges }) {
               );
             })()
           )}
+          </div>
         </div>
       )}
 
@@ -2369,14 +2355,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
   function closeDetail() { setSelected(null); setDetailData(null); setShowAssignDropdown(false); }
 
   return (
-    <div className="admin-inbox-wrapper" style={{ display: 'flex', height: '100%', width: '100%' }}>
-      {/* List pane — click on empty background to close detail */}
-      <div
-        className="admin-inbox-left-pane"
-        style={{ flex: selected ? '0 0 55%' : 1, overflowY: 'auto', padding: '32px 36px', borderRight: selected ? (isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)') : 'none' }}
-        onClick={() => { if (selected) closeDetail(); }}
-      >
-      <div onClick={e => e.stopPropagation()}>
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Support Inbox</h1>
@@ -2487,19 +2466,15 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
           </table>
         </div>
         {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p, filter, search); }} />}
-      </div>{/* end stopPropagation wrapper */}
-      </div>{/* end left pane */}
 
-      {/* Detail pane */}
+      {/* Detail modal */}
       {selected && (
-        <div className="admin-inbox-right-pane" style={{
-          flex: '0 0 45%', overflowY: 'auto',
-          background: isLight ? '#ffffff' : '#0f0f1e',
-          padding: '28px 28px', position: 'relative',
-          borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)'
-        }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={closeDetail}>
+          <div style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}
+            onClick={e => e.stopPropagation()}>
           <button onClick={closeDetail} style={{
-            position: 'absolute', top: 20, right: 20,
+            position: 'absolute', top: 16, right: 16,
             background: isLight ? '#ffffff' : 'rgba(255,255,255,0.07)',
             border: isLight ? '1px solid #d1d5db' : 'none',
             borderRadius: 8, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
@@ -2682,6 +2657,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
               </div>
             </>
           )}
+          </div>
         </div>
       )}
 
