@@ -1468,7 +1468,7 @@ app.get('/api/verify', async (req, res) => {
   if (!token) return res.status(400).json({ error: 'Token is required' });
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE "verificationToken" = $1', [token]);
+    const result = await pool.query('SELECT id FROM users WHERE "verificationToken" = $1', [token]);
     if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid or expired token' });
 
     const user = result.rows[0];
@@ -1489,7 +1489,12 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1 OR email = $1', [username]);
+    const result = await pool.query(
+      `SELECT id, username, email, password, role, "isVerified", terminated, is_permanently_banned,
+              banned_until, ban_reason, "encryptedPrivateKey", "publicKey"
+       FROM users WHERE username = $1 OR email = $1`,
+      [username]
+    );
     if (result.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
     
     const user = result.rows[0];
@@ -1574,7 +1579,11 @@ app.post('/api/auth/google', async (req, res) => {
     const { email, name } = payload;
     
     // Check if user exists
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query(
+      `SELECT id, username, email, role, "isVerified", terminated, is_permanently_banned, banned_until, ban_reason
+       FROM users WHERE email = $1`,
+      [email]
+    );
     
     if (existingUser.rows.length > 0) {
       const user = existingUser.rows[0];
@@ -1711,7 +1720,7 @@ app.post('/api/forgot-password', async (req, res) => {
   try {
     // Accept either email OR username lookup — use pool.query directly
     const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1 OR LOWER(username) = LOWER($2)',
+      'SELECT id, email FROM users WHERE email = $1 OR LOWER(username) = LOWER($2)',
       [email, email]
     );
     const user = result.rows[0];
@@ -1823,7 +1832,7 @@ app.post('/api/reset-password', async (req, res) => {
   try {
     // Look up user by reset token
     const result = await pool.query(
-      'SELECT * FROM users WHERE "resetToken" = $1',
+      'SELECT id, username, "resetToken", "resetTokenExpiry" FROM users WHERE "resetToken" = $1',
       [token]
     );
     const user = result.rows[0];
@@ -2034,23 +2043,23 @@ app.get('/api/rooms/:roomId/public-keys', authenticateToken, async (req, res) =>
       )
     );
 
-    await Promise.all(recentSenders.map(async ({ senderName }) => {
-      if (keyMap[senderName]) return; // already have it from in-memory
-      const u = await new Promise((resolve, reject) =>
-        db.get('SELECT "publicKey" FROM users WHERE username = ?', [senderName],
-          (err, row) => err ? reject(err) : resolve(row))
-      );
-      if (u && u.publicKey) keyMap[senderName] = u.publicKey;
-    }));
-
-    // Also include the requesting user themselves (so sender can decrypt own messages)
     const reqUsername = req.user.username;
-    if (!keyMap[reqUsername]) {
-      const self = await new Promise((resolve, reject) =>
-        db.get('SELECT "publicKey" FROM users WHERE username = ?', [reqUsername],
-          (err, row) => err ? reject(err) : resolve(row))
-      );
-      if (self && self.publicKey) keyMap[reqUsername] = self.publicKey;
+    const missingNames = [
+      ...recentSenders.map(r => r.senderName).filter(n => !keyMap[n]),
+      ...(keyMap[reqUsername] ? [] : [reqUsername])
+    ];
+    if (missingNames.length > 0) {
+      try {
+        const pgResult = await pool.query(
+          `SELECT username, "publicKey" FROM users WHERE LOWER(username) = ANY($1)`,
+          [missingNames.map(n => n.toLowerCase())]
+        );
+        for (const row of pgResult.rows) {
+          if (row.publicKey) keyMap[row.username] = row.publicKey;
+        }
+      } catch (e) {
+        console.error('[public-keys] DB batch fallback error:', e);
+      }
     }
   } catch (e) {
     console.error('[public-keys] DB fallback error:', e);
@@ -2090,14 +2099,20 @@ app.get('/api/:roomId/public-keys', authenticateToken, async (req, res) => {
         (err, rows) => err ? reject(err) : resolve(rows || [])
       )
     );
-    await Promise.all(recentSenders.map(async ({ senderName }) => {
-      if (keyMap[senderName]) return;
-      const u = await new Promise((resolve, reject) =>
-        db.get('SELECT "publicKey" FROM users WHERE username = ?', [senderName],
-          (err, row) => err ? reject(err) : resolve(row))
-      );
-      if (u && u.publicKey) keyMap[senderName] = u.publicKey;
-    }));
+    const missingNames = recentSenders.map(r => r.senderName).filter(n => !keyMap[n]);
+    if (missingNames.length > 0) {
+      try {
+        const pgResult = await pool.query(
+          `SELECT username, "publicKey" FROM users WHERE LOWER(username) = ANY($1)`,
+          [missingNames.map(n => n.toLowerCase())]
+        );
+        for (const row of pgResult.rows) {
+          if (row.publicKey) keyMap[row.username] = row.publicKey;
+        }
+      } catch (e) {
+        console.error('[public-keys-legacy] DB batch fallback error:', e);
+      }
+    }
   } catch (e) {
     console.error('[public-keys-legacy] DB fallback error:', e);
   }
@@ -3465,12 +3480,12 @@ app.get('/api/follow/requests', authenticateToken, (req, res) => {
 app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
   const { username } = req.params;
   db.all(
-    `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followerId) WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+    `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followerId) WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC LIMIT 50`,
     [username],
     (err, followers) => {
       if (err) return res.status(500).json({ error: 'Database error' });
       db.all(
-        `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followingId) WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC`,
+        `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followingId) WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC LIMIT 50`,
         [username],
         (err2, following) => {
           if (err2) return res.status(500).json({ error: 'Database error' });
@@ -3581,7 +3596,7 @@ app.post('/api/profile/change-password', authenticateToken, async (req, res) => 
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
 
-  db.get('SELECT * FROM users WHERE id = ?', [req.user.id], async (err, user) => {
+  db.get('SELECT id, password FROM users WHERE id = ?', [req.user.id], async (err, user) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (!user.password) return res.status(400).json({ error: 'Account uses Google sign-in, password cannot be changed here' });
@@ -4676,7 +4691,13 @@ io.on('connection', (socket) => {
 
     let queryStr = `
       SELECT * FROM (
-        SELECT m.*, u."avatarPath" as "senderAvatarPath"
+        SELECT m.id, m.type, m."senderId", m."senderName",
+               m.message, m.nonce, m."ephemeralPublicKey",
+               m.timestamp, m."replyTo", m."hiddenFor", m.reactions,
+               m."mediaType", m."mediaUrl", m.media_expires_at, m.is_unsent,
+               m.media_file_name, m.media_file_size, m.media_duration,
+               m.sender_public_key,
+               u."avatarPath" as "senderAvatarPath"
         FROM messages m
         LEFT JOIN users u ON u.username = m."senderName"
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
@@ -5076,9 +5097,16 @@ io.on('connection', (socket) => {
     if (type === 'private' || (!type && rawPartner)) {
       const partner = rawPartner;
       if (!partner) return;
-      
+
       let queryStr = `
-        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        SELECT m.id, m.type, m."senderId", m."senderName",
+               m."targetId", m."targetName",
+               m.message, m.nonce, m."ephemeralPublicKey",
+               m.timestamp, m."replyTo", m.reactions, m."senderMessage",
+               m."mediaType", m."mediaUrl", m.media_expires_at, m.is_unsent,
+               m.media_file_name, m.media_file_size, m.media_duration,
+               m.sender_public_key,
+               u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
         LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m.type = 'private'
@@ -5156,7 +5184,13 @@ io.on('connection', (socket) => {
 
       const joinTs = await getOrInitFirstJoined(username, roomId);
       let queryStr = `
-        SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
+        SELECT m.id, m.type, m."senderId", m."senderName",
+               m.message, m.nonce, m."ephemeralPublicKey",
+               m.timestamp, m."replyTo", m.reactions,
+               m."mediaType", m."mediaUrl", m.media_expires_at,
+               m.media_file_name, m.media_file_size, m.media_duration,
+               m.sender_public_key,
+               u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
         LEFT JOIN users u ON u.username = m."senderName"
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
@@ -9068,11 +9102,13 @@ app.get('/api/admin/team', authenticateToken, requireAdmin, requireAdminRole(['s
   try {
     const result = await pool.query(
       `SELECT u.id, u.username, u.email, u.role, u.created_at, u.last_login,
-              (SELECT COUNT(*) FROM support_requests sr
-               WHERE sr.assigned_to_admin_id = u.id::TEXT
-                 AND sr.status NOT IN ('resolved', 'dismissed'))::int AS open_ticket_count
+              COUNT(sr.id)::int AS open_ticket_count
        FROM users u
+       LEFT JOIN support_requests sr
+         ON sr.assigned_to_admin_id = u.id::TEXT
+         AND sr.status NOT IN ('resolved', 'dismissed')
        WHERE u.role = ANY($1)
+       GROUP BY u.id, u.username, u.email, u.role, u.created_at, u.last_login
        ORDER BY CASE u.role WHEN 'super_admin' THEN 1 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 3 ELSE 4 END, u.username ASC`,
       [ALL_ADMIN_ROLES]
     );
@@ -9142,9 +9178,12 @@ app.patch('/api/admin/team/:userId/disable', authenticateToken, requireAdmin, re
 app.get('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, email, role, status, expires_at, accepted_at, created_at,
-              (SELECT email FROM users WHERE id::text = ai.invited_by_admin_id LIMIT 1) AS invited_by_email
-       FROM admin_invites ai ORDER BY created_at DESC`
+      `SELECT ai.id, ai.email, ai.role, ai.status, ai.expires_at, ai.accepted_at, ai.created_at,
+              u.email AS invited_by_email
+       FROM admin_invites ai
+       LEFT JOIN users u ON u.id::text = ai.invited_by_admin_id
+       ORDER BY ai.created_at DESC
+       LIMIT 200`
     );
     res.json({ invites: result.rows });
   } catch (err) {

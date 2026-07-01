@@ -71,8 +71,9 @@ export default function Verify() {
             <CheckCircle size={56} color="#10b981" style={{ margin: '0 auto 20px' }} />
             <h2 style={{ margin: '0 0 10px', fontSize: '24px', fontWeight: 'bold' }}>Verified!</h2>
             <p style={{ color: 'var(--text-muted)', margin: '0 0 24px', lineHeight: '1.6' }}>{message}</p>
-            <button 
+            <button
               onClick={() => navigate('/login')}
+              className="stay-white"
               style={{
                 width: '100%',
                 padding: '14px',
