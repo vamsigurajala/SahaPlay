@@ -849,13 +849,13 @@ const Navbar = () => {
                       )}
                     </div>
                   )}
-                  <button onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: '14px', fontWeight: 500, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '8px', transition: 'color 0.2s' }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#ccc'}
+                  <button onClick={() => navigate('/login')} style={{ background: isLight ? 'transparent' : 'none', border: isLight ? '1px solid rgba(0,0,0,0.18)' : '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', color: isLight ? '#374151' : '#ccc', fontSize: '14px', fontWeight: 600, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: '6px', borderRadius: '10px', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.25)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isLight ? 'transparent' : 'none'; e.currentTarget.style.borderColor = isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.15)'; }}
                   >
                     {t('logIn', 'Log In')}
                   </button>
-                  <button onClick={() => navigate('/signup')} style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
+                  <button onClick={() => navigate('/signup')} className="stay-white" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
                     onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                   >
@@ -949,7 +949,7 @@ const Navbar = () => {
                         <User size={16} />
                         {t('logIn', 'Sign In')}
                       </button>
-                      <button style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
                         <Sparkles size={16} />
                         {t('signUp', 'Sign Up')}
                       </button>
@@ -970,7 +970,7 @@ const Navbar = () => {
                     {t('logIn', 'Sign In')}
                   </button>
 
-                  <button style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                  <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
                     <Sparkles size={16} />
                     {t('signUp', 'Sign Up')}
                   </button>

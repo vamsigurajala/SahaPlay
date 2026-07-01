@@ -1915,7 +1915,7 @@ function ReportsPage({ refreshBadges }) {
 
       {/* Report detail modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.3)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => { setSelected(null); setDetailData(null); }}>
           <div style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
             onClick={e => e.stopPropagation()}>
@@ -2469,9 +2469,9 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
 
       {/* Detail modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.3)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={closeDetail}>
-          <div style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}
+          <div className="admin-modal-card" style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}
             onClick={e => e.stopPropagation()}>
           <button onClick={closeDetail} style={{
             position: 'absolute', top: 16, right: 16,
@@ -3316,7 +3316,7 @@ function AdminTeamPage({ onOpenTicket }) {
 
       {/* Member detail modal */}
       {selectedMember && (
-        <div onClick={() => setSelectedMember(null)} className="room-modals-overlay" style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
+        <div onClick={() => setSelectedMember(null)} className="room-modals-overlay" style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(30,30,50,0.3)' : 'rgba(0,0,0,0.72)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#111827', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 0, maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: isLight ? '0 20px 48px rgba(0,0,0,0.08)' : '0 24px 64px rgba(0,0,0,0.5)' }}>
             {/* Header */}
             <div style={{ padding: '24px 28px 20px', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 14 }}>

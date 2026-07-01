@@ -343,6 +343,7 @@ const Room = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(null);
   const [kickedReason, setKickedReason] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPersonalDeleteConfirm, setShowPersonalDeleteConfirm] = useState(false);
   const [modMenuTarget, setModMenuTarget] = useState(null);
   const [modMenuPos, setModMenuPos] = useState({ top: 0, left: 0 });
   const [showHeaderModMenu, setShowHeaderModMenu] = useState(false);
@@ -6795,6 +6796,11 @@ const Room = () => {
                     <Settings2 size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('roomSettings', 'Room Settings')}
                   </button>
                 )}
+                {!isEffectiveHost && (
+                  <button className="settings-menu-btn-danger" onClick={() => { setShowPersonalDeleteConfirm(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Trash2 size={16} color={isLight ? '#ef4444' : '#f87171'} /> {t('deleteRoom', 'Delete Room')}
+                  </button>
+                )}
                 <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                 <button className="settings-menu-btn-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <LogOut size={16} color={isLight ? '#ef4444' : '#f87171'} /> {t('leaveRoom', 'Leave Room')}
@@ -9207,6 +9213,68 @@ const Room = () => {
           isDark={!isLight}
           onClose={() => setReportMsgTarget(null)}
         />
+      )}
+
+      {/* Personal Delete Room Confirmation */}
+      {showPersonalDeleteConfirm && (
+        <div className="room-modals-overlay" style={{ position: 'fixed', inset: 0, zIndex: 99999, background: isLight ? 'rgba(30,30,50,0.35)' : 'rgba(0,0,0,0.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="admin-modal-card" style={{ position: 'relative', background: isLight ? '#ffffff' : '#1a1025', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(239,68,68,0.25)', borderRadius: 24, width: '100%', maxWidth: 400, padding: 32, boxShadow: isLight ? '0 20px 60px rgba(0,0,0,0.12)' : '0 25px 50px rgba(0,0,0,0.6)' }}>
+            <button
+              onClick={() => setShowPersonalDeleteConfirm(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, color: isLight ? '#6b7280' : '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#e5e7eb' : 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = isLight ? '#374151' : '#ccc'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = isLight ? '#6b7280' : '#888'; }}
+            >
+              <X size={15} />
+            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 14 }}>
+              <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', transform: 'rotate(-5deg)' }}>
+                <Trash2 size={30} />
+              </div>
+              <h3 style={{ fontSize: 20, fontWeight: 900, color: isLight ? '#111' : '#fff', margin: 0 }}>
+                {t('deleteRoomForMe', 'Delete this room?')}
+              </h3>
+              <p style={{ fontSize: 14, color: isLight ? '#4b5563' : '#aaa', lineHeight: 1.6, margin: 0 }}>
+                {t('deleteRoomForMeDesc', 'This will remove the room, its chats, and all media from your view. Other members won\'t be affected.')}
+              </p>
+              <div style={{ display: 'flex', gap: 10, width: '100%', marginTop: 8 }}>
+                <button
+                  onClick={() => setShowPersonalDeleteConfirm(false)}
+                  style={{ flex: 1, padding: '14px 0', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)', color: isLight ? '#374151' : '#ccc', fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)'}
+                  onMouseLeave={e => e.currentTarget.style.background = isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)'}
+                >
+                  {t('cancel', 'Cancel')}
+                </button>
+                <button
+                  onClick={() => {
+                    const rId = (roomId || '').toLowerCase();
+                    socket?.emit('clear_room_chat', { roomId: rId });
+                    socket?.emit('leave_room', { roomId: rId });
+                    try {
+                      const pinned = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
+                      localStorage.setItem('pinned_rooms', JSON.stringify(pinned.filter(id => id !== roomId)));
+                    } catch(e) {}
+                    try {
+                      const chats = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
+                      localStorage.setItem('watch_recent_chats', JSON.stringify(chats.filter(c => (c.id || '').toLowerCase() !== rId)));
+                      window.dispatchEvent(new Event('conversations_updated'));
+                    } catch(e) {}
+                    setShowPersonalDeleteConfirm(false);
+                    navigate('/');
+                    toast.success('Room removed from your view');
+                  }}
+                  className="stay-white"
+                  style={{ flex: 1, padding: '14px 0', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #ef4444, #f43f5e)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  {t('deleteRoomButton', 'Delete Room')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
