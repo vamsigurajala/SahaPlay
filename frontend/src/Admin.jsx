@@ -586,10 +586,10 @@ function OverviewPage({ onNavigate }) {
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to manage all users" : undefined} />
             <StatCard label="New This Month" value={stats.newThisMonth.toLocaleString()} icon={UserCheck} color="#10b981"
-              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users', 'this_month') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
             <StatCard label="New This Week" value={stats.newThisWeek.toLocaleString()} icon={UserCheck} color="#a855f7"
-              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users', 'this_week') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
           </div>
 
@@ -1043,7 +1043,15 @@ function Pagination({ page, pages, onPage }) {
 }
 
 // ─── Users Page ───────────────────────────────────────────────────────────────
-function UsersPage() {
+const JOIN_FILTERS = [
+  { key: 'this_week', label: 'This Week' },
+  { key: 'this_month', label: 'This Month' },
+  { key: 'last_6_months', label: 'Last 6 Months' },
+  { key: 'last_year', label: 'Last Year' },
+  { key: 'all', label: 'All' },
+];
+
+function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
   const isLight = React.useContext(AdminThemeCtx);
   const watchRole = localStorage.getItem('watch_role') || 'user';
   const [users, setUsers] = useState([]);
@@ -1051,18 +1059,33 @@ function UsersPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [search, setSearch] = useState('');
+  const [joinFilter, setJoinFilter] = useState(initialJoinFilter);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [banTarget, setBanTarget] = useState(null);
   const [terminateTarget, setTerminateTarget] = useState(null);
   const [unbanLoading, setUnbanLoading] = useState(null);
+  const [showJoinDropdown, setShowJoinDropdown] = useState(false);
   const searchTimer = useRef(null);
+  const firstMount = useRef(true);
+  const joinDropdownRef = useRef(null);
 
-  const load = useCallback(async (s = search, p = page) => {
+  useEffect(() => {
+    if (!showJoinDropdown) return;
+    function handleOutside(e) {
+      if (joinDropdownRef.current && !joinDropdownRef.current.contains(e.target)) setShowJoinDropdown(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [showJoinDropdown]);
+
+  const load = useCallback(async (s = search, p = page, jf = joinFilter) => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch(`/api/admin/users?search=${encodeURIComponent(s)}&page=${p}&limit=15`);
+      const params = new URLSearchParams({ search: s, page: p, limit: 15 });
+      if (jf && jf !== 'all') params.set('joinFilter', jf);
+      const data = await apiFetch(`/api/admin/users?${params}`);
       setUsers(data.users);
       setTotal(data.total);
       setPage(data.page);
@@ -1072,20 +1095,36 @@ function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page]);
+  }, [search, page, joinFilter]);
 
   useEffect(() => { load(); }, []);
+
+  // Sync when parent navigates here with a new filter (e.g. from Overview cards)
+  useEffect(() => {
+    if (firstMount.current) { firstMount.current = false; return; }
+    setJoinFilter(initialJoinFilter);
+    setPage(1);
+    load(search, 1, initialJoinFilter);
+  }, [initialJoinFilter]);
 
   function handleSearch(val) {
     setSearch(val);
     setPage(1);
     clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => load(val, 1), 350);
+    searchTimer.current = setTimeout(() => load(val, 1, joinFilter), 350);
   }
 
   function handlePage(p) {
     setPage(p);
-    load(search, p);
+    load(search, p, joinFilter);
+  }
+
+  function handleFilterChange(newFilter) {
+    if (newFilter === joinFilter) return;
+    setJoinFilter(newFilter);
+    onJoinFilterChange?.(newFilter);
+    setPage(1);
+    load(search, 1, newFilter);
   }
 
   async function unban(userId) {
@@ -1124,7 +1163,7 @@ function UsersPage() {
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Users</h1>
           <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total</p>
         </div>
-        <button onClick={() => load()} style={{
+        <button onClick={() => load(search, page, joinFilter)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
           background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
           border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -1137,7 +1176,7 @@ function UsersPage() {
 
       {/* Search */}
       <div style={{ position: 'relative', marginBottom: 20, maxWidth: 380 }}>
-        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: isLight ? '#111827' : 'rgba(255,255,255,0.3)' }} />
+        <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
         <input
           value={search}
           onChange={e => handleSearch(e.target.value)}
@@ -1146,7 +1185,7 @@ function UsersPage() {
             width: '100%', padding: '10px 14px 10px 36px', borderRadius: 10,
             border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
             background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)',
-            color: isLight ? '#111827' : '#fff', fontSize: 14, boxSizing: 'border-box',
+            color: isLight ? '#111827' : '#fff', fontSize: 14, boxSizing: 'border-box', outline: 'none',
           }}
         />
       </div>
@@ -1162,12 +1201,107 @@ function UsersPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 700 }}>
           <thead>
             <tr style={{ borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
-              {['User', 'Email', 'Role', 'Status', 'Last Login', 'Joined', 'Actions'].map(h => (
+              {['User', 'Email', 'Role', 'Status', 'Last Login'].map(h => (
                 <th key={h} style={{
                   padding: '12px 16px', textAlign: 'left', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)',
                   fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
                 }}>{h}</th>
               ))}
+              {/* Joined column with filter dropdown */}
+              <th style={{ padding: '12px 16px', textAlign: 'left', whiteSpace: 'nowrap' }}>
+                <div ref={joinDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    onClick={() => setShowJoinDropdown(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px 2px 0',
+                      color: joinFilter !== 'all' ? '#6366f1' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.4)'),
+                      fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+                      borderRadius: 4, outline: 'none',
+                    }}
+                  >
+                    JOINED
+                    {joinFilter !== 'all' && (
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#6366f1', display: 'inline-block', flexShrink: 0, marginLeft: 1 }} />
+                    )}
+                    <ChevronDown size={10} style={{
+                      transform: showJoinDropdown ? 'rotate(180deg)' : 'rotate(0)',
+                      transition: 'transform 0.15s',
+                      flexShrink: 0,
+                      opacity: 0.7,
+                      marginLeft: 1,
+                    }} />
+                  </button>
+                  {showJoinDropdown && (
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 2000,
+                      background: isLight ? '#f3f4f6' : '#161b27',
+                      border: isLight ? '1px solid #d1d5db' : '1px solid rgba(99,102,241,0.25)',
+                      borderRadius: 10, padding: '4px 4px', minWidth: 170,
+                      boxShadow: isLight
+                        ? '0 8px 28px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)'
+                        : '0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
+                    }}>
+                      <div style={{
+                        padding: '7px 12px 5px', fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.1em', textTransform: 'uppercase',
+                        color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)',
+                        borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)',
+                        marginBottom: 3,
+                      }}>Filter by Join Date</div>
+                      {JOIN_FILTERS.map(f => {
+                        const isActive = joinFilter === f.key;
+                        return (
+                          <button
+                            key={f.key}
+                            onClick={() => { handleFilterChange(f.key); setShowJoinDropdown(false); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                              padding: '8px 10px', margin: '1px 0',
+                              background: isActive
+                                ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)')
+                                : 'transparent',
+                              border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
+                              color: isActive
+                                ? '#6366f1'
+                                : (isLight ? '#111827' : 'rgba(255,255,255,0.82)'),
+                              fontSize: 13, fontWeight: isActive ? 600 : 500,
+                              transition: 'background 0.12s, color 0.12s',
+                              boxSizing: 'border-box',
+                            }}
+                            onMouseEnter={e => {
+                              if (!isActive) {
+                                e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)';
+                                e.currentTarget.style.color = isLight ? '#000000' : '#ffffff';
+                              }
+                            }}
+                            onMouseLeave={e => {
+                              if (!isActive) {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.color = isLight ? '#111827' : 'rgba(255,255,255,0.82)';
+                              }
+                            }}
+                          >
+                            <span style={{
+                              width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0, borderRadius: 4,
+                              background: isActive
+                                ? (isLight ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.3)')
+                                : 'transparent',
+                            }}>
+                              {isActive && <CheckCircle size={12} color="#6366f1" />}
+                            </span>
+                            {f.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </th>
+              <th style={{
+                padding: '12px 16px', textAlign: 'left', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)',
+                fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+              }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -3403,9 +3537,11 @@ const BASE_NAV = [
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 export default function Admin() {
   const [tab, setTabState] = useState(() => localStorage.getItem('admin_active_tab') || 'overview');
-  const setTab = (val) => {
+  const [userJoinFilter, setUserJoinFilter] = useState('all');
+  const setTab = (val, filter = null) => {
     setTabState(val);
     localStorage.setItem('admin_active_tab', val);
+    if (filter !== null) setUserJoinFilter(filter);
   };
   const [badges, setBadges] = useState({ openSupportRequests: 0, unresolvedReports: 0, pendingInvites: 0 });
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
@@ -3609,7 +3745,7 @@ export default function Admin() {
         ) : (
           <>
             {tab === 'overview' && <OverviewPage onNavigate={setTab} />}
-            {tab === 'users' && <UsersPage />}
+            {tab === 'users' && <UsersPage initialJoinFilter={userJoinFilter} onJoinFilterChange={setUserJoinFilter} />}
             {tab === 'rooms' && <ActiveRoomsPage />}
             {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}
             {tab === 'audit' && <AuditLogsPage />}

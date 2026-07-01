@@ -8133,7 +8133,7 @@ app.get('/api/admin/active-rooms', authenticateToken, requireAdmin, requireAdmin
   }
 });
 
-// GET /api/admin/users?search=&page=&limit=
+// GET /api/admin/users?search=&page=&limit=&joinFilter=
 app.get('/api/admin/users', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin', 'moderator']), async (req, res) => {
   try {
     const search = (req.query.search || '').trim();
@@ -8141,20 +8141,43 @@ app.get('/api/admin/users', authenticateToken, requireAdmin, requireAdminRole(['
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
     const pattern = `%${search}%`;
+    const joinFilter = req.query.joinFilter || 'all';
+
+    const now = new Date();
+    let listDateClause = '';
+    let countDateClause = '';
+    let dateParam = null;
+
+    if (joinFilter === 'this_week') {
+      dateParam = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (joinFilter === 'this_month') {
+      dateParam = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    } else if (joinFilter === 'last_6_months') {
+      const d = new Date(now); d.setMonth(d.getMonth() - 6);
+      dateParam = d.toISOString();
+    } else if (joinFilter === 'last_year') {
+      const d = new Date(now); d.setFullYear(d.getFullYear() - 1);
+      dateParam = d.toISOString();
+    }
+
+    if (dateParam) {
+      listDateClause = ' AND created_at >= $4';
+      countDateClause = ' AND created_at >= $2';
+    }
 
     const [usersR, countR] = await Promise.all([
       pool.query(
         `SELECT id, username, email, role, banned_until, is_permanently_banned, ban_reason,
                 terminated, created_at, last_login, "displayName", "avatarPath"
          FROM users
-         WHERE (username ILIKE $1 OR email ILIKE $1)
+         WHERE (username ILIKE $1 OR email ILIKE $1)${listDateClause}
          ORDER BY created_at DESC NULLS LAST
          LIMIT $2 OFFSET $3`,
-        [pattern, limit, offset]
+        dateParam ? [pattern, limit, offset, dateParam] : [pattern, limit, offset]
       ),
       pool.query(
-        `SELECT COUNT(*) FROM users WHERE (username ILIKE $1 OR email ILIKE $1)`,
-        [pattern]
+        `SELECT COUNT(*) FROM users WHERE (username ILIKE $1 OR email ILIKE $1)${countDateClause}`,
+        dateParam ? [pattern, dateParam] : [pattern]
       ),
     ]);
 
