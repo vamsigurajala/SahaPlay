@@ -268,7 +268,8 @@ function getLanIp() {
 const LAN_IP = getLanIp();
 console.log(`[Server] Detected LAN IP: ${LAN_IP}`);
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret_jwt_key_for_watch_together';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) { console.error('[FATAL] JWT_SECRET environment variable is not set. Server cannot start.'); process.exit(1); }
 
 // Initialize Supabase (replaces SQLite)
 const supabase = createClient(
@@ -521,6 +522,7 @@ const server = http.createServer(app);
 // Keep track of rooms in memory
 // roomID => { currentMedia: string, currentTime: number, isPlaying: boolean, uploaderSocketId: string, timestampUpdatedAt: number }
 const rooms = new Map();
+const deletingRooms = new Set(); // roomIds currently being deleted — blocks race-condition re-join
 
 // ─── Hyperbeam Cloud Browser sessions: roomId → { session_id, embed_url, createdAt } ───
 // Using Hyperbeam TEST key — switch to production key in .env once all 7 tests pass
@@ -731,6 +733,16 @@ const uploadLimiter = rateLimit({
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
+  }
+});
+
+const roomCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many rooms created. Please wait before creating more.' });
   }
 });
 
@@ -2156,11 +2168,11 @@ function authenticateToken(req, res, next) {
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
       console.log('[AUTH MIDDLEWARE] Rejected request to:', req.path, 'token present:', !!req.headers.authorization);
-      return res.status(403).json({ error: 'Invalid token' });
+      return res.status(401).json({ error: 'Invalid token' });
     }
     if (!user || !user.username) {
       console.log('[AUTH MIDDLEWARE] Rejected request to:', req.path, 'token present:', !!req.headers.authorization);
-      return res.status(403).json({ error: 'Invalid token payload' });
+      return res.status(401).json({ error: 'Invalid token payload' });
     }
     // Normalize username to lowercase to ensure database joins work correctly
     req.user = { ...user, username: user.username.toLowerCase() };
@@ -3145,7 +3157,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
 
 
-app.post('/api/upload/chat', (req, res) => {
+app.post('/api/upload/chat', authenticateTokenOptional, (req, res) => {
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 55 * 1024 * 1024 }
@@ -3656,7 +3668,7 @@ app.put('/api/settings', authenticateTokenOptional, (req, res) => {
 });
 
 // Endpoint to upload a room media file to Supabase storage
-app.post('/api/upload', (req, res) => {
+app.post('/api/upload', authenticateTokenOptional, (req, res) => {
   const roomUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 100 * 1024 * 1024 }
@@ -3796,7 +3808,7 @@ app.get('/api/rooms/info', (req, res) => {
 
 
 
-app.post('/api/rooms/create', (req, res) => {
+app.post('/api/rooms/create', roomCreateLimiter, (req, res) => {
   const { roomId, roomName, category, isPublic, hostUsername } = req.body;
   if (!roomId) return res.status(400).json({ error: 'roomId required' });
   const name = (roomName && roomName.trim()) ? roomName.trim() : 'Room Chat';
@@ -4249,7 +4261,7 @@ const chunkUpload = multer({
 // In-memory stream registry — no DB migration needed
 const activeStreams = new Map(); // streamKey → { roomId, filename, mimetype, totalSize, totalChunks, chunksReceived, createdAt }
 
-app.post('/api/stream/init', (req, res) => {
+app.post('/api/stream/init', authenticateTokenOptional, (req, res) => {
   try {
     const { roomId, filename, mimetype, totalSize, totalChunks } = req.body;
     if (!roomId || !filename || !totalSize || !totalChunks) {
@@ -4292,7 +4304,7 @@ app.post('/api/stream/init', (req, res) => {
   }
 });
 
-app.post('/api/stream/:streamKey/chunk/:chunkIndex', chunkUpload.single('chunk'), (req, res) => {
+app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateTokenOptional, chunkUpload.single('chunk'), (req, res) => {
   try {
     const { streamKey } = req.params;
     const stream = activeStreams.get(streamKey);
@@ -4950,11 +4962,16 @@ io.on('connection', (socket) => {
     
     console.log(`User ${socket.id} (${username}) requesting join to room ${roomId}`);
     // ─── Database Existence Check ───
+    // Block joins for rooms currently being deleted (prevents race-condition re-creation)
+    if (deletingRooms.has(roomId)) {
+      socket.emit('room_not_found');
+      return;
+    }
     db.get('SELECT roomId FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
       const existsInDb = !!row;
       const existsInMemory = rooms.has(roomId);
 
-      if (!existsInDb && !existsInMemory) {
+      if (deletingRooms.has(roomId) || (!existsInDb && !existsInMemory)) {
         console.log(`Join Room Failed: Room ${roomId} not found in DB or Memory.`);
         socket.emit('room_not_found');
         return;
@@ -6685,11 +6702,18 @@ io.on('connection', (socket) => {
 
         // Use serialize to ensure deletions happen in order and can be logged accurately
         db.serialize(() => {
-          // 1. Notify and kick all users with a specific reason
+          // 1. Mark as deleting FIRST to block any race-condition re-joins during async DB deletion
+          deletingRooms.add(roomId);
+
+          // 2. Notify and kick all users with a specific reason
           io.in(roomId).emit('kicked_out', { reason: 'room_deleted' });
           console.log(`[DELETE ROOM] Emitted kicked_out to room ${roomId}`);
-          
-          // 2. Cleanup memory
+
+          // 3. Broadcast to ALL connected sockets so GlobalChatWidget cleans up for everyone
+          io.emit('room_permanently_deleted', { roomId });
+          console.log(`[DELETE ROOM] Emitted room_permanently_deleted globally`);
+
+          // 4. Cleanup memory
           if (rooms.has(roomId)) {
             rooms.delete(roomId);
             console.log(`[DELETE ROOM] Removed ${roomId} from memory`);

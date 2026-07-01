@@ -9257,7 +9257,9 @@ const Room = () => {
                     } catch(e) {}
                     try {
                       const chats = JSON.parse(localStorage.getItem('watch_recent_chats') || '[]');
-                      localStorage.setItem('watch_recent_chats', JSON.stringify(chats.filter(c => (c.id || '').toLowerCase() !== rId)));
+                      localStorage.setItem('watch_recent_chats', JSON.stringify(chats.filter(c =>
+                        !((c.type === 'room') && ((c.id || '').toLowerCase() === rId || (c.partner || '').toLowerCase() === rId))
+                      )));
                       window.dispatchEvent(new Event('conversations_updated'));
                     } catch(e) {}
                     setShowPersonalDeleteConfirm(false);

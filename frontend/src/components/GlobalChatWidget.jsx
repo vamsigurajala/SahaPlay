@@ -2614,6 +2614,56 @@ const GlobalChatWidget = forwardRef(({
       // Stop pagination for this room
       delete paginationStateRef.current[roomLower];
     });
+
+    // ── Host permanently deleted a room ──────────────────────────────────────
+    // Same cleanup as admin_room_deleted but triggered by the room host via socket
+    sock.on('room_permanently_deleted', ({ roomId }) => {
+      const roomLower = (roomId || '').toLowerCase();
+
+      if (activeChatRef.current && activeChatRef.current.type === 'room' &&
+          (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
+        latestHistoryRequestRef.current++;
+        setMessages([]);
+        setView('list');
+        setActiveChat(null);
+      }
+
+      setConversations(prev => {
+        const next = prev.filter(c =>
+          !((c.type === 'room') &&
+            ((c.partner || '').toLowerCase() === roomLower || (c.id || '').toLowerCase() === roomLower))
+        );
+        try { localStorage.setItem('watch_recent_chats', JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      setPinnedChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`pinned_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setMutedChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`muted_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      setHiddenChats(prev => {
+        const next = prev.filter(k => k.toLowerCase() !== roomLower);
+        try { localStorage.setItem(`hidden_chats_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      try {
+        const cleared = { ...clearedPartnersRef.current };
+        Object.keys(cleared).forEach(k => {
+          if (k.toLowerCase() === roomLower) delete cleared[k];
+        });
+        clearedPartnersRef.current = cleared;
+        localStorage.setItem('chat_cleared_partners', JSON.stringify(cleared));
+      } catch {}
+
+      delete paginationStateRef.current[roomLower];
+    });
     // ─────────────────────────────────────────────────────────────────────────
 
     return () => { sock.disconnect(); socketRef.current = null; };
