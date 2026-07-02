@@ -301,7 +301,7 @@ pool.on('error', (err, client) => {
 });
 
 // ─── Server-side message encryption ───
-const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET || 'sahaplay-static-default-secret-key-12345';
+const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET;
 const chatKey = crypto.createHash('sha256').update(CHAT_ENCRYPTION_SECRET).digest();
 
 function looksLikeCiphertext(str) {
@@ -4179,6 +4179,21 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
 
   const rid = roomId.toLowerCase();
 
+  // A5-F4: Only the room host may create or retrieve a Hyperbeam session (admin_token is a full control credential)
+  {
+    const memRoom = rooms.get(rid);
+    let hostUsername = memRoom?.hostUsername || null;
+    if (!hostUsername) {
+      // Room not in memory (no one currently connected) — fall back to DB
+      hostUsername = await new Promise(resolve =>
+        db.get('SELECT hostUsername FROM room_names WHERE roomId = ?', [rid], (err, row) => resolve(row?.hostUsername || null))
+      );
+    }
+    if (!hostUsername || hostUsername.toLowerCase() !== (req.user.username || '').toLowerCase()) {
+      return res.status(403).json({ error: 'Only the room host can start or access a cloud browser session.' });
+    }
+  }
+
   // COST GUARD: if a session already exists for this room, return it immediately
   if (activeHyperbeamSessions.has(rid)) {
     const existing = activeHyperbeamSessions.get(rid);
@@ -4212,7 +4227,7 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
     });
     console.log('[HYPERBEAM][DEBUG] HTTP status:', r.status);
     const rawBody = await r.text();
-    console.log('[HYPERBEAM][DEBUG] Raw response body:', rawBody);
+    console.log('[HYPERBEAM][DEBUG] Response received (body suppressed for security)');
     if (!r.ok) {
       console.error('[HYPERBEAM] API error creating session:', r.status, rawBody);
       return res.status(502).json({ error: 'Hyperbeam API error', details: rawBody });
@@ -9362,7 +9377,7 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
       sendEmail({ to: cleanEmail, subject: `You're invited to SahaPlay Admin — ${roleLabel}`, html: inviteHtml, text: `You've been invited to SahaPlay as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.` })
         .catch(e => console.warn('[admin-invite] Email failed (non-fatal):', e.message));
     } else {
-      console.warn('[admin-invite] Email not sent — Gmail not configured. Invite URL:', inviteUrl);
+      console.warn('[admin-invite] Gmail not configured — invite created for', cleanEmail, '(deliver link via admin panel resend once email is set up)');
     }
 
     await pool.query(
@@ -9493,7 +9508,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
     );
     broadcastAdminBadges();
 
-    res.json({ success: true, message: `Invite resent to ${inv.email}`, inviteLink: process.env.SMTP_HOST ? undefined : inviteLink });
+    res.json({ success: true, message: `Invite resent to ${inv.email}` });
   } catch (err) {
     console.error('[ADMIN] resend invite error:', err.message);
     res.status(500).json({ error: 'Failed to resend invite' });
