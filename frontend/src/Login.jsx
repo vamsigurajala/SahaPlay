@@ -20,6 +20,8 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError]   = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState('');
   const [showGuestInput, setShowGuestInput] = useState(false);
   const [guestName, setGuestName]       = useState('');
   const [bannedInfo, setBannedInfo]     = useState(null); // { type: 'temp'|'permanent'|'terminated', reason, bannedUntil }
@@ -84,11 +86,12 @@ const Login = () => {
         } else if (code === 'ACCOUNT_TERMINATED') {
           setBannedInfo({ type: 'terminated', reason });
         } else {
-          const errMsg = data.error || '';
-          if (errMsg === 'Invalid credentials') {
+          if (data.needsVerification) {
+            setNeedsVerification(true);
             setGlobalError(t('invalidCredentials', 'Invalid credentials'));
           } else {
-            setGlobalError(errMsg || t('loginFailed', 'Login failed'));
+            setNeedsVerification(false);
+            setGlobalError(data.error || t('loginFailed', 'Login failed'));
           }
         }
         return;
@@ -544,6 +547,31 @@ const Login = () => {
                   <p key={i} style={{ margin: i === 0 ? '0 0 4px' : 0, color: i === 0 ? '#fca5a5' : 'rgba(252,165,165,0.7)', fontSize: 13, lineHeight: 1.5 }}>{line || ' '}</p>
                 ))}
               </div>
+              {needsVerification && (
+                <div style={{ background: 'rgba(239,68,68,0.04)', padding: '10px 16px', borderTop: '1px solid rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(252,165,165,0.8)' }}>Email not verified?</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setResendStatus('sending');
+                      try {
+                        await fetch(`${API}/api/resend-verification`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: username.trim() }),
+                        });
+                        setResendStatus('sent');
+                      } catch {
+                        setResendStatus('error');
+                      }
+                    }}
+                    disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+                    style={{ fontSize: 12, color: '#818cf8', background: 'none', border: 'none', cursor: resendStatus === 'sent' ? 'default' : 'pointer', padding: 0, fontWeight: 700 }}
+                  >
+                    {resendStatus === 'sending' ? 'Sending…' : resendStatus === 'sent' ? '✓ Sent! Check your inbox' : resendStatus === 'error' ? 'Failed — try again' : 'Resend verification email'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

@@ -637,7 +637,7 @@ function BanModal({ user, onClose, onBanned }) {
   const [expiresAt, setExpiresAt] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().slice(0, 16);
+    return d.toISOString();
   });
   const [reason, setReason] = useState('');
   const [confirmText, setConfirmText] = useState('');
@@ -668,7 +668,7 @@ function BanModal({ user, onClose, onBanned }) {
     d.setFullYear(navYear);
     d.setMonth(navMonth);
     d.setDate(day);
-    setExpiresAt(d.toISOString().slice(0, 16));
+    setExpiresAt(d.toISOString());
   };
 
   const handleSelectTime = (type, val) => {
@@ -682,7 +682,7 @@ function BanModal({ user, onClose, onBanned }) {
       if (!isPM && hours === 12) hours = 0;
     } else if (type === 'minute') {
       d.setMinutes(parseInt(val, 10));
-      setExpiresAt(d.toISOString().slice(0, 16));
+      setExpiresAt(d.toISOString());
       return;
     } else if (type === 'ampm') {
       const currentIsPM = hours >= 12;
@@ -691,7 +691,7 @@ function BanModal({ user, onClose, onBanned }) {
     }
     
     d.setHours(hours);
-    setExpiresAt(d.toISOString().slice(0, 16));
+    setExpiresAt(d.toISOString());
   };
 
   const formatDateString = (isoString) => {
@@ -850,6 +850,7 @@ function BanModal({ user, onClose, onBanned }) {
                         type="button"
                         disabled={isPast}
                         onClick={() => handleSelectDay(day)}
+                        className={isSelected ? 'stay-white' : ''}
                         style={{
                           background: isSelected ? '#6366f1' : 'transparent',
                           border: isToday && !isSelected ? '1px solid rgba(99,102,241,0.5)' : 'none',
@@ -907,6 +908,7 @@ function BanModal({ user, onClose, onBanned }) {
                           key={ampm}
                           type="button"
                           onClick={() => handleSelectTime('ampm', ampm)}
+                          className={ampmVal === ampm ? 'ampm-btn-selected stay-white' : ''}
                           style={{
                             background: ampmVal === ampm ? '#6366f1' : 'transparent',
                             border: 'none', borderRadius: 4, color: ampmVal === ampm ? '#fff' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.5)'),
@@ -1335,11 +1337,11 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{
                       display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                      background: u.role === 'admin' ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'),
-                      color: u.role === 'admin' ? '#6366f1' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
-                      border: u.role === 'admin' ? '1px solid rgba(99,102,241,0.25)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.08)'),
+                      background: ['super_admin','admin','moderator','support'].includes(u.role) ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'),
+                      color: ['super_admin','admin','moderator','support'].includes(u.role) ? '#6366f1' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
+                      border: ['super_admin','admin','moderator','support'].includes(u.role) ? '1px solid rgba(99,102,241,0.25)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.08)'),
                     }}>
-                      {u.role === 'admin' ? '⚡ admin' : 'user'}
+                      {['super_admin','admin','moderator','support'].includes(u.role) ? `⚡ ${u.role.replace(/_/g,' ')}` : 'user'}
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
@@ -1385,7 +1387,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                             </button>
                           )}
                         </>
-                      ) : u.role !== 'admin' ? (
+                      ) : !['super_admin', 'admin'].includes(u.role) ? (
                         <>
                           <button
                             onClick={() => setBanTarget(u)}
@@ -1665,31 +1667,35 @@ function ActiveRoomsPage() {
               <div style={{ borderTop: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.05)', padding: '10px 18px 14px' }}>
                 {room.members.length === 0 ? (
                   <div style={{ color: isLight ? '#6b7280' : 'rgba(255,255,255,0.25)', fontSize: 13 }}>No members</div>
-                ) : room.members.map(m => (
-                  <div key={m.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
-                    {m.avatarPath ? (
-                      <img src={`${API_BASE}${m.avatarPath}`} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                    ) : (
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(m.username || '?')[0].toUpperCase()}</span>
+                ) : (
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {room.members.map(m => (
+                      <div key={m.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
+                        {m.avatarPath ? (
+                          <img src={`${API_BASE}${m.avatarPath}`} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(m.username || '?')[0].toUpperCase()}</span>
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ color: isLight ? '#111827' : '#fff', fontWeight: 600, fontSize: 13 }}>@{m.username}</span>
+                          {m.isHost && <span style={{ marginLeft: 6, fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.12)', padding: '1px 6px', borderRadius: 99, border: '1px solid rgba(245,158,11,0.25)' }}>HOST</span>}
+                        </div>
+                        {!m.isHost && (
+                          <button
+                            onClick={() => kickMember(room.roomId, m.username)}
+                            disabled={kickLoading === `${room.roomId}:${m.username}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: kickLoading === `${room.roomId}:${m.username}` ? 'not-allowed' : 'pointer' }}
+                          >
+                            <UserMinus size={11} />
+                            {kickLoading === `${room.roomId}:${m.username}` ? '…' : 'Kick'}
+                          </button>
+                        )}
                       </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ color: isLight ? '#111827' : '#fff', fontWeight: 600, fontSize: 13 }}>@{m.username}</span>
-                      {m.isHost && <span style={{ marginLeft: 6, fontSize: 10, color: '#f59e0b', fontWeight: 700, background: 'rgba(245,158,11,0.12)', padding: '1px 6px', borderRadius: 99, border: '1px solid rgba(245,158,11,0.25)' }}>HOST</span>}
-                    </div>
-                    {!m.isHost && (
-                      <button
-                        onClick={() => kickMember(room.roomId, m.username)}
-                        disabled={kickLoading === `${room.roomId}:${m.username}`}
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: kickLoading === `${room.roomId}:${m.username}` ? 'not-allowed' : 'pointer' }}
-                      >
-                        <UserMinus size={11} />
-                        {kickLoading === `${room.roomId}:${m.username}` ? '…' : 'Kick'}
-                      </button>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
@@ -3084,9 +3090,7 @@ function AdminTeamPage({ onOpenTicket }) {
 
   const ROLE_PERMS = [
     { role: 'super_admin', label: 'Super Admin',
-      perms: ['Full dashboard access', 'Invite admins, moderators & support', 'Revoke & change roles', 'View all audit logs', 'Manage users, rooms, reports, inbox'] },
-    { role: 'admin', label: 'Admin',
-      perms: ['Manage users (ban/unban)', 'Manage reports & support inbox', 'Force close rooms', 'View audit logs', 'Cannot invite or revoke team members'] },
+      perms: ['Full dashboard access', 'Invite moderators & support', 'Revoke & change roles', 'View all audit logs', 'Manage users, rooms, reports, inbox'] },
     { role: 'moderator', label: 'Moderator',
       perms: ['View active rooms, kick users', 'Handle & review reports', 'Temp bans (if backend allows)', 'Cannot permanently ban users', 'Cannot invite or revoke roles'] },
     { role: 'support', label: 'Support',
@@ -3201,7 +3205,7 @@ function AdminTeamPage({ onOpenTicket }) {
     if (new Date(inv.expires_at) < new Date()) return 'expired';
     return 'pending';
   };
-  const CHANGEABLE = ['admin', 'moderator', 'support'];
+  const CHANGEABLE = ['moderator', 'support'];
   const btnS = { borderRadius: 7, border: 'none', fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: '4px 9px' };
 
   return (
@@ -3239,7 +3243,7 @@ function AdminTeamPage({ onOpenTicket }) {
                   textAlign: 'left'
                 }}
               >
-                <span>{inviteRole === 'admin' ? 'Admin' : inviteRole === 'moderator' ? 'Moderator' : 'Support'}</span>
+                <span>{inviteRole === 'moderator' ? 'Moderator' : 'Support'}</span>
                 <ChevronDown size={14} style={{ transform: `rotate(${roleSelectOpen ? 180 : 0}deg)`, transition: 'transform 0.2s', color: isLight ? '#6b7280' : '#9ca3af' }} />
               </button>
 
@@ -3251,8 +3255,8 @@ function AdminTeamPage({ onOpenTicket }) {
                   borderRadius: 9, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
                   padding: 4, display: 'flex', flexDirection: 'column', gap: 2
                 }}>
-                  {['admin', 'moderator', 'support'].map((role) => {
-                    const label = role === 'admin' ? 'Admin' : role === 'moderator' ? 'Moderator' : 'Support';
+                  {['moderator', 'support'].map((role) => {
+                    const label = role === 'moderator' ? 'Moderator' : 'Support';
                     const active = inviteRole === role;
                     return (
                       <button
