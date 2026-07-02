@@ -1433,7 +1433,7 @@ app.post('/api/signup', async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -1527,7 +1527,7 @@ app.post('/api/resend-verification', loginLimiter, async (req, res) => {
       <td style="padding-right:14px;vertical-align:middle">
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr><td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-            ${EMAIL_LOGO_DATA_URI ? `<img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />` : '<span style="color:#fff;font-size:24px;font-weight:800">S</span>'}
+            ${EMAIL_LOGO_DATA_URI ? `<img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />` : '<span style="color:#fff;font-size:24px;font-weight:800">S</span>'}
           </td></tr>
         </table>
       </td>
@@ -1730,7 +1730,7 @@ app.post('/api/auth/google', async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -1824,7 +1824,7 @@ app.post('/api/forgot-password', async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -7563,7 +7563,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -7869,7 +7869,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -9011,7 +9011,7 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -9340,7 +9340,7 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -9374,7 +9374,7 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
 </body></html>`;
 
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      sendEmail({ to: cleanEmail, subject: `You're invited to SahaPlay Admin — ${roleLabel}`, html: inviteHtml, text: `You've been invited to SahaPlay as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.` })
+      sendEmail({ to: cleanEmail, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.`, headers: { 'X-Priority': '3', 'X-Mailer': 'SahaPlay', 'Precedence': 'bulk' } })
         .catch(e => console.warn('[admin-invite] Email failed (non-fatal):', e.message));
     } else {
       console.warn('[admin-invite] Gmail not configured — invite created for', cleanEmail, '(deliver link via admin panel resend once email is set up)');
@@ -9400,6 +9400,10 @@ app.delete('/api/admin/invites/:id', authenticateToken, requireAdmin, requireAdm
   try {
     const check = await pool.query(`SELECT email, status FROM admin_invites WHERE id = $1`, [id]);
     if (!check.rows[0]) return res.status(404).json({ error: 'Invite not found' });
+    // If invite was already accepted, strip the admin role from that user (super_admin is protected)
+    if (check.rows[0].status === 'accepted') {
+      await pool.query(`UPDATE users SET role = 'user' WHERE LOWER(email) = LOWER($1) AND role != 'super_admin'`, [check.rows[0].email]);
+    }
     await pool.query(`UPDATE admin_invites SET status = 'revoked' WHERE id = $1`, [id]);
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
@@ -9450,7 +9454,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
@@ -9484,7 +9488,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
 </body></html>`;
 
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      sendEmail({ to: inv.email, subject: `You're invited to SahaPlay Admin — ${roleLabel} (Resent)`, html: inviteHtml, text: `You've been invited to SahaPlay as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.` })
+      sendEmail({ to: inv.email, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`, headers: { 'X-Priority': '3', 'X-Mailer': 'SahaPlay', 'Precedence': 'bulk' } })
         .catch(e => console.warn('[admin-invite-resend] Email failed:', e.message));
     } else if (process.env.SMTP_HOST) {
       const nodemailer = require('nodemailer');
@@ -9496,7 +9500,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
       await transporter.sendMail({
         from: process.env.SMTP_FROM || process.env.SMTP_USER,
         to: inv.email,
-        subject: `You're invited to SahaPlay Admin — ${roleLabel} (Resent)`,
+        subject: `SahaPlay Team Invitation — ${roleLabel}`,
         html: inviteHtml,
       });
     }
@@ -9560,7 +9564,7 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
         <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
           <tr>
             <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
-              <img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
             </td>
           </tr>
         </table>
