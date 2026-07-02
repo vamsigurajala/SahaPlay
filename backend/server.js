@@ -301,6 +301,10 @@ pool.on('error', (err, client) => {
 });
 
 // ─── Server-side message encryption ───
+// TECH DEBT (A5-F6): CHAT_ENCRYPTION_SECRET intentionally falls back to JWT_SECRET.
+// Separating the keys would render all existing encv1: ciphertext in the DB permanently
+// unreadable without a decryption-and-re-encryption migration. Deferred until that
+// migration is planned and executed.
 const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET;
 const chatKey = crypto.createHash('sha256').update(CHAT_ENCRYPTION_SECRET).digest();
 
