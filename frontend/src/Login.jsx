@@ -36,6 +36,10 @@ const Login = () => {
   const banMessage = location.state?.banMessage;
   const terminateMessage = location.state?.terminateMessage;
 
+  // After login, redirect to ?next= URL if present (same-origin paths only — no open redirect)
+  const rawNext = new URLSearchParams(location.search).get('next') || '';
+  const safeNext = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
+
   // Live countdown for temp bans
   useEffect(() => {
     if (!bannedInfo || bannedInfo.type !== 'temp' || !bannedInfo.bannedUntil) return;
@@ -104,6 +108,7 @@ const Login = () => {
       localStorage.setItem('watch_username', data.username);
       localStorage.setItem('watch_role', data.role || 'user');
       window.dispatchEvent(new Event('login_success'));
+      navigate(safeNext || '/');
 
       // ─── E2EE Key Decryption ─────────────────────────────────────────────
       if (data.encryptedPrivateKey) {
@@ -151,7 +156,6 @@ const Login = () => {
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      navigate('/');
     } catch (err) {
       setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
     } finally {
@@ -173,8 +177,9 @@ const Login = () => {
         clearUserSession();
         localStorage.setItem('watch_token', data.token);
         localStorage.setItem('watch_username', data.username);
+        localStorage.setItem('watch_role', data.role || 'user');
         window.dispatchEvent(new Event('login_success'));
-        navigate('/');
+        navigate(safeNext || '/');
       } else {
         const code   = data.code;
         const reason = data.reason || 'Policy violation';

@@ -1594,3 +1594,17 @@ html[data-theme='light'] .rsm-mob-list-item {
 html[data-theme='light'] .rsm-mob-list-item:hover {
   background: rgba(0,0,0,0.03);
 }
+
+/* ── Subtitle menu: light mode overrides ──────────────────────────────────── */
+html[data-theme='light'] .player-subtitle-menu {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 -8px 20px rgba(0,0,0,0.08) !important;
+}
+html[data-theme='light'] .player-subtitle-menu .subtitle-menu-info {
+  background: rgba(99,102,241,0.06) !important;
+  border-color: rgba(99,102,241,0.15) !important;
+}
+html[data-theme='light'] .player-subtitle-menu button:hover {
+  background: rgba(0,0,0,0.05) !important;
+}

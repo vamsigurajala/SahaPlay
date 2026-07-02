@@ -8315,16 +8315,16 @@ const Room = () => {
                         }}>
                           {/* Web iframe (regular webpage) note */}
                           {isWebIframe(mediaUrl) && (
-                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
-                              <div style={{ color: '#a5b4fc', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
-                              <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
+                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
+                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
                             </div>
                           )}
                           {/* YouTube / embed platform note */}
                           {isEmbedPlatform(mediaUrl) && (
-                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
-                              <div style={{ color: '#a5b4fc', fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
-                              <div style={{ color: '#6b7280', fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
+                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
+                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
                             </div>
                           )}
                           {/* Direct video URL or local stream: full subtitle controls */}
@@ -8341,7 +8341,7 @@ const Room = () => {
                                     textAlign: 'left', fontFamily: 'inherit',
                                     transition: 'background 0.15s',
                                   }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                  onMouseEnter={e => e.currentTarget.style.background = document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                                   onClick={() => { setSubtitlesVisible(v => !v); setShowSubtitleMenu(false); }}
                                 >
@@ -8363,7 +8363,7 @@ const Room = () => {
                                     borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
                                     transition: 'background 0.15s',
                                   }}
-                                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                  onMouseEnter={e => e.currentTarget.style.background = document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'}
                                   onMouseLeave={e => e.currentTarget.style.background = 'none'}
                                   onClick={() => { subtitleInputRef.current?.click(); setShowSubtitleMenu(false); }}
                                 >
@@ -8371,7 +8371,7 @@ const Room = () => {
                                   {subtitlesUrl ? 'Change Subtitles' : 'Upload Subtitles'}
                                 </button>
                               )}
-                              <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
+                              <div style={{ height: 1, background: document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
                               <button
                                 style={{
                                   display: 'flex', alignItems: 'center', gap: 10,
@@ -8381,7 +8381,7 @@ const Room = () => {
                                   borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
                                   transition: 'background 0.15s',
                                 }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                onMouseEnter={e => e.currentTarget.style.background = document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                                 onClick={() => { setShowSubtitleSettingsModal(true); setShowSubtitleMenu(false); }}
                               >
