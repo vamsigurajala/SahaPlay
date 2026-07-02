@@ -58,8 +58,14 @@ async function sendEmail({ to, subject, html, text, headers, attachments = [] })
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── Inline logo for emails (CID referenced in Gmail-compatible email templates) ───
-const EMAIL_LOGO_DATA_URI = 'cid:sahaplay-logo';
+// ─── Inline logo for emails — base64 embedded so no attachment is created ───
+let EMAIL_LOGO_DATA_URI = '';
+try {
+  const logoBuf = fs.readFileSync(path.join(__dirname, '../frontend/public/logos/trans_webl.png'));
+  EMAIL_LOGO_DATA_URI = `data:image/png;base64,${logoBuf.toString('base64')}`;
+} catch (e) {
+  console.warn('[Email] Logo not found, emails will have no logo image:', e.message);
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function sendReporterConfirmationEmail(reportId, reporterUsername, reportedUsername, reason, knownEmail) {
@@ -1374,6 +1380,9 @@ app.post('/api/signup', async (req, res) => {
   if (!rawUsername || !email || !password) {
     return res.status(400).json({ error: 'Username, email, and password are required' });
   }
+  if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character' });
+  }
   const username = rawUsername.toLowerCase();
 
   try {
@@ -1411,7 +1420,7 @@ app.post('/api/signup', async (req, res) => {
     const setupToken = jwt.sign({ id: newUserId, username }, JWT_SECRET, { expiresIn: '10m' });
 
     // Send Verification Email
-    const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
+    const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${verificationToken}`;
     const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
@@ -1493,6 +1502,69 @@ app.get('/api/verify', async (req, res) => {
   }
 });
 
+app.post('/api/resend-verification', loginLimiter, async (req, res) => {
+  const { email } = req.body;
+  // Always return generic response to prevent email enumeration
+  res.json({ message: 'If that email has a pending verification, we have sent a new link.' });
+  if (!email) return;
+  try {
+    const result = await pool.query(
+      'SELECT id, username, "isVerified" FROM users WHERE email = $1',
+      [email]
+    );
+    const user = result.rows[0];
+    if (!user || user.isVerified !== 0) return;
+    const newToken = crypto.randomBytes(32).toString('hex');
+    await pool.query('UPDATE users SET "verificationToken" = $1 WHERE id = $2', [newToken, user.id]);
+    const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${newToken}`;
+    const resendHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr><td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+            ${EMAIL_LOGO_DATA_URI ? `<img src="${EMAIL_LOGO_DATA_URI}" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />` : '<span style="color:#fff;font-size:24px;font-weight:800">S</span>'}
+          </td></tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Email Verification</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Verify your email, ${user.username}!</h1>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      You requested a new verification link. Click the button below to verify your email address and activate your SahaPlay account.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Verify Email Address</a>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">If you did not request this, you can safely ignore this email.</p>
+  </td></tr>
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+    await sendEmail({
+      to: email,
+      subject: 'Verify your SahaPlay account',
+      text: `Hi ${user.username},\n\nHere is your new verification link: ${verifyLink}\n\nThe SahaPlay Team`,
+      html: resendHtml,
+    });
+  } catch (err) {
+    console.error('[resend-verification] Error:', err);
+  }
+});
+
 app.post('/api/login', async (req, res) => {
   const { username: rawUsername, password } = req.body;
   const username = rawUsername ? rawUsername.toLowerCase() : '';
@@ -1512,7 +1584,7 @@ app.post('/api/login', async (req, res) => {
     const user = result.rows[0];
     
     if (user.isVerified === 0) {
-      return res.status(403).json({ error: 'Account not verified. Please check your email to verify your account before logging in.' });
+      return res.status(400).json({ error: 'Invalid credentials', needsVerification: true });
     }
     
     // If the user originated from Google, they might not have a password
@@ -1548,13 +1620,6 @@ app.post('/api/login', async (req, res) => {
       });
     }
 
-    // ─── One-time admin promotion via ADMIN_EMAIL ───
-    const adminEmail = process.env.ADMIN_EMAIL;
-    if (adminEmail && user.email === adminEmail && user.role !== 'admin') {
-      await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
-      user.role = 'admin';
-      console.log('[ADMIN] Promoted to admin on first login:', user.email);
-    }
 
     // ─── Track last login ───
     pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
@@ -1628,13 +1693,6 @@ app.post('/api/auth/google', async (req, res) => {
         });
       }
 
-      // ─── One-time admin promotion via ADMIN_EMAIL ───
-      const adminEmail = process.env.ADMIN_EMAIL;
-      if (adminEmail && user.email === adminEmail && user.role !== 'admin') {
-        await pool.query('UPDATE users SET role = $1 WHERE id = $2', ['admin', user.id]);
-        user.role = 'admin';
-        console.log('[ADMIN] Promoted to admin on first Google login:', user.email);
-      }
 
       // ─── Track last login ───
       pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
@@ -1659,7 +1717,7 @@ app.post('/api/auth/google', async (req, res) => {
       const token = jwt.sign({ id: newId, username: finalUsername }, JWT_SECRET, { expiresIn: '10m' });
 
       // Send verification email to new Google user
-      const verifyLink = `http://localhost:5173/verify?token=${verificationToken}`;
+      const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${verificationToken}`;
       const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
@@ -1751,7 +1809,7 @@ app.post('/api/forgot-password', async (req, res) => {
       [resetToken, resetExpiry, user.id]
     );
 
-    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
 
     // Send real email via Gmail SMTP
     const resetHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -1840,6 +1898,9 @@ ${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}`;
 app.post('/api/reset-password', async (req, res) => {
   const { token, newPassword, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+  if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character' });
+  }
 
   try {
     // Look up user by reset token
@@ -1898,39 +1959,17 @@ app.post('/api/reset-password', async (req, res) => {
  * Stores the user's public key and PBKDF2+AES-wrapped private key.
  * The raw private key NEVER reaches the server.
  */
-app.post('/api/auth/setup-keys', async (req, res) => {
-  // Accept both JWT auth and username-keyed unauthenticated (for legacy path)
-  let userId = null;
-  let usernameFromToken = null;
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const tok = authHeader.split(' ')[1];
-    try {
-      const decoded = jwt.verify(tok, JWT_SECRET);
-      userId = decoded.id;
-      usernameFromToken = decoded.username;
-    } catch { /* allow username fallback */ }
-  }
-
-  const { username, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
+app.post('/api/auth/setup-keys', authenticateToken, async (req, res) => {
+  const { publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
   if (!publicKey || !encryptedPrivateKey) {
     return res.status(400).json({ error: 'publicKey and encryptedPrivateKey are required' });
   }
 
-  // Resolve userId from username if not from token
-  const resolvedUsername = usernameFromToken || username;
-  if (!resolvedUsername) return res.status(400).json({ error: 'username required' });
-
   try {
-    await new Promise((resolve, reject) => {
-      const sql = userId
-        ? 'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4'
-        : 'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE username = $4';
-      const param = userId || resolvedUsername;
-      pool.query(sql, [publicKey, encryptedPrivateKey, recoveryKeyHash || null, param])
-        .then(r => resolve(r))
-        .catch(e => reject(e));
-    });
+    await pool.query(
+      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
+      [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
+    );
     res.json({ success: true });
   } catch (err) {
     console.error('[setup-keys] DB error:', err);
@@ -1951,7 +1990,7 @@ app.post('/api/auth/rekey', async (req, res) => {
   const tok = authHeader.split(' ')[1];
   let decoded;
   try { decoded = jwt.verify(tok, JWT_SECRET); }
-  catch { return res.status(403).json({ error: 'Invalid token' }); }
+  catch { return res.status(401).json({ error: 'Invalid token' }); }
 
   const { encryptedPrivateKey, publicKey, recoveryKeyHash } = req.body;
   if (!encryptedPrivateKey) return res.status(400).json({ error: 'encryptedPrivateKey required' });
@@ -4047,9 +4086,19 @@ function isUserAdmin(room, userOrSocket) {
 // Socket.io middleware to handle JWT auth
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
-  if (!token) return next(); // Allow anonymous for now if needed, but we'll try to get username
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  if (!token) return next();
+  jwt.verify(token, JWT_SECRET, async (err, decoded) => {
     if (err) return next();
+    try {
+      const result = await pool.query(
+        'SELECT terminated, is_permanently_banned, banned_until FROM users WHERE id = $1',
+        [decoded.id]
+      );
+      const u = result.rows[0];
+      if (u && (u.terminated || u.is_permanently_banned || (u.banned_until && new Date(u.banned_until) > new Date()))) {
+        return next(new Error('account_banned'));
+      }
+    } catch { /* allow through on DB error rather than blocking all sockets */ }
     socket.user = decoded;
     socket.username = decoded.username;
     next();
