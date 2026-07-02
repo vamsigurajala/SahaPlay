@@ -755,6 +755,20 @@ const roomCreateLimiter = rateLimit({
     res.status(429).json({ error: 'Too many rooms created. Please wait before creating more.' });
   }
 });
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  message: { success: false, error: 'Too many messages sent. Please wait an hour before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+const bugReportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, error: 'Too many bug reports submitted. Please wait an hour before trying again.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Apply limiters — order matters: specific limits before global
 app.use('/api/login', loginLimiter);
@@ -764,6 +778,9 @@ app.use('/api/register', loginLimiter);
 app.use('/api/forgot-password', loginLimiter);
 app.use('/api/reset-password', loginLimiter);
 app.use('/api/upload', uploadLimiter);
+app.use('/api/upload/chat', uploadLimiter);    // A6-F18
+app.use('/api/profile/avatar', uploadLimiter); // A6-F18
+app.use('/api/rooms/thumbnail', uploadLimiter); // A6-F18
 app.use('/api/', globalLimiter);
 
 // Test endpoint — verify the global limiter fires at request 101
@@ -784,19 +801,6 @@ const io = new Server(server, {
   connectTimeout: 20000,
   allowEIO3: true
 });
-
-// Multer setup — disk storage kept for room media streaming (/api/upload)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  }
-});
-const upload = multer({ storage, limits: { fileSize: 100 * 1024 * 1024 } });
 
 
 async function checkBucket() {
@@ -1267,12 +1271,17 @@ app.get('/api/vimeo/search', (req, res) => {
 
 
 // POST /api/report-message — full message report with mandatory proof images + email
-app.post('/api/report-message', async (req, res) => {
-  const { roomId, reporterUsername, reportedUsername, message, reason, description, images } = req.body;
+app.post('/api/report-message', bugReportLimiter, authenticateTokenOptional, async (req, res) => {
+  const { roomId, reportedUsername, message, reason: rawReason, description, images } = req.body;
+  // A6-F19: reporter identity from JWT, not body
+  const reporterUsername = req.user?.username || null;
+  // A6-F19: reason enum whitelist
+  const REPORT_MSG_REASONS = new Set(['harassment','spam','hate_speech','inappropriate_content','threats','other']);
+  const reason = REPORT_MSG_REASONS.has(rawReason) ? rawReason : 'other';
 
   // ── Validation ──────────────────────────────────────────────
-  if (!reporterUsername || !reportedUsername || !message) {
-    return res.status(400).json({ success: false, error: 'reporterUsername, reportedUsername, and message are required.' });
+  if (!reportedUsername || !message) {
+    return res.status(400).json({ success: false, error: 'reportedUsername and message are required.' });
   }
   if (!Array.isArray(images) || images.length === 0) {
     return res.status(400).json({ success: false, error: 'At least 1 proof image is required to submit a report.' });
@@ -1383,6 +1392,18 @@ app.post('/api/signup', async (req, res) => {
   const { username: rawUsername, email, password } = req.body;
   if (!rawUsername || !email || !password) {
     return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+  // A6-F7: email format
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Invalid email address' });
+  }
+  // A6-F2: username max length
+  if (rawUsername.trim().length > 30) {
+    return res.status(400).json({ error: 'Username must be 30 characters or fewer' });
+  }
+  // A6-F5: password max length (bcrypt effective limit is 72 chars; cap at 128 to prevent DoS)
+  if (password.length > 128) {
+    return res.status(400).json({ error: 'Password must be 128 characters or fewer' });
   }
   if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
     return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character' });
@@ -1574,6 +1595,10 @@ app.post('/api/login', async (req, res) => {
   const username = rawUsername ? rawUsername.toLowerCase() : '';
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
+  }
+  // A6-F5: cap password length before bcrypt to prevent CPU DoS
+  if (password.length > 128) {
+    return res.status(400).json({ error: 'Invalid credentials' });
   }
 
   try {
@@ -1902,6 +1927,7 @@ ${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}`;
 app.post('/api/reset-password', async (req, res) => {
   const { token, newPassword, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
+  if (newPassword.length > 128) return res.status(400).json({ error: 'Password must be 128 characters or fewer' }); // A6-F5
   if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
     return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character' });
   }
@@ -2295,7 +2321,13 @@ const avatarStorage = multer.diskStorage({
     cb(null, `${req.user.id}-${Date.now()}${ext}`);
   }
 });
-const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+// A6-F2: avatar accepts only image types (frontend always sends image/png from canvas crop)
+const avatarImageFilter = (req, file, cb) => {
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (allowed.includes(file.mimetype)) cb(null, true);
+  else cb(Object.assign(new Error('Only image files are allowed for avatars'), { code: 'INVALID_MIME' }), false);
+};
+const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: avatarImageFilter });
 
 const roomThumbnailStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -2304,11 +2336,17 @@ const roomThumbnailStorage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png';
+    const ext = path.extname(file.originalname) || '.jpg';
     cb(null, `room-${Date.now()}${ext}`);
   }
 });
-const roomThumbnailUpload = multer({ storage: roomThumbnailStorage, limits: { fileSize: 5 * 1024 * 1024 } });
+// A6-F2: room thumbnail accepts only image types (frontend always sends image/jpeg from canvas crop)
+const thumbnailImageFilter = (req, file, cb) => {
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (allowed.includes(file.mimetype)) cb(null, true);
+  else cb(Object.assign(new Error('Only image files are allowed for thumbnails'), { code: 'INVALID_MIME' }), false);
+};
+const roomThumbnailUpload = multer({ storage: roomThumbnailStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: thumbnailImageFilter });
 
 app.use('/uploads/room_thumbnails', express.static(path.join(__dirname, 'uploads', 'room_thumbnails')));
 
@@ -3200,10 +3238,31 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
 
 
+// A6-F2: explicit MIME allowlist for chat uploads — mirrors GlobalChatWidget FILE_LIMITS
+const CHAT_ALLOWED_MIMES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/webm', 'video/mov', 'video/quicktime',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain', 'text/csv',
+  'application/zip',
+  'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/webm',
+]);
+const chatFileFilter = (req, file, cb) => {
+  if (CHAT_ALLOWED_MIMES.has(file.mimetype)) cb(null, true);
+  else cb(Object.assign(new Error(`File type ${file.mimetype} is not allowed`), { code: 'INVALID_MIME' }), false);
+};
+
 app.post('/api/upload/chat', authenticateTokenOptional, (req, res) => {
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 55 * 1024 * 1024 }
+    limits: { fileSize: 55 * 1024 * 1024, files: 10 },
+    fileFilter: chatFileFilter,
   }).any();
 
   upload(req, res, async function(err) {
@@ -3555,6 +3614,8 @@ app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
 app.put('/api/profile', authenticateToken, (req, res) => {
   const { displayName, bio } = req.body;
   if (!displayName || !displayName.trim()) return res.status(400).json({ error: 'Display name is required' });
+  if (displayName.trim().length > 50) return res.status(400).json({ error: 'Display name must be 50 characters or fewer' }); // A6-F8
+  if (bio && bio.length > 300) return res.status(400).json({ error: 'Bio must be 300 characters or fewer' }); // A6-F8
   db.run('UPDATE users SET displayName = ?, bio = ? WHERE id = ?', [displayName.trim(), bio !== undefined ? bio : null, req.user.id], function(err) {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(req.user.username);
@@ -3649,7 +3710,11 @@ app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar')
 app.post('/api/profile/change-password', authenticateToken, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
-  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  if (newPassword.length > 128) return res.status(400).json({ error: 'Password must be 128 characters or fewer' }); // A6-F5
+  // A6-F6: consistent strength rule matching signup and reset-password
+  if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character' });
+  }
 
   db.get('SELECT id, password FROM users WHERE id = ?', [req.user.id], async (err, user) => {
     if (err) return res.status(500).json({ error: 'Database error' });
@@ -3711,10 +3776,19 @@ app.put('/api/settings', authenticateTokenOptional, (req, res) => {
 });
 
 // Endpoint to upload a room media file to Supabase storage
+// A6-F2: restrict to video/audio/image MIME types only
+const roomMediaFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(Object.assign(new Error(`File type ${file.mimetype} is not allowed for room media`), { code: 'INVALID_MIME' }), false);
+  }
+};
 app.post('/api/upload', authenticateTokenOptional, (req, res) => {
   const roomUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 }
+    limits: { fileSize: 100 * 1024 * 1024 },
+    fileFilter: roomMediaFilter,
   }).single('media');
 
   roomUpload(req, res, async function(err) {
@@ -3851,12 +3925,23 @@ app.get('/api/rooms/info', (req, res) => {
 
 
 
+const ALLOWED_ROOM_CATEGORIES = new Set(['movies', 'gaming', 'music', 'sports', 'education', 'social', 'other']);
+
 app.post('/api/rooms/create', roomCreateLimiter, (req, res) => {
   const { roomId, roomName, category, isPublic, hostUsername } = req.body;
   if (!roomId) return res.status(400).json({ error: 'roomId required' });
+  // A6-F9: roomId format validation
+  if (!/^[a-zA-Z0-9_-]{3,24}$/.test(roomId)) {
+    return res.status(400).json({ error: 'Invalid room ID format' });
+  }
+  // A6-F8: roomName max length
+  if (roomName && roomName.trim().length > 60) {
+    return res.status(400).json({ error: 'Room name must be 60 characters or fewer' });
+  }
   const name = (roomName && roomName.trim()) ? roomName.trim() : 'Room Chat';
   const pub = isPublic ? 1 : 0;
-  const cat = category || 'other';
+  // A6-F3 (room): validate category enum
+  const cat = ALLOWED_ROOM_CATEGORIES.has(category) ? category : 'other';
   db.run(
     'INSERT INTO room_names (roomId, roomName, isPublic, hostUsername, category) VALUES (?, ?, ?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET roomName = excluded.roomName, isPublic = excluded.isPublic, hostUsername = excluded.hostUsername, category = excluded.category',
     [roomId, name, pub, hostUsername || null, cat],
@@ -3867,17 +3952,19 @@ app.post('/api/rooms/create', roomCreateLimiter, (req, res) => {
   );
 });
 
-app.post('/api/rooms/make-private', (req, res) => {
-  const { roomId, username } = req.body;
+// A6-F3: requires authentication — host identity from JWT, not body
+app.post('/api/rooms/make-private', authenticateToken, (req, res) => {
+  const { roomId } = req.body;
+  const callerUsername = req.user.username;
   const room = rooms.get(roomId);
   // Check both in-memory and DB host
   db.get('SELECT hostUsername FROM room_names WHERE roomId = ?', [roomId], (err, row) => {
     const dbHost = row && row.hostUsername;
     const memHost = room && room.hostUsername;
-    const isHost = (username && (
-      (memHost && String(memHost).toLowerCase() === String(username).toLowerCase()) ||
-      (dbHost && String(dbHost).toLowerCase() === String(username).toLowerCase())
-    ));
+    const isHost = (
+      (memHost && String(memHost).toLowerCase() === String(callerUsername).toLowerCase()) ||
+      (dbHost && String(dbHost).toLowerCase() === String(callerUsername).toLowerCase())
+    );
     if (!isHost) return res.status(403).json({ error: 'Permission denied or room not found' });
     if (room) {
       room.isPublic = false;
@@ -4562,10 +4649,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('client_log', (msg) => {
-    console.log('[CLIENT_LOG]', socket.username || socket.id, msg);
-  });
-
   socket.on('stream_started', (data) => {
     if (data?.roomId) {
       const rid = data.roomId.toLowerCase();
@@ -4599,6 +4682,8 @@ io.on('connection', (socket) => {
   socket.on('subtitles_load', ({ roomId, text }) => {
     const rid = roomId ? roomId.toLowerCase() : null;
     if (!rooms.has(rid)) return;
+    // A6-F14: reject oversized subtitle payloads
+    if (typeof text !== 'string' || text.length > 500000) return;
     const room = rooms.get(rid);
     room.subtitles = text;
     socket.to(rid).emit('action_subtitles_load', text);
@@ -5380,7 +5465,7 @@ io.on('connection', (socket) => {
 
 
   // ─── Group chat message (saved in history) ───
-  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, username, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId }) => {
+  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId }) => {
     if (!checkChatRate(socket.id)) {
       socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
       return;
@@ -5391,11 +5476,13 @@ io.on('connection', (socket) => {
       console.log(`[Chat] Room not found in memory: ${roomId} (Original: ${rawRoomId})`);
       return;
     }
+    // A6-F1: sender identity always from JWT-verified socket.username, never from client payload
+    const username = socket.username;
     console.log(`[Chat] ${username} → ${roomId} (${mediaUrl ? 'media' : 'text'})`);
-    
+
     // Check Permissions
     const allowChat = room.permissions?.chat || 'all';
-    const actualUsername = username || socket.username;
+    const actualUsername = socket.username;
     // isUserAdmin robustly checks for BOTH host (by socketId and case-insensitive username) AND admins.
     const isRoomAdminOrHost = isUserAdmin(room, { id: socket.id, username: actualUsername });
     if (allowChat === 'host' && !isRoomAdminOrHost) {
@@ -5425,6 +5512,19 @@ io.on('connection', (socket) => {
        }
     }
 
+    // A6-F11: If e2ee object present, require nonce and keys before storing
+    if (e2ee && (!e2ee.nonce || !e2ee.keys)) return;
+
+    // A6-F12: Sanitize replyTo — only known keys, preview capped at 150 chars
+    let safeReplyTo = null;
+    if (replyTo && typeof replyTo === 'object') {
+      safeReplyTo = {
+        id: replyTo.id ?? null,
+        senderName: typeof replyTo.senderName === 'string' ? replyTo.senderName.slice(0, 60) : null,
+        preview: typeof replyTo.preview === 'string' ? replyTo.preview.slice(0, 150) : null,
+      };
+    }
+
     const ts = Date.now();
     const msg = {
       id: `${socket.id}-${ts}`,
@@ -5433,7 +5533,7 @@ io.on('connection', (socket) => {
       message: safeMessage,
       timestamp: ts,
       reactions: {},
-      replyTo: replyTo || null,
+      replyTo: safeReplyTo,
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
       mediaFileName: mediaFileName || null,
@@ -5446,7 +5546,7 @@ io.on('connection', (socket) => {
     };
     room.groupMessages.push(msg);
     if (room.groupMessages.length > 200) room.groupMessages.shift();
-    
+
     // Save to DB — use pool.query directly to bypass _convertSql and avoid any quoting issues
     const nonceText = e2ee ? e2ee.nonce : null;
     const ephemText = e2ee && e2ee.keys ? JSON.stringify(e2ee.keys) : null;
@@ -5463,8 +5563,8 @@ io.on('connection', (socket) => {
         media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
       [
-        roomId, 'group', socket.id, username, safeMessage, msg.timestamp,
-        replyTo ? JSON.stringify(replyTo) : null,
+        roomId, 'group', socket.id, socket.username, safeMessage, msg.timestamp,
+        safeReplyTo ? JSON.stringify(safeReplyTo) : null,
         msg.mediaUrl, msg.mediaType, nonceText, ephemText,
         mediaFileName || null, mediaFileSize || null,
         groupSocketExpiry ? groupSocketExpiry.toISOString() : null,
@@ -5979,6 +6079,11 @@ io.on('connection', (socket) => {
 
   // ─── Private / DM ───
   socket.on('private_message', async (data) => {
+    // A6-F10: apply same per-socket rate limit as group chat
+    if (!checkChatRate(socket.id)) {
+      socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
+      return;
+    }
     const { targetName, message, senderMessage, nonce, ephemeralPublicKey, replyTo, msgId, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId } = data;
     if (!socket.username || !targetName) return;
 
@@ -6178,6 +6283,8 @@ io.on('connection', (socket) => {
   socket.on('ui_sync', ({ roomId: rawRoomId, data }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!roomId || !rooms.has(roomId)) return;
+    // A6-F15: reject oversized ui_sync payloads
+    if (!data || JSON.stringify(data).length > 2000) return;
     const room = rooms.get(roomId);
     room.uiState = data;
     // Broadcast UI changes to everyone in the room except sender
@@ -6186,8 +6293,10 @@ io.on('connection', (socket) => {
   socket.on('play', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A6-F20: reject invalid currentTime values
+    if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
-    
+
     // Check Permissions
     const allowMedia = room.permissions?.changeMedia || 'all';
     const allUsersPlayerSettings = room.settings?.allUsersPlayerSettings !== false && room.settings?.allUsersPlayerSettings !== 'false';
@@ -6211,6 +6320,8 @@ io.on('connection', (socket) => {
   socket.on('pause', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A6-F20: reject invalid currentTime values
+    if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
 
     // Check Permissions
@@ -6236,6 +6347,8 @@ io.on('connection', (socket) => {
   socket.on('seek', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A6-F20: reject invalid currentTime values
+    if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
 
     // Check Permissions
@@ -6301,9 +6414,14 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id); 
   });
   socket.on('webrtc_join_request', ({ targetSocketId }) => { io.to(targetSocketId).emit('webrtc_viewer_joined', socket.id); });
-  socket.on('webrtc_offer', ({ targetSocketId, offer }) => { io.to(targetSocketId).emit('webrtc_offer', { senderSocketId: socket.id, offer }); });
-  socket.on('webrtc_answer', ({ targetSocketId, answer }) => { io.to(targetSocketId).emit('webrtc_answer', { senderSocketId: socket.id, answer }); });
-  socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => { io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate }); });
+  // A6-F13: verify targetSocketId is in same room before relaying WebRTC signals
+  const sameRoomTarget = (targetSocketId) => {
+    const room = socket.roomId ? rooms.get(socket.roomId) : null;
+    return room && room.users.some(u => u.socketId === targetSocketId);
+  };
+  socket.on('webrtc_offer', ({ targetSocketId, offer }) => { if (!sameRoomTarget(targetSocketId)) return; io.to(targetSocketId).emit('webrtc_offer', { senderSocketId: socket.id, offer }); });
+  socket.on('webrtc_answer', ({ targetSocketId, answer }) => { if (!sameRoomTarget(targetSocketId)) return; io.to(targetSocketId).emit('webrtc_answer', { senderSocketId: socket.id, answer }); });
+  socket.on('webrtc_ice_candidate', ({ targetSocketId, candidate }) => { if (!sameRoomTarget(targetSocketId)) return; io.to(targetSocketId).emit('webrtc_ice_candidate', { senderSocketId: socket.id, candidate }); });
 
   // â"€â"€ Camera/Mic WebRTC (peer video communication) â"€â"€
   socket.on('cam_started', ({ roomId }) => {
@@ -6329,9 +6447,11 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('cam_stopped', { socketId: socket.id });
   });
   socket.on('cam_offer', ({ targetSocketId, offer }) => {
+    if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_offer', { senderSocketId: socket.id, senderName: socket.username, offer });
   });
   socket.on('cam_answer', ({ targetSocketId, answer }) => {
+    if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_answer', { senderSocketId: socket.id, answer });
   });
   socket.on('self_mute', ({ roomId: rawRoomId, isMuted }) => {
@@ -6361,6 +6481,7 @@ io.on('connection', (socket) => {
     }
   });
   socket.on('cam_ice', ({ targetSocketId, candidate }) => {
+    if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
   });
 
@@ -6600,6 +6721,7 @@ io.on('connection', (socket) => {
     if (!room || !isUserAdmin(room, socket)) return;
     const cleanName = newName ? newName.trim() : '';
     if (!cleanName) return;
+    if (cleanName.length > 60) return; // A6-F8
     
     room.roomName = cleanName;
     // Persist the new name and ensure hostUsername is stored if missing
@@ -6639,14 +6761,20 @@ io.on('connection', (socket) => {
     console.log(`[Settings] Updating room ${roomId} - Name: ${newName}`);
 
     if (newName) {
-       room.roomName = newName.trim();
+       const trimmedName = newName.trim();
+       if (trimmedName.length > 60) return; // A6-F8
+       room.roomName = trimmedName;
        db.run('UPDATE room_names SET roomName = ? WHERE roomId = ?', [room.roomName, roomId]);
        io.in(roomId).emit('room_renamed', room.roomName);
     }
-    
-    if (permissions) {
-       room.permissions = permissions;
-       db.run('UPDATE room_names SET permissions = ? WHERE roomId = ?', [JSON.stringify(permissions), roomId]);
+
+    // A6-F15 (settings): whitelist known permission/setting keys to prevent payload pollution
+    if (permissions && typeof permissions === 'object') {
+       const ALLOWED_PERM_KEYS = new Set(['chat','media','screen','join','allowLinks','allowMedia','lobby','password']);
+       const safePerms = {};
+       for (const k of ALLOWED_PERM_KEYS) { if (k in permissions) safePerms[k] = permissions[k]; }
+       room.permissions = safePerms;
+       db.run('UPDATE room_names SET permissions = ? WHERE roomId = ?', [JSON.stringify(safePerms), roomId]);
     }
     
     if (settings) {
@@ -7443,13 +7571,6 @@ app.get('/api/chat-lock/locked-chats', authenticateToken, async (req, res) => {
 });
 
 // ─── Contact Form ─────────────────────────────────────────────────────────────
-const contactLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3,
-  message: { success: false, error: 'Too many messages sent. Please wait an hour before trying again.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 function mapContactSubjectToType(subject) {
   const s = (subject || '').toLowerCase();
@@ -7490,8 +7611,12 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
   if (!cSubject)
     return res.status(400).json({ success: false, error: 'Subject is required.' });
+  if (cSubject.length > 200) // A6-F16
+    return res.status(400).json({ success: false, error: 'Subject must be 200 characters or fewer.' });
   if (cMsg.length < 10)
     return res.status(400).json({ success: false, error: 'Message must be at least 10 characters.' });
+  if (cMsg.length > 5000) // A6-F16
+    return res.status(400).json({ success: false, error: 'Message must be 5000 characters or fewer.' });
 
   // ── Image validation ─────────────────────────────────
   const attachments = [];
@@ -7671,13 +7796,6 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Bug Report ───────────────────────────────────────────────────────────────
-const bugReportLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
-  message: { success: false, error: 'Too many bug reports submitted. Please wait an hour before trying again.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 const ALLOWED_BUG_TYPES = [
   'video-sync', 'chat', 'login', 'mobile', 'notif', 'audio',
@@ -7977,6 +8095,11 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
   }
   if (!reason) {
     return res.status(400).json({ success: false, error: 'Reason for report is required.' });
+  }
+  // A6-F19: reason enum whitelist
+  const REPORT_USER_REASONS = new Set(['harassment','spam','inappropriate_profile','other']);
+  if (!REPORT_USER_REASONS.has(reason)) {
+    return res.status(400).json({ success: false, error: 'Invalid report reason.' });
   }
   if (!Array.isArray(images) || images.length === 0) {
     return res.status(400).json({ success: false, error: 'At least 1 proof image is required to submit a report.' });
@@ -8303,6 +8426,14 @@ app.post('/api/admin/users/:userId/ban', authenticateToken, requireAdmin, requir
   }
   if (type === 'temporary' && !expiresAt) {
     return res.status(400).json({ error: 'expiresAt is required for temporary bans.' });
+  }
+  // A6-F17: expiresAt must be in the future and within 5 years
+  if (type === 'temporary') {
+    const expDate = new Date(expiresAt);
+    if (isNaN(expDate.getTime())) return res.status(400).json({ error: 'Invalid expiresAt date.' });
+    if (expDate <= new Date()) return res.status(400).json({ error: 'expiresAt must be in the future.' });
+    const MAX_BAN_MS = 5 * 365 * 24 * 3600 * 1000;
+    if (expDate - Date.now() > MAX_BAN_MS) return res.status(400).json({ error: 'Ban duration cannot exceed 5 years.' });
   }
 
   // Prevent admin from banning themselves
