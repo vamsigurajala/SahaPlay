@@ -282,6 +282,7 @@ export default function Contact() {
                   flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   background: 'linear-gradient(135deg, #6366f1, #a855f7)',
                   color: '#fff',
+                  WebkitTextFillColor: '#fff',
                   transform: hoveredSuccessBtn === 'primary' ? 'translateY(-2px)' : 'translateY(0)',
                   boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(99,102,241,0.4)' : '0 0px 0px transparent',
                   opacity: hoveredSuccessBtn === 'primary' ? 0.9 : 1,
