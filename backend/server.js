@@ -691,8 +691,12 @@ function broadcastAdminBadges() {
 }
 
 app.use(cors());
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+// A8-F6: per-route large-body overrides must come BEFORE the global 1mb default
+app.use('/api/contact', express.json({ limit: '50mb' }));
+app.use('/api/report-bug', express.json({ limit: '50mb' }));
+app.use('/api/report-message', express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Required for correct req.ip when behind any proxy layer (localhost, Railway, Render, nginx, etc.)
 app.set('trust proxy', 1);
@@ -741,6 +745,11 @@ const uploadLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  // Per-user bucket when authenticated so users sharing an IP don't collide
+  keyGenerator: (req) => {
+    const username = req.user?.username;
+    return username ? `upload_${username}` : req.ip;
+  },
   handler: (req, res) => {
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
   }
@@ -781,7 +790,19 @@ const streamLimiter = rateLimit({   // A7-F8
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
+  // Per-user bucket — same reasoning as uploadLimiter
+  keyGenerator: (req) => {
+    const username = req.user?.username;
+    return username ? `stream_${username}` : req.ip;
+  },
   message: { error: 'Too many upload chunks' }
+});
+const checkUsernameLimiter = rateLimit({  // A8-F9
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many username checks. Please slow down.' }
 });
 
 // Apply limiters — order matters: specific limits before global
@@ -798,6 +819,7 @@ app.use('/api/profile/avatar', uploadLimiter); // A6-F18
 app.use('/api/rooms/thumbnail', uploadLimiter); // A6-F18
 app.use('/api/chats/send', dmRestLimiter);      // A7-F5
 app.use('/api/stream/', streamLimiter);         // A7-F8
+app.use('/api/profile/check-username', checkUsernameLimiter); // A8-F9
 app.use('/api/', globalLimiter);
 
 // Test endpoint — verify the global limiter fires at request 101
@@ -2491,7 +2513,7 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
     if (myBlock.rows.length > 0) return res.json({ isBlockedByMe: true, username });
     if (theirBlock.rows.length > 0) return res.status(404).json({ error: 'User not found' });
     
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE username = ?', [username]);
+    const user = await queryGet('SELECT username, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE username = ?', [username]);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const isSelf = viewerUsername.toLowerCase() === (user.username || '').toLowerCase();
@@ -3282,6 +3304,8 @@ const chatFileFilter = (req, file, cb) => {
 };
 
 app.post('/api/upload/chat', authenticateTokenOptional, (req, res) => {
+  // Guests may upload to E2EE chat — encryption provides the security layer
+
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024, files: 10 },  // A7-F6
@@ -3807,7 +3831,7 @@ const roomMediaFilter = (req, file, cb) => {
     cb(Object.assign(new Error(`File type ${file.mimetype} is not allowed for room media`), { code: 'INVALID_MIME' }), false);
   }
 };
-app.post('/api/upload', authenticateTokenOptional, (req, res) => {
+app.post('/api/upload', authenticateToken, (req, res) => {
   const roomUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 50 * 1024 * 1024 },  // A7-F6
@@ -3950,8 +3974,8 @@ app.get('/api/rooms/info', (req, res) => {
 
 const ALLOWED_ROOM_CATEGORIES = new Set(['movies', 'gaming', 'music', 'sports', 'education', 'social', 'other']);
 
-app.post('/api/rooms/create', roomCreateLimiter, (req, res) => {
-  const { roomId, roomName, category, isPublic, hostUsername } = req.body;
+app.post('/api/rooms/create', roomCreateLimiter, authenticateToken, (req, res) => {
+  const { roomId, roomName, category, isPublic } = req.body;
   if (!roomId) return res.status(400).json({ error: 'roomId required' });
   // A6-F9: roomId format validation
   if (!/^[a-zA-Z0-9_-]{3,24}$/.test(roomId)) {
@@ -3965,9 +3989,11 @@ app.post('/api/rooms/create', roomCreateLimiter, (req, res) => {
   const pub = isPublic ? 1 : 0;
   // A6-F3 (room): validate category enum
   const cat = ALLOWED_ROOM_CATEGORIES.has(category) ? category : 'other';
+  // A8-F2: hostUsername always comes from verified JWT, never from request body
+  const hostUsername = req.user.username;
   db.run(
     'INSERT INTO room_names (roomId, roomName, isPublic, hostUsername, category) VALUES (?, ?, ?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET roomName = excluded.roomName, isPublic = excluded.isPublic, hostUsername = excluded.hostUsername, category = excluded.category',
-    [roomId, name, pub, hostUsername || null, cat],
+    [roomId, name, pub, hostUsername, cat],
     (err) => {
       if (err) return res.status(500).json({ error: 'DB error' });
       res.json({ success: true });
@@ -4034,7 +4060,11 @@ app.get('/api/rooms/public', (req, res) => {
 });
 
 // ─── Save media position (sendBeacon fallback for page close) ───
-app.post('/api/rooms/save-position', express.raw({ type: '*/*' }), async (req, res) => {
+// A8-F3: authenticateTokenOptional — sendBeacon cannot send Authorization headers,
+// so unauthenticated (guest) requests are silently rejected. The 30-second socket
+// interval is the primary save mechanism; this endpoint is a best-effort fallback.
+app.post('/api/rooms/save-position', authenticateTokenOptional, express.raw({ type: '*/*' }), async (req, res) => {
+  if (req.user?.isGuest) return res.sendStatus(401);
   try {
     const data = JSON.parse(req.body.toString());
     const { roomId: rawRoomId, url, position, mediaType } = data || {};
@@ -4144,20 +4174,40 @@ function getSerializableRoom(room) {
 async function getOrInitFirstJoined(username, roomId) {
   if (!username || !roomId || username === 'Anonymous') return null;
   const lowerRoom = roomId.toLowerCase();
-  
+  const isGuest = username.toLowerCase().startsWith('guest_');
+
   try {
-    const row = await queryGet('SELECT "firstJoined" FROM users WHERE username = ?', [username]);
     let fj = {};
-    if (row && row.firstJoined) {
-      try { fj = JSON.parse(row.firstJoined); } catch(e){}
+
+    if (isGuest) {
+      // Guests are only in PostgreSQL (never in SQLite), so queryGet always misses them.
+      // Read directly from PostgreSQL to get their persisted firstJoined.
+      const pgRow = await pool.query('SELECT "firstJoined" FROM users WHERE username = $1', [username]);
+      if (pgRow.rows.length > 0 && pgRow.rows[0].firstJoined) {
+        try { fj = JSON.parse(pgRow.rows[0].firstJoined); } catch(e){}
+      }
+    } else {
+      const row = await queryGet('SELECT "firstJoined" FROM users WHERE username = ?', [username]);
+      if (row && row.firstJoined) {
+        try { fj = JSON.parse(row.firstJoined); } catch(e){}
+      }
     }
-    
+
     if (fj[lowerRoom] === undefined) {
       fj[lowerRoom] = Date.now();
-      await pool.query('UPDATE users SET "firstJoined" = $1 WHERE username = $2', [JSON.stringify(fj), username]);
+      if (isGuest) {
+        // UPSERT: guest may not be in PostgreSQL yet at first join (chat:publicKey fires after join)
+        await pool.query(
+          `INSERT INTO users (username, "firstJoined", "isVerified") VALUES ($1, $2, 1)
+           ON CONFLICT (username) DO UPDATE SET "firstJoined" = $2`,
+          [username, JSON.stringify(fj)]
+        );
+      } else {
+        await pool.query('UPDATE users SET "firstJoined" = $1 WHERE username = $2', [JSON.stringify(fj), username]);
+      }
       console.log(`[firstJoined] Initialized first join timestamp for ${username} in ${lowerRoom} to ${fj[lowerRoom]}`);
     }
-    
+
     return fj[lowerRoom];
   } catch (err) {
     console.error(`[getOrInitFirstJoined] error for ${username} in ${lowerRoom}:`, err.message);
@@ -4439,7 +4489,7 @@ const chunkUpload = multer({
 // In-memory stream registry — no DB migration needed
 const activeStreams = new Map(); // streamKey → { roomId, filename, mimetype, totalSize, totalChunks, chunksReceived, createdAt }
 
-app.post('/api/stream/init', authenticateTokenOptional, (req, res) => {
+app.post('/api/stream/init', authenticateToken, (req, res) => {
   try {
     const { roomId, filename, mimetype, totalSize, totalChunks } = req.body;
     if (!roomId || !filename || !totalSize || !totalChunks) {
@@ -4482,7 +4532,7 @@ app.post('/api/stream/init', authenticateTokenOptional, (req, res) => {
   }
 });
 
-app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateTokenOptional, chunkUpload.single('chunk'), (req, res) => {
+app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpload.single('chunk'), (req, res) => {
   try {
     const { streamKey } = req.params;
     const stream = activeStreams.get(streamKey);
@@ -4698,33 +4748,37 @@ io.on('connection', (socket) => {
   });
 
   socket.on('stream_started', (data) => {
-    if (data?.roomId) {
-      const rid = data.roomId.toLowerCase();
-      const room = rooms.get(rid);
-      if (room) {
-        room.currentMedia = '';
-        room.currentTime = 0;
-        room.isPlaying = false;
-        room.streamPending = {
-          streamKey: data.streamKey,
-          filename: data.filename,
-          progress: 0
-        };
-      }
-      socket.to(rid).emit('stream_started', data);
-      socket.to(rid).emit('media_changed', '');
-    }
+    if (!socket.username || !data?.roomId) return;
+    const rid = data.roomId.toLowerCase();
+    const room = rooms.get(rid);
+    if (!room) return;
+    // A8-F4: only the room host (or allUsersPlayerSettings rooms) may signal a stream start
+    const isHost = room.hostUsername && room.hostUsername.toLowerCase() === socket.username.toLowerCase();
+    const allUsersCanPlay = room.settings?.allUsersPlayerSettings;
+    if (!isHost && !allUsersCanPlay) return;
+    room.currentMedia = '';
+    room.currentTime = 0;
+    room.isPlaying = false;
+    room.streamPending = {
+      streamKey: data.streamKey,
+      filename: data.filename,
+      progress: 0
+    };
+    socket.to(rid).emit('stream_started', data);
+    socket.to(rid).emit('media_changed', '');
   });
 
   socket.on('stream_cancelled', (data) => {
-    if (data?.roomId) {
-      const rid = data.roomId.toLowerCase();
-      const room = rooms.get(rid);
-      if (room) {
-        room.streamPending = null;
-      }
-      socket.to(rid).emit('stream_cancelled');
-    }
+    if (!socket.username || !data?.roomId) return;
+    const rid = data.roomId.toLowerCase();
+    const room = rooms.get(rid);
+    if (!room) return;
+    // A8-F4: same privilege check as stream_started
+    const isHost = room.hostUsername && room.hostUsername.toLowerCase() === socket.username.toLowerCase();
+    const allUsersCanPlay = room.settings?.allUsersPlayerSettings;
+    if (!isHost && !allUsersCanPlay) return;
+    room.streamPending = null;
+    socket.to(rid).emit('stream_cancelled');
   });
 
   socket.on('subtitles_load', ({ roomId, text }) => {
@@ -9830,7 +9884,7 @@ const PORT = 3001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 5173;
 
 // ─── Server Info Endpoint (for Cast to TV LAN URL) ───
-app.get('/api/server-info', (req, res) => {
+app.get('/api/server-info', authenticateToken, (req, res) => {
   res.json({
     lanIp: LAN_IP,
     lanUrl: `http://${LAN_IP}:${FRONTEND_PORT}`,
