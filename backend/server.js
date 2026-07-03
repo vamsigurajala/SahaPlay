@@ -3252,6 +3252,8 @@ const CHAT_ALLOWED_MIMES = new Set([
   'text/plain', 'text/csv',
   'application/zip',
   'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a', 'audio/webm',
+  // E2EE-encrypted uploads arrive as opaque blobs — original type is encrypted inside
+  'application/octet-stream',
 ]);
 const chatFileFilter = (req, file, cb) => {
   if (CHAT_ALLOWED_MIMES.has(file.mimetype)) cb(null, true);
