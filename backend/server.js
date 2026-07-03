@@ -5113,6 +5113,7 @@ io.on('connection', (socket) => {
       LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
       WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
+      LIMIT 200
     `, [username, username], async (err, dmRows) => {
         console.log('🔥🔥🔥 [DM HISTORY FROM SQLITE — executeFinalJoin] 🔥🔥🔥', { username, totalRowsFromSQLite: dmRows?.length || 0 });
         if (!err && dmRows && dmRows.length > 0) {
@@ -6306,6 +6307,7 @@ io.on('connection', (socket) => {
       LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
       WHERE m.type = 'private' AND (LOWER(m.senderName) = LOWER(?) OR LOWER(m.targetName) = LOWER(?))
       ORDER BY m.timestamp ASC
+      LIMIT 200
     `, [username, username], async (err, dmRows) => {
         console.log('🔥🔥🔥 [DM HISTORY FROM SQLITE — request_dm_history] 🔥🔥🔥', { username, totalRowsFromSQLite: dmRows?.length || 0 });
         if (err) return;

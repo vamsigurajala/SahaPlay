@@ -348,7 +348,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                       border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.06)'
                     }}>
                       {u.avatarPath
-                        ? <img src={`${API_BASE}${u.avatarPath}`} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ? <img src={`${API_BASE}${u.avatarPath}`} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         : <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: isGuest ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{(u.username || '?')[0].toUpperCase()}</span>
                           </div>
@@ -1321,7 +1321,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       {u.avatarPath ? (
-                        <img src={`${API_BASE}${u.avatarPath}`} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        <img src={`${API_BASE}${u.avatarPath}`} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                       ) : (
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{(u.username || '?')[0].toUpperCase()}</span>
@@ -1672,7 +1672,7 @@ function ActiveRoomsPage() {
                     {room.members.map(m => (
                       <div key={m.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
                         {m.avatarPath ? (
-                          <img src={`${API_BASE}${m.avatarPath}`} alt="" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          <img src={`${API_BASE}${m.avatarPath}`} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
                           <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(m.username || '?')[0].toUpperCase()}</span>
@@ -2136,7 +2136,7 @@ function ReportsPage({ refreshBadges }) {
                           <button key={i} onClick={() => setLightbox({ src: att.data, filename: att.filename })}
                             title={`View ${att.filename}`}
                             style={{ display: 'block', position: 'relative', borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', flexShrink: 0, padding: 0, background: 'none' }}>
-                            <img src={att.data} alt={att.filename} style={{ width: 120, height: 90, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                            <img src={att.data} alt={att.filename} loading="lazy" style={{ width: 120, height: 90, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
                             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.72)', padding: '3px 6px' }}>
                               <span style={{ fontSize: 9, color: '#fff', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</span>
                             </div>
@@ -2672,6 +2672,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                         <img
                           src={att.data}
                           alt={att.filename}
+                          loading="lazy"
                           style={{ width: 120, height: 90, objectFit: 'cover', display: 'block' }}
                           onError={e => { e.currentTarget.style.display = 'none'; }}
                         />

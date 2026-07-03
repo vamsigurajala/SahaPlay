@@ -368,6 +368,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
           <img
             src={url}
             alt="Shared media"
+            loading="lazy"
             style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
             onClick={() => onOpenLightbox(url, type)}
             onError={(e) => {
@@ -819,7 +820,7 @@ function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
                   }}
                 >
                   {avatarSrc ? (
-                    <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={avatarSrc} alt={r.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     r.username.slice(0, 1).toUpperCase()
                   )}
@@ -903,7 +904,7 @@ function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
                     }}
                   >
                     {avatarSrc ? (
-                      <img src={avatarSrc} alt={r.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={avatarSrc} alt={r.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       r.username.slice(0, 1).toUpperCase()
                     )}
@@ -5009,7 +5010,7 @@ const GlobalChatWidget = forwardRef(({
                   >
                     <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {u.avatarPath ? (
-                        <img src={`${API}${u.avatarPath}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={`${API}${u.avatarPath}`} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <User size={18} color="#888" />
                       )}
@@ -5110,14 +5111,14 @@ const GlobalChatWidget = forwardRef(({
                         {chat.type === 'room' ? (
                           <div style={{ width: '100%', height: '100%', background: displayAvatar ? 'none' : 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
-                              <img src={`${API}${displayAvatar}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <img src={`${API}${displayAvatar}`} alt="Room" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                               <Users size={20} color="#fff" />
                             )}
                           </div>
                         ) : (
                           displayAvatar ? (
-                            <img src={`${API}${displayAvatar}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={`${API}${displayAvatar}`} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', background: getAvatarColor(displayName || chat.partner), display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
                               <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{getInitials(displayName || chat.partner)}</span>
@@ -5410,7 +5411,7 @@ const GlobalChatWidget = forwardRef(({
                                title={isBlocked ? 'Blocked User' : `View ${sNameOriginal}'s profile`}
                                style={{ flexShrink:0, cursor:isBlocked?'default':'pointer', width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:getAvatarColor(sNameOriginal), marginTop:2 }}
                              >
-                               {aSrc ? (<img src={aSrc} alt={sName} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex';}}/>) : null}
+                               {aSrc ? (<img src={aSrc} alt={sName} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex';}}/>) : null}
                                <span className="stay-white" style={{display:aSrc?'none':'flex',color:'#fff',fontSize:11,fontWeight:700}}>{getInitials(sName)}</span>
                              </div>
                            );

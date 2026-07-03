@@ -137,10 +137,11 @@ function Avatar({ name, size = 36, isHost = false, isAdmin = false, isMuted = fa
         overflow: 'hidden'
       }}>
         {imgUrl ? (
-          <img 
-            src={imgUrl} 
-            alt={name} 
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          <img
+            src={imgUrl}
+            alt={name}
+            loading="lazy"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
           />
         ) : null}
@@ -1943,7 +1944,6 @@ const Room = () => {
     });
 
 
-    sock.on('connect_error', err => console.error('Socket error:', err));
 
     sock.on('room_renamed', name => {
       setRoomName(name);
@@ -3569,6 +3569,7 @@ const Room = () => {
         sock.emit('leave_room', { roomId });
       }
 
+      sock.removeAllListeners();
       sock.close();
     };
 
@@ -6569,6 +6570,7 @@ const Room = () => {
                                   src={getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)}
                                   alt={u.country || u.countryCode}
                                   title={u.country || u.countryCode}
+                                  loading="lazy"
                                   style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
                                   onError={e => { e.target.style.display = 'none'; }}
                                 />
