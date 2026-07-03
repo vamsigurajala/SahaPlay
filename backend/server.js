@@ -1997,6 +1997,7 @@ app.post('/api/reset-password', async (req, res) => {
         'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = $2, "encryptedPrivateKey" = $3, "recoveryKeyHash" = $4 WHERE id = $5',
         [hashedPassword, publicKey, encryptedPrivateKey, recoveryKeyHash, user.id]
       );
+      publicKeyCache.set(user.username.toLowerCase(), publicKey);
     } else {
       await pool.query(
         'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL WHERE id = $2',
@@ -2075,6 +2076,7 @@ app.post('/api/auth/rekey', async (req, res) => {
     if (recoveryKeyHash) { updates.push(`"recoveryKeyHash" = $${params.length + 1}`); params.push(recoveryKeyHash); }
     params.push(decoded.id);
     await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+    if (publicKey) publicKeyCache.delete(decoded.username.toLowerCase());
     res.json({ success: true });
   } catch (err) {
     console.error('[rekey] DB error:', err);
@@ -2092,6 +2094,7 @@ app.post('/api/auth/save-public-key', authenticateToken, async (req, res) => {
   if (!publicKey) return res.status(400).json({ error: 'publicKey required' });
   try {
     await pool.query('UPDATE users SET "publicKey" = $1 WHERE id = $2', [publicKey, req.user.id]);
+    publicKeyCache.set(req.user.username.toLowerCase(), publicKey);
     res.json({ success: true });
   } catch (err) {
     console.error('[save-public-key] DB error:', err);
@@ -2106,10 +2109,13 @@ app.post('/api/auth/save-public-key', authenticateToken, async (req, res) => {
  */
 app.get('/api/auth/public-key/:username', (req, res) => {
   const username = req.params.username ? req.params.username.toLowerCase() : '';
+  if (publicKeyCache.has(username)) return res.json({ publicKey: publicKeyCache.get(username) });
   pool.query('SELECT "publicKey" FROM users WHERE LOWER(username) = $1', [username])
     .then(r => {
       if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
-      res.json({ publicKey: r.rows[0].publicKey || null });
+      const key = r.rows[0].publicKey || null;
+      if (key) publicKeyCache.set(username, key);
+      res.json({ publicKey: key });
     })
     .catch(err => {
       console.error('[public-key] DB error:', err);
@@ -2123,10 +2129,13 @@ app.get('/api/auth/public-key/:username', (req, res) => {
  */
 app.get('/api/users/:username/public-key', (req, res) => {
   const username = req.params.username ? req.params.username.toLowerCase() : '';
+  if (publicKeyCache.has(username)) return res.json({ publicKey: publicKeyCache.get(username) });
   pool.query('SELECT "publicKey" FROM users WHERE LOWER(username) = $1', [username])
     .then(r => {
       if (!r.rows[0]) return res.status(404).json({ error: 'User not found' });
-      res.json({ publicKey: r.rows[0].publicKey || null });
+      const key = r.rows[0].publicKey || null;
+      if (key) publicKeyCache.set(username, key);
+      res.json({ publicKey: key });
     })
     .catch(err => {
       console.error('[public-key-alias] DB error:', err);
@@ -2312,15 +2321,28 @@ function authenticateTokenOptional(req, res, next) {
 // ─── Admin Authorization Middleware ──────────────────────────────────────────
 const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'moderator', 'support'];
 
+// A10-A1: In-process cache for admin role lookups (5-minute TTL)
+const adminRoleCache = new Map(); // Map<userId, { role, email, expiresAt }>
+
+// A10-A2: In-process cache for user public keys (indefinite — invalidated on key write)
+const publicKeyCache = new Map(); // Map<username_lower, publicKey>
+
 async function requireAdmin(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   try {
+    const cached = adminRoleCache.get(req.user.id);
+    if (cached && cached.expiresAt > Date.now()) {
+      req.adminRole = cached.role;
+      req.adminEmail = cached.email;
+      return next();
+    }
     const result = await pool.query('SELECT role, email FROM users WHERE id = $1', [req.user.id]);
     const user = result.rows[0];
     if (!user || !ALL_ADMIN_ROLES.includes(user.role)) {
       console.warn('[ADMIN] Unauthorized attempt by', req.user.id, 'on', req.path);
       return res.status(403).json({ error: 'Forbidden' });
     }
+    adminRoleCache.set(req.user.id, { role: user.role, email: user.email, expiresAt: Date.now() + 5 * 60 * 1000 });
     req.adminRole = user.role;
     req.adminEmail = user.email;
     next();
@@ -2582,18 +2604,36 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       ORDER BY partner, m.timestamp DESC, m.id DESC
     `, [username, username, username, username, `"${username}"`]);
 
+    // A10-B2: Batch private unread counts — one query instead of N per-partner queries
+    const privateUnreadMap = new Map();
+    if (privateRows.length > 0) {
+      const partnerNames = privateRows.map(r => r.partner);
+      const seenTimestamps = privateRows.map(r => {
+        const pl = r.partner.toLowerCase();
+        for (const k in lastSeen) { if (k.toLowerCase() === pl) return lastSeen[k] || 0; }
+        return 0;
+      });
+      try {
+        const batchUnread = await pool.query(
+          `SELECT m."senderName" as partner, COUNT(*) as c
+           FROM messages m
+           JOIN (SELECT UNNEST($2::text[]) as p, UNNEST($3::numeric[]) as ts) pts
+             ON LOWER(m."senderName") = LOWER(pts.p) AND m.timestamp > pts.ts
+           WHERE m.type = 'private'
+             AND LOWER(m."targetName") = LOWER($1)
+             AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $4)
+           GROUP BY m."senderName"`,
+          [username, partnerNames, seenTimestamps, `%"${username}"%`]
+        );
+        for (const r of batchUnread.rows) privateUnreadMap.set(r.partner.toLowerCase(), Number(r.c));
+      } catch (e) {
+        console.error('[chats/recent] batch private unread error:', e);
+      }
+    }
+
     const finalPrivate = await Promise.all(privateRows.map(async (row) => {
       const partnerLower = row.partner.toLowerCase();
       const u = await queryGet('SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = ?', [partnerLower]);
-      
-      let seenTs = 0;
-      for (const k in lastSeen) {
-        if (k.toLowerCase() === partnerLower) {
-          seenTs = lastSeen[k] || 0;
-          break;
-        }
-      }
-      const countRow = await queryGet(`SELECT COUNT(*) as c FROM messages WHERE type = 'private' AND LOWER(senderName) = LOWER(?) AND LOWER(targetName) = LOWER(?) AND timestamp > ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`, [row.partner, username, seenTs, `"${username}"`]);
       
       const isMedia = !!row.mediaUrl || !!row.mediaType;
       const mediaPreview = isMedia
@@ -2621,7 +2661,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         lastMediaDuration: row.mediaDuration || null,
         type: 'private',
         isMyLastMessage: !!row.isMyLastMessage,
-        unread: countRow ? Number(countRow.c) : 0
+        unread: privateUnreadMap.get(partnerLower) || 0
       };
     }));
 
@@ -2653,6 +2693,29 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       ORDER BY m."roomId", m.timestamp DESC, m.id DESC
     `, [username, `"${username}"`, username, `"${username}"`]);
     
+    // A10-B2: Batch group unread counts — one query instead of N per-room queries
+    const groupUnreadMap = new Map();
+    if (groupRows.length > 0) {
+      const roomIds = groupRows.map(r => r.roomId);
+      const roomTimestamps = groupRows.map(r => lastSeen[r.roomId] || 0);
+      try {
+        const batchGroupUnread = await pool.query(
+          `SELECT m."roomId", COUNT(*) as c
+           FROM messages m
+           JOIN (SELECT UNNEST($2::text[]) as rid, UNNEST($3::numeric[]) as ts) pts
+             ON m."roomId" = pts.rid AND m.timestamp > pts.ts
+           WHERE m.type IN ('room', 'group')
+             AND LOWER(m."senderName") != LOWER($1)
+             AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $4)
+           GROUP BY m."roomId"`,
+          [username, roomIds, roomTimestamps, `%"${username}"%`]
+        );
+        for (const r of batchGroupUnread.rows) groupUnreadMap.set(r.roomId, Number(r.c));
+      } catch (e) {
+        console.error('[chats/recent] batch group unread error:', e);
+      }
+    }
+
     // Fill in room names + unread counts
     const finalGroup = await Promise.all(groupRows.map(async (row) => {
       const dbRoom = await queryGet('SELECT roomName, hostUsername, thumbnailPath, permissions, settings FROM room_names WHERE roomId = ?', [row.roomId]);
@@ -2662,27 +2725,20 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
       let permissions = null;
       let settings = null;
-      try { 
+      try {
         if (dbRoom?.permissions) {
           permissions = typeof dbRoom.permissions === 'string' ? JSON.parse(dbRoom.permissions) : dbRoom.permissions;
         } else {
           permissions = memRoom?.permissions || null;
         }
       } catch(e){}
-      try { 
+      try {
         if (dbRoom?.settings) {
           settings = typeof dbRoom.settings === 'string' ? JSON.parse(dbRoom.settings) : dbRoom.settings;
         } else {
           settings = memRoom?.settings || null;
         }
       } catch(e){}
-      
-      // Count unread messages since lastSeen
-      const ls = lastSeen[row.roomId] || 0;
-      const unreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ? AND (hiddenFor IS NULL OR hiddenFor NOT LIKE '%' || ? || '%')`,
-        [row.roomId, ls, username, `"${username}"`]
-      );
 
       const e2ee = (row.nonce && row.ephemeralPublicKey) ? {
         nonce: row.nonce,
@@ -2705,7 +2761,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         type: 'room',
         isMyLastMessage: !!row.isMyLastMessage,
         isHost: hostUsername && username && hostUsername.toLowerCase() === username.toLowerCase(),
-        unread: unreadRow ? Number(unreadRow.c) : 0
+        unread: groupUnreadMap.get(row.roomId) || 0
       };
     }));
 
@@ -3943,30 +3999,39 @@ app.get('/api/stream/:filename', async (req, res) => {
   }
 });
 
-app.get('/api/rooms/info', (req, res) => {
+app.get('/api/rooms/info', async (req, res) => {
   const idsParam = req.query.ids;
   if (!idsParam) return res.json([]);
   const ids = idsParam.split(',').filter(Boolean);
-  
-  const promises = ids.map(id => {
-    return new Promise((resolve) => {
-      let activeRoom = rooms.get(id);
-      db.get('SELECT roomName, category, thumbnailPath FROM room_names WHERE roomId = ?', [id], (err, row) => {
-        if (!row && !activeRoom) {
-          console.log(`[INFO] Room Info Request: ${id} -> NOT FOUND`);
-          return resolve(null);
-        }
-        let name = (row && row.roomName) ? row.roomName : (activeRoom ? activeRoom.roomName : 'Room Chat');
-        let category = (row && row.category) ? row.category : (activeRoom ? activeRoom.category : 'other');
-        let thumbnailPath = (row && row.thumbnailPath) ? row.thumbnailPath : (activeRoom ? activeRoom.thumbnailPath : null);
-        let userCount = activeRoom ? activeRoom.users.length : 0;
-        console.log(`[INFO] Room Info Request: ${id} -> FOUND (name: ${name}, active: ${!!activeRoom})`);
-        resolve({ id, name, userCount, category, thumbnailPath });
-      });
-    });
-  });
+  if (ids.length === 0) return res.json([]);
 
-  Promise.all(promises).then(data => res.json(data.filter(Boolean))).catch(() => res.json([]));
+  try {
+    const result = await pool.query(
+      'SELECT "roomId", "roomName", category, "thumbnailPath" FROM room_names WHERE "roomId" = ANY($1)',
+      [ids]
+    );
+    const dbMap = new Map(result.rows.map(r => [r.roomId, r]));
+
+    const data = ids.map(id => {
+      const row = dbMap.get(id);
+      const activeRoom = rooms.get(id);
+      if (!row && !activeRoom) {
+        console.log(`[INFO] Room Info Request: ${id} -> NOT FOUND`);
+        return null;
+      }
+      const name = (row && row.roomName) ? row.roomName : (activeRoom ? activeRoom.roomName : 'Room Chat');
+      const category = (row && row.category) ? row.category : (activeRoom ? activeRoom.category : 'other');
+      const thumbnailPath = (row && row.thumbnailPath) ? row.thumbnailPath : (activeRoom ? activeRoom.thumbnailPath : null);
+      const userCount = activeRoom ? activeRoom.users.length : 0;
+      console.log(`[INFO] Room Info Request: ${id} -> FOUND (name: ${name}, active: ${!!activeRoom})`);
+      return { id, name, userCount, category, thumbnailPath };
+    });
+
+    res.json(data.filter(Boolean));
+  } catch (err) {
+    console.error('[rooms/info] batch query error:', err);
+    res.json([]);
+  }
 });
 
 
@@ -5353,6 +5418,7 @@ io.on('connection', (socket) => {
 
     // Persist the public key to the database so HTTP /api/auth/public-key/:username works
     if (socket.username && publicKey) {
+      publicKeyCache.set(socket.username.toLowerCase(), publicKey);
       if (socket.username.toLowerCase().startsWith('guest_')) {
         pool.query(
           'INSERT INTO users (username, "publicKey", "isVerified") VALUES ($1, $2, 1) ON CONFLICT (username) DO UPDATE SET "publicKey" = EXCLUDED."publicKey"',
@@ -9503,6 +9569,7 @@ app.patch('/api/admin/team/:userId/role', authenticateToken, requireAdmin, requi
       return res.status(403).json({ error: 'Cannot modify or demote a super_admin account' });
     }
     await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+    adminRoleCache.delete(Number(userId));
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
        VALUES ($1, $2, 'ADMIN_ROLE_CHANGED', $3, $4, $5)`,
@@ -9527,6 +9594,7 @@ app.patch('/api/admin/team/:userId/disable', authenticateToken, requireAdmin, re
       return res.status(403).json({ error: 'Cannot disable or revoke a super_admin account' });
     }
     await pool.query(`UPDATE users SET role = 'user' WHERE id = $1`, [userId]);
+    adminRoleCache.delete(Number(userId));
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_user_id, target_email, reason)
        VALUES ($1, $2, 'ADMIN_ACCESS_DISABLED', $3, $4, $5)`,
@@ -9661,6 +9729,10 @@ app.delete('/api/admin/invites/:id', authenticateToken, requireAdmin, requireAdm
     // If invite was already accepted, strip the admin role from that user (super_admin is protected)
     if (check.rows[0].status === 'accepted') {
       await pool.query(`UPDATE users SET role = 'user' WHERE LOWER(email) = LOWER($1) AND role != 'super_admin'`, [check.rows[0].email]);
+      const revokedEmail = check.rows[0].email.toLowerCase();
+      for (const [uid, entry] of adminRoleCache) {
+        if (entry.email.toLowerCase() === revokedEmail) { adminRoleCache.delete(uid); break; }
+      }
     }
     await pool.query(`UPDATE admin_invites SET status = 'revoked' WHERE id = $1`, [id]);
     await pool.query(
@@ -9807,6 +9879,7 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
     }
 
     await pool.query(`UPDATE users SET role = $1 WHERE id = $2`, [inv.role, req.user.id]);
+    adminRoleCache.delete(req.user.id);
     await pool.query(`UPDATE admin_invites SET status = 'accepted', accepted_at = NOW() WHERE id = $1`, [inv.id]);
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
