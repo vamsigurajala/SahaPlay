@@ -769,10 +769,25 @@ const bugReportLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+const dmRestLimiter = rateLimit({   // A7-F5
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages, slow down' }
+});
+const streamLimiter = rateLimit({   // A7-F8
+  windowMs: 5 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload chunks' }
+});
 
 // Apply limiters — order matters: specific limits before global
 app.use('/api/login', loginLimiter);
 app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/google', loginLimiter);      // A7-F1
 app.use('/api/signup', loginLimiter);
 app.use('/api/register', loginLimiter);
 app.use('/api/forgot-password', loginLimiter);
@@ -781,6 +796,8 @@ app.use('/api/upload', uploadLimiter);
 app.use('/api/upload/chat', uploadLimiter);    // A6-F18
 app.use('/api/profile/avatar', uploadLimiter); // A6-F18
 app.use('/api/rooms/thumbnail', uploadLimiter); // A6-F18
+app.use('/api/chats/send', dmRestLimiter);      // A7-F5
+app.use('/api/stream/', streamLimiter);         // A7-F8
 app.use('/api/', globalLimiter);
 
 // Test endpoint — verify the global limiter fires at request 101
@@ -799,7 +816,8 @@ const io = new Server(server, {
   pingTimeout: 30000,
   pingInterval: 10000,
   connectTimeout: 20000,
-  allowEIO3: true
+  allowEIO3: true,
+  maxHttpBufferSize: 1e6  // A7-F7: explicit 1 MB cap (matches Socket.IO 4.x default)
 });
 
 
@@ -1019,6 +1037,9 @@ const migrationsReady = (async () => {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `).catch(e => console.warn('[Migration] admin_invites table:', e.message));
+
+  await pool.query(`ALTER TABLE admin_invites ADD COLUMN IF NOT EXISTS last_resent_at TIMESTAMPTZ`)
+    .catch(e => console.warn('[Migration] admin_invites.last_resent_at column:', e.message));
 
   await pool.query(`ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS target_email TEXT`)
     .catch(e => console.warn('[Migration] admin_audit_logs.target_email column:', e.message));
@@ -3263,7 +3284,7 @@ const chatFileFilter = (req, file, cb) => {
 app.post('/api/upload/chat', authenticateTokenOptional, (req, res) => {
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 55 * 1024 * 1024, files: 10 },
+    limits: { fileSize: 50 * 1024 * 1024, files: 10 },  // A7-F6
     fileFilter: chatFileFilter,
   }).any();
 
@@ -3789,14 +3810,14 @@ const roomMediaFilter = (req, file, cb) => {
 app.post('/api/upload', authenticateTokenOptional, (req, res) => {
   const roomUpload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 },
+    limits: { fileSize: 50 * 1024 * 1024 },  // A7-F6
     fileFilter: roomMediaFilter,
   }).single('media');
 
   roomUpload(req, res, async function(err) {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ error: 'File too large (max 100MB).' });
+        return res.status(413).json({ error: 'File too large (max 50MB).' });
       }
       return res.status(400).json({ error: err.message });
     }
@@ -4636,6 +4657,31 @@ function checkChatRate(socketId) {
   return b.count <= 30;
 }
 
+// A7-F4: Socket-level media control rate limiter: 10 events per 5 seconds per socket (shared play/pause/seek bucket)
+const mediaControlBuckets = new Map(); // socketId -> { count, resetAt }
+function checkMediaControlRate(socketId) {
+  const now = Date.now();
+  let b = mediaControlBuckets.get(socketId) || { count: 0, resetAt: now + 5000 };
+  if (now > b.resetAt) { b.count = 0; b.resetAt = now + 5000; }
+  b.count++;
+  mediaControlBuckets.set(socketId, b);
+  return b.count <= 10;
+}
+
+// A7-F2: Socket-level join rate limiter: 10 joins per 10 seconds per socket
+const joinRateBuckets = new Map(); // socketId -> { count, resetAt }
+function checkJoinRate(socketId) {
+  const now = Date.now();
+  let b = joinRateBuckets.get(socketId) || { count: 0, resetAt: now + 10000 };
+  if (now > b.resetAt) { b.count = 0; b.resetAt = now + 10000; }
+  b.count++;
+  joinRateBuckets.set(socketId, b);
+  return b.count <= 10;
+}
+
+// A7-F3: Typing debounce — suppress repeated typing-start broadcasts within 2 s per socket
+const lastTypingTime = new Map(); // socketId -> timestamp
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
   // Register in global map if authenticated
@@ -4745,6 +4791,9 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     unregisterSocket(socket.username, socket.id);
     chatRateBuckets.delete(socket.id);
+    mediaControlBuckets.delete(socket.id);
+    joinRateBuckets.delete(socket.id);
+    lastTypingTime.delete(socket.id);
 
     // Cleanup any active pairing codes for this socket
     for (const [code, data] of activePairingCodes.entries()) {
@@ -5098,7 +5147,10 @@ io.on('connection', (socket) => {
     if (roomId) roomId = roomId.toLowerCase();
     // Prioritize authenticated username from token, fallback to provided, then Anonymous
     const username = socket.username || (typeof data === 'string' ? 'Anonymous' : (data.username || 'Anonymous'));
-    
+
+    // A7-F2: rate limit rapid join_room spam (10/10 s per socket; first join always succeeds since count starts at 1)
+    if (!checkJoinRate(socket.id)) return;
+
     // FAST TRACK: If room is already in memory, perform the Guest Block check INSTANTLY.
     if (rooms.has(roomId)) {
       const room = rooms.get(roomId);
@@ -5710,12 +5762,19 @@ io.on('connection', (socket) => {
   const typingTimers = {}; // { socketId: timer }
   socket.on('chat:typing', ({ partner, type, roomId, isTyping }) => {
     if (!socket.username) return;
-    
+
     // Support Format 1: { partner, type } (Global Chat Widget)
     // Support Format 2: { roomId, isTyping } (Room.jsx)
     const targetRoom = (type === 'room' ? partner : roomId)?.toLowerCase();
     const isDM = type === 'private';
     const isStart = isTyping !== false;
+
+    // A7-F3: debounce repeated typing-start events — drop if sent within 2 s of last broadcast
+    if (isStart) {
+      const last = lastTypingTime.get(socket.id) || 0;
+      if (Date.now() - last < 2000) return;
+      lastTypingTime.set(socket.id, Date.now());
+    }
 
     if (isDM) {
       const payload = { partner: socket.username, username: socket.username, type: 'private', isTyping: isStart };
@@ -6295,6 +6354,8 @@ io.on('connection', (socket) => {
   socket.on('play', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A7-F4: rate limit media control spam
+    if (!checkMediaControlRate(socket.id)) return;
     // A6-F20: reject invalid currentTime values
     if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
@@ -6308,8 +6369,8 @@ io.on('connection', (socket) => {
     const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
     let targetTime = currentTime;
     if (!isHost) {
-      targetTime = room.isPlaying 
-        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000 
+      targetTime = room.isPlaying
+        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000
         : room.currentTime;
     }
 
@@ -6322,6 +6383,8 @@ io.on('connection', (socket) => {
   socket.on('pause', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A7-F4: rate limit media control spam
+    if (!checkMediaControlRate(socket.id)) return;
     // A6-F20: reject invalid currentTime values
     if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
@@ -6349,6 +6412,8 @@ io.on('connection', (socket) => {
   socket.on('seek', ({ roomId: rawRoomId, currentTime }) => {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
+    // A7-F4: rate limit media control spam
+    if (!checkMediaControlRate(socket.id)) return;
     // A6-F20: reject invalid currentTime values
     if (typeof currentTime !== 'number' || !isFinite(currentTime) || currentTime < 0) return;
     const room = rooms.get(roomId);
@@ -9559,10 +9624,18 @@ app.delete('/api/admin/invites/:id', authenticateToken, requireAdmin, requireAdm
 app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requireAdminRole(['super_admin']), async (req, res) => {
   const { id } = req.params;
   try {
-    const check = await pool.query(`SELECT email, role, status FROM admin_invites WHERE id = $1`, [id]);
+    const check = await pool.query(`SELECT email, role, status, last_resent_at FROM admin_invites WHERE id = $1`, [id]);
     if (!check.rows[0]) return res.status(404).json({ error: 'Invite not found' });
     if (check.rows[0].status === 'accepted') return res.status(400).json({ error: 'Invite already accepted' });
     if (check.rows[0].status === 'revoked') return res.status(400).json({ error: 'Invite has been revoked' });
+
+    // A7-F9: enforce 1-hour cooldown between resends for the same invite
+    if (check.rows[0].last_resent_at) {
+      const msSinceResend = Date.now() - new Date(check.rows[0].last_resent_at).getTime();
+      if (msSinceResend < 60 * 60 * 1000) {
+        return res.status(429).json({ error: 'Please wait before resending this invite.' });
+      }
+    }
 
     const crypto = require('crypto');
     const newToken = crypto.randomBytes(32).toString('hex');
@@ -9570,7 +9643,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
     const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await pool.query(
-      `UPDATE admin_invites SET token_hash = $1, expires_at = $2, status = 'pending' WHERE id = $3`,
+      `UPDATE admin_invites SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = NOW() WHERE id = $3`,
       [newHash, newExpiry, id]
     );
 
