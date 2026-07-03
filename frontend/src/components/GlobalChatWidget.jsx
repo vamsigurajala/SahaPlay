@@ -712,8 +712,8 @@ function getAvatarColor(name) {
 // Used to guard the conversation list preview and notifications from showing raw ciphertext.
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
-  // Emoji / lock placeholders we already use — pass them through
   if (str.startsWith('🔒') || str.startsWith('🎥') || str.startsWith('📷')) return false;
+  if (str.startsWith('encv1:')) return true;
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
@@ -5141,11 +5141,7 @@ const GlobalChatWidget = forwardRef(({
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                             {typingStatuses[chatKey] ? (
-                              <div className="typing-dots">
-                                <div className="typing-dot"></div>
-                                <div className="typing-dot"></div>
-                                <div className="typing-dot"></div>
-                              </div>
+                              <span style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 500 }}>typing...</span>
                             ) : (
                               chat.lastTimestamp > 0 && (
                                 <div style={{ fontSize: '0.7rem', color: 'var(--header-btn)', whiteSpace: 'nowrap' }}>
@@ -5729,16 +5725,8 @@ const GlobalChatWidget = forwardRef(({
 
 
                 {activeChat && typingStatuses[activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner] && (
-                  <div style={{ position: 'absolute', bottom: '100%', left: 45, marginBottom: 8, fontSize: 11, color: '#6366f1', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontWeight: 600 }}>
-                      {[...typingStatuses[activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner]].join(', ')}
-                    </span>
-                    <span>is typing</span>
-                    <div className="typing-dots">
-                      <div className="typing-dot"></div>
-                      <div className="typing-dot"></div>
-                      <div className="typing-dot"></div>
-                    </div>
+                  <div style={{ position: 'absolute', bottom: '100%', left: 45, marginBottom: 8, fontSize: 11, color: '#10b981', fontWeight: 500 }}>
+                    {[...typingStatuses[activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner]].join(', ')} typing...
                   </div>
                 )}
 

@@ -643,6 +643,7 @@ function formatDateSeparator(ts) {
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
   if (str.startsWith('🔒') || str.startsWith('🎥') || str.startsWith('📷')) return false;
+  if (str.startsWith('encv1:')) return true;
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
@@ -1982,7 +1983,7 @@ export default function RoomChatPanel({ p }) {
                     const rId = (p.roomId || '').toLowerCase();
                     const typers = p.typingStatuses?.[rId];
                     if (typers && typers.length > 0) {
-                      return <span style={{ color: '#10b981', fontStyle: 'italic' }}>{typers.join(', ')} Typing...</span>;
+                      return <span style={{ color: '#10b981' }}>{typers.join(', ')} typing...</span>;
                     }
                     const rxnPreview = p.reactionPreviews?.[(p.roomId||'').toLowerCase()];
                     if (rxnPreview) return <span style={{ color: '#a78bfa' }}>{rxnPreview}</span>;
@@ -2106,7 +2107,7 @@ export default function RoomChatPanel({ p }) {
                       {(() => {
                         const typers = p.typingStatuses?.[uname.toLowerCase()];
                         if (typers && typers.length > 0) {
-                          return <span style={{ color: '#10b981', fontStyle: 'italic' }}>Typing...</span>;
+                          return <span style={{ color: '#10b981' }}>typing...</span>;
                         }
                         const dmRxnPreview = p.reactionPreviews?.[uname.toLowerCase()];
                         if (dmRxnPreview) return <span style={{ color: '#a78bfa' }}>{dmRxnPreview}</span>;
@@ -2438,9 +2439,8 @@ export default function RoomChatPanel({ p }) {
               const typers = p.typingStatuses?.[rId];
               if (!typers || typers.length === 0) return null;
               return (
-                <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12,marginTop:4,marginBottom:4}}>
-                  <span>{typers.join(', ')}</span>
-                  <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
+                <div style={{color:'#10b981',fontSize:12,marginTop:4,marginBottom:4,paddingLeft:4}}>
+                  {typers.join(', ')} typing...
                 </div>
               );
             })()}
@@ -2876,8 +2876,8 @@ export default function RoomChatPanel({ p }) {
                     const typers = p.typingStatuses?.[dmKey];
                     if (!typers || typers.length === 0) return null;
                     return (
-                      <div style={{display:'flex',alignItems:'center',gap:8,color: isLight ? '#64748b' : '#666',fontSize:12,marginTop:4,marginBottom:4}}>
-                        <div style={{display:'flex',gap:3}}><span className="typing-dot"/><span className="typing-dot"/><span className="typing-dot"/></div>
+                      <div style={{color:'#10b981',fontSize:12,marginTop:4,marginBottom:4,paddingLeft:4}}>
+                        {[...typers].join(', ')} typing...
                       </div>
                     );
                   })()}

@@ -196,6 +196,7 @@ function VideoTile({ stream, isMuted, style }) {
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
   if (str.startsWith('🔒') || str.startsWith('🎥') || str.startsWith('📷')) return false;
+  if (str.startsWith('encv1:')) return true;
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
@@ -971,16 +972,18 @@ const Room = () => {
             displayMediaUrl = null;
           }
         } else {
-          // If not E2EE, it is plaintext (or server-side encrypted and decrypted)
-          decryptedText = msg.message || '';
+          // Plaintext or server-side AES-decrypted. If decryption failed server-side,
+          // msg.message keeps the encv1: prefix — treat those as unreadable.
+          const rawMsg = msg.message || '';
+          decryptedText = rawMsg.startsWith('encv1:') ? null : rawMsg;
         }
 
-        return { 
-          ...msg, 
-          mediaUrl: displayMediaUrl, 
-          isMe: isMine, 
-          reactions: safeReactions, 
-          decryptedText: decryptedText !== null ? decryptedText : msg.decryptedText 
+        return {
+          ...msg,
+          mediaUrl: displayMediaUrl,
+          isMe: isMine,
+          reactions: safeReactions,
+          decryptedText: decryptedText !== null ? decryptedText : (msg.decryptedText !== undefined ? msg.decryptedText : null)
         };
       } catch (itemErr) {
         console.warn('[decryptRoomGroupMessages] item process error:', itemErr);

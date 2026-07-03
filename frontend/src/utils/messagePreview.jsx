@@ -15,6 +15,7 @@ function PreviewIcon({ Icon, color }) {
 
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false
+  if (str.startsWith('encv1:')) return true
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ')
 }
 
