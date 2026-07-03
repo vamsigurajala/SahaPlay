@@ -170,6 +170,11 @@ function VideoTile({ stream, isMuted, style }) {
         }
       });
     }
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
   }, [stream]);
 
   const handleUnmute = (e) => {
@@ -3565,6 +3570,15 @@ const Room = () => {
       if (!isUnloadingRef.current && sock.connected) {
         sock.emit('leave_room', { roomId });
       }
+
+      if (localCamRef.current) {
+        localCamRef.current.getTracks().forEach(t => t.stop());
+        localCamRef.current = null;
+      }
+      Object.values(cameraPcRefs.current).forEach(pc => {
+        try { pc.close(); } catch(e) {}
+      });
+      cameraPcRefs.current = {};
 
       sock.removeAllListeners();
       sock.close();

@@ -1,28 +1,28 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { CryptoProvider } from './contexts/CryptoContext';
-import Home from './Home';
-import Room from './Room';
-import Login from './Login';
-import Signup from './Signup';
-import Verify from './Verify';
-import ForgotPassword from './ForgotPassword';
-import ResetPassword from './ResetPassword';
-import PublicRooms from './PublicRooms';
-import Profile from './Profile';
-import AppSettings from './AppSettings';
-import TvPairing from './TvPairing';
-import Features from './Features';
-import HowItWorks from './HowItWorks';
-import Pricing from './Pricing';
-import Contact from './Contact';
-import ReportBug from './ReportBug';
-import Safety from './Safety';
-import Cookies from './Cookies';
-import Terms from './Terms';
-import Admin from './Admin';
+const Home = lazy(() => import('./Home'));
+const Room = lazy(() => import('./Room'));
+const Login = lazy(() => import('./Login'));
+const Signup = lazy(() => import('./Signup'));
+const Verify = lazy(() => import('./Verify'));
+const ForgotPassword = lazy(() => import('./ForgotPassword'));
+const ResetPassword = lazy(() => import('./ResetPassword'));
+const PublicRooms = lazy(() => import('./PublicRooms'));
+const Profile = lazy(() => import('./Profile'));
+const AppSettings = lazy(() => import('./AppSettings'));
+const TvPairing = lazy(() => import('./TvPairing'));
+const Features = lazy(() => import('./Features'));
+const HowItWorks = lazy(() => import('./HowItWorks'));
+const Pricing = lazy(() => import('./Pricing'));
+const Contact = lazy(() => import('./Contact'));
+const ReportBug = lazy(() => import('./ReportBug'));
+const Safety = lazy(() => import('./Safety'));
+const Cookies = lazy(() => import('./Cookies'));
+const Terms = lazy(() => import('./Terms'));
+const Admin = lazy(() => import('./Admin'));
 
 function AcceptInvitePage() {
   const [status, setStatus] = React.useState('idle'); // idle | loading | success | error
@@ -876,6 +876,7 @@ function App() {
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
           <ScrollToTop />
+          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0a1e', color: '#7c3aed', fontSize: 18 }}>Loading...</div>}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -901,6 +902,7 @@ function App() {
             <Route path="/admin/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           </Routes>
+          </Suspense>
         </Router>
       </GoogleOAuthProvider>
     </CryptoProvider>
