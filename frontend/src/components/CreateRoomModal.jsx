@@ -59,13 +59,15 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
     try {
       const response = await fetch(`${API}/api/rooms/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('watch_token')}`
+        },
         body: JSON.stringify({
           roomId: pendingRoomId,
           roomName: name,
           category: newRoomCategory,
           isPublic: newRoomPublic,
-          hostUsername: loggedInUsername
         })
       });
       if (!response.ok) toast.error(t('roomCreateFailed', 'Failed to create room metadata'));
