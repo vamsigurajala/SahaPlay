@@ -44,7 +44,9 @@ export default function RoomModals({
   useEffect(() => {
     if (showCastDiscovery) {
       if (/localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)) {
-        fetch(`${API}/api/server-info`)
+        fetch(`${API}/api/server-info`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('watch_token')}` }
+        })
           .then(res => res.json())
           .then(data => {
             if (data && data.tvUrl) {

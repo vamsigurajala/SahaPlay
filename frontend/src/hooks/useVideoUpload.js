@@ -19,6 +19,7 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
 
     abortRef.current = false;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const token = localStorage.getItem('watch_token');
 
     setUploadState({
       isUploading: true,
@@ -33,7 +34,10 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
       // Step 1: Initialize upload session
       const initRes = await fetch(`${serverUrl}/api/stream/init`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           roomId,
           filename: file.name,
@@ -73,6 +77,7 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
 
         const res = await fetch(`${serverUrl}/api/stream/${streamKey}/chunk/${i}`, {
           method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           body: formData
         });
 
