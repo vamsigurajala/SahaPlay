@@ -4817,6 +4817,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('stream_started', (data) => {
+    try {
     if (!socket.username || !data?.roomId) return;
     const rid = data.roomId.toLowerCase();
     const room = rooms.get(rid);
@@ -4835,9 +4836,13 @@ io.on('connection', (socket) => {
     };
     socket.to(rid).emit('stream_started', data);
     socket.to(rid).emit('media_changed', '');
+    } catch (err) {
+      console.error('[SOCKET] stream_started error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('stream_cancelled', (data) => {
+    try {
     if (!socket.username || !data?.roomId) return;
     const rid = data.roomId.toLowerCase();
     const room = rooms.get(rid);
@@ -4848,9 +4853,13 @@ io.on('connection', (socket) => {
     if (!isHost && !allUsersCanPlay) return;
     room.streamPending = null;
     socket.to(rid).emit('stream_cancelled');
+    } catch (err) {
+      console.error('[SOCKET] stream_cancelled error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('subtitles_load', ({ roomId, text }) => {
+    try {
     const rid = roomId ? roomId.toLowerCase() : null;
     if (!rooms.has(rid)) return;
     // A6-F14: reject oversized subtitle payloads
@@ -4858,6 +4867,9 @@ io.on('connection', (socket) => {
     const room = rooms.get(rid);
     room.subtitles = text;
     socket.to(rid).emit('action_subtitles_load', text);
+    } catch (err) {
+      console.error('[SOCKET] subtitles_load error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── TV Pairing Logic ───
@@ -4876,6 +4888,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('link_tv_code', ({ code, roomId }) => {
+    try {
     if (!socket.username || !roomId) {
       socket.emit('error_notification', 'You must be logged in and in a room to link a TV.');
       return;
@@ -4883,11 +4896,11 @@ io.on('connection', (socket) => {
 
     const normalizedCode = (code || '').toUpperCase();
     const tvData = activePairingCodes.get(normalizedCode);
-    
+
     if (tvData) {
       const tvSocketId = tvData.socketId;
       activePairingCodes.delete(normalizedCode);
-      
+
       // Auto-approve the TV username so it bypasses the lobby
       const roomObj = rooms.get(roomId);
       if (roomObj) {
@@ -4909,9 +4922,13 @@ io.on('connection', (socket) => {
     } else {
       socket.emit('error_notification', 'Invalid or expired pairing code. Please try again.');
     }
+    } catch (err) {
+      console.error('[SOCKET] link_tv_code error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('disconnect', () => {
+    try {
     unregisterSocket(socket.username, socket.id);
     chatRateBuckets.delete(socket.id);
     mediaControlBuckets.delete(socket.id);
@@ -4923,6 +4940,9 @@ io.on('connection', (socket) => {
       if (data.socketId === socket.id) {
         activePairingCodes.delete(code);
       }
+    }
+    } catch (err) {
+      console.error('[SOCKET] disconnect (admin) error:', err.message, 'user:', socket.username);
     }
   });
 
@@ -5267,6 +5287,7 @@ io.on('connection', (socket) => {
 
   // ─── Join Room ───
   socket.on('join_room', (data) => {
+    try {
     let roomId = typeof data === 'string' ? data : data.roomId;
     if (roomId) roomId = roomId.toLowerCase();
     // Prioritize authenticated username from token, fallback to provided, then Anonymous
@@ -5411,6 +5432,10 @@ io.on('connection', (socket) => {
       executeFinalJoin(socket, room, roomId, username);
     });
   });
+    } catch (err) {
+      console.error('[SOCKET] join_room error:', err.message, 'user:', socket.username);
+      socket.emit('join_error', { message: 'Could not join room. Please try again.' });
+    }
 });
 
   // ─── Public key exchange for E2E DMs ───
@@ -5645,6 +5670,7 @@ io.on('connection', (socket) => {
 
   // ─── Group chat message (saved in history) ───
   socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId }) => {
+    try {
     if (!checkChatRate(socket.id)) {
       socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
       return;
@@ -5771,6 +5797,9 @@ io.on('connection', (socket) => {
         msg.seenBy = [];
         broadcastMessage(roomId, msg, socket.id, username);
       });
+    } catch (err) {
+      console.error('[SOCKET] chat_message error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Standardized Mark Read ───
@@ -5852,6 +5881,7 @@ io.on('connection', (socket) => {
   // Passive room tracking: allows GlobalChatWidget to receive updates for rooms
   // the user has previously participated in without showing up in the user list.
   socket.on('track_rooms', ({ roomIds }) => {
+    try {
     if (!Array.isArray(roomIds)) return;
     roomIds.forEach(rid => {
       if (!rid) return;
@@ -5870,11 +5900,15 @@ io.on('connection', (socket) => {
         });
       }
     });
+    } catch (err) {
+      console.error('[SOCKET] track_rooms error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Unified Typing Indicators (Supports both Room and Global Widget) ───
   const typingTimers = {}; // { socketId: timer }
   socket.on('chat:typing', ({ partner, type, roomId, isTyping }) => {
+    try {
     if (!socket.username) return;
 
     // Support Format 1: { partner, type } (Global Chat Widget)
@@ -5898,7 +5932,7 @@ io.on('connection', (socket) => {
       const payload = { partner: targetRoom, username: socket.username, type: 'room', isTyping: isStart };
       socket.to(targetRoom).emit('chat:typing', payload);
       if (!isStart) socket.to(targetRoom).emit('chat:stop_typing', payload);
-      
+
       // Auto-stop typing after 5s for room view (safety)
       if (isStart) {
         if (typingTimers[socket.id]) clearTimeout(typingTimers[socket.id]);
@@ -5908,9 +5942,13 @@ io.on('connection', (socket) => {
         }, 5000);
       }
     }
+    } catch (err) {
+      console.error('[SOCKET] chat:typing error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('chat:stop_typing', ({ partner, type, roomId }) => {
+    try {
     if (!socket.username) return;
     const targetRoom = (type === 'room' ? partner : roomId)?.toLowerCase();
     const isDM = type === 'private';
@@ -5924,6 +5962,9 @@ io.on('connection', (socket) => {
       socket.to(targetRoom).emit('chat:stop_typing', payload);
       socket.to(targetRoom).emit('chat:typing', payload);
       if (typingTimers[socket.id]) clearTimeout(typingTimers[socket.id]);
+    }
+    } catch (err) {
+      console.error('[SOCKET] chat:stop_typing error:', err.message, 'user:', socket.username);
     }
   });
 
@@ -6180,6 +6221,7 @@ io.on('connection', (socket) => {
 
   // ─── Emoji reaction (Private) ───
   socket.on('chat:private_reaction', ({ targetName: rawTargetName, messageId, emoji }) => {
+    try {
     const targetName = rawTargetName; // Target is the person we reacted to
     const username = socket.username;
     if (!username || !targetName) return;
@@ -6223,10 +6265,14 @@ io.on('connection', (socket) => {
       emitToUser(targetName, 'chat:private_reaction', reactionPayload);
       emitToUser(username, 'chat:private_reaction', reactionPayload);
     });
+    } catch (err) {
+      console.error('[SOCKET] chat:private_reaction error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Private / DM ───
   socket.on('private_message', async (data) => {
+    try {
     // A6-F10: apply same per-socket rate limit as group chat
     if (!checkChatRate(socket.id)) {
       socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
@@ -6310,27 +6356,35 @@ io.on('connection', (socket) => {
         }
         broadcastMessage(null, payload, socket.id, socket.username);
       });
+    } catch (err) {
+      console.error('[SOCKET] private_message error:', err.message, 'user:', socket.username);
+    }
   });
 
   // Request sync
   socket.on('request_sync', (rawRoomId) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     const room = rooms.get(roomId);
-    
+
     // SECURITY FIX: Only allow sync if the user has fully joined the room (passed lock checks)
     const isMember = room.users.some(u => u.socketId === socket.id);
     if (!isMember) return;
-    
+
     const state = getSerializableRoom(room);
     if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
     socket.emit('room_state', state);
+    } catch (err) {
+      console.error('[SOCKET] request_sync error:', err.message, 'user:', socket.username);
+    }
   });
 
 
 
   // ─── Request DM History ───
   socket.on('request_dm_history', () => {
+    try {
     const username = socket.username;
     if (!username) return;
     db.all(`
@@ -6392,6 +6446,9 @@ io.on('connection', (socket) => {
         }
         socket.emit('chat_history_dm', dmHistory);
       });
+    } catch (err) {
+      console.error('[SOCKET] request_dm_history error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ── Room rename ──
@@ -6401,6 +6458,7 @@ io.on('connection', (socket) => {
 
   // ─── Media control ───
   socket.on('change_media', ({ roomId: rawRoomId, mediaUrl, browserUrl }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
 
@@ -6427,9 +6485,13 @@ io.on('connection', (socket) => {
     io.in(roomId).emit('media_changed', mediaUrl);
     if (browserUrl) io.in(roomId).emit('browser_url_changed', browserUrl);
     io.in(roomId).emit('room_state', getSerializableRoom(room));
+    } catch (err) {
+      console.error('[SOCKET] change_media error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('ui_sync', ({ roomId: rawRoomId, data }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!roomId || !rooms.has(roomId)) return;
     // A6-F15: reject oversized ui_sync payloads
@@ -6438,8 +6500,12 @@ io.on('connection', (socket) => {
     room.uiState = data;
     // Broadcast UI changes to everyone in the room except sender
     socket.to(roomId).emit('ui_sync', data);
+    } catch (err) {
+      console.error('[SOCKET] ui_sync error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('play', ({ roomId: rawRoomId, currentTime }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     // A7-F4: rate limit media control spam
@@ -6467,8 +6533,12 @@ io.on('connection', (socket) => {
     if (!isHost) {
       socket.emit('action_play', targetTime);
     }
+    } catch (err) {
+      console.error('[SOCKET] play error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('pause', ({ roomId: rawRoomId, currentTime }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     // A7-F4: rate limit media control spam
@@ -6486,8 +6556,8 @@ io.on('connection', (socket) => {
     const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
     let targetTime = currentTime;
     if (!isHost) {
-      targetTime = room.isPlaying 
-        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000 
+      targetTime = room.isPlaying
+        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000
         : room.currentTime;
     }
 
@@ -6496,8 +6566,12 @@ io.on('connection', (socket) => {
     if (!isHost) {
       socket.emit('action_pause', targetTime);
     }
+    } catch (err) {
+      console.error('[SOCKET] pause error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('seek', ({ roomId: rawRoomId, currentTime }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!rooms.has(roomId)) return;
     // A7-F4: rate limit media control spam
@@ -6513,10 +6587,14 @@ io.on('connection', (socket) => {
 
     room.currentTime = currentTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_seek', currentTime);
+    } catch (err) {
+      console.error('[SOCKET] seek error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Audio Ducking ───
   socket.on('audio_ducking_speaking', ({ roomId: rawRoomId, userId, username }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!roomId || !rooms.has(roomId)) return;
     if (!roomSpeakingUsers.has(roomId)) roomSpeakingUsers.set(roomId, new Set());
@@ -6526,9 +6604,13 @@ io.on('connection', (socket) => {
     if (wasEmpty) {
       io.to(roomId).emit('audio_ducking_duck', { username: username || socket.username });
     }
+    } catch (err) {
+      console.error('[SOCKET] audio_ducking_speaking error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('audio_ducking_stopped', ({ roomId: rawRoomId, userId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (!roomId) return;
     const set = roomSpeakingUsers.get(roomId);
@@ -6537,17 +6619,21 @@ io.on('connection', (socket) => {
     if (set.size === 0) {
       io.to(roomId).emit('audio_ducking_restore');
     }
+    } catch (err) {
+      console.error('[SOCKET] audio_ducking_stopped error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── WebRTC Screenshare ───
-  socket.on('webrtc_start_screenshare', (data) => { 
+  socket.on('webrtc_start_screenshare', (data) => {
+    try {
     // data can be a string (roomId) or an object { roomId, app }
     const roomId = (typeof data === 'string' ? data : data.roomId)?.toLowerCase();
     const app = typeof data === 'object' ? data.app : null;
-    
+
     if (rooms.has(roomId)) {
       const room = rooms.get(roomId);
-      room.screenshareHostId = socket.id; 
+      room.screenshareHostId = socket.id;
       room.activeExternalApp = app;
       // Auto-pause room media when screenshare starts to ensure process termination
       room.isPlaying = false;
@@ -6555,18 +6641,25 @@ io.on('connection', (socket) => {
     }
     const state = getSerializableRoom(rooms.get(roomId));
     io.in(roomId).emit('room_state', state);
-    socket.to(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app }); 
+    socket.to(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app });
+    } catch (err) {
+      console.error('[SOCKET] webrtc_start_screenshare error:', err.message, 'user:', socket.username);
+    }
   });
-  socket.on('webrtc_stop_screenshare', (rawRoomId) => { 
+  socket.on('webrtc_stop_screenshare', (rawRoomId) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     if (rooms.has(roomId)) {
       const room = rooms.get(roomId);
-      room.screenshareHostId = null; 
+      room.screenshareHostId = null;
       room.activeExternalApp = null;
     }
     const state = getSerializableRoom(rooms.get(roomId));
     io.in(roomId).emit('room_state', state);
-    socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id); 
+    socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id);
+    } catch (err) {
+      console.error('[SOCKET] webrtc_stop_screenshare error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('webrtc_join_request', ({ targetSocketId }) => { io.to(targetSocketId).emit('webrtc_viewer_joined', socket.id); });
   // A6-F13: verify targetSocketId is in same room before relaying WebRTC signals
@@ -6580,9 +6673,10 @@ io.on('connection', (socket) => {
 
   // â"€â"€ Camera/Mic WebRTC (peer video communication) â"€â"€
   socket.on('cam_started', ({ roomId }) => {
+    try {
     if (!rooms.has(roomId)) return;
     const room = rooms.get(roomId);
-    
+
     // Check Permissions
     const allowCam = room.permissions?.cam || 'all';
     if (allowCam === 'host' && !isUserAdmin(room, socket)) {
@@ -6591,6 +6685,9 @@ io.on('connection', (socket) => {
     }
 
     socket.to(roomId).emit('cam_started', { socketId: socket.id, username: socket.username });
+    } catch (err) {
+      console.error('[SOCKET] cam_started error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('webrtc_cam_ping', ({ roomId }) => {
     socket.to(roomId).emit('webrtc_cam_ping', { requesterId: socket.id });
@@ -6599,7 +6696,11 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('cam_started', { socketId: socket.id, username: socket.username });
   });
   socket.on('cam_stopped', ({ roomId }) => {
+    try {
     socket.to(roomId).emit('cam_stopped', { socketId: socket.id });
+    } catch (err) {
+      console.error('[SOCKET] cam_stopped error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('cam_offer', ({ targetSocketId, offer }) => {
     if (!sameRoomTarget(targetSocketId)) return;
@@ -6610,11 +6711,12 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('cam_answer', { senderSocketId: socket.id, answer });
   });
   socket.on('self_mute', ({ roomId: rawRoomId, isMuted }) => {
+    try {
     // Use payload roomId first, fallback to socket.roomId in case of mismatch
     const roomId = (rawRoomId ? rawRoomId.toLowerCase() : null) || socket.roomId;
     if (!roomId || !rooms.has(roomId)) return;
     const room = rooms.get(roomId);
-      
+
     // Check Permissions if unmuting
     if (!isMuted) {
       const allowMic = room.permissions?.mic || 'all';
@@ -6634,6 +6736,9 @@ io.on('connection', (socket) => {
       }
       io.to(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
     }
+    } catch (err) {
+      console.error('[SOCKET] self_mute error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('cam_ice', ({ targetSocketId, candidate }) => {
     if (!sameRoomTarget(targetSocketId)) return;
@@ -6642,6 +6747,7 @@ io.on('connection', (socket) => {
 
   // â"€â"€ Toggle Public Status â"€â"€
   socket.on('toggle_public', (data) => {
+    try {
     if (!socket.roomId) return;
     const room = rooms.get(socket.roomId);
     if (!room || !isUserAdmin(room, socket)) return;
@@ -6652,6 +6758,9 @@ io.on('connection', (socket) => {
       'INSERT INTO room_names (roomId, roomName, isPublic, hostUsername) VALUES (?, ?, ?, ?) ON CONFLICT(roomId) DO UPDATE SET isPublic = excluded.isPublic',
       [socket.roomId, room.roomName || 'Room Chat', room.isPublic ? 1 : 0, socket.username || null]
     );
+    } catch (err) {
+      console.error('[SOCKET] toggle_public error:', err.message, 'user:', socket.username);
+    }
   });
 
   // â"€â"€ Connection Request (P2P Mesh) â"€â"€
@@ -6671,24 +6780,33 @@ io.on('connection', (socket) => {
 
   // â"€â"€ Screenshare Start â"€â"€
   socket.on('webrtc_screenshare_start', (roomId) => {
+    try {
     const room = rooms.get(roomId);
     if (!room) return;
     room.screenshareHostId = socket.id;
     io.in(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app: room.activeExternalApp });
+    } catch (err) {
+      console.error('[SOCKET] webrtc_screenshare_start error:', err.message, 'user:', socket.username);
+    }
   });
 
   // â"€â"€ Screenshare Stop â"€â"€
   socket.on('webrtc_screenshare_stop', (roomId) => {
+    try {
     const room = rooms.get(roomId);
     if (!room) return;
     if (room.screenshareHostId === socket.id) {
       room.screenshareHostId = null;
       io.in(roomId).emit('webrtc_screenshare_stopped');
     }
+    } catch (err) {
+      console.error('[SOCKET] webrtc_screenshare_stop error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Moderation (host only) ───
   socket.on('mod_kick', ({ roomId: rawRoomId, targetSocketId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
@@ -6704,12 +6822,16 @@ io.on('connection', (socket) => {
     if (targetUser && targetUser.username && room.approvedUsers) {
       room.approvedUsers.delete(targetUser.username.toLowerCase());
     }
-    
+
     io.to(targetSocketId).emit('kicked_out', { reason: 'kicked' });
     room.users = room.users.filter(u => u.socketId !== targetSocketId);
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    } catch (err) {
+      console.error('[SOCKET] mod_kick error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('mod_ban', ({ roomId: rawRoomId, targetSocketId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room) {
@@ -6734,14 +6856,18 @@ io.on('connection', (socket) => {
     } else {
       socket.emit('error_notification', 'Target user not found.');
     }
+    } catch (err) {
+      console.error('[SOCKET] mod_ban error:', err.message, 'user:', socket.username);
+    }
   });
   socket.on('mod_mute', ({ roomId: rawRoomId, targetSocketId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
     const targetUser = room.users.find(u => u.socketId === targetSocketId);
     if (!targetUser) return;
-    
+
     // Privacy Policy: Admin can only Mute, not Unmute.
     // Set both the user object isMuted AND the mutedUsers set so user_list is immediately correct.
     targetUser.isMuted = true;
@@ -6749,9 +6875,13 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('you_are_muted');
     // Always emit user_list to ensure UI is in sync for all clients
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    } catch (err) {
+      console.error('[SOCKET] mod_mute error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('mod_mute_all', ({ roomId: rawRoomId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
@@ -6765,9 +6895,13 @@ io.on('connection', (socket) => {
       }
     });
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+    } catch (err) {
+      console.error('[SOCKET] mod_mute_all error:', err.message, 'user:', socket.username);
+    }
   });
   
   socket.on('mod_toggle_admin', ({ roomId: rawRoomId, targetSocketId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
@@ -6785,9 +6919,9 @@ io.on('connection', (socket) => {
     if (!room.admins) room.admins = new Set();
     if (!room.deniedAdmins) room.deniedAdmins = new Set();
     const unameLower = targetUser.username.toLowerCase();
-    
+
     const currentlyAdmin = isUserAdmin(room, targetUser);
-    
+
     if (currentlyAdmin) {
       // Logic to REMOVE admin
       if (room.admins.has(unameLower)) {
@@ -6806,23 +6940,27 @@ io.on('connection', (socket) => {
 
     // Broadcast updated list
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
-    
+
     // Also broadcast room settings updated so GlobalChatWidget can recalculate its admin permissions
-    io.in(roomId).emit('room_settings_updated', { 
+    io.in(roomId).emit('room_settings_updated', {
       roomId,
-      roomName: room.roomName, 
-      permissions: room.permissions, 
+      roomName: room.roomName,
+      permissions: room.permissions,
       settings: room.settings,
       hostUsername: room.hostUsername || null,
       admins: Array.from(room.admins || [])
     });
-    
+
     // Notify the target user of their change in status
     const isNowAdmin = isUserAdmin(room, targetUser);
     io.to(targetSocketId).emit(isNowAdmin ? 'you_are_now_admin' : 'you_are_no_longer_admin');
+    } catch (err) {
+      console.error('[SOCKET] mod_toggle_admin error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('approve_join', ({ roomId, targetSocketId }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
     const pending = room.pendingJoins.get(targetSocketId);
@@ -6856,9 +6994,13 @@ io.on('connection', (socket) => {
       // Tell all hosts/admins to dismiss the notification
       io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
     }
+    } catch (err) {
+      console.error('[SOCKET] approve_join error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('deny_join', ({ roomId, targetSocketId }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
     const pending = room.pendingJoins.get(targetSocketId);
@@ -6869,15 +7011,19 @@ io.on('connection', (socket) => {
       io.in(roomId).emit('join_request_handled', { socketId: targetSocketId, username: pending.username });
       room.pendingJoins.delete(targetSocketId);
     }
+    } catch (err) {
+      console.error('[SOCKET] deny_join error:', err.message, 'user:', socket.username);
+    }
   });
   
   socket.on('mod_rename_room', ({ roomId, newName }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
     const cleanName = newName ? newName.trim() : '';
     if (!cleanName) return;
     if (cleanName.length > 60) return; // A6-F8
-    
+
     room.roomName = cleanName;
     // Persist the new name and ensure hostUsername is stored if missing
     const host = room.hostUsername || socket.username || null;
@@ -6887,16 +7033,20 @@ io.on('connection', (socket) => {
     );
     // Also update the name in pinned_rooms
     db.run('UPDATE pinned_rooms SET roomName = ? WHERE roomId = ?', [cleanName, roomId]);
-    
+
     io.in(roomId).emit('room_renamed', cleanName);
-    
+
     // Global notification for user's other sessions
     if (socket.username) {
         emitToUser(socket.username, 'room_renamed_global', { roomId, newName: cleanName });
     }
+    } catch (err) {
+      console.error('[SOCKET] mod_rename_room error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('update_room_settings', ({ roomId, newName, permissions, settings }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room) {
       console.log(`[Settings] Room ${roomId} not found during update`);
@@ -6962,17 +7112,21 @@ io.on('connection', (socket) => {
     // Refresh user list and state for everyone because isAdmin status or permissions might have changed
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
     io.in(roomId).emit('room_state', getSerializableRoom(room));
-    io.in(roomId).emit('room_settings_updated', { 
+    io.in(roomId).emit('room_settings_updated', {
       roomId,
-      roomName: room.roomName, 
-      permissions: room.permissions, 
+      roomName: room.roomName,
+      permissions: room.permissions,
       settings: room.settings,
       hostUsername: room.hostUsername || null,
       admins: Array.from(room.admins || [])
     });
+    } catch (err) {
+      console.error('[SOCKET] update_room_settings error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('leave_room', ({ roomId }) => {
+    try {
     if (!roomId) return;
     const room = rooms.get(roomId.toLowerCase());
     if (room && socket.username) {
@@ -6980,9 +7134,13 @@ io.on('connection', (socket) => {
       if (room.approvedUsers) room.approvedUsers.delete(socket.username.toLowerCase());
       if (room.approvedSockets) room.approvedSockets.delete(socket.id);
     }
+    } catch (err) {
+      console.error('[SOCKET] leave_room error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('mod_unban', ({ roomId, username }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) return;
     room.bannedUsers.delete(username);
@@ -6993,15 +7151,19 @@ io.on('connection', (socket) => {
     // Emit to the host's socket specifically so the settings modal updates instantly
     socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
     io.in(roomId).emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
+    } catch (err) {
+      console.error('[SOCKET] mod_unban error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('mod_fetch_bans', ({ roomId }) => {
+    try {
     const room = rooms.get(roomId);
     if (!room || !isUserAdmin(room, socket)) {
        socket.emit('error_notification', 'Sync failed: You are not an administrator.');
        return;
     }
-    
+
     db.all('SELECT username FROM room_bans WHERE roomId = ?', [roomId], (err, rows) => {
       if (!err && rows) {
         const bannedList = rows.map(r => r.username);
@@ -7012,9 +7174,13 @@ io.on('connection', (socket) => {
         socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
       }
     });
+    } catch (err) {
+      console.error('[SOCKET] mod_fetch_bans error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('change_room_theme', ({ roomId: rawRoomId, themeId }) => {
+    try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
     const room = rooms.get(roomId);
     console.log(`[change_room_theme] roomId=${roomId} themeId=${themeId} roomFound=${!!room} user=${socket.username} isAdmin=${room ? isUserAdmin(room, socket) : false}`);
@@ -7026,11 +7192,15 @@ io.on('connection', (socket) => {
     });
     io.to(roomId).emit('room_theme_changed', { themeId: room.roomTheme });
     console.log(`[change_room_theme] Broadcasted theme=${room.roomTheme} to room=${roomId}`);
+    } catch (err) {
+      console.error('[SOCKET] change_room_theme error:', err.message, 'user:', socket.username);
+    }
   });
 
   socket.on('delete_room', ({ roomId }) => {
+    try {
     const room = rooms.get(roomId);
-    
+
     console.log(`[DELETE ROOM] Request received for roomId: ${roomId} from user: ${socket.username}`);
 
     // Authorization check: User must be host
@@ -7114,6 +7284,9 @@ io.on('connection', (socket) => {
           }
         });
     });
+    } catch (err) {
+      console.error('[SOCKET] delete_room error:', err.message, 'user:', socket.username);
+    }
   });
 
 
@@ -7188,6 +7361,7 @@ io.on('connection', (socket) => {
 
   // ─── Live Reactions ───
   socket.on('room_reaction', (data) => {
+    try {
     if (!data?.roomId || !data?.emoji) return;
     io.to(data.roomId).emit('room_reaction', {
       id: Date.now() + Math.random(),
@@ -7196,10 +7370,14 @@ io.on('connection', (socket) => {
       avatarUrl: data.avatarUrl || '',
       timestamp: Date.now()
     });
+    } catch (err) {
+      console.error('[SOCKET] room_reaction error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Media Position Save (host only) ───
   socket.on('media_position_save', (data) => {
+    try {
     const { roomId: rawRoomId, url, position, mediaType } = data || {};
     const roomId = (rawRoomId || '').toLowerCase();
     if (!roomId || !url || position === undefined) return;
@@ -7222,10 +7400,14 @@ io.on('connection', (socket) => {
       'UPDATE room_names SET last_media_url = ?, last_media_position = ?, last_media_type = ?, last_media_saved_at = ? WHERE roomId = ?',
       [url, pos, mediaType || null, room.lastMediaSavedAt, roomId]
     );
+    } catch (err) {
+      console.error('[SOCKET] media_position_save error:', err.message, 'user:', socket.username);
+    }
   });
 
   // ─── Disconnect ───
   socket.on('disconnect', () => {
+    try {
     console.log(`User disconnected: ${socket.id}`);
     clearTimeout(typingTimers[socket.id]);
 
@@ -7341,6 +7523,9 @@ io.on('connection', (socket) => {
     }
     for (const [roomId, room] of rooms.entries()) {
       if (room.screenshareHostId === socket.id) { room.screenshareHostId = null; socket.to(roomId).emit('webrtc_screenshare_stopped'); }
+    }
+    } catch (err) {
+      console.error('[SOCKET] disconnect error:', err.message, 'user:', socket.username);
     }
   });
 
