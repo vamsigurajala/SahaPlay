@@ -3777,10 +3777,14 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
 
 // ── DELETE User Account ──
 app.delete('/api/profile', authenticateToken, (req, res) => {
-  // First get the username to delete rooms
-  db.get('SELECT username FROM users WHERE id = ?', [req.user.id], (err, user) => {
+  // First get the username and role to delete rooms and enforce guards
+  db.get('SELECT username, role FROM users WHERE id = ?', [req.user.id], (err, user) => {
     if (err || !user) return res.status(500).json({ error: 'Failed to find user' });
-    
+
+    if (user.role === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin accounts cannot be self-deleted. Use the Supabase dashboard to manage this account.' });
+    }
+
     // Delete from users table
     db.run('DELETE FROM users WHERE id = ?', [req.user.id], function(err) {
       if (err) {
