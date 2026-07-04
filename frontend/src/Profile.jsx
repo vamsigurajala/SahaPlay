@@ -8,6 +8,7 @@ import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, 
 import { FaXTwitter } from 'react-icons/fa6';
 import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
+import SupportModal from './components/SupportModal';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
@@ -19,6 +20,7 @@ const Profile = () => {
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t, i18n } = useTranslation();
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const getLocalizedCountryName = (code, name) => {
     if (!code) return name;
     try {
@@ -1330,7 +1332,7 @@ const Profile = () => {
                     {t('app', 'App')}
                   </button>
                   {!isGuest && (
-                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowSupportModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -2381,6 +2383,7 @@ const Profile = () => {
           </div>
         </div>
       )}
+      <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
     </>
   );
 };

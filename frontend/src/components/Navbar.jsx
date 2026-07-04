@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
+import SupportModal from './SupportModal';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -55,6 +56,7 @@ const Navbar = () => {
 
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(window.innerWidth < 1025);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -758,7 +760,7 @@ const Navbar = () => {
                             </div>
                             {t('app', 'App')}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowSupportModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
@@ -929,6 +931,11 @@ const Navbar = () => {
                     {t('app', 'App Settings')}
                   </button>
 
+                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowSupportModal(true); setShowMobileMenu(false); }}>
+                    <HelpCircle size={16} />
+                    {t('contactSupport', 'Contact Support')}
+                  </button>
+
                   {isAdminRole && (
                     <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/admin'); setShowMobileMenu(false); }}>
                       <Sparkles size={16} color="#a855f7" />
@@ -998,6 +1005,8 @@ const Navbar = () => {
           onNewMessage={handleNewMessage} 
         />
       )}
+
+      <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
     </>
   );
 };

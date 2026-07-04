@@ -12,50 +12,13 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config(); // Load variables
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+// const nodemailer = require('nodemailer'); // migrated to Resend — remove package after confirming Resend works
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const emailTranslations = require('./email-translations');
 
-// ─── Gmail SMTP Transporter ──────────────────────────────────────────────────
-const gmailTransporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
-
-async function sendEmail({ to, subject, html, text, headers, attachments = [] }) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('[Email] Gmail credentials not configured — skipping email to:', to);
-    return null;
-  }
-  try {
-    const finalAttachments = [...attachments];
-    if (html && html.includes('cid:sahaplay-logo')) {
-      finalAttachments.push({
-        filename: 'trans_webl.png',
-        path: path.join(__dirname, '../frontend/public/logos/trans_webl.png'),
-        cid: 'sahaplay-logo'
-      });
-    }
-    const info = await gmailTransporter.sendMail({
-      from: `"SahaPlay" <${process.env.GMAIL_USER}>`,
-      to,
-      subject,
-      text: text || subject,
-      html,
-      headers: headers || {},
-      attachments: finalAttachments,
-    });
-    console.log('[Email] Sent successfully to:', to, '| Message ID:', info.messageId);
-    return info;
-  } catch (err) {
-    console.error('[Email] Failed to send to:', to, '| Error:', err.message);
-    return null;
-  }
-}
+// ─── Email — Resend (migrated from Gmail SMTP) ──────────────────────────────
+const { sendEmail, EMAILS } = require('./utils/email');
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Inline logo for emails — base64 embedded so no attachment is created ───
@@ -139,7 +102,7 @@ async function sendReporterConfirmationEmail(reportId, reporterUsername, reporte
     <!-- Divider -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
     <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
-      If you have any additional information, please contact us at <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
+      If you have any additional information, please contact us at <a href="mailto:report@sahaplay.com" style="color:#6366f1;text-decoration:none;font-weight:600">report@sahaplay.com</a>.
     </p>
   </td></tr>
   <!-- Footer -->
@@ -155,7 +118,8 @@ async function sendReporterConfirmationEmail(reportId, reporterUsername, reporte
       to: toEmail,
       subject,
       html,
-      text: `Hello @${reporterUsername},\n\nWe have received your report regarding @${reportedUsername} for ${reasonLabel} (Ticket #${reportId}).\n\nOur team is currently reviewing it.\n\nSahaPlay Moderation Team`
+      text: `Hello @${reporterUsername},\n\nWe have received your report regarding @${reportedUsername} for ${reasonLabel} (Ticket #${reportId}).\n\nOur team is currently reviewing it.\n\nSahaPlay Moderation Team`,
+      replyTo: EMAILS.report,
     });
   } catch (err) {
     console.error('[Email] Failed to send report confirmation:', err.message);
@@ -250,7 +214,8 @@ async function sendReporterResolutionEmail(reportId, resolverAdminUsername, admi
       to: toEmail,
       subject,
       html,
-      text: `Hello @${reporterUsername},\n\nYour report regarding @${reportedUsername} (Ticket #${reportId}) has been resolved.\n\n${adminNotes ? 'Notes: ' + adminNotes : ''}\n\nSahaPlay Moderation Team`
+      text: `Hello @${reporterUsername},\n\nYour report regarding @${reportedUsername} (Ticket #${reportId}) has been resolved.\n\n${adminNotes ? 'Notes: ' + adminNotes : ''}\n\nSahaPlay Moderation Team`,
+      replyTo: EMAILS.report,
     });
   } catch (err) {
     console.error('[Email] Failed to send report resolution email:', err.message);
@@ -1384,7 +1349,7 @@ app.post('/api/report-message', bugReportLimiter, authenticateTokenOptional, asy
   }
 
   // ── Email notification ─────────────────────────────────────────────────────
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+  if (process.env.RESEND_API_KEY) {
     const msgSnippet = (message || '').slice(0, 400) + ((message || '').length > 400 ? '…' : '');
     const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
@@ -1419,10 +1384,12 @@ app.post('/api/report-message', bugReportLimiter, authenticateTokenOptional, asy
 </body></html>`;
 
     sendEmail({
-      to: process.env.GMAIL_USER,
+      to: EMAILS.report,
       subject: `[SahaPlay Report] ${reasonLabel} — @${reporterUsername} reported @${reportedUsername}`,
       html: notifyHtml,
       text: `Message Report #${reportId}\nReporter: @${reporterUsername}\nReported: @${reportedUsername}\nRoom: ${roomId || 'Global Chat'}\nReason: ${reasonLabel}\nMessage: "${(message || '').slice(0, 400)}"\nNotes: ${description || 'None'}`,
+      fromName: 'SahaPlay Reports',
+      replyTo: EMAILS.report,
       attachments,
     }).catch(err => console.warn('[report-message] Email failed (non-fatal):', err.message));
   }
@@ -1539,6 +1506,7 @@ app.post('/api/signup', async (req, res) => {
       subject: `Verify your SahaPlay account`,
       text: `Hi ${rawUsername},\n\nPlease verify your email by clicking: ${verifyLink}\n\nThe SahaPlay Team`,
       html: verifyHtml,
+      replyTo: EMAILS.contact,
     });
 
     return res.json({ message: 'Account created! Please check your email to verify your account.', token: setupToken });
@@ -1627,6 +1595,7 @@ app.post('/api/resend-verification', loginLimiter, async (req, res) => {
       subject: 'Verify your SahaPlay account',
       text: `Hi ${user.username},\n\nHere is your new verification link: ${verifyLink}\n\nThe SahaPlay Team`,
       html: resendHtml,
+      replyTo: EMAILS.contact,
     });
   } catch (err) {
     console.error('[resend-verification] Error:', err);
@@ -1843,7 +1812,8 @@ app.post('/api/auth/google', async (req, res) => {
         to: email,
         subject: 'Verify your SahaPlay account',
         text: `Hi ${finalUsername},\n\nPlease verify your email by clicking: ${verifyLink}\n\nThe SahaPlay Team`,
-        html: verifyHtml
+        html: verifyHtml,
+        replyTo: EMAILS.contact,
       });
 
       return res.json({ message: 'Signup successful', token, username: finalUsername });
@@ -1955,11 +1925,7 @@ ${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}`;
       subject: L.emailResetSubject || 'Reset your SahaPlay password',
       text: textVersion,
       html: resetHtml,
-      headers: {
-        'X-Priority': '3',
-        'X-Mailer': 'SahaPlay Mailer',
-        'List-Unsubscribe': `<mailto:${process.env.GMAIL_USER}>`,
-      }
+      replyTo: EMAILS.contact,
     });
 
     return res.json({ message: L.apiResetSuccess || 'Password reset link sent to your email!' });
@@ -7871,14 +7837,7 @@ app.post('/api/chat-lock/request-email-reset', authenticateToken, async (req, re
     );
 
     // Send email
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: false,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-    await transporter.sendMail({
-      from: `"SahaPlay" <${process.env.SMTP_USER}>`,
+    const emailResult = await sendEmail({
       to: user.email,
       subject: 'Chat Lock PIN Reset Code',
       html: `
@@ -7889,7 +7848,9 @@ app.post('/api/chat-lock/request-email-reset', authenticateToken, async (req, re
           <p style="color:#475569;font-size:13px;margin:20px 0 0">Expires in 15 minutes. Do not share this code.</p>
         </div>
       `,
+      replyTo: EMAILS.contact,
     });
+    if (!emailResult) return res.status(500).json({ error: 'Failed to send email' });
     return res.json({ success: true });
   } catch (err) {
     console.error('[chat-lock/request-email-reset]', err);
@@ -8029,7 +7990,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   const esc = (s) =>
     String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 
-  // ── Notification email to sahaaplay@gmail.com ────────
+  // ── Notification email to contact@sahaplay.com ────────
   const notifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#09090b">
 <div style="max-width:600px;margin:40px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:16px;overflow:hidden">
@@ -8102,7 +8063,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     <!-- Divider -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
     <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
-      ${L.emailContactUrgent || 'For urgent matters, you may also contact us at'} <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
+      ${L.emailContactUrgent || 'For urgent matters, you may also contact us at'} <a href="mailto:contact@sahaplay.com" style="color:#6366f1;text-decoration:none;font-weight:600">contact@sahaplay.com</a>.
     </p>
   </td></tr>
   <!-- Footer -->
@@ -8137,32 +8098,34 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
   }
 
   // ── Guard: no email credentials → still saved to DB ─────────────────────
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  if (!process.env.RESEND_API_KEY) {
     if (dbRequestId) {
       return res.json({ success: true, message: L.apiContactSuccess || 'Message received! Our team will follow up soon.' });
     }
-    console.error('[contact] Gmail credentials missing from .env!');
-    return res.status(500).json({ success: false, error: 'Email service not configured. Please email sahaaplay@gmail.com directly.' });
+    console.error('[contact] RESEND_API_KEY missing from .env!');
+    return res.status(500).json({ success: false, error: 'Email service not configured. Please email contact@sahaplay.com directly.' });
   }
 
   // ── Fire both emails non-blocking so the response is instant ──
   // Data is already saved to DB — email failures are non-fatal.
-  gmailTransporter.sendMail({
-    from:     `"SahaPlay Contact" <${process.env.GMAIL_USER}>`,
-    replyTo:  `"${cName}" <${cEmail}>`,
-    to:       process.env.GMAIL_USER,
+  sendEmail({
+    to:       EMAILS.contact,
     subject:  `[SahaPlay Contact] ${cSubject}`,
     html:     notifyHtml,
     text:     `From: ${cName} <${cEmail}>\nSubject: ${cSubject}\n\n${cMsg}`,
+    fromName: 'SahaPlay Contact',
+    replyTo:  `"${cName}" <${cEmail}>`,
     attachments,
-  }).then(() => {
-    if (dbRequestId) {
-      pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
-    }
-  }).catch(err => {
-    console.warn('[contact] Admin notification email failed (non-fatal):', err.message);
-    if (dbRequestId) {
-      pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = $1, updated_at = NOW() WHERE id = $2`, [err.message.substring(0, 500), dbRequestId]).catch(() => {});
+  }).then(result => {
+    if (result) {
+      if (dbRequestId) {
+        pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+      }
+    } else {
+      console.warn('[contact] Admin notification email failed (non-fatal)');
+      if (dbRequestId) {
+        pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = 'Resend delivery failed', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+      }
     }
   });
 
@@ -8171,6 +8134,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     subject: L.emailContactSubject || 'We received your message — SahaPlay',
     html:    confirmHtml,
     text:    `${L.emailContactHi || 'Hi'} ${cName},\n\n${L.emailContactBody || 'Thanks for reaching out! We received your message and will get back to you within 48 hours.'}\n\n${L.emailContactYourMsg || 'Your message'}:\n${cMsg}\n\n— ${L.emailContactFooter || 'SahaPlay Team'}`,
+    replyTo: EMAILS.contact,
   }).catch(e => console.warn('[contact] Confirmation email failed (non-fatal):', e.message));
 
   return res.json({ success: true, message: L.apiContactSuccess || 'Message sent!' });
@@ -8309,7 +8273,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     critical: { bg: '#fee2e2', color: '#991b1b', label: '🔴 Critical' },
   }[rSeverity] || { bg: '#f3f4f6', color: '#374151', label: rSeverity };
 
-  // ── Notification email to sahaaplay@gmail.com ─────────
+  // ── Notification email to report@sahaplay.com ─────────
   const bugSections = [
     { label: 'What were they doing?',  content: rWhatHappened },
     { label: 'What did they expect?',  content: rWhatExpected },
@@ -8415,7 +8379,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     <!-- Divider -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
     <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.6">${L.emailBugHint || 'We will notify you at this email address when the issue is resolved.'}</p>
-    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">${L.emailBugUrgent || 'For urgent matters:'} <a href="mailto:sahaaplay@gmail.com" style="color:#6366f1;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a></p>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">${L.emailBugUrgent || 'For urgent matters:'} <a href="mailto:report@sahaplay.com" style="color:#6366f1;text-decoration:none;font-weight:600">report@sahaplay.com</a></p>
   </td></tr>
   <!-- Footer -->
   <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
@@ -8427,31 +8391,33 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
 </body></html>`;
 
   // ── Guard: no email credentials → still saved to DB ──────────────────────
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+  if (!process.env.RESEND_API_KEY) {
     if (dbRequestId) {
       return res.json({ success: true, reportId });
     }
-    console.error('[report-bug] Gmail credentials missing from .env!');
-    return res.status(500).json({ success: false, error: L.apiBugErrorNoConfig || 'Email service not configured. Please email sahaaplay@gmail.com directly.' });
+    console.error('[report-bug] RESEND_API_KEY missing from .env!');
+    return res.status(500).json({ success: false, error: L.apiBugErrorNoConfig || 'Email service not configured. Please email report@sahaplay.com directly.' });
   }
 
   // ── Fire both emails non-blocking — data already in DB ──
-  gmailTransporter.sendMail({
-    from:    `"SahaPlay Bug Reports" <${process.env.GMAIL_USER}>`,
-    replyTo: `"${rName}" <${rEmail}>`,
-    to:      process.env.GMAIL_USER,
-    subject: `[BUG REPORT] ${rSeverity.toUpperCase()} - ${bugTypeLabel} | ${reportId}`,
-    html:    notifyHtml,
-    text:    `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${bugTypeLabel}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
+  sendEmail({
+    to:       EMAILS.report,
+    subject:  `[BUG REPORT] ${rSeverity.toUpperCase()} - ${bugTypeLabel} | ${reportId}`,
+    html:     notifyHtml,
+    text:     `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${bugTypeLabel}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
+    fromName: 'SahaPlay Bug Reports',
+    replyTo:  `"${rName}" <${rEmail}>`,
     attachments: emailAttachments,
-  }).then(() => {
-    if (dbRequestId) {
-      pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
-    }
-  }).catch(err => {
-    console.warn('[report-bug] Admin notification email failed (non-fatal):', err.message);
-    if (dbRequestId) {
-      pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = $1, updated_at = NOW() WHERE id = $2`, [err.message.substring(0, 500), dbRequestId]).catch(() => {});
+  }).then(result => {
+    if (result) {
+      if (dbRequestId) {
+        pool.query(`UPDATE support_requests SET email_notification_status = 'sent', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+      }
+    } else {
+      console.warn('[report-bug] Admin notification email failed (non-fatal)');
+      if (dbRequestId) {
+        pool.query(`UPDATE support_requests SET email_notification_status = 'failed', email_notification_error = 'Resend delivery failed', updated_at = NOW() WHERE id = $1`, [dbRequestId]).catch(() => {});
+      }
     }
   });
 
@@ -8459,7 +8425,8 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     to:      rEmail,
     subject: `${L.emailBugSubject || 'Bug Report Received'} - ${reportId} | SahaPlay`,
     html:    confirmHtml,
-    text:    `${L.emailContactHi || 'Hi'} ${rName},\n\n${L.emailBugBody1 || 'We received your bug report about'} ${bugTypeLabel}.\n\n${L.emailBugReportId || 'Report ID'}: ${reportId}\n${L.emailBugSeverity || 'Severity'}: ${rSeverity}\n\n${L.emailBugBody2 || "Our team will investigate and we'll update you at this email when it's resolved."}\n\n${L.emailBugUrgent || 'For urgent issues:'} sahaaplay@gmail.com\n\n— ${L.emailBugFooter || 'SahaPlay Team'}`,
+    text:    `${L.emailContactHi || 'Hi'} ${rName},\n\n${L.emailBugBody1 || 'We received your bug report about'} ${bugTypeLabel}.\n\n${L.emailBugReportId || 'Report ID'}: ${reportId}\n${L.emailBugSeverity || 'Severity'}: ${rSeverity}\n\n${L.emailBugBody2 || "Our team will investigate and we'll update you at this email when it's resolved."}\n\n${L.emailBugUrgent || 'For urgent issues:'} report@sahaplay.com\n\n— ${L.emailBugFooter || 'SahaPlay Team'}`,
+    replyTo: EMAILS.report,
   }).catch(e => console.warn('[report-bug] Confirmation email failed (non-fatal):', e.message));
 
   return res.json({ success: true, reportId });
@@ -8491,11 +8458,11 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
   }
 
   // Credentials guard
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.error('[report-user] Gmail credentials missing from .env!');
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[report-user] RESEND_API_KEY missing from .env!');
     return res.status(500).json({
       success: false,
-      error: 'Email service not configured. Please report user via sahaaplay@gmail.com directly.',
+      error: 'Email service not configured. Please report user via report@sahaplay.com directly.',
     });
   }
 
@@ -8602,17 +8569,17 @@ app.post('/api/report-user', authenticateTokenOptional, bugReportLimiter, async 
 </div>
 </body></html>`;
 
-  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    sendEmail({
-      to:      process.env.GMAIL_USER,
-      subject: `[USER REPORT] @${rReported} reported by @${reporter} | #${reportId}`,
-      html:    notifyHtml,
-      text:    `User Report #${reportId}\nReported User: @${rReported}\nReporter: @${reporter}\nReason: ${reasonLabel}\n\nDescription:\n${rDesc || 'No details provided.'}`,
-      attachments,
-    }).catch(err => {
-      console.error('[report-user] background email error:', err.message);
-    });
-  }
+  sendEmail({
+    to:       EMAILS.report,
+    subject:  `[USER REPORT] @${rReported} reported by @${reporter} | #${reportId}`,
+    html:     notifyHtml,
+    text:     `User Report #${reportId}\nReported User: @${rReported}\nReporter: @${reporter}\nReason: ${reasonLabel}\n\nDescription:\n${rDesc || 'No details provided.'}`,
+    fromName: 'SahaPlay Reports',
+    replyTo:  EMAILS.report,
+    attachments,
+  }).catch(err => {
+    console.error('[report-user] background email error:', err.message);
+  });
 
   return res.json({ success: true, reportId });
 });
@@ -9570,7 +9537,7 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
     <!-- Divider -->
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
     <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
-      If you have any further questions or this issue reoccurs, please contact us at <a href="mailto:sahaaplay@gmail.com" style="color:#059669;text-decoration:none;font-weight:600">sahaaplay@gmail.com</a>.
+      If you have any further questions or this issue reoccurs, please contact us at <a href="mailto:contact@sahaplay.com" style="color:#059669;text-decoration:none;font-weight:600">contact@sahaplay.com</a>.
     </p>
   </td></tr>
   <!-- Footer -->
@@ -9585,7 +9552,8 @@ app.patch('/api/admin/support-requests/:id', authenticateToken, requireAdmin, re
             to: ticket.submitted_by_email,
             subject: `Your request has been resolved — SahaPlay`,
             html: resolveHtml,
-            text: `Hi ${ticket.submitted_by_name || 'there'},\n\nYour support request "${ticket.subject}" has been resolved by our team.\n\n${ticket.resolution_message ? `Message from our team:\n${ticket.resolution_message}\n\n` : ''}If you have further questions, email us at sahaaplay@gmail.com.\n\n— SahaPlay Team`,
+            text: `Hi ${ticket.submitted_by_name || 'there'},\n\nYour support request "${ticket.subject}" has been resolved by our team.\n\n${ticket.resolution_message ? `Message from our team:\n${ticket.resolution_message}\n\n` : ''}If you have further questions, email us at contact@sahaplay.com.\n\n— SahaPlay Team`,
+            replyTo: EMAILS.contact,
           }).catch(() => {});
         }
       } catch (emailErr) {
@@ -9892,11 +9860,11 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
 </td></tr></table>
 </body></html>`;
 
-    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      sendEmail({ to: cleanEmail, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.`, headers: { 'X-Priority': '3', 'X-Mailer': 'SahaPlay', 'Precedence': 'bulk' } })
+    if (process.env.RESEND_API_KEY) {
+      sendEmail({ to: cleanEmail, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteUrl}\n\nThis link expires in 48 hours.`, replyTo: EMAILS.founders })
         .catch(e => console.warn('[admin-invite] Email failed (non-fatal):', e.message));
     } else {
-      console.warn('[admin-invite] Gmail not configured — invite created for', cleanEmail, '(deliver link via admin panel resend once email is set up)');
+      console.warn('[admin-invite] RESEND_API_KEY not configured — invite created for', cleanEmail, '(deliver link via admin panel resend once email is set up)');
     }
 
     await pool.query(
@@ -10019,28 +9987,10 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
 </body></html>`;
 
     let emailSent = false;
-    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      sendEmail({ to: inv.email, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`, headers: { 'X-Priority': '3', 'X-Mailer': 'SahaPlay', 'Precedence': 'bulk' } })
-        .catch(e => console.warn('[admin-invite-resend] Email failed:', e.message));
-      emailSent = true;
-    } else if (process.env.SMTP_HOST) {
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      try {
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          to: inv.email,
-          subject: `SahaPlay Team Invitation — ${roleLabel}`,
-          html: inviteHtml,
-        });
-        emailSent = true;
-      } catch (emailErr) {
-        console.warn('[admin-invite-resend] SMTP email failed:', emailErr.message);
-      }
+    if (process.env.RESEND_API_KEY) {
+      const result = await sendEmail({ to: inv.email, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`, replyTo: EMAILS.founders })
+        .catch(e => { console.warn('[admin-invite-resend] Email failed:', e.message); return null; });
+      emailSent = !!result;
     }
 
     await pool.query(
@@ -10138,8 +10088,8 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
 </td></tr></table>
 </body></html>`;
 
-    if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-      sendEmail({ to: cleanEmail, subject: `SahaPlay Admin Access Approved — ${roleLabel}`, html: acceptHtml, text: `Your invitation to join the SahaPlay team has been approved.\n\nAccess the dashboard here: ${clientOrigin}/admin` })
+    if (process.env.RESEND_API_KEY) {
+      sendEmail({ to: cleanEmail, subject: `SahaPlay Admin Access Approved — ${roleLabel}`, html: acceptHtml, text: `Your invitation to join the SahaPlay team has been approved.\n\nAccess the dashboard here: ${clientOrigin}/admin`, replyTo: EMAILS.founders })
         .catch(e => console.warn('[admin-accept-invite-email] Email failed:', e.message));
     }
 

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
+import SupportModal from './components/SupportModal';
 import { appCache } from './cache/appCache.js';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 
@@ -233,6 +234,7 @@ const AppSettings = () => {
   const token = localStorage.getItem('watch_token');
   const myUsername = localStorage.getItem('watch_username');
   const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   // Settings state
   const [settings, setSettings] = useState(null);
@@ -1104,7 +1106,7 @@ const AppSettings = () => {
                     {t('app', 'App')}
                   </button>
                   {!isGuest && (
-                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); toast.success('Support email: help@watchtogether.app'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowSupportModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
@@ -1566,6 +1568,7 @@ const AppSettings = () => {
         onMarkRead={handleMarkRead}
         onNewMessage={handleNewMessage}
       />
+      <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
     </div>
   );
 };
