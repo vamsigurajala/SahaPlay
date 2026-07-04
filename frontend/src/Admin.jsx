@@ -359,12 +359,12 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                       </div>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', display: 'inline-block', flexShrink: 0 }} />
                       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        {['super_admin', 'admin', 'moderator'].includes(watchRole) && (
+                        {['super_admin', 'admin', 'moderator'].includes(watchRole) && !['super_admin', 'admin'].includes(u.role) && (
                           <button onClick={() => setBanTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Ban size={11} /> Ban
                           </button>
                         )}
-                        {['super_admin', 'admin'].includes(watchRole) && (
+                        {['super_admin', 'admin'].includes(watchRole) && !['super_admin', 'admin'].includes(u.role) && (
                           <button onClick={() => setTerminateTarget(u)} style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid rgba(239,68,68,0.5)', background: 'rgba(239,68,68,0.18)', color: '#ef4444', fontWeight: 700, fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <AlertTriangle size={11} /> Terminate
                           </button>

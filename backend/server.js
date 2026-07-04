@@ -8680,7 +8680,7 @@ app.get('/api/admin/online-users', authenticateToken, requireAdmin, requireAdmin
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
     const result = await pool.query(
-      `SELECT id, username, "displayName", "avatarPath" FROM users WHERE username = ANY($1) AND email IS NOT NULL`,
+      `SELECT id, username, "displayName", "avatarPath", role FROM users WHERE username = ANY($1) AND email IS NOT NULL`,
       [usernames]
     );
     res.json({ users: result.rows, count: result.rows.length });
@@ -8696,7 +8696,7 @@ app.get('/api/admin/guest-users', authenticateToken, requireAdmin, requireAdminR
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
     const result = await pool.query(
-      `SELECT id, username, "displayName", "avatarPath" FROM users WHERE username = ANY($1) AND (email IS NULL OR email = '')`,
+      `SELECT id, username, "displayName", "avatarPath", role FROM users WHERE username = ANY($1) AND (email IS NULL OR email = '')`,
       [usernames]
     );
     res.json({ users: result.rows, count: result.rows.length });
