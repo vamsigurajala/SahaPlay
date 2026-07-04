@@ -1,0 +1,67 @@
+[2m1:26:20 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:26:21 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:55:38 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m1:55:40 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m2:10:36 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] Error:[0m Missing catch or finally clause
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/Room.jsx:1314:10 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m1314 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m     │[0m          │ 
+ [38;5;240m     │[0m          ╰─ 
+ [38;5;240m     │[0m 
+ [38;5;240m     │[0m [38;5;115mHelp[0m: Either unwrap this try block or add catch / finally clause
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] Error:[0m Unexpected token
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/Room.jsx:1314:10 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m1314 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m}[0m)[38;5;249m;[0m
+ [38;5;240m     │[0m          ┬  
+ [38;5;240m     │[0m          ╰── 
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/src/Room.jsx[39m
+      at transformWithOxc (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:3719:19)
+      at TransformPluginContext.transform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:3795:26)
+      at EnvironmentPluginContainer.transform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:29998:51)
+      at async loadAndTransform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:24133:26)
+[2m2:10:36 pm[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 2 errors:
+
+[31m[PARSE_ERROR] Error:[0m Missing catch or finally clause
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/Room.jsx:1314:10 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m1314 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m;[0m
+ [38;5;240m     │[0m          │ 
+ [38;5;240m     │[0m          ╰─ 
+ [38;5;240m     │[0m 
+ [38;5;240m     │[0m [38;5;115mHelp[0m: Either unwrap this try block or add catch / finally clause
+[38;5;246m──────╯[0m
+
+[31m[PARSE_ERROR] Error:[0m Unexpected token
+      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/Room.jsx:1314:10 [38;5;246m][0m
+      [38;5;246m│[0m
+ [38;5;246m1314 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m}[0m)[38;5;249m;[0m
+ [38;5;240m     │[0m          ┬  
+ [38;5;240m     │[0m          ╰── 
+[38;5;246m──────╯[0m
+[39m
+  Plugin: [35mvite:oxc[39m
+  File: [36mC:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/src/Room.jsx[39m
+      at transformWithOxc (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:3719:19)
+      at TransformPluginContext.transform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:3795:26)
+      at EnvironmentPluginContainer.transform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:29998:51)
+      at async loadAndTransform (file:///C:/Users/KrishnavamsiGurajala/.gemini/antigravity/scratch/watch-together/frontend/node_modules/vite/dist/node/chunks/node.js:24133:26)
+[2m2:10:36 pm[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/Room.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m2:10:36 pm[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/Room.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[2m2:46:09 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m3:15:42 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m3:15:51 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m3:16:33 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m3:17:03 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m4:37:02 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m4:37:04 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m4:40:58 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
+[2m4:42:25 pm[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[bip39] wordlist has 2056 words, expected 2048
