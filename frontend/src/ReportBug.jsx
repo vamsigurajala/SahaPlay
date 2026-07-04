@@ -6,7 +6,7 @@ import {
   CheckCircle, AlertCircle, ChevronDown, Upload, X,
   Play, MessageSquare, Lock, Smartphone, Bell, Mic, Camera,
   Zap, Activity, Palette, Link, Shield, HelpCircle,
-  AlertTriangle, Flame, Bug, Search
+  AlertTriangle, Flame, Bug, Search, Home
 } from 'lucide-react';
 
 const BUG_TYPES = [
@@ -347,12 +347,12 @@ export default function ReportBug() {
           <div style={{ ...cardSt, borderRadius: 20, padding: isMobile ? '40px 24px' : '60px 48px', textAlign: 'center', maxWidth: 540, width: '100%', animation: 'fadeInUp 0.4s ease' }}>
 
             {/* Icon */}
-            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(99,102,241,0.1)', border: '2px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', animation: 'popIn 0.4s ease', fontSize: 36, lineHeight: 1 }}>
-              ✅
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(99,102,241,0.15)', border: '2px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', animation: 'popIn 0.4s ease' }}>
+              <CheckCircle size={40} color="#818cf8" strokeWidth={2} />
             </div>
 
             {/* Title */}
-            <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 900, color: isLight ? '#111' : '#fff', margin: '0 0 16px', letterSpacing: '-0.5px' }}>
+            <h2 style={{ fontSize: isMobile ? 24 : 30, fontWeight: 900, color: '#fff', margin: '0 0 16px', letterSpacing: '-0.5px' }}>
               {t('rbSuccessTitle', 'Bug Report Submitted!')}
             </h2>
 
@@ -406,6 +406,7 @@ export default function ReportBug() {
                 {t('rbReportAnother', 'Report Another Bug')}
               </button>
               <button
+                className="stay-white"
                 onClick={() => { window.location.href = '/'; }}
                 onMouseEnter={() => setHoveredSuccessBtn('primary')}
                 onMouseLeave={() => setHoveredSuccessBtn(null)}
@@ -417,9 +418,11 @@ export default function ReportBug() {
                   boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(99,102,241,0.4)' : '0 0px 0px transparent',
                   opacity: hoveredSuccessBtn === 'primary' ? 0.9 : 1,
                   transition: 'all 0.18s ease',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                {t('rbBackHome', 'Back to Home →')}
+                <Home size={16} color="#fff" />
+                <span className="stay-white" style={{ color: '#fff' }}>{t('rbBackHome', 'Back to Home')}</span>
               </button>
             </div>
 
@@ -483,8 +486,8 @@ export default function ReportBug() {
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
                   {apiErr || t('rbErrorFallback', 'Something went wrong.')}{' '}
                   {t('rbErrorEmailFallback', 'Email us at')}{' '}
-                  <a href="mailto:sahaaplay@gmail.com?subject=Bug%20Report" style={{ color: '#818cf8', textDecoration: 'none' }}>
-                    sahaaplay@gmail.com
+                  <a href="mailto:report@sahaplay.com?subject=Bug%20Report" style={{ color: '#818cf8', textDecoration: 'none' }}>
+                    report@sahaplay.com
                   </a>
                   {' '}{t('rbErrorSubject', 'with subject: Bug Report')}
                 </div>

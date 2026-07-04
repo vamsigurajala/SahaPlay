@@ -386,7 +386,7 @@ export default function Safety() {
                   bodyEl: (
                     <span style={{ fontSize: 14, lineHeight: 1.65 }}>
                       {t('sfReportStep2Desc').split('safety@sahaplay.com')[0]}
-                      <a href="mailto:sahaaplay@gmail.com" style={{ color: isLight ? '#4338ca' : '#818cf8', textDecoration: 'none', fontWeight: 600 }}>
+                      <a href="mailto:safety@sahaplay.com" style={{ color: isLight ? '#4338ca' : '#818cf8', textDecoration: 'none', fontWeight: 600 }}>
                         safety@sahaplay.com
                       </a>
                       {t('sfReportStep2Desc').split('safety@sahaplay.com')[1]}

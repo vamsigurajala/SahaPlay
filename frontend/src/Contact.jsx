@@ -346,8 +346,8 @@ export default function Contact() {
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
                   {apiErr || t('contactErrorFallback', 'Something went wrong.')}{' '}
                   {t('contactErrorEmailFallback', 'Or email us directly at')}{' '}
-                  <a href="mailto:sahaaplay@gmail.com" style={{ color: '#818cf8', textDecoration: 'none' }}>
-                    sahaaplay@gmail.com
+                  <a href="mailto:contact@sahaplay.com" style={{ color: '#818cf8', textDecoration: 'none' }}>
+                    contact@sahaplay.com
                   </a>
                 </div>
                 <button

@@ -280,8 +280,8 @@ export default function Terms() {
                 <Mail size={14} color={ACCENTS[0]} />
                 <span style={{ fontSize: 14, color: textBody }}>
                   {t('termsIntroContact', 'Contact:')}{' '}
-                  <a href="mailto:sahaaplay@gmail.com" style={{ color: ACCENTS[0], textDecoration: 'none', fontWeight: 600 }}>
-                    sahaaplay@gmail.com
+                  <a href="mailto:contact@sahaplay.com" style={{ color: ACCENTS[0], textDecoration: 'none', fontWeight: 600 }}>
+                    contact@sahaplay.com
                   </a>
                 </span>
               </div>
@@ -302,7 +302,7 @@ export default function Terms() {
             <SectionCard id="account-termination" num={3} Icon={Trash2} accent={ACCENTS[2]}>
               <Bullet accent={ACCENTS[2]}>
                 {t('termsTermBullet1', 'You may terminate your account at any time by contacting us at')}{' '}
-                <a href="mailto:sahaaplay@gmail.com" style={{ color: ACCENTS[2], textDecoration: 'none', fontWeight: 600 }}>sahaaplay@gmail.com</a>.
+                <a href="mailto:contact@sahaplay.com" style={{ color: ACCENTS[2], textDecoration: 'none', fontWeight: 600 }}>contact@sahaplay.com</a>.
               </Bullet>
               <Bullet accent={ACCENTS[2]}>
                 {t('termsTermBullet2', 'We reserve the right to suspend or delete accounts that violate these Terms, applicable law, or that we deem inappropriate, without prior notice.')}
@@ -370,7 +370,7 @@ export default function Terms() {
               </Bullet>
               <Bullet accent={ACCENTS[5]}>
                 {t('termsIpBullet3', 'If you believe your copyright has been infringed, please send a DMCA notice to:')}{' '}
-                <a href="mailto:sahaaplay@gmail.com" style={{ color: ACCENTS[5], textDecoration: 'none', fontWeight: 600 }}>sahaaplay@gmail.com</a>
+                <a href="mailto:contact@sahaplay.com" style={{ color: ACCENTS[5], textDecoration: 'none', fontWeight: 600 }}>contact@sahaplay.com</a>
               </Bullet>
               <Para>{t('termsIpIncludeNotice', 'Include in your notice:')}</Para>
               <Sub>{t('termsIpSub1', 'Description of the copyrighted work.')}</Sub>
@@ -430,8 +430,8 @@ export default function Terms() {
               </Bullet>
               <Bullet accent="#ec4899">
                 {t('termsChatBullet6Part1', 'If you receive harmful, illegal, or abusive messages through SahaPlay, please report them immediately at')}{' '}
-                <a href="mailto:sahaaplay@gmail.com" style={{ color: '#ec4899', textDecoration: 'none', fontWeight: 600 }}>
-                  sahaaplay@gmail.com
+                <a href="mailto:contact@sahaplay.com" style={{ color: '#ec4899', textDecoration: 'none', fontWeight: 600 }}>
+                  contact@sahaplay.com
                 </a>{' '}
                 {t('termsChatBullet6Part2', 'or through our')}{' '}
                 <Link to="/safety" style={{ color: '#ec4899', textDecoration: 'none', fontWeight: 600 }}>
@@ -459,8 +459,8 @@ export default function Terms() {
               </Para>
               <Para>
                 {t('termsStreamPara5Part1', 'SahaPlay cooperates with copyright holders and will act on valid DMCA notices sent to')}{' '}
-                <a href="mailto:sahaaplay@gmail.com" style={{ color: '#f97316', textDecoration: 'none', fontWeight: 600 }}>
-                  sahaaplay@gmail.com
+                <a href="mailto:contact@sahaplay.com" style={{ color: '#f97316', textDecoration: 'none', fontWeight: 600 }}>
+                  contact@sahaplay.com
                 </a>
               </Para>
             </SectionCard>
@@ -542,8 +542,8 @@ export default function Terms() {
               </Para>
               <Para>
                 {t('termsAgePara2Part1', 'If you believe a child under 13 has registered, please contact us at')}{' '}
-                <a href="mailto:sahaaplay@gmail.com" style={{ color: ACCENTS[11], textDecoration: 'none', fontWeight: 600 }}>
-                  sahaaplay@gmail.com
+                <a href="mailto:contact@sahaplay.com" style={{ color: ACCENTS[11], textDecoration: 'none', fontWeight: 600 }}>
+                  contact@sahaplay.com
                 </a>
               </Para>
             </SectionCard>
@@ -594,8 +594,8 @@ export default function Terms() {
                   }}>
                     <Mail size={14} color={ACCENTS[14]} />
                   </div>
-                  <a href="mailto:sahaaplay@gmail.com" style={{ color: ACCENTS[14], textDecoration: 'none', fontSize: 15, fontWeight: 600 }}>
-                    sahaaplay@gmail.com
+                  <a href="mailto:contact@sahaplay.com" style={{ color: ACCENTS[14], textDecoration: 'none', fontSize: 15, fontWeight: 600 }}>
+                    contact@sahaplay.com
                   </a>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
