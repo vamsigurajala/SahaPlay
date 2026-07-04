@@ -223,7 +223,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
           : `/api/admin/active-rooms?filter=${filter}`;
         apiFetch(path)
           .then(d => { setData(d); })
-          .catch(() => {});
+          .catch((err) => console.error('[ADMIN] Silent fetch failure:', err.message));
       }, 10000);
       return () => clearInterval(intervalId);
     }
@@ -1854,7 +1854,7 @@ function ReportsPage({ refreshBadges }) {
 
   useEffect(() => {
     load();
-    apiFetch('/api/admin/team').then(d => setTeamMembers(d.members || [])).catch(() => {});
+    apiFetch('/api/admin/team').then(d => setTeamMembers(d.members || [])).catch((err) => console.error('[ADMIN] Silent fetch failure:', err.message));
   }, []);
 
   useEffect(() => {
@@ -2385,7 +2385,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
 
   useEffect(() => {
     load();
-    apiFetch('/api/admin/team').then(d => setTeamMembers(d.members || [])).catch(() => {});
+    apiFetch('/api/admin/team').then(d => setTeamMembers(d.members || [])).catch((err) => console.error('[ADMIN] Silent fetch failure:', err.message));
   }, []);
 
   // Auto-open a specific ticket when navigated from Admin Team page
@@ -3573,11 +3573,11 @@ export default function Admin() {
         localStorage.setItem('watch_role', d.role);
         setWatchRole(d.role);
       }
-    }).catch(() => {});
+    }).catch((err) => console.error('[ADMIN] Silent fetch failure:', err.message));
   }, []);
 
   const refreshBadges = React.useCallback(() => {
-    apiFetch('/api/admin/badge-counts').then(d => setBadges(d)).catch(() => {});
+    apiFetch('/api/admin/badge-counts').then(d => setBadges(d)).catch((err) => console.error('[ADMIN] Silent fetch failure:', err.message));
   }, []);
 
   const socketRef = useRef(null);

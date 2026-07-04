@@ -39,6 +39,10 @@ const _origPush = history.pushState.bind(history);
 history.pushState = (...a) => { _origPush(...a); prefetchAll(); };
 window.addEventListener('popstate', () => prefetchAll());
 
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('[UNHANDLED REJECTION]', event.reason);
+});
+
 createRoot(document.getElementById('root')).render(
   <App />
 )
