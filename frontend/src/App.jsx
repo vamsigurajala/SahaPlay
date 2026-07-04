@@ -24,6 +24,43 @@ const Cookies = lazy(() => import('./Cookies'));
 const Terms = lazy(() => import('./Terms'));
 const Admin = lazy(() => import('./Admin'));
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ERROR BOUNDARY]', error, info.componentStack);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', height: '100vh', background: '#0f0a1e',
+          color: '#fff', gap: 16,
+        }}>
+          <h2>Something went wrong</h2>
+          <p style={{ color: '#aaa', fontSize: 14 }}>Please refresh the page</p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background: '#7c3aed', color: '#fff', border: 'none',
+              padding: '10px 24px', borderRadius: 8, cursor: 'pointer', fontSize: 14,
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AcceptInvitePage() {
   const [status, setStatus] = React.useState('idle'); // idle | loading | success | error
   const [msg, setMsg] = React.useState('');
@@ -872,6 +909,7 @@ function App() {
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE';
 
   return (
+    <ErrorBoundary>
     <CryptoProvider>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
@@ -906,6 +944,7 @@ function App() {
         </Router>
       </GoogleOAuthProvider>
     </CryptoProvider>
+    </ErrorBoundary>
   );
 }
 

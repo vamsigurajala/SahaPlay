@@ -1527,7 +1527,7 @@ const GlobalChatWidget = forwardRef(({
     fetch(`${API}/api/chat-lock/status`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => { if (data.enabled !== undefined) setChatLockEnabled(!!data.enabled); })
-      .catch(() => {});
+      .catch((err) => console.error('[CHAT LOCK] Fetch failure:', err.message));
     // Also sync locked chats from server
     fetch(`${API}/api/chat-lock/locked-chats`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
@@ -1537,7 +1537,7 @@ const GlobalChatWidget = forwardRef(({
           localStorage.setItem(`locked_chats_${myUsername}`, JSON.stringify(data.lockedChats));
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error('[CHAT LOCK] Fetch failure:', err.message));
   }, [token]);
 
   // ── Auto-lock: relock unlocked sessions when tab hides ──

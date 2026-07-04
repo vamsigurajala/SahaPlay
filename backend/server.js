@@ -1665,7 +1665,10 @@ app.post('/api/login', async (req, res) => {
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) return res.status(400).json({ error: 'Invalid credentials' });
+    if (!isValidPassword) {
+      console.warn('[AUTH] Failed login attempt:', username, 'IP:', req.ip);
+      return res.status(400).json({ error: 'Invalid credentials' });
+    }
 
     // ─── Ban / termination enforcement ───
     if (user.terminated) {
@@ -4353,7 +4356,8 @@ app.post('/api/browser/session', authenticateToken, async (req, res) => {
     const data = await r.json();
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error('[HYPERBEAM] browser-session error:', e.message);
+    res.status(500).json({ error: 'Session error' });
   }
 });
 
@@ -4483,7 +4487,7 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
     });
   } catch (e) {
     console.error('[HYPERBEAM] create-session error:', e.message);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'Session error' });
   }
 });
 
@@ -4511,7 +4515,7 @@ app.delete('/api/hyperbeam/session/:roomId', authenticateToken, async (req, res)
     console.error('[HYPERBEAM] end-session error:', e.message);
     // Still remove from map even if Hyperbeam call failed — don't leave zombie entries
     activeHyperbeamSessions.delete(rid);
-    return res.status(500).json({ ok: false, error: e.message });
+    return res.status(500).json({ ok: false, error: 'Session error' });
   }
 });
 
@@ -5771,24 +5775,17 @@ io.on('connection', (socket) => {
 
   // ─── Standardized Mark Read ───
   socket.on('chat:mark_read', async ({ chatId, timestamp, isDm }) => {
-    console.log(`[DEBUG chat:mark_read] Called by socket.username=${socket.username}, socket.id=${socket.id} with chatId=${chatId}, timestamp=${timestamp}, isDm=${isDm}`);
-    if (!socket.username || !chatId) {
-      console.warn(`[DEBUG chat:mark_read] early return due to missing username or chatId`);
-      return;
-    }
+    if (!socket.username || !chatId) return;
     const now = timestamp || Date.now();
-    
+
     // 1. Get the actual roomId used in messages table
     const targetRoomId = await getRoomIdForChat(chatId, socket.username, isDm);
-    console.log(`[DEBUG chat:mark_read] resolved targetRoomId=${targetRoomId}`);
-    
+
     // 2. Persist lastSeen to users table (existing logic)
     db.get('SELECT lastSeen FROM users WHERE username = ?', [socket.username], (err, row) => {
-      if (err) console.error(`[DEBUG chat:mark_read] users lastSeen select error:`, err);
       let ls = {};
       try { ls = JSON.parse(row?.lastSeen || '{}'); } catch(e){}
       ls[chatId] = now;
-      console.log(`[DEBUG chat:mark_read] updating lastSeen for ${socket.username} to ${JSON.stringify(ls)}`);
       db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username]);
       
       // Broadcast to other sockets of the same user to sync unread badges across tabs
@@ -5810,12 +5807,9 @@ io.on('connection', (socket) => {
     
     db.get('SELECT "avatarPath" FROM users WHERE username = ?', [socket.username], (err, userRow) => {
       const userAvatar = userRow ? userRow.avatarPath : null;
-      console.log(`[DEBUG chat:mark_read] userAvatar=${userAvatar} for ${socket.username}`);
-      
       pool.query(queryStr, [socket.username, now, targetRoomId])
         .then(res => {
           const messageIds = res.rows.map(r => String(r.message_id));
-          console.log(`[DEBUG chat:mark_read] query completed. messageIds marked seen:`, messageIds);
           if (messageIds.length > 0) {
             const isDm = targetRoomId.startsWith('dm-');
             const payload = {
@@ -5828,7 +5822,6 @@ io.on('connection', (socket) => {
             };
             
             if (isDm) {
-              console.log(`[DEBUG chat:mark_read] emitting chat:messages_seen to ${socket.username} and ${chatId}`);
               emitToUser(socket.username, 'chat:messages_seen', payload);
               emitToUser(chatId, 'chat:messages_seen', payload);
             } else {
@@ -5943,19 +5936,12 @@ io.on('connection', (socket) => {
 
   // ─── Clear DM ───
   socket.on('clear_dm', async ({ targetUsername, clearForBoth }) => {
-    console.log('🔥🔥🔥 [CLEAR CHAT REAL HANDLER HIT] 🔥🔥🔥', new Date().toISOString(), JSON.stringify({ targetUsername, clearForBoth }));
     const sender = socket.username;
-    console.log('[CLEAR_DM] triggered', { sender, targetUsername, clearForBoth });
-    if (!sender || !targetUsername) {
-      console.log('[CLEAR_DM] aborting — missing sender or targetUsername');
-      return;
-    }
+    if (!sender || !targetUsername) return;
 
     const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: !!clearForBoth };
     const senderLow = sender.toLowerCase();
     const targetLow = targetUsername.toLowerCase();
-
-    console.log('[CLEAR CHAT] deleteForBoth flag received:', clearForBoth, typeof clearForBoth);
 
     if (clearForBoth) {
       // ── Hard DELETE: permanently erase for both parties ──
@@ -5968,8 +5954,6 @@ io.on('connection', (socket) => {
           [senderLow, targetLow]
         );
         pgDeleted = pgResult.rowCount || 0;
-        console.log('[CLEAR_DM] clearForBoth — PostgreSQL deleted rows:', pgDeleted);
-        console.log('🔥🔥🔥 [CLEAR CHAT DB RESULT] 🔥🔥🔥', JSON.stringify({ operation: 'DELETE_PG', rowCount: pgDeleted, sqliteCleared: false }));
       } catch (err) {
         console.error('[CLEAR_DM] clearForBoth — PostgreSQL DELETE failed:', err.message);
       }
@@ -5996,22 +5980,6 @@ io.on('connection', (socket) => {
       // Explicit ::text casts make this work whether hiddenFor is TEXT or JSONB.
       let pgUpdated = 0;
       try {
-        // Diagnostic: count rows BEFORE the update
-        const beforeCount = await pool.query(
-          `SELECT COUNT(*) AS c FROM messages
-           WHERE type = 'private'
-             AND ((LOWER("senderName") = $1 AND LOWER("targetName") = $2)
-               OR (LOWER("senderName") = $2 AND LOWER("targetName") = $1))
-             AND ("hiddenFor" IS NULL OR NOT ("hiddenFor"::jsonb @> jsonb_build_array($3::text)))`,
-          [senderLow, targetLow, sender]
-        ).catch(() => ({ rows: [{ c: '?' }] }));
-        console.log('[CLEAR CHAT] Operation scope:', {
-          conversationKey: `${sender}<->${targetUsername}`,
-          messageIdsProvided: 'none - full clear',
-          whereClauseDescription: 'ALL private messages between the pair, unconditional',
-        });
-        console.log('[CLEAR CHAT] Rows matching scope BEFORE clear:', beforeCount.rows[0]?.c);
-
         const pgResult = await pool.query(
           `UPDATE messages
            SET "hiddenFor" = CASE
@@ -6031,8 +5999,6 @@ io.on('connection', (socket) => {
           ]
         );
         pgUpdated = pgResult.rowCount || 0;
-        console.log('[CLEAR_DM] clearForMe — PostgreSQL updated rows (hiddenFor):', pgUpdated);
-        console.log('🔥🔥🔥 [CLEAR CHAT DB RESULT] 🔥🔥🔥', JSON.stringify({ operation: 'UPDATE_HIDDENFOR_PG', rowCount: pgUpdated, sqliteCleared: false }));
       } catch (err) {
         console.error('[CLEAR_DM] clearForMe — PostgreSQL UPDATE failed:', err.message);
       }
@@ -9825,9 +9791,11 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
 </td></tr></table>
 </body></html>`;
 
+    let emailSent = false;
     if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
       sendEmail({ to: inv.email, subject: `SahaPlay Team Invitation — ${roleLabel}`, html: inviteHtml, text: `You've been invited to join the SahaPlay team as ${roleLabel}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`, headers: { 'X-Priority': '3', 'X-Mailer': 'SahaPlay', 'Precedence': 'bulk' } })
         .catch(e => console.warn('[admin-invite-resend] Email failed:', e.message));
+      emailSent = true;
     } else if (process.env.SMTP_HOST) {
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({
@@ -9835,18 +9803,23 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
         secure: process.env.SMTP_SECURE === 'true',
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       });
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to: inv.email,
-        subject: `SahaPlay Team Invitation — ${roleLabel}`,
-        html: inviteHtml,
-      });
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: inv.email,
+          subject: `SahaPlay Team Invitation — ${roleLabel}`,
+          html: inviteHtml,
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.warn('[admin-invite-resend] SMTP email failed:', emailErr.message);
+      }
     }
 
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, target_email, reason)
        VALUES ($1, $2, 'ADMIN_INVITE_RESENT', $3, $4)`,
-      [String(req.user.id), req.adminEmail, inv.email, `Invite #${id} resent`]
+      [String(req.user.id), req.adminEmail, inv.email, `Invite #${id} resent${emailSent ? '' : ' (email delivery failed)'}`]
     );
     broadcastAdminBadges();
 
@@ -9868,7 +9841,10 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
       `SELECT id, email, role, status, expires_at FROM admin_invites WHERE token_hash = $1 AND status = 'pending' AND expires_at > NOW()`,
       [tokenHash]
     );
-    if (!invite.rows[0]) return res.status(400).json({ error: 'Invalid or expired invite link' });
+    if (!invite.rows[0]) {
+      console.warn('[INVITE] Invalid or expired token attempt, IP:', req.ip);
+      return res.status(400).json({ error: 'Invalid or expired invite link' });
+    }
     const inv = invite.rows[0];
     if (inv.email !== cleanEmail) return res.status(400).json({ error: 'Email mismatch' });
 
@@ -10032,11 +10008,13 @@ async function cleanupExpiredMedia() {
 migrationsReady.then(() => cleanupExpiredMedia());
 setInterval(cleanupExpiredMedia, 24 * 60 * 60 * 1000);
 
-// Keep server alive on unhandled errors instead of crashing silently
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception (server kept alive):', err);
+  console.error(JSON.stringify({ level: 'fatal', event: 'uncaughtException', pid: process.pid, ts: new Date().toISOString(), name: err.name, message: err.message }));
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection (server kept alive):', reason);
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const name = reason instanceof Error ? reason.name : 'UnhandledRejection';
+  console.error(JSON.stringify({ level: 'error', event: 'unhandledRejection', pid: process.pid, ts: new Date().toISOString(), name, message: msg }));
 });
 
