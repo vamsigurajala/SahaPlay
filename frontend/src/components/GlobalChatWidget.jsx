@@ -1134,6 +1134,7 @@ const GlobalChatWidget = forwardRef(({
   onClose, 
   unreadCounts, 
   onMarkRead, 
+  onMarkAllRead,
   onNewMessage,
   activeRoomTab,
   activeRoomPartner,
@@ -1790,6 +1791,29 @@ const GlobalChatWidget = forwardRef(({
     }),
     contains: (node) => {
       return containerRef.current && containerRef.current.contains(node);
+    },
+    // Called by Room.jsx when user reads a chat in the room right-panel
+    // (not via GCW) so GCW's own conversation list badge stays in sync.
+    markReadFor: (chatId) => {
+      const key = (chatId || '').toLowerCase();
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+        (c.id === key || c.id === chatId || c.partner === key || c.partner === chatId)
+          ? { ...c, unread: 0 }
+          : c
+      ));
+    },
+    markAllRead: () => {
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
+    },
+    // Called by Room.jsx's checkUnread polling — syncs GCW list badges to server-authoritative counts.
+    // serverCounts is { chatKeyLower: unreadNumber } — any key not present has 0 unread.
+    syncUnreadFromServer: (serverCounts) => {
+      if (!serverCounts || typeof serverCounts !== 'object') return;
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => {
+        const key = ((c.id || c.partner) || '').toLowerCase();
+        const serverUnread = serverCounts[key] ?? 0;
+        return c.unread === serverUnread ? c : { ...c, unread: serverUnread };
+      }));
     }
   }));
 
@@ -1897,6 +1921,12 @@ const GlobalChatWidget = forwardRef(({
       if (onMarkRead && activeChatRef.current?.id === chatId) {
         onMarkRead(chatId);
       }
+    });
+
+    sock.on('chat:mark_all_read', () => {
+      // Another tab/device marked all as read — sync this tab too
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
+      if (typeof onMarkAllRead === 'function') onMarkAllRead();
     });
 
     sock.on('chat:messages_seen', ({ roomId: eventRoomId, username: readerName, messageIds, seenAt, avatar }) => {
@@ -4500,16 +4530,31 @@ const GlobalChatWidget = forwardRef(({
                       {/* Mark all as read */}
                       <button
                         onClick={() => {
+                          // Zero out all unread counts in GCW's own conversation list
                           setConversations(prev =>
                             (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 }))
                           );
                           if (socketRef.current) {
                             socketRef.current.emit('chat:mark_all_read');
                           }
-                          // Notify parent to clear all unread counts from its state
-                          if (typeof onMarkRead === 'function') {
-                            // We can loop through current conversations and mark each read in parent
-                            conversations.forEach(c => onMarkRead(c.id || c.partner));
+                          // Update last_seen timestamps for all conversations
+                          try {
+                            const now = Date.now();
+                            const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
+                            (conversations || []).forEach(c => {
+                              const key = (c.id || c.partner || '').toLowerCase();
+                              if (key) lastSeen[key] = now;
+                            });
+                            localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+                            localStorage.setItem('chat_unread_counts', '{}');
+                            localStorage.setItem('chat_group_unread', '{}');
+                          } catch {}
+                          // Notify parent (Room.jsx) to atomically zero all its unread state
+                          if (typeof onMarkAllRead === 'function') {
+                            onMarkAllRead();
+                          } else if (typeof onMarkRead === 'function') {
+                            // Fallback: loop through conversations
+                            (conversations || []).forEach(c => onMarkRead(c.id || c.partner));
                           }
                           setShowGlobalMenu(false);
                           toast.success('All chats marked as read');

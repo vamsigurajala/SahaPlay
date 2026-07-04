@@ -162,22 +162,22 @@ const Navbar = () => {
         const res = await fetch(`${API}/api/chats/recent?lastSeen=${param}`, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
         if (!Array.isArray(data)) return;
-        const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-        const counts = {};
+        const serverCounts = {};
         let total = 0;
         data.forEach(chat => {
-          const chatKey = chat.id || chat.partner;
+          // Always lowercase to avoid case-mismatch double-counting
+          const chatKey = (chat.id || chat.partner || '').toLowerCase();
           if (chat.unread && chat.unread > 0) {
-            counts[chatKey] = chat.unread;
+            serverCounts[chatKey] = chat.unread;
             total += chat.unread;
-            localCounts[chatKey] = chat.unread;
-          } else {
-            delete localCounts[chatKey];
           }
         });
-        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-        setUnreadCounts(counts);
+        // Server is strict source of truth — overwrite localStorage completely
+        localStorage.setItem('chat_unread_counts', JSON.stringify(serverCounts));
+        setUnreadCounts(serverCounts);
         setTotalUnread(total);
+        // Sync GCW conversation list badges
+        chatWidgetRef?.current?.syncUnreadFromServer?.(serverCounts);
       } catch {}
     };
     checkUnread();
@@ -256,31 +256,24 @@ const Navbar = () => {
   }, []);
 
   const handleMarkRead = useCallback((chatId) => {
+    const chatKey = (chatId || '').toLowerCase();
     const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
-    lastSeen[chatId] = Date.now();
+    lastSeen[chatKey] = Date.now();
     localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
     
     setUnreadCounts(prev => {
       const next = { ...prev };
+      const removed = next[chatId] || next[chatKey] || 0;
+      if (removed > 0) setTotalUnread(t => Math.max(0, t - removed));
       delete next[chatId];
+      delete next[chatKey];
       return next;
     });
 
-    if (token) {
-      const param = encodeURIComponent(JSON.stringify(lastSeen));
-      fetch(`${API}/api/chats/recent?lastSeen=${param}`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          let total = 0;
-          data.forEach(c => { total += (c.unread || 0); });
-          setTotalUnread(total);
-        }
-      }).catch(() => {});
-    }
-  }, [token]);
+    // Sync GCW badge for this chat immediately
+    chatWidgetRef?.current?.markReadFor?.(chatKey);
+    // Note: checkUnread polling (every 5s) will reconcile with server
+  }, []);
 
   const handleAllowRequest = async (requestingUser, e) => {
     e.stopPropagation();

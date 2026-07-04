@@ -21,6 +21,8 @@
   "alexName": "Alex",
   "allLabel": "ALL",
   "allOption": "ALL",
+  "allUsersPlayerSettings": "Enable Player Controls for All Users",
+  "allUsersPlayerSettingsDesc": "Allow any user in the room to play/pause, seek, load media, and upload subtitles.",
   "allow": "Allow",
   "allowLinks": "Allow Links",
   "allowMedia": "Allow Media",
@@ -329,6 +331,8 @@
   "copyUrlTitle": "Copy URL",
   "country": "Country",
   "countryDesc": "Your country is auto-detected when you sign up. You can choose to hide it from your profile.",
+  "countryHidden": "Country hidden from others",
+  "countryHiddenDesc": "Your flag and country are hidden in rooms and on your profile",
   "countryLabel": "Country Label",
   "createANewRoom": "Create a New Room →",
   "createARoom": "Create a Room",
@@ -1248,6 +1252,8 @@
   "shareTabBtn": "Share Tab",
   "shareTabDesc": "Select quality and share tab.",
   "showAllChats": "Show all chats",
+  "showMyCountry": "Show my country to others",
+  "showMyCountryDesc": "Your flag and country are visible in rooms and on your profile",
   "signUp": "Sign Up",
   "signalLevelSecurity": "Signal-Level Security",
   "signupFailed": "Signup failed",
@@ -1479,6 +1485,7 @@
   "urlInputPlaceholder": "Paste any YouTube, Twitch, Vimeo, SoundCloud or MP4 URL here...",
   "useMasterKey": "Use Master Key",
   "useNativeCast": "Use Browser Native Cast",
+  "usernameFieldLabel": "Your unique @handle — used to find and mention you",
   "usernameLabel": "Username",
   "usernameOrEmailRequired": "Username or Email is required",
   "usernamePlaceholder": "Username",
@@ -1553,7 +1560,5 @@
   "ytStep2": "Copy the URL from your browser address bar",
   "ytStep3": "Paste it into the video bar in your room",
   "ytStep4": "Hit Enter — everyone sees it sync instantly",
-  "zeroLatency": "Zero-latency synchronization",
-  "allUsersPlayerSettings": "Enable Player Controls for All Users",
-  "allUsersPlayerSettingsDesc": "Allow any user in the room to play/pause, seek, load media, and upload subtitles."
+  "zeroLatency": "Zero-latency synchronization"
 }
