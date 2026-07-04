@@ -7,7 +7,7 @@ const SOCKET_SERVER_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
-export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
+export default function TwitchBrowserModal({ onSelect, onClose, isLight, currentUrl }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -22,21 +22,27 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const fetchTopStreams = useCallback(async (category = 'All') => {
+  const fetchTopStreams = useCallback(async (category = 'All', forceRefresh = false) => {
     setLoading(true);
+    setError('');
     try {
-      const r = await fetch(`${SOCKET_SERVER_URL}/api/twitch/top`);
+      const url = `${SOCKET_SERVER_URL}/api/twitch/live${forceRefresh ? '?refresh=true' : ''}`;
+      const r = await fetch(url);
+      if (!r.ok) {
+        const errObj = await r.json().catch(() => ({}));
+        throw new Error(errObj.error || 'Failed to load live streams');
+      }
       let data = await r.json();
       if (category !== 'All') {
         data = data.filter(c => c.category === category || c.category.toLowerCase().includes(category.toLowerCase()));
       }
       setResults(data);
-    } catch {
-      setError(t('failedToLoadTopStreams', 'Failed to load top streams.'));
+    } catch (err) {
+      setError(err.message || t('failedToLoadTopStreams', 'Failed to load top streams.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const search = useCallback(async (q) => {
     if (!q.trim()) {
@@ -55,6 +61,7 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
     setLoading(true); setError('');
     try {
       const r = await fetch(`${SOCKET_SERVER_URL}/api/twitch/search?q=${encodeURIComponent(q)}`);
+      if (!r.ok) throw new Error('Search failed');
       const data = await r.json();
       setResults(data);
     } catch {
@@ -62,7 +69,7 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
     } finally {
       setLoading(false);
     }
-  }, [onSelect, onClose, fetchTopStreams, activeTag]);
+  }, [onSelect, onClose, fetchTopStreams, activeTag, t]);
 
   useEffect(() => {
     fetchTopStreams(activeTag);
@@ -79,9 +86,29 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
 
   const handleKey = (e) => { if (e.key === 'Enter') search(query); };
 
+  const [isSelecting, setIsSelecting] = useState(false);
+
+  const getCurrentChannel = () => {
+    if (!currentUrl) return '';
+    const match = currentUrl.match(/twitch\.tv\/([a-zA-Z0-9_]+)/i);
+    return match ? match[1].toLowerCase() : '';
+  };
+
   const pick = (channel) => {
+    if (isSelecting) return;
+    // Ignore click if the same channel is already playing
+    if (channel.id.toLowerCase() === getCurrentChannel()) {
+      onClose();
+      return;
+    }
+    setIsSelecting(true);
     onSelect(`https://www.twitch.tv/${channel.id}`);
-    onClose();
+    setTimeout(() => {
+      setIsSelecting(false);
+    }, 5000); // 5-second selection lock to prevent rapid Twitch CDN hits
+    setTimeout(() => {
+      onClose();
+    }, 400); // Allow some brief delay for clean transitions
   };
 
   const bgColor = isLight ? 'rgba(255, 255, 255, 0.75)' : 'rgba(14, 14, 16, 0.85)';
@@ -135,21 +162,41 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
             </div>
           </div>
           
-          <button
-             onClick={onClose}
-             style={{
-               width: 38, height: 38, borderRadius: '50%', 
-               background: isCloseHovered ? accentColor : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'),
-               border: 'none', 
-               color: isCloseHovered ? '#fff' : textColor, 
-               display: 'flex', alignItems: 'center', justifyContent: 'center',
-               cursor: 'pointer', transition: 'all 0.2s'
-             }}
-             onMouseEnter={() => setIsCloseHovered(true)}
-             onMouseLeave={() => setIsCloseHovered(false)}
-           >
-             <X size={20} className={isCloseHovered ? "stay-white" : ""} />
-           </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+               onClick={() => { if (query.trim()) search(query); else fetchTopStreams(activeTag, true); }}
+               disabled={loading}
+               style={{
+                 padding: '8px 16px', borderRadius: '100px', fontSize: 13, fontWeight: 700,
+                 cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                 background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                 border: 'none',
+                 color: textColor,
+                 display: 'flex', alignItems: 'center', gap: 6,
+                 opacity: loading ? 0.6 : 1
+               }}
+               onMouseEnter={e => { if(!loading) e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'; }}
+               onMouseLeave={e => { e.currentTarget.style.backgroundColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'; }}
+            >
+              {t('refresh', 'Refresh')}
+            </button>
+
+            <button
+               onClick={onClose}
+               style={{
+                 width: 38, height: 38, borderRadius: '50%', 
+                 background: isCloseHovered ? accentColor : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'),
+                 border: 'none', 
+                 color: isCloseHovered ? '#fff' : textColor, 
+                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                 cursor: 'pointer', transition: 'all 0.2s'
+               }}
+               onMouseEnter={() => setIsCloseHovered(true)}
+               onMouseLeave={() => setIsCloseHovered(false)}
+             >
+               <X size={20} className={isCloseHovered ? "stay-white" : ""} />
+             </button>
+          </div>
         </div>
 
         {/* Search & Tabs Area */}
@@ -232,7 +279,7 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
               alignItems:'center', gap:20
             }}>
               <Tv size={64} strokeWidth={1} opacity={0.2}/>
-              <p style={{margin:0, maxWidth: 300, lineHeight: 1.6}}>{t('noLiveStreamsFound', "We couldn't find any live streams in this category. Try searching for something else!")}</p>
+              <p style={{margin:0, maxWidth: 300, lineHeight: 1.6}}>{t('noLiveStreamsFound', "No live Twitch streams found right now. Try refresh.")}</p>
             </div>
           )}
 
@@ -251,20 +298,25 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
                 </div>
               ))
             ) : (
-              results.map(c => (
+              results.map(c => {
+                const isActive = c.id.toLowerCase() === getCurrentChannel();
+                return (
                 <div
                   key={c.id}
                   onClick={() => pick(c)}
                   onMouseEnter={() => setHoveredId(c.id)}
                   onMouseLeave={() => setHoveredId(null)}
-                  style={{
-                    borderRadius:16, overflow:'hidden', cursor:'pointer',
-                    background: hoveredId === c.id ? (isLight ? '#fff' : '#1f1f23') : (isLight ? '#fff' : '#18181b'),
-                    border: hoveredId === c.id ? `1px solid ${accentColor}` : `1px solid ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'}`,
-                    transform: hoveredId === c.id ? 'translateY(-6px)' : 'none',
-                    transition:'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: hoveredId === c.id ? (isLight ? '0 12px 24px rgba(0,0,0,0.1)' : '0 12px 30px rgba(0,0,0,0.7)') : 'none'
-                  }}
+                   style={{
+                     borderRadius:16, overflow:'hidden',
+                     cursor: isSelecting || isActive ? 'default' : 'pointer',
+                     pointerEvents: isSelecting ? 'none' : 'auto',
+                     opacity: isSelecting && !isActive ? 0.6 : 1,
+                     background: hoveredId === c.id ? (isLight ? '#fff' : '#1f1f23') : (isLight ? '#fff' : '#18181b'),
+                     border: isActive ? '2px solid #10b981' : hoveredId === c.id ? `1px solid ${accentColor}` : `1px solid ${isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)'}`,
+                     transform: hoveredId === c.id && !isActive ? 'translateY(-6px)' : 'none',
+                     transition:'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                     boxShadow: isActive ? '0 0 0 2px rgba(16,185,129,0.3)' : hoveredId === c.id ? (isLight ? '0 12px 24px rgba(0,0,0,0.1)' : '0 12px 30px rgba(0,0,0,0.7)') : 'none'
+                   }}
                 >
                   <div style={{position:'relative', paddingBottom:'56.25%', background:'#000'}}>
                     <img
@@ -291,6 +343,33 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
                       {t('liveBadge', 'LIVE')}
                     </div>
 
+                    {/* Now Playing indicator */}
+                    {isActive && (
+                      <div className="stay-white" style={{
+                        position:'absolute', top:10, right:10,
+                        background:'rgba(16,185,129,0.9)', backdropFilter:'blur(4px)',
+                        padding:'2px 8px', borderRadius:4, fontSize:10, fontWeight:700,
+                        color:'#fff', border:'1px solid rgba(16,185,129,0.6)',
+                        zIndex: 2, display:'flex', alignItems:'center', gap:4
+                      }}>
+                        <span style={{width:6, height:6, borderRadius:'50%', background:'#fff', display:'inline-block'}} />
+                        Now Playing
+                      </div>
+                    )}
+
+                    {/* Viewer Count Badge */}
+                    {!isActive && c.viewer_count !== undefined && (
+                      <div className="stay-white" style={{
+                        position:'absolute', top:10, right:10,
+                        background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)',
+                        padding:'2px 8px', borderRadius:4, fontSize:10, fontWeight:700,
+                        color:'#fff', border:'1px solid rgba(255,255,255,0.15)',
+                        zIndex: 2
+                      }}>
+                        {c.viewer_count.toLocaleString()} viewers
+                      </div>
+                    )}
+
                     {/* Category Badge */}
                     <div className="stay-white" style={{
                       position:'absolute', bottom:10, left:10,
@@ -303,7 +382,7 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
                       {c.category}
                     </div>
 
-                    {hoveredId === c.id && (
+                    {hoveredId === c.id && !isActive && (
                       <div style={{
                         position:'absolute', inset:0, display:'flex',
                         alignItems:'center', justifyContent:'center',
@@ -339,7 +418,8 @@ export default function TwitchBrowserModal({ onSelect, onClose, isLight }) {
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

@@ -1152,48 +1152,196 @@ const SIMULATED_TWITCH_CHANNELS = [
   thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${c.id.toLowerCase()}-440x248.jpg`
 }));
 
-async function getLiveTwitchStreams() {
-  const clientId = process.env.TWITCH_CLIENT_ID;
-  const token = process.env.TWITCH_ACCESS_TOKEN;
-  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+let cachedTwitchToken = null;
+let cachedTwitchTokenExpiry = null;
 
-  try {
-    const r = await fetch('https://api.twitch.tv/helix/streams?first=40', {
-      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
-    });
-    if (!r.ok) return null;
-    const { data } = await r.json();
-    return data.map(s => ({
-      id: s.user_login,
-      name: s.user_name,
-      title: s.title,
-      category: s.game_name,
-      thumbnail: s.thumbnail_url.replace('{width}', '440').replace('{height}', '248')
-    }));
-  } catch (err) {
-    console.error('Twitch API error:', err);
+async function getTwitchAppAccessToken() {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    console.warn('[TWITCH] Client ID or Secret not configured or using placeholders.');
     return null;
+  }
+
+  // Use cached token if valid (leave 60 seconds buffer)
+  const now = Date.now();
+  if (cachedTwitchToken && cachedTwitchTokenExpiry && now < (cachedTwitchTokenExpiry - 60000)) {
+    return cachedTwitchToken;
+  }
+
+  console.log('[TWITCH] Fetching new app access token...');
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[TWITCH] Token request failed:', r.status, errText);
+      return null;
+    }
+
+    const data = await r.json();
+    cachedTwitchToken = data.access_token;
+    cachedTwitchTokenExpiry = Date.now() + (data.expires_in * 1000);
+    console.log('[TWITCH] Token fetched successfully. Expires in:', data.expires_in, 'seconds');
+    return cachedTwitchToken;
+  } catch (err) {
+    console.error('[TWITCH] Token request error:', err.message);
+    return null;
+  }
+}
+
+let cachedTwitchStreams = null;
+let cachedTwitchStreamsExpiry = null;
+
+function processAndCacheStreams(data) {
+  if (!Array.isArray(data)) {
+    return { data: [] };
+  }
+
+  // Strict filtering & normalization
+  const normalized = data
+    .filter(s => s.type === 'live' && s.user_login)
+    .map(s => ({
+      id: s.user_login, // match the existing frontend's expectation for picks
+      user_id: s.user_id,
+      user_login: s.user_login,
+      user_name: s.user_name,
+      name: s.user_name, // keep compatibility with existing card title
+      title: s.title,
+      game_id: s.game_id,
+      game_name: s.game_name,
+      category: s.game_name, // keep compatibility with existing card category
+      viewer_count: s.viewer_count,
+      started_at: s.started_at,
+      thumbnail_url: s.thumbnail_url.replace('{width}', '640').replace('{height}', '360'),
+      thumbnail: s.thumbnail_url.replace('{width}', '440').replace('{height}', '248'), // keep compatibility
+      twitch_url: `https://www.twitch.tv/${s.user_login}`,
+      is_live: true
+    }));
+
+  // Sort by viewer count descending
+  normalized.sort((a, b) => b.viewer_count - a.viewer_count);
+
+  console.log(`[TWITCH] Fetched ${data.length} raw streams, returning ${normalized.length} live streams after filtering.`);
+
+  // Cache for 30 seconds
+  cachedTwitchStreams = normalized;
+  cachedTwitchStreamsExpiry = Date.now() + 30000;
+
+  return { data: normalized };
+}
+
+async function fetchLiveTwitchStreams(refresh = false) {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    return { error: 'Twitch API is not configured. Please configure TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET.', status: 400 };
+  }
+
+  const now = Date.now();
+  if (!refresh && cachedTwitchStreams && cachedTwitchStreamsExpiry && now < cachedTwitchStreamsExpiry) {
+    console.log('[TWITCH] Returning cached live streams.');
+    return { data: cachedTwitchStreams };
+  }
+
+  const token = await getTwitchAppAccessToken();
+  if (!token) {
+    return { error: 'Failed to authenticate with Twitch API.', status: 401 };
+  }
+
+  console.log('[TWITCH] Fetching fresh live streams...');
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/streams?first=40&language=en', {
+      headers: {
+        'Client-ID': clientId,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (r.status === 401) {
+      console.warn('[TWITCH] 401 Unauthorized received. Invalidating cached token and retrying...');
+      cachedTwitchToken = null;
+      cachedTwitchTokenExpiry = null;
+      
+      const retryToken = await getTwitchAppAccessToken();
+      if (!retryToken) {
+        return { error: 'Failed to re-authenticate with Twitch API.', status: 401 };
+      }
+
+      const retryResponse = await fetch('https://api.twitch.tv/helix/streams?first=40&language=en', {
+        headers: {
+          'Client-ID': clientId,
+          'Authorization': `Bearer ${retryToken}`
+        }
+      });
+
+      if (!retryResponse.ok) {
+        const errText = await retryResponse.text();
+        console.error('[TWITCH] Retry request failed:', retryResponse.status, errText);
+        return { error: `Twitch API error: ${retryResponse.statusText}`, status: retryResponse.status };
+      }
+
+      const { data } = await retryResponse.json();
+      return processAndCacheStreams(data);
+    }
+
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[TWITCH] Streams request failed:', r.status, errText);
+      return { error: `Twitch API error: ${r.statusText}`, status: r.status };
+    }
+
+    const { data } = await r.json();
+    return processAndCacheStreams(data);
+  } catch (err) {
+    console.error('[TWITCH] Fetch streams error:', err.message);
+    return { error: 'Failed to contact Twitch API.', status: 500 };
   }
 }
 
 async function searchTwitchChannels(query) {
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const token = process.env.TWITCH_ACCESS_TOKEN;
-  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    return null;
+  }
+
+  const token = await getTwitchAppAccessToken();
+  if (!token) return null;
 
   try {
     const r = await fetch(`https://api.twitch.tv/helix/search/channels?query=${encodeURIComponent(query)}&first=20`, {
-      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+      headers: {
+        'Client-ID': clientId,
+        'Authorization': `Bearer ${token}`
+      }
     });
     if (!r.ok) return null;
     const { data } = await r.json();
     return data.map(c => ({
       id: c.broadcaster_login,
+      user_login: c.broadcaster_login,
       name: c.display_name,
+      user_name: c.display_name,
       title: c.title,
       category: c.game_name,
       thumbnail: c.thumbnail_url.replace('{width}', '440').replace('{height}', '248'),
-      isLive: c.is_live
+      thumbnail_url: c.thumbnail_url.replace('{width}', '640').replace('{height}', '360'),
+      isLive: c.is_live,
+      is_live: c.is_live,
+      twitch_url: `https://www.twitch.tv/${c.broadcaster_login}`
     }));
   } catch (err) {
     console.error('Twitch Search error:', err);
@@ -1201,9 +1349,27 @@ async function searchTwitchChannels(query) {
   }
 }
 
+app.get('/api/twitch/live', async (req, res) => {
+  const refresh = req.query.refresh === 'true';
+  const result = await fetchLiveTwitchStreams(refresh);
+  
+  if (result.error) {
+    return res.status(result.status || 500).json({ error: result.error });
+  }
+  
+  res.json(result.data);
+});
+
 app.get('/api/twitch/top', async (req, res) => {
-  const live = await getLiveTwitchStreams();
-  res.json(live || SIMULATED_TWITCH_CHANNELS);
+  const refresh = req.query.refresh === 'true';
+  const result = await fetchLiveTwitchStreams(refresh);
+  
+  if (result.error) {
+    // If dynamic API fails/not configured, return fallback in top streams endpoint
+    return res.json(SIMULATED_TWITCH_CHANNELS);
+  }
+  
+  res.json(result.data);
 });
 
 app.get('/api/twitch/search', async (req, res) => {
@@ -1212,7 +1378,7 @@ app.get('/api/twitch/search', async (req, res) => {
 
   const live = await searchTwitchChannels(q);
   if (live) return res.json(live);
-
+  
   const query = q.toLowerCase();
   const matches = SIMULATED_TWITCH_CHANNELS.filter(c => 
     c.id.toLowerCase().includes(query) || 

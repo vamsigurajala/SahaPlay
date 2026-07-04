@@ -71,6 +71,174 @@ const resolveMediaUrl = (url, baseUrl) => {
   return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
+const TwitchIframe = React.memo(({ channel, parent, reloadKey, isMobile, handleReloadTwitch, isUnmountingTwitch, onLoad }) => {
+  const iframeSrc = React.useMemo(() => {
+    return `https://player.twitch.tv/?channel=${channel}&parent=${parent}&autoplay=false&muted=false`;
+  }, [channel, parent]);
+
+  useEffect(() => {
+    console.log('[TWITCH IFRAME] mounted', { channel, reloadKey });
+    return () => console.log('[TWITCH IFRAME] unmounted', { channel, reloadKey });
+  }, [channel, reloadKey]);
+
+  useEffect(() => {
+    console.log('[TWITCH] iframe src =', iframeSrc);
+  }, [iframeSrc]);
+
+  console.log('[TWITCH IFRAME] render', { channel, reloadKey });
+
+  if (isUnmountingTwitch) {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: '#000', gap: 12
+      }}>
+        <div className="stay-white" style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #9146ff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+        <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: 600 }}>Loading Twitch Stream...</span>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      width: '100%',
+      height: '100%',
+      minHeight: isMobile ? '220px' : 'auto',
+      display: 'flex', flexDirection: 'column',
+      background: '#000',
+      pointerEvents: 'auto',
+      visibility: 'visible',
+      opacity: 1,
+      zIndex: 1,
+    }}>
+      <iframe
+        key={`twitch-${channel}-${reloadKey}`}
+        src={iframeSrc}
+        allowFullScreen
+        allow="autoplay; fullscreen; picture-in-picture"
+        frameBorder="0"
+        scrolling="no"
+        style={{
+          flex: 1,
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          border: 'none',
+          background: '#000',
+          pointerEvents: 'auto',
+        }}
+        title={`Twitch – ${channel}`}
+        onLoad={onLoad}
+      />
+      
+      {/* Bottom Control & Hint Banner */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        padding: '8px 16px',
+        background: 'rgba(15,15,15,0.85)',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        gap: 12,
+        zIndex: 10,
+        backdropFilter: 'blur(8px)',
+        pointerEvents: 'auto',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'none', fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+          <span style={{ color: '#9146ff', fontWeight: 800 }}>●</span>
+          {isMobile ? 'Tap Play inside the Twitch player' : 'Click Play inside the Twitch player if stream doesn\'t start'}
+        </div>
+        <button
+          onClick={handleReloadTwitch}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            fontSize: 11,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            pointerEvents: 'auto',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+        >
+          <RotateCw size={11} />
+          Reload Player
+        </button>
+      </div>
+    </div>
+  );
+});
+
+TwitchIframe.displayName = 'TwitchIframe';
+
+const VimeoIframe = React.memo(({ videoId, isMobile, onLoad }) => {
+  const iframeSrc = React.useMemo(() => {
+    return `https://player.vimeo.com/video/${videoId}`;
+  }, [videoId]);
+
+  useEffect(() => {
+    console.log('[VIMEO IFRAME] mounted', { videoId });
+    return () => console.log('[VIMEO IFRAME] unmounted', { videoId });
+  }, [videoId]);
+
+  useEffect(() => {
+    console.log('[VIMEO] iframe src =', iframeSrc);
+  }, [iframeSrc]);
+
+  console.log('[VIMEO IFRAME] render', { videoId });
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0,
+      width: '100%',
+      height: '100%',
+      minHeight: isMobile ? '220px' : 'auto',
+      display: 'flex', flexDirection: 'column',
+      background: '#000',
+      pointerEvents: 'auto',
+      visibility: 'visible',
+      opacity: 1,
+      zIndex: 1,
+    }}>
+      <iframe
+        key={`vimeo-${videoId}`}
+        src={iframeSrc}
+        allowFullScreen
+        allow="autoplay; fullscreen; picture-in-picture"
+        frameBorder="0"
+        onLoad={onLoad}
+        style={{
+          width: '100%',
+          height: '100%',
+          flex: 1,
+          border: 'none',
+          background: '#000',
+          pointerEvents: 'auto',
+        }}
+        title={`Vimeo – ${videoId}`}
+      />
+    </div>
+  );
+});
+
+VimeoIframe.displayName = 'VimeoIframe';
+
 const QUICK_EMOJIS = ['👍', '❤️', '😊', '😮', '😢'];
 const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '😂', '🤔', '😎', '😁', '😅', '✨', '🙏', '💚', '💛', '💝', '🤗', '😻', '🥰', '🎉', '😪', '😒', '✔️', '🤞', '😽', '😡', '🤢', '🤡', '🤫'];
 
@@ -677,7 +845,7 @@ const Room = () => {
   useEffect(() => {
     if (mediaUrl && mediaUrl !== lastPrepUrl.current) {
       lastPrepUrl.current = mediaUrl;
-      setIsPreparing(true);
+      setIsPreparing((mediaUrl.includes('twitch.tv') || (mediaUrl.includes('vimeo.com') && !useCustomVimeoControls)) ? false : true);
       setPrepProgress(0);
       setBufferedSeconds(0);
       if (!ReactPlayer.canPlay(mediaUrl) && !mediaUrl.includes('/api/stream/') && !mediaUrl.startsWith('blob:')) {
@@ -696,7 +864,88 @@ const Room = () => {
     return () => clearTimeout(timer)
   }, [mediaUrl]);
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [useCustomTwitchControls, setUseCustomTwitchControls] = useState(true);
+  const [twitchReloadKey, setTwitchReloadKey] = useState(0);
+  const lastTwitchReloadTimeRef = useRef(0);
+  const [isUnmountingTwitch, setIsUnmountingTwitch] = useState(false);
+
+  const isTwitch = React.useMemo(() => {
+    return !!(mediaUrl && mediaUrl.includes('twitch.tv'));
+  }, [mediaUrl]);
+
+  const twitchChannel = React.useMemo(() => {
+    if (!mediaUrl) return '';
+    const match = mediaUrl.match(/twitch\.tv\/([a-zA-Z0-9_]+)/i);
+    return match ? match[1] : '';
+  }, [mediaUrl]);
+
+  const twitchParent = React.useMemo(() => {
+    return window.location.hostname === 'localhost' ? 'localhost' : (window.location.hostname.includes('sahaplay.com') ? 'sahaplay.com' : window.location.hostname);
+  }, []);
+
+  const isVimeo = React.useMemo(() => {
+    return !!(mediaUrl && mediaUrl.includes('vimeo.com'));
+  }, [mediaUrl]);
+
+  const vimeoId = React.useMemo(() => {
+    if (!mediaUrl) return '';
+    const match = mediaUrl.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/[^/]+\/|groups\/[^/]+\/videos\/)?(\d+)/i);
+    return match ? match[1] : '';
+  }, [mediaUrl]);
+
+  useEffect(() => {
+    console.log('[PROVIDER DETECTED]', {
+      url: mediaUrl,
+      isTwitch: isTwitch ? 'yes' : 'no',
+      isVimeo: isVimeo ? 'yes' : 'no',
+      isIVS: 'no',
+      component: (isTwitch || isVimeo) ? 'Native IFrame' : 'ReactPlayer',
+      mode: isMobile ? 'mobile' : 'desktop'
+    });
+  }, [mediaUrl, isTwitch, isVimeo, isMobile]);
+
+  useEffect(() => {
+    if (mediaUrl && mediaUrl.includes('twitch.tv')) {
+      setIsUnmountingTwitch(true);
+      const timer = setTimeout(() => {
+        setIsUnmountingTwitch(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [mediaUrl]);
+
+  const handleReloadTwitch = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTwitchReloadTimeRef.current < 10000) {
+      toast.error("Twitch is rate-limiting reloads. Wait a few seconds before trying again.");
+      return;
+    }
+    lastTwitchReloadTimeRef.current = now;
+    setTwitchReloadKey(k => k + 1);
+    toast.success("Reloading Twitch Player...", { id: 'twitch-reload' });
+  }, []);
+
+  const handleTwitchOnLoad = useCallback(() => {
+    clearTimeout(loadTimeoutRef.current);
+    setIsPreparing(false);
+    setLoadFailed(false);
+  }, []);
+
+  const handleVimeoOnLoad = useCallback(() => {
+    clearTimeout(loadTimeoutRef.current);
+    setIsPreparing(false);
+    setLoadFailed(false);
+  }, []);
+
+  const handleIVSPlayerGuard = useCallback((url) => {
+    if (!url) return false;
+    if (url.includes('twitch.tv')) {
+      console.log('[TWITCH IVS GUARD] Hard-bypassing Amazon IVS Player and event listener attachments.');
+      return true;
+    }
+    return false;
+  }, []);
   const [useCustomVimeoControls, setUseCustomVimeoControls] = useState(true);
   const [uiVisible, setUiVisible] = useState(true);
   const inactivityTimer = useRef(null);
@@ -826,7 +1075,6 @@ const Room = () => {
   const controlsTimerRef = useRef(null);
   const playerWrapRef = useRef(null);
   // Responsive breakpoints
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [showTopRestoreBtn, setShowTopRestoreBtn] = useState(false);
@@ -1552,7 +1800,7 @@ const Room = () => {
     return !ReactPlayer.canPlay(url);
   };
   const isLocalStream = mediaUrl?.includes('/api/stream/') || mediaUrl?.startsWith('blob:');
-  const effectiveIsPreparing = isLocalStream ? false : isPreparing;
+  const effectiveIsPreparing = (isLocalStream || mediaUrl?.includes('twitch.tv') || (mediaUrl?.includes('vimeo.com') && !useCustomVimeoControls)) ? false : isPreparing;
 
   // Track previous tab/target values to distinguish user-driven tab switches
   // from dep-change re-renders (socket init, roomId mount) — don't clear
@@ -5068,6 +5316,15 @@ const Room = () => {
     if (!url) { toast.error('Enter a URL first'); return; }
     try { new URL(url); } catch { toast.error('Invalid URL'); return; }
 
+    if (url.includes('vimeo.com')) {
+      const match = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/[^/]+\/|groups\/[^/]+\/videos\/)?(\d+)/i);
+      const vId = match ? match[1] : null;
+      if (!vId) {
+        toast.error('Invalid Vimeo video URL.');
+        return;
+      }
+    }
+
     // Cleanup trigger (b): close any active cloud browser before loading new media
     if (hyperbeamSession || hbSessionId) {
       await handleCloseCloudBrowser();
@@ -6899,6 +7156,7 @@ const Room = () => {
       {showTwitchBrowser && (
         <TwitchBrowserModal
           isLight={isLight}
+          currentUrl={mediaUrl}
           onSelect={(url) => {
             changeMedia(url);
             setInputUrl(url);
@@ -7392,7 +7650,7 @@ const Room = () => {
                     <div 
                       style={{ 
                         position: 'absolute', inset: 0, 
-                        overflow: 'hidden', 
+                        overflow: mediaUrl.includes('twitch.tv') ? 'visible' : 'hidden', 
                         borderRadius: 12,
                         willChange: 'transform',
                         background: '#000'
@@ -7421,15 +7679,9 @@ const Room = () => {
                       )}
                       <div style={{
                         position: 'absolute',
-                        inset: (useCustomTwitchControls && mediaUrl.includes('twitch.tv')) || (useCustomVimeoControls && mediaUrl.includes('vimeo.com')) ? '0 0 -40px 0' : 0,
+                        inset: (useCustomVimeoControls && isVimeo) ? '0 0 -40px 0' : 0,
                         zIndex: 0
                       }}>
-                        {(() => {
-                          console.log('[PLAYER] mediaUrl:', mediaUrl, 
-                            'isLocalStream:', isLocalStream,
-                            'isPreparing:', isPreparing);
-                          return null;
-                        })()}
                         {isLocalStream ? (
                           <>
                             <video
@@ -7532,12 +7784,28 @@ const Room = () => {
                               );
                             })()}
                           </>
+                        ) : isTwitch ? (
+                          <TwitchIframe
+                            channel={twitchChannel}
+                            parent={twitchParent}
+                            reloadKey={twitchReloadKey}
+                            isMobile={isMobile}
+                            handleReloadTwitch={handleReloadTwitch}
+                            isUnmountingTwitch={isUnmountingTwitch}
+                            onLoad={handleTwitchOnLoad}
+                          />
+                        ) : (isVimeo && !useCustomVimeoControls) ? (
+                          <VimeoIframe
+                            videoId={vimeoId}
+                            isMobile={isMobile}
+                            onLoad={handleVimeoOnLoad}
+                          />
                         ) : (
                           <ReactPlayer
                             ref={playerRef}
                             url={mediaUrl}
                             width="100%" height="100%"
-                            controls={(mediaUrl.includes('twitch.tv') && !useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || (!mediaUrl.includes('twitch.tv') && !mediaUrl.includes('vimeo.com') && isEmbedPlatform(mediaUrl))}
+                            controls={(mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || (!mediaUrl.includes('vimeo.com') && isEmbedPlatform(mediaUrl))}
                             playing={isPreparing || (isPlaying && !isPreparing)}
                             volume={isPreparing ? 0 : playerVolume}
                             muted={isPreparing || playerMuted}
@@ -7585,11 +7853,6 @@ const Room = () => {
                                   rel: 0,
                                   playsinline: 1,
                                   origin: window.location.origin
-                                }
-                              },
-                              twitch: {
-                                options: {
-                                  parent: [window.location.hostname]
                                 }
                               }
                             }}
@@ -7858,7 +8121,7 @@ const Room = () => {
                             )}
 
                             {/* Control Mode Toggle (Not for YouTube) */}
-                            {(mediaUrl.includes('twitch.tv') || mediaUrl.includes('vimeo.com')) && (
+                            {(isTwitch || isVimeo) && (
                               <button
                                 onClick={() => {
                                   if (mediaUrl.includes('twitch.tv')) setUseCustomTwitchControls(!useCustomTwitchControls);
@@ -7891,8 +8154,7 @@ const Room = () => {
                           </div>
 
                           {/* Custom Bottom Control Bar */}
-                          { ((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || 
-                             (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
+                          { ((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
                             <div style={{
                               position: 'absolute', bottom: 0, left: 0, right: 0,
                               background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
@@ -8047,7 +8309,7 @@ const Room = () => {
 
             {/* Custom Control Bar Ã¢â‚¬â€ visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
             {/* Bottom control bar — shown for direct video AND web-iframe/HB URLs */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && (
               <div className="gcw-force-dark" style={{
                 display: hideCustomControls ? 'none' : 'block',
                 position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0,
@@ -8477,7 +8739,7 @@ const Room = () => {
             )}
 
             {/* Floating Restore Controls Button — shown at top center when custom controls are hidden */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
               <button
                 onClick={() => setHideCustomControls(false)}
                 style={{
