@@ -1227,7 +1227,7 @@ const AppSettings = () => {
           </div>
           {openSection === 'country' && (
             <div className="acc-body">
-              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('countryDesc', 'Your detected location')}</p>
+              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('countryDesc', 'Your country is auto-detected when you sign up. You can choose to hide it from your profile.')}</p>
               {country || countryCode ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', marginBottom: 12 }}>
@@ -1239,7 +1239,17 @@ const AppSettings = () => {
                         onError={e => { e.target.style.display = 'none'; }}
                       />
                     )}
-                    <span style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 15 }}>{country || countryCode}</span>
+                    <span style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 15 }}>
+                      {(() => {
+                        if (!countryCode) return country;
+                        try {
+                          const displayNames = new Intl.DisplayNames([i18n.language || 'en'], { type: 'region' });
+                          return displayNames.of(countryCode.toUpperCase()) || country;
+                        } catch (e) {
+                          return country;
+                        }
+                      })()}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
                     <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>

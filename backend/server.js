@@ -2649,7 +2649,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
                 : 'File')
         : null;
       return {
-        id: row.partner,
+        id: row.partner.toLowerCase(),
         partner: row.partner,
         displayName: u?.displayName || row.partner,
         partnerAvatar: u?.avatarPath || null,
@@ -2698,9 +2698,12 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     
     // A10-B2: Batch group unread counts — one query instead of N per-room queries
     const groupUnreadMap = new Map();
+    // Build a case-insensitive lastSeen helper so lowercase client keys match mixed-case roomIds
+    const lastSeenLower = {};
+    for (const k in lastSeen) lastSeenLower[k.toLowerCase()] = lastSeen[k] || 0;
     if (groupRows.length > 0) {
       const roomIds = groupRows.map(r => r.roomId);
-      const roomTimestamps = groupRows.map(r => lastSeen[r.roomId] || 0);
+      const roomTimestamps = groupRows.map(r => lastSeenLower[r.roomId.toLowerCase()] || 0);
       try {
         const batchGroupUnread = await pool.query(
           `SELECT m."roomId", COUNT(*) as c
@@ -2750,7 +2753,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       } : null;
 
       return {
-        id: row.roomId,
+        id: row.roomId.toLowerCase(),
         partner: row.roomId,
         displayName: displayName,
         partnerAvatar: thumbnailPath,
@@ -2787,7 +2790,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
 
         const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
         finalGroup.push({
-          id: rid,
+          id: rid.toLowerCase(),
           partner: rid,
           displayName: displayName,
           partnerAvatar: thumbnailPath,
@@ -2806,9 +2809,9 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
 
     // 4. In-memory connected rooms: user is currently in room but may not have sent messages
     // This ensures receivers always see the group room in their conversation list
-    const allGroupIds = new Set(finalGroup.map(g => g.id));
+    const allGroupIds = new Set(finalGroup.map(g => g.id.toLowerCase()));
     for (const [rid, room] of rooms.entries()) {
-      if (allGroupIds.has(rid)) continue; // already included
+      if (allGroupIds.has(rid.toLowerCase())) continue; // already included
       const isInRoom = room.users && room.users.some(u => u.username === username);
       if (!isInRoom) continue;
       // Get last message from in-memory or DB
@@ -2816,7 +2819,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         ? room.groupMessages[room.groupMessages.length - 1]
         : await queryGet('SELECT message, mediaUrl, mediaType, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
       // Count unread from DB + in-memory messages since lastSeen
-      const ls = lastSeen[rid] || 0;
+      const ls = lastSeenLower[rid.toLowerCase()] || 0;
       const dbUnreadRow = await queryGet(
         `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ?`,
         [rid, ls, username]
@@ -2827,7 +2830,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         ? (lastMsg.mediaType?.startsWith('video') ? '🎥 Video' : '📷 Photo')
         : (lastMsg?.message || '');
       finalGroup.push({
-        id: rid,
+        id: rid.toLowerCase(),
         partner: rid,
         displayName: room.roomName || rid,
         partnerAvatar: room.thumbnailPath || null,
@@ -5876,6 +5879,41 @@ io.on('connection', (socket) => {
           console.error('[chat:mark_read] message_seen error:', err.message);
         });
     });
+  });
+
+  // Mark all chats as read — sets lastSeen=now for every chat in user's history
+  socket.on('chat:mark_all_read', async () => {
+    if (!socket.username) return;
+    const now = Date.now();
+    try {
+      // Fetch all chats this user participated in
+      const recentRes = await pool.query(`
+        SELECT DISTINCT "roomId"
+        FROM messages
+        WHERE LOWER("senderName") = LOWER($1)
+           OR "roomId" LIKE 'dm-' || $1 || '-%'
+           OR "roomId" LIKE 'dm-%-' || $1
+        ORDER BY "roomId"
+        LIMIT 200
+      `, [socket.username]);
+
+      // Build a lastSeen object with now for all chats
+      const row = await new Promise((res, rej) =>
+        db.get('SELECT lastSeen FROM users WHERE username = ?', [socket.username], (e, r) => e ? rej(e) : res(r))
+      );
+      let ls = {};
+      try { ls = JSON.parse(row?.lastSeen || '{}'); } catch {}
+      recentRes.rows.forEach(r => { ls[r.roomId] = now; });
+      
+      await new Promise((res, rej) =>
+        db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username], e => e ? rej(e) : res())
+      );
+
+      // Broadcast to other tabs/devices of the same user
+      emitToUser(socket.username, 'chat:mark_all_read', { timestamp: now });
+    } catch (e) {
+      console.error('[chat:mark_all_read] error:', e.message);
+    }
   });
 
   // Passive room tracking: allows GlobalChatWidget to receive updates for rooms

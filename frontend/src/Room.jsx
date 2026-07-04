@@ -1297,7 +1297,6 @@ const Room = () => {
         const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/recent?lastSeen=${param}`, { headers: { 'Authorization': `Bearer ${tkn}` } });
         const data = await res.json();
         if (!Array.isArray(data)) return;
-        const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
         const serverCounts = {};
         let total = 0;
         data.forEach(chat => {
@@ -1305,24 +1304,19 @@ const Room = () => {
           if (chat.unread && chat.unread > 0) {
             serverCounts[chatKey] = chat.unread;
             total += chat.unread;
-            localCounts[chatKey] = chat.unread;
-          } else {
-            delete localCounts[chatKey];
           }
         });
-        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-        setUnreadCounts(prev => {
-          const merged = { ...serverCounts };
-          for (const key of Object.keys(prev)) {
-            if ((prev[key] || 0) > (merged[key] || 0)) {
-              merged[key] = prev[key];
-            }
-          }
-          let mergedTotal = 0;
-          Object.values(merged).forEach(v => { mergedTotal += v; });
-          setTotalUnread(mergedTotal);
-          return merged;
-        });
+        // Server is strict source of truth — overwrite local counts completely
+        localStorage.setItem('chat_unread_counts', JSON.stringify(serverCounts));
+        setUnreadCounts(serverCounts);
+        setTotalUnread(total);
+        // Restore groupUnread for current room from server data (fixes badge-gone-on-refresh)
+        const currentRoomKey = (roomId || '').toLowerCase();
+        if (currentRoomKey) {
+          setGroupUnread(serverCounts[currentRoomKey] || 0);
+        }
+        // Sync GCW conversation list badges to match server counts exactly
+        chatWidgetRef?.current?.syncUnreadFromServer?.(serverCounts);
       } catch { }
     };
     checkUnread();
@@ -1400,53 +1394,68 @@ const Room = () => {
 
 
   const handleMarkRead = useCallback((chatId) => {
+    const chatKey = (chatId || '').toLowerCase();
     const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
-    lastSeen[chatId] = Date.now();
+    // Always write lastSeen under the lowercase key for case-consistent polling
+    lastSeen[chatKey] = Date.now();
     localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
 
     setUnreadCounts(prev => {
-      const currentUnread = prev[chatId] || 0;
+      const currentUnread = prev[chatId] || prev[chatKey] || 0;
       if (currentUnread > 0) {
         setTotalUnread(t => Math.max(0, t - currentUnread));
       }
       const next = { ...prev };
       delete next[chatId];
+      delete next[chatKey];
       return next;
     });
 
     try {
       const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-      if (localCounts[chatId]) {
-        delete localCounts[chatId];
-        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-      }
+      delete localCounts[chatId];
+      delete localCounts[chatKey];
+      localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
     } catch(e) {}
 
-    if (chatId === roomId) {
+    if (chatId === roomId || chatKey === (roomId || '').toLowerCase()) {
       setGroupUnread(0);
       try {
         const groupUnreadStore = JSON.parse(localStorage.getItem('chat_group_unread') || '{}');
-        delete groupUnreadStore[chatId];
+        delete groupUnreadStore[chatKey];
         localStorage.setItem('chat_group_unread', JSON.stringify(groupUnreadStore));
       } catch {}
     }
 
-    const tkn = localStorage.getItem('watch_token');
-    if (tkn) {
-      const param = encodeURIComponent(JSON.stringify(lastSeen));
-      fetch(`${SOCKET_SERVER_URL}/api/chats/recent?lastSeen=${param}`, {
-        headers: { 'Authorization': `Bearer ${tkn}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            let total = 0;
-            data.forEach(c => { total += (c.unread || 0); });
-            setTotalUnread(total);
-          }
-        }).catch(() => { });
-    }
-  }, [roomId, SOCKET_SERVER_URL]);
+    // Sync GCW's internal conversation list badge
+    chatWidgetRef.current?.markReadFor?.(chatKey);
+    // Note: checkUnread polling (every 5s) will reconcile totalUnread with the server.
+  }, [roomId]);
+
+  // Called by GlobalChatWidget when "Mark all as read" is clicked
+  const handleMarkAllRead = useCallback(() => {
+    // Atomically clear all unread state
+    setUnreadCounts({});
+    setTotalUnread(0);
+    setGroupUnread(0);
+    setDmUnread({});
+    if (dmUnreadRef.current) dmUnreadRef.current = {};
+
+    // Also sync GCW's own conversation list badges
+    chatWidgetRef.current?.markAllRead?.();
+
+    // Clear all localStorage unread keys
+    try {
+      const now = Date.now();
+      // Update chat_last_seen for all known entries
+      const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
+      const counts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      Object.keys(counts).forEach(k => { lastSeen[k] = now; });
+      localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+      localStorage.setItem('chat_unread_counts', '{}');
+      localStorage.setItem('chat_group_unread', '{}');
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const tkn = localStorage.getItem('watch_token');
@@ -1542,47 +1551,87 @@ const Room = () => {
   const isLocalStream = mediaUrl?.includes('/api/stream/') || mediaUrl?.startsWith('blob:');
   const effectiveIsPreparing = isLocalStream ? false : isPreparing;
 
+  // Track previous tab/target values to distinguish user-driven tab switches
+  // from dep-change re-renders (socket init, roomId mount) — don't clear
+  // unread on initial mount, only when user actively opens a chat.
+  const prevChatTabForReadRef = useRef(chatTab);   // init to same default as useState
+  const prevDmTargetForReadRef = useRef(dmTarget); // init to same default as useState
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setActiveReactionMsg(null);
     setShowAllEmojis(false);
+
+    const chatTabChanged = chatTab !== prevChatTabForReadRef.current;
+    const dmTargetChanged = dmTarget !== prevDmTargetForReadRef.current;
+    prevChatTabForReadRef.current = chatTab;
+    prevDmTargetForReadRef.current = dmTarget;
+
+    // Only mark as read when the user actively navigated to a tab / DM.
+    // Suppress on: initial mount, socket reconnect, roomId set — those
+    // don't represent user intent to "read" a chat.
+    if (!chatTabChanged && !dmTargetChanged) return;
+
     if (chatTab === 'dm' && dmTarget) {
+      const dmKey = dmTarget.toLowerCase();
       setDmUnread(prev => {
         const next = { ...prev };
-        const key = dmTarget.toLowerCase();
-        const oldVal = next[key] || 0;
-        delete next[key];
-        setTotalUnread(t => Math.max(0, t - oldVal));
+        delete next[dmKey];
         return next;
       });
       if (dmUnreadRef.current) {
-        dmUnreadRef.current[dmTarget.toLowerCase()] = 0;
+        dmUnreadRef.current[dmKey] = 0;
       }
-      try {
-        const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
-        lastSeen[dmTarget.toLowerCase()] = Date.now();
-        localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
-      } catch { }
-      if (socket) socket.emit('chat:mark_read', { chatId: dmTarget.toLowerCase(), timestamp: Date.now(), isDm: true, userRead: true });
-    } else if (chatTab === 'group') {
-      setTotalUnread(t => Math.max(0, t - groupUnread));
-      setGroupUnread(0);
+      // Clear from unreadCounts (source of truth for totalUnread / chat button badge)
       setUnreadCounts(prev => {
         const next = { ...prev };
+        const removedCount = next[dmKey] || next[dmTarget] || 0;
+        if (removedCount > 0) setTotalUnread(t => Math.max(0, t - removedCount));
+        delete next[dmKey];
+        delete next[dmTarget];
+        return next;
+      });
+      try {
+        const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
+        lastSeen[dmKey] = Date.now();
+        localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+        const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+        delete localCounts[dmKey];
+        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+      } catch { }
+      if (socket) socket.emit('chat:mark_read', { chatId: dmKey, timestamp: Date.now(), isDm: true, userRead: true });
+      // Sync GCW list badge immediately (socket echo won't reach same tab)
+      chatWidgetRef.current?.markReadFor?.(dmKey);
+    } else if (chatTab === 'group') {
+      const roomKey = (roomId || '').toLowerCase();
+      setGroupUnread(0);
+      // Clear from unreadCounts (source of truth for totalUnread / chat button badge)
+      setUnreadCounts(prev => {
+        const next = { ...prev };
+        const removedCount = next[roomKey] || next[roomId] || 0;
+        if (removedCount > 0) setTotalUnread(t => Math.max(0, t - removedCount));
+        delete next[roomKey];
         delete next[roomId];
         return next;
       });
       try {
         const lastSeen = JSON.parse(localStorage.getItem('chat_last_seen') || '{}');
-        lastSeen[roomId] = Date.now();
+        lastSeen[roomKey] = Date.now();
         localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
         // Clear the persisted group unread for this room
         const groupUnreadStore = JSON.parse(localStorage.getItem('chat_group_unread') || '{}');
+        delete groupUnreadStore[roomKey];
         delete groupUnreadStore[roomId];
         localStorage.setItem('chat_group_unread', JSON.stringify(groupUnreadStore));
+        const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+        delete localCounts[roomKey];
+        delete localCounts[roomId];
+        localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
       } catch { }
       // Also emit mark_read to sync across all tabs and devices
-      if (socket) socket.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false, userRead: true });
+      if (socket) socket.emit('chat:mark_read', { chatId: roomKey, timestamp: Date.now(), isDm: false, userRead: true });
+      // Sync GCW list badge immediately (socket echo won't reach same tab)
+      chatWidgetRef.current?.markReadFor?.(roomKey);
     }
   }, [chatTab, dmTarget, roomId, socket]);
 
@@ -2576,11 +2625,16 @@ const Room = () => {
     });
 
     sock.on('chat:mark_read', ({ chatId, timestamp }) => {
+      const chatKey = (chatId || '').toLowerCase();
       if (chatId === roomId) {
         setGroupUnread(0);
         setUnreadCounts(prev => {
+          const removedCount = prev[chatId] || prev[chatKey] || 0;
           const next = { ...prev };
           delete next[chatId];
+          delete next[chatKey];
+          // Recalculate totalUnread accurately
+          setTotalUnread(t => Math.max(0, t - removedCount));
           return next;
         });
         // Also clear from localStorage so remount doesn't re-show old badge
@@ -2592,23 +2646,20 @@ const Room = () => {
       } else {
         setDmUnread(prev => {
           const next = { ...prev };
-          const key = chatId.toLowerCase();
-          delete next[key];
-          if (dmUnreadRef.current) delete dmUnreadRef.current[key];
+          delete next[chatKey];
+          if (dmUnreadRef.current) delete dmUnreadRef.current[chatKey];
           return next;
         });
         setUnreadCounts(prev => {
+          const removedCount = prev[chatKey] || prev[chatId] || 0;
           const next = { ...prev };
-          delete next[chatId.toLowerCase()];
+          delete next[chatKey];
+          delete next[chatId];
+          // Recalculate totalUnread accurately
+          setTotalUnread(t => Math.max(0, t - removedCount));
           return next;
         });
       }
-      setTotalUnread(prev => {
-        // Since we don't know the exact count we just removed without checking prev state,
-        // it's safer to let the periodic checkUnread fix the total, 
-        // or just subtract what we had in dmUnread/groupUnread.
-        return prev; // checkUnread interval will fix this within 5s
-      });
     });
 
     sock.on('chat:messages_seen', ({ roomId: eventRoomId, username: readerName, messageIds, seenAt, avatar }) => {
@@ -3004,6 +3055,8 @@ const Room = () => {
           dmUnreadRef.current[otherNameLower] = newDmCount;
           
           setDmUnread(prev => ({ ...prev, [otherNameLower]: newDmCount }));
+          // Also update unreadCounts so totalUnread = sum(unreadCounts) stays in sync
+          setUnreadCounts(prev => ({ ...prev, [otherNameLower]: newDmCount }));
           setTotalUnread(p => p + 1);
           if (notifSettingsRef.current.app && notifSettingsRef.current.messages) {
             const gcwActive = chatWidgetRef.current?.getActiveChat?.() || {};
@@ -8553,6 +8606,7 @@ const Room = () => {
                 onClose={() => setShowRecentChats(false)}
                 unreadCounts={unreadCounts}
                 onMarkRead={handleMarkRead}
+                onMarkAllRead={handleMarkAllRead}
                 onNewMessage={handleNewMessage}
                 activeRoomTab={chatTab}
                 activeRoomPartner={roomId}

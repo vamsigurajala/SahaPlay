@@ -18,7 +18,16 @@ const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const getLocalizedCountryName = (code, name) => {
+    if (!code) return name;
+    try {
+      const displayNames = new Intl.DisplayNames([i18n.language || 'en'], { type: 'region' });
+      return displayNames.of(code.toUpperCase()) || name;
+    } catch (e) {
+      return name;
+    }
+  };
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   const token = localStorage.getItem('watch_token');
   const myUsername = localStorage.getItem('watch_username');
@@ -1443,7 +1452,7 @@ const Profile = () => {
                                     onError={e => { e.target.style.display = 'none'; }}
                                   />
                                 )}
-                                {t('country', 'Country')}: {t(otherProfile.country.toLowerCase().replace(/\s+/g, ''), otherProfile.country)}
+                                {t('country', 'Country')}: {getLocalizedCountryName(otherProfile.country_code, otherProfile.country)}
                               </div>
                             )}
                             <button onClick={() => { setShowOptionsDropdown(false); setShowShareModal(true); setShowRecentChats(false); setShowNotifications(false); setShowSearch(false); }} className="options-dropdown-btn" style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#fff', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -1495,7 +1504,7 @@ const Profile = () => {
                                     onError={e => { e.target.style.display = 'none'; }}
                                   />
                                 )}
-                                {t('country', 'Country')}: {t(otherProfile.country.toLowerCase().replace(/\s+/g, ''), otherProfile.country)}
+                                {t('country', 'Country')}: {getLocalizedCountryName(otherProfile.country_code, otherProfile.country)}
                               </div>
                             )}
                             <button onClick={() => { setShowOptionsDropdown(false); setShowShareModal(true); setShowRecentChats(false); setShowNotifications(false); setShowSearch(false); }} className="options-dropdown-btn" style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 'none', color: isLight ? '#1e293b' : '#fff', padding: '10px 12px', fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -1741,7 +1750,7 @@ const Profile = () => {
           {/* Username */}
           <div className="profile-card">
             <div className="acc-header" onClick={() => toggleSection('username')}>
-              <h3><AtSign size={18} color="#6366f1" style={{ marginRight: 6 }} />{t('username', 'Username')}</h3>
+              <h3><AtSign size={18} color="#6366f1" style={{ marginRight: 6 }} />{t('usernameLabel', 'Username')}</h3>
               <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'username' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </div>
             {openSection === 'username' && (
