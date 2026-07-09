@@ -1,5 +1,5 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -713,7 +713,7 @@ const uploadLimiter = rateLimit({
   // Per-user bucket when authenticated so users sharing an IP don't collide
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `upload_${username}` : req.ip;
+    return username ? `upload_${username}` : ipKeyGenerator(req);
   },
   handler: (req, res) => {
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
@@ -758,7 +758,7 @@ const streamLimiter = rateLimit({   // A7-F8
   // Per-user bucket — same reasoning as uploadLimiter
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `stream_${username}` : req.ip;
+    return username ? `stream_${username}` : ipKeyGenerator(req);
   },
   message: { error: 'Too many upload chunks' }
 });
@@ -4487,10 +4487,24 @@ app.post('/api/browser/session', authenticateToken, async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'url_required' });
   try {
+    const isGame = url.toLowerCase().includes('crazygames.com') ||
+                   url.toLowerCase().includes('poki.com') ||
+                   url.toLowerCase().includes('itch.io') ||
+                   url.toLowerCase().includes('gamepix.com') ||
+                   url.toLowerCase().includes('gamezop.com') ||
+                   url.toLowerCase().includes('foony.com') ||
+                   url.toLowerCase().includes('playgama.com') ||
+                   url.toLowerCase().includes('playhop.com');
+    const isActivity = url.toLowerCase().includes('magma.com') ||
+                       url.toLowerCase().includes('webwhiteboard.com') ||
+                       url.toLowerCase().includes('protectedtext.com') ||
+                       url.toLowerCase().includes('mentimeter.com');
+    const isGameSession = isGame && !isActivity;
+
     const r = await fetch(HB_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ start_url: url, offline_timeout: 600, control_disable_default: false, fps: 30 })
+      body: JSON.stringify({ start_url: url, offline_timeout: 600, control_disable_default: false, fps: 30, kiosk: !isGameSession })
     });
     const data = await r.json();
     res.json(data);
@@ -4546,7 +4560,7 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
   const apiKey = process.env.HYPERBEAM_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'Cloud browser not configured on this server.' });
 
-  const { roomId, url } = req.body;
+  const { roomId, url, isGame } = req.body;
   if (!roomId || !url) return res.status(400).json({ error: 'roomId and url are required' });
 
   const rid = roomId.toLowerCase();
@@ -4579,31 +4593,55 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
   }
 
   try {
-    const hbRequestBody = {
-      start_url: url,
-      kiosk: true,
-      tag: `room_${rid}`,
-      control_disable_default: false,
-      timeout: {
-        offline: 300,
-        absolute: 7200,
-        warning: 30
+    const region = req.body.region || 'NA';
+    const regionsToTry = [region, 'NA', 'EU', 'AS'].filter((v, i, a) => a.indexOf(v) === i);
+    
+    let rawBody = '';
+    let success = false;
+    let finalStatus = 502;
+
+    for (const currentRegion of regionsToTry) {
+      const hbRequestBody = {
+        start_url: url,
+        tag: `room_${rid}`,
+        kiosk: !isGame,
+        region: currentRegion,
+        webgl: true,
+        ublock: true,
+        adblock: true
+      };
+      
+      console.log(`[HYPERBEAM] Attempting to create session in region: ${currentRegion}`);
+      try {
+        const r = await fetch(HB_API, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(hbRequestBody)
+        });
+        
+        rawBody = await r.text();
+        finalStatus = r.status;
+        if (r.ok) {
+          success = true;
+          console.log(`[HYPERBEAM] Successfully created session in region: ${currentRegion}`);
+          break;
+        } else {
+          console.warn(`[HYPERBEAM] Region ${currentRegion} failed with status ${r.status}:`, rawBody);
+          // Only retry other regions if it's a 503 or 429 or vm availability issue
+          if (r.status !== 503 && r.status !== 429 && !rawBody.includes('err_no_available_vm')) {
+            break;
+          }
+        }
+      } catch (fetchErr) {
+        console.error(`[HYPERBEAM] Network error in region ${currentRegion}:`, fetchErr.message);
       }
-    };
-    console.log('[HYPERBEAM] Creating session with start_url:', url);
-    console.log('[HYPERBEAM][DEBUG] Request body:', JSON.stringify(hbRequestBody));
-    const r = await fetch(HB_API, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(hbRequestBody)
-    });
-    console.log('[HYPERBEAM][DEBUG] HTTP status:', r.status);
-    const rawBody = await r.text();
-    console.log('[HYPERBEAM][DEBUG] Response received (body suppressed for security)');
-    if (!r.ok) {
-      console.error('[HYPERBEAM] API error creating session:', r.status, rawBody);
+    }
+
+    if (!success) {
+      console.error('[HYPERBEAM] All regions exhausted or encountered hard error');
       return res.status(502).json({ error: 'Hyperbeam API error', details: rawBody });
     }
+
     const data = JSON.parse(rawBody);
     const ts = new Date().toISOString();
     console.log(`[HYPERBEAM] Session created: ${data.session_id} at ${ts} for room ${rid}`);
@@ -5106,9 +5144,12 @@ io.on('connection', (socket) => {
         roomObj.hostId = targetSocket.id;
         roomObj.hostUsername = username;
       }
-      roomObj.currentMedia = null;
-      roomObj.currentTime = 0;
-      roomObj.isPlaying = false;
+      // Preserve media state on rejoin/reconnect
+      if (roomObj.currentMedia === undefined) {
+        roomObj.currentMedia = null;
+        roomObj.currentTime = 0;
+        roomObj.isPlaying = false;
+      }
       roomObj.timestampUpdatedAt = Date.now();
     } else if (isDbHost) {
       // True host rejoined while others are inside
@@ -6018,20 +6059,28 @@ io.on('connection', (socket) => {
   });
 
   // Mark all chats as read — sets lastSeen=now for every chat in user's history
-  socket.on('chat:mark_all_read', async () => {
+  socket.on('chat:mark_all_read', async (data) => {
     if (!socket.username) return;
     const now = Date.now();
+    const chatIds = data?.chatIds || [];
     try {
-      // Fetch all chats this user participated in
-      const recentRes = await pool.query(`
-        SELECT DISTINCT "roomId"
-        FROM messages
-        WHERE LOWER("senderName") = LOWER($1)
-           OR "roomId" LIKE 'dm-' || $1 || '-%'
-           OR "roomId" LIKE 'dm-%-' || $1
-        ORDER BY "roomId"
-        LIMIT 200
-      `, [socket.username]);
+      let targetChats = [];
+      if (Array.isArray(chatIds) && chatIds.length > 0) {
+        targetChats = chatIds;
+      } else {
+        const userLower = socket.username.toLowerCase();
+        // Fetch all chats this user participated in
+        const recentRes = await pool.query(`
+          SELECT DISTINCT "roomId"
+          FROM messages
+          WHERE LOWER("senderName") = LOWER($1)
+             OR "roomId" LIKE 'dm-' || $2 || '-%'
+             OR "roomId" LIKE 'dm-%-' || $2
+          ORDER BY "roomId"
+          LIMIT 200
+        `, [socket.username, userLower]);
+        targetChats = recentRes.rows.map(r => r.roomId);
+      }
 
       // Build a lastSeen object with now for all chats
       const row = await new Promise((res, rej) =>
@@ -6039,14 +6088,35 @@ io.on('connection', (socket) => {
       );
       let ls = {};
       try { ls = JSON.parse(row?.lastSeen || '{}'); } catch {}
-      recentRes.rows.forEach(r => { ls[r.roomId] = now; });
+      targetChats.forEach(chatId => {
+        if (chatId) {
+          ls[chatId.toLowerCase()] = now;
+        }
+      });
       
       await new Promise((res, rej) =>
         db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username], e => e ? rej(e) : res())
       );
 
+      // Mark all messages as seen in message_seen table
+      for (const chatId of targetChats) {
+        if (!chatId) continue;
+        const targetRoomId = await getRoomIdForChat(chatId, socket.username, chatId.startsWith('dm-') || chatId.includes('-'));
+        await pool.query(`
+          INSERT INTO message_seen (message_id, room_id, username, seen_at)
+          SELECT id, "roomId", $1::varchar, $2::bigint
+          FROM messages
+          WHERE "roomId" = $3::varchar
+            AND LOWER("senderName") != LOWER($1::varchar)
+            AND NOT EXISTS (
+              SELECT 1 FROM message_seen
+              WHERE message_id = messages.id AND username = $1::varchar
+            )
+        `, [socket.username, now, targetRoomId]);
+      }
+
       // Broadcast to other tabs/devices of the same user
-      emitToUser(socket.username, 'chat:mark_all_read', { timestamp: now });
+      emitToUser(socket.username, 'chat:mark_all_read', { timestamp: now, chatIds: targetChats });
     } catch (e) {
       console.error('[chat:mark_all_read] error:', e.message);
     }
@@ -6876,6 +6946,17 @@ io.on('connection', (socket) => {
       console.error('[SOCKET] cam_stopped error:', err.message, 'user:', socket.username);
     }
   });
+  // Either participant hanging up a call ends it for everyone in it —
+  // tells peers to stop their own camera/mic and close the call screen too.
+  socket.on('call_ended', ({ roomId: rawRoomId }) => {
+    try {
+      const roomId = (rawRoomId ? rawRoomId.toLowerCase() : null) || socket.roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('call_ended', { socketId: socket.id });
+    } catch (err) {
+      console.error('[SOCKET] call_ended error:', err.message, 'user:', socket.username);
+    }
+  });
   socket.on('cam_offer', ({ targetSocketId, offer }) => {
     if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_offer', { senderSocketId: socket.id, senderName: socket.username, offer });
@@ -7662,11 +7743,10 @@ io.on('connection', (socket) => {
             room.hostId = null;
             io.in(socket.roomId).emit('host_changed', { newHostId: null, newHostName: null });
           }
-        } else if (room.users.length === 0) {
-          // Room is completely empty, clear state
-          room.currentMedia = null;
-          room.currentTime = 0;
-          room.isPlaying = false;
+          // Preserve active media state across reloads/disconnects
+          // room.currentMedia = null;
+          // room.currentTime = 0;
+          // room.isPlaying = false;
           room.hostId = null;
 
           // COST CONTROL (trigger c): End any Hyperbeam session when the last user leaves

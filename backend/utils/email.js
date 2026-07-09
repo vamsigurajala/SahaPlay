@@ -4,7 +4,7 @@ const { Resend } = require('resend');
 const fs = require('fs');
 const path = require('path');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 const EMAILS = {
   from:     process.env.APP_EMAIL_FROM     || 'SahaPlay <no-reply@sahaplay.com>',

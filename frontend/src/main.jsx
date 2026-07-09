@@ -43,6 +43,37 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[UNHANDLED REJECTION]', event.reason);
 });
 
+// MutationObserver to automatically find and remove the evaluation/demo-only banner if injected by the environment proxy
+if (typeof window !== 'undefined') {
+  const removeEvaluationBanner = () => {
+    const walker = document.createTreeWalker(
+      document.body || document.documentElement,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.nodeValue.includes('demo-only environment is provided for evaluation')) {
+        let parent = node.parentElement;
+        while (parent && parent !== document.body && parent.tagName !== 'HTML') {
+          // Check if parent looks like the wrapper banner (usually has absolute/fixed positioning or banner classes)
+          if (parent.style.position === 'fixed' || parent.style.position === 'absolute' || parent.tagName === 'DIV') {
+            parent.style.display = 'none';
+            parent.style.opacity = '0';
+            parent.style.pointerEvents = 'none';
+            parent.remove();
+            break;
+          }
+          parent = parent.parentElement;
+        }
+      }
+    }
+  };
+  const bannerObserver = new MutationObserver(removeEvaluationBanner);
+  bannerObserver.observe(document.documentElement, { childList: true, subtree: true });
+  window.addEventListener('DOMContentLoaded', removeEvaluationBanner);
+}
+
 createRoot(document.getElementById('root')).render(
   <App />
 )

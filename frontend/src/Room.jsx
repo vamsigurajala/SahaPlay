@@ -14,7 +14,7 @@ import RoomSettingsModal from './components/RoomSettingsModal';
 import YouTubeBrowserModal from './components/YouTubeBrowserModal';
 import TwitchBrowserModal from './components/TwitchBrowserModal';
 import VimeoBrowserModal from './components/VimeoBrowserModal';
-import MediaSelectorModal from './components/MediaSelectorModal';
+import MediaSelectorModal, { OPTIONS } from './components/MediaSelectorModal';
 import GuidedShareModal from './components/GuidedShareModal';
 import BanConfirmModal from './components/BanConfirmModal';
 import StreamUploadProgress from './components/StreamUploadProgress';
@@ -29,7 +29,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -44,6 +44,8 @@ function normalizeUrl(input) {
   }
 }
 import CustomizeRoomModal from './components/CustomizeRoomModal';
+import TimerActivity from './components/TimerActivity';
+import CallingActivity from './components/CallingActivity';
 import { ROOM_THEMES } from './data/roomThemes';
 import { FaWhatsapp, FaTelegramPlane, FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP, FaApple, FaSpotify, FaTiktok } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
@@ -402,6 +404,448 @@ function truncateToFewWords(str) {
   return firstLine;
 }
 
+const getActiveMediaName = (mediaUrl) => {
+  if (!mediaUrl) return '';
+
+  // Try to find matching option in OPTIONS first
+  const matchedOption = OPTIONS.find(opt => {
+    if (!opt.url) return false;
+    if (opt.url === mediaUrl) return true;
+    const cleanOptUrl = opt.url.replace(/\/embed$/, '').replace(/\/$/, '');
+    const cleanMediaUrl = mediaUrl.replace(/\/embed$/, '').replace(/\/$/, '');
+    return cleanOptUrl && cleanMediaUrl && (cleanOptUrl === cleanMediaUrl || cleanMediaUrl.startsWith(cleanOptUrl) || cleanOptUrl.startsWith(cleanMediaUrl));
+  });
+  if (matchedOption) return matchedOption.name;
+
+  if (mediaUrl === 'lobby://crazygames') return 'CrazyGames Hub';
+  if (mediaUrl.startsWith('activity://')) {
+    const actId = mediaUrl.replace('activity://', '');
+    if (actId === 'videocall') return 'Video Call';
+    if (actId === 'voicecall') return 'Voice Call';
+    if (actId === 'whiteboard') return 'Whiteboard';
+    if (actId === 'notes') return 'Shared Notes';
+    if (actId === 'timer') return 'Timer & Clock';
+    if (actId === 'truth-or-dare') return 'Truth or Dare';
+    if (actId === 'would-you-rather') return 'Would You Rather';
+    return actId.charAt(0).toUpperCase() + actId.slice(1);
+  }
+  // Activities — check specific URLs before generic domain matches
+  if (mediaUrl.includes('webwhiteboard.com')) return 'Whiteboard';
+  if (mediaUrl.includes('protectedtext.com')) return 'Protected Notes';
+  if (mediaUrl.includes('truthordareplay.com')) return 'Truth or Dare';
+  if (mediaUrl.includes('playgama.com')) {
+    try {
+      const parts = new URL(mediaUrl).pathname.split('/').filter(Boolean);
+      const gameIdx = parts.indexOf('game');
+      if (gameIdx !== -1 && parts.length > gameIdx + 1) {
+        return parts[gameIdx + 1].split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+    } catch {}
+    return 'Would You Rather';
+  }
+  if (mediaUrl.includes('triviaduel.com')) return 'Mini Quiz';
+  if (mediaUrl.includes('mentimeter.com')) return 'Mentimeter';
+  if (mediaUrl.includes('skribbl.io')) return 'Skribbl.io';
+  if (mediaUrl.includes('magma.com')) return 'Sketch Together';
+  if (mediaUrl.includes('musiclab.chromeexperiments.com')) {
+    if (mediaUrl.includes('Shared-Piano')) return 'Shared Piano';
+    if (mediaUrl.includes('Song-Maker')) return 'Song Maker';
+    if (mediaUrl.includes('Kandinsky')) return 'Kandinsky';
+    if (mediaUrl.includes('Voice-Spinner')) return 'Voice Spinner';
+    if (mediaUrl.includes('Melody-Maker')) return 'Melody Maker';
+    return 'Chrome Music Lab';
+  }
+  if (mediaUrl.includes('skillwarz')) return 'Skillwarz';
+  if (mediaUrl.includes('coolmathgames.com') && mediaUrl.includes('hangman')) return 'Hangman';
+  if (mediaUrl.includes('crazygames.com')) return 'CrazyGames';
+  if (mediaUrl.includes('poki.com')) return 'Poki Games';
+  if (mediaUrl.includes('itch.io')) return 'Itch.io';
+  // GamePix: extract slug from URL like https://play.gamepix.com/slug-name/embed
+  if (mediaUrl.includes('gamepix.com')) {
+    try {
+      const parts = new URL(mediaUrl).pathname.split('/').filter(Boolean);
+      if (parts.length >= 1) {
+        const slug = parts[0];
+        return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+    } catch {}
+    return 'Game';
+  }
+  // GameZop: map game IDs to human-readable names
+  if (mediaUrl.includes('gamezop.com')) {
+    const gamezopNames = {
+      'SkhljT2fdgb': 'Ludo',
+      'SJgx126Qc0H': 'Sudoku',
+      '9lpHai56Q': "Assassin's Hunt",
+      'gTD1yQp3R': 'Final War Dead Zone',
+      'rkWfy2pXq0r': 'Fruit Chop',
+      'NyM_JGWcx': '2048',
+      'SKLI0L06A': 'Guess The Flag',
+      'H1WmafkP9JQ': 'Tic Tac Toe',
+      'H1Hgyn6XqAS': 'Carrom Hero',
+      'UCS62KJ8c': 'Blocks Adventure',
+      'yVywAGBQ6': 'Bubble Shooter',
+    };
+    for (const [id, name] of Object.entries(gamezopNames)) {
+      if (mediaUrl.includes(id)) return name;
+    }
+    return 'Game';
+  }
+  if (mediaUrl.includes('foony.com')) {
+    const foonyNames = {
+      '4-in-a-row-connect': '4 in a Row',
+      'sudoku-online': 'Sudoku',
+      'mahjong-solitaire': 'Mahjong Solitaire',
+      'checkers': 'Master Checkers',
+      'foono-online-card-game': 'Fonoo Card Game',
+      'ludo': 'Ludo',
+      'tic-tac-toe': 'Tic Tac Toe',
+      'paintjob': 'Paint Job',
+      'breakout': 'Breakout',
+      'popaword': 'Pop a Word',
+      '9-ball-pool-online-billiards': '8 Ball Pool',
+      'jigsaw-puzzle-online': 'Jigsaw Puzzle',
+      'spades': 'Spades'
+    };
+    for (const [slug, name] of Object.entries(foonyNames)) {
+      if (mediaUrl.includes(slug)) return name;
+    }
+    return 'Game';
+  }
+  if (mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be')) return 'YouTube';
+  if (mediaUrl.includes('twitch.tv')) return 'Twitch';
+  if (mediaUrl.includes('vimeo.com')) return 'Vimeo';
+  return 'Media Player';
+};
+
+const isGameOrActivity = (url) => {
+  if (!url) return false;
+  if (url.startsWith('activity://')) return true;
+  if (url === 'lobby://crazygames') return true;
+  
+  // Dynamic lookup in OPTIONS array
+  const matched = OPTIONS.find(opt => {
+    return opt.url === url || url.includes(opt.url) || (opt.url && opt.url.includes(url));
+  });
+  if (matched) {
+    return matched.category === 'Games' || matched.category === 'Activities';
+  }
+  
+  // Fallbacks for known platforms
+  const lowerUrl = url.toLowerCase();
+  if (
+    lowerUrl.includes('crazygames') ||
+    lowerUrl.includes('poki') ||
+    lowerUrl.includes('itch.io') ||
+    lowerUrl.includes('coolmathgames') ||
+    lowerUrl.includes('gamepix') ||
+    lowerUrl.includes('gamezop') ||
+    lowerUrl.includes('foony') ||
+    lowerUrl.includes('playgama') ||
+    lowerUrl.includes('playhop') ||
+    lowerUrl.includes('witeboard.com') ||
+    lowerUrl.includes('webwhiteboard.com') ||
+    lowerUrl.includes('protectedtext.com') ||
+    lowerUrl.includes('truthordareplay.com') ||
+    lowerUrl.includes('triviaduel.com') ||
+    lowerUrl.includes('mentimeter.com') ||
+    lowerUrl.includes('skribbl.io') ||
+    lowerUrl.includes('magma.com') ||
+    lowerUrl.includes('musiclab.chromeexperiments.com') ||
+    lowerUrl.includes('mrracer.online') ||
+    lowerUrl.includes('stickmankombat.io') ||
+    lowerUrl.includes('blockblastmaster.io') ||
+    lowerUrl.includes('numicolor.com')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+const isMediaGame = (url) => {
+  if (!url) return false;
+  const matched = OPTIONS.find(opt => {
+    return opt.url === url || url.includes(opt.url) || (opt.url && opt.url.includes(url));
+  });
+  if (matched) {
+    return matched.category === 'Games';
+  }
+  const lowerUrl = url.toLowerCase();
+  if (
+    lowerUrl.includes('crazygames.com') ||
+    lowerUrl.includes('poki.com') ||
+    lowerUrl.includes('itch.io') ||
+    lowerUrl.includes('coolmathgames.com') ||
+    lowerUrl.includes('gamepix.com') ||
+    lowerUrl.includes('gamezop.com') ||
+    lowerUrl.includes('foony.com') ||
+    lowerUrl.includes('playgama.com') ||
+    lowerUrl.includes('playhop.com')
+  ) {
+    if (
+      lowerUrl.includes('magma.com') ||
+      lowerUrl.includes('webwhiteboard.com') ||
+      lowerUrl.includes('protectedtext.com') ||
+      lowerUrl.includes('mentimeter.com')
+    ) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+};
+
+// isVirtualBrowserUrl: intentionally always returns false.
+// All iframe URLs (crazygames, poki, itch.io, etc.) now load as plain iframes.
+// The virtual browser (Cloud Browser) must be opened manually by the user.
+const isVirtualBrowserUrl = (_url) => false;
+
+const CrazyGamesCard = ({ game, onSelectGame }) => {
+  const [hovered, setHovered] = React.useState(false);
+  return (
+    <button
+      onClick={() => onSelectGame(game.url)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: 'rgba(255,255,255,0.02)',
+        border: hovered ? '1px solid rgba(255,87,34,0.4)' : '1px solid rgba(255,255,255,0.04)',
+        borderRadius: 12,
+        height: 110,
+        cursor: 'pointer',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: 0,
+        transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
+        boxShadow: hovered ? '0 8px 16px rgba(0,0,0,0.4)' : 'none',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        textAlign: 'left',
+        width: '100%'
+      }}
+    >
+      {game.image ? (
+        <img
+          src={game.image}
+          alt={game.name}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, zIndex: 0 }}
+        />
+      ) : (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `radial-gradient(circle at top right, ${game.color || '#6366f1'}33 0%, rgba(9,9,14,0.95) 75%)`,
+          zIndex: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 24
+        }}>
+          🎮
+        </div>
+      )}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: hovered ? 'rgba(0,0,0,0.6)' : 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 60%)',
+        zIndex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        padding: 10,
+        boxSizing: 'border-box',
+        transition: 'all 0.2s'
+      }}>
+        <span className="stay-white" style={{ fontSize: 11, fontWeight: 900, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+          {game.name}
+        </span>
+      </div>
+    </button>
+  );
+};
+
+const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
+  const [activeTab, setActiveTab] = React.useState('multiplayer');
+
+  const kosmiPicks = [
+    { name: '8 Ball Pool', url: 'https://games.crazygames.com/en_US/8-ball-pool-wyr/index.html', image: '/images/apps/8ball.jpg?v=2' },
+    { name: 'WorldGuessr', url: 'https://games.crazygames.com/en_US/worldguessr/index.html', color: '#3b82f6' },
+    { name: 'Chess', url: 'https://games.crazygames.com/en_US/chess-free/index.html', image: '/images/apps/chess.jpg?v=2' },
+    { name: 'Uno Online', url: 'https://games.crazygames.com/en_US/uno-online/index.html', color: '#ef4444' },
+    { name: 'Connect 4', url: 'https://games.crazygames.com/en_US/connect-4/index.html', color: '#eab308' },
+    { name: 'Ships 3D', url: 'https://games.crazygames.com/en_US/ships-3d/index.html', color: '#06b6d4' }
+  ];
+
+  const multiplayerGames = [
+    { name: 'Miniblox', url: 'https://games.crazygames.com/en_US/miniblox/index.html', color: '#51cf66' },
+    { name: 'Smash Karts', url: 'https://games.crazygames.com/en_US/smash-karts/index.html', image: '/images/apps/smashkarts.jpg?v=2' },
+    { name: 'Shell Shockers', url: 'https://games.crazygames.com/en_US/shellshockersio/index.html', color: '#ff6b6b' },
+    { name: 'Hexanaut.io', url: 'https://games.crazygames.com/en_US/hexanaut-io/index.html', color: '#4dadf7' },
+    { name: 'Circuit Racing', url: 'https://games.crazygames.com/en_US/circuit-racing/index.html', image: '/images/apps/circuitracing.png?v=2' },
+    { name: 'Checkers', url: 'https://games.crazygames.com/en_US/classic-checkers/index.html', image: '/images/apps/checkers.png?v=2' },
+    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.jpg?v=2' },
+    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.jpg?v=2' },
+    { name: 'Skill Warz', url: 'https://games.crazygames.com/en_US/skillwarz/index.html', image: '/images/apps/skillwarz.jpg?v=2' }
+  ];
+
+  const singleplayerGames = [
+    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.jpg?v=2' },
+    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.jpg?v=2' },
+    { name: 'Miniblox', url: 'https://games.crazygames.com/en_US/miniblox/index.html', color: '#51cf66' }
+  ];
+
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      background: '#09090e',
+      display: 'flex',
+      flexDirection: 'column',
+      color: '#fff',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }} className="gcw-force-dark">
+      {/* Lobby Header */}
+      <div style={{
+        padding: '16px 24px',
+        background: '#12121a',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #ff5722 0%, #ff7a45 100%)',
+            color: '#fff',
+            borderRadius: 8,
+            width: 32,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 16,
+            fontWeight: 'bold'
+          }}>
+            🎮
+          </div>
+          <span style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.3px', background: 'linear-gradient(to right, #ff7a45, #ffa940)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            CRAZY GAMES
+          </span>
+        </div>
+
+        {/* Tab Selection */}
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: 3, border: '1px solid rgba(255,255,255,0.05)' }}>
+          <button
+            className="stay-white"
+            onClick={() => setActiveTab('multiplayer')}
+            style={{
+              padding: '6px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === 'multiplayer' ? 'rgba(255,255,255,0.08)' : 'transparent',
+              color: activeTab === 'multiplayer' ? '#fff' : '#888',
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Multiplayer
+          </button>
+          <button
+            className="stay-white"
+            onClick={() => setActiveTab('singleplayer')}
+            style={{
+              padding: '6px 16px',
+              borderRadius: 8,
+              border: 'none',
+              background: activeTab === 'singleplayer' ? 'rgba(255,255,255,0.08)' : 'transparent',
+              color: activeTab === 'singleplayer' ? '#fff' : '#888',
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Singleplayer
+          </button>
+        </div>
+      </div>
+
+      {/* Games Grid Container */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 24px' }}>
+        {activeTab === 'multiplayer' ? (
+          <>
+            {/* Kosmi Picks */}
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: '#fbbf24' }}>★</span> Kosmi Picks
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+              gap: 16,
+              marginBottom: 28
+            }}>
+              {kosmiPicks.map(game => (
+                <CrazyGamesCard
+                  key={game.name}
+                  game={game}
+                  onSelectGame={onSelectGame}
+                />
+              ))}
+            </div>
+
+            {/* All Games */}
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12 }}>
+              All Games
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+              gap: 16
+            }}>
+              {multiplayerGames.map(game => (
+                <CrazyGamesCard
+                  key={game.name}
+                  game={game}
+                  onSelectGame={onSelectGame}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Singleplayer Games */}
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12 }}>
+              Singleplayer Games
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+              gap: 16
+            }}>
+              {singleplayerGames.map(game => (
+                <CrazyGamesCard
+                  key={game.name}
+                  game={game}
+                  onSelectGame={onSelectGame}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const QUALITY_PRESETS = {
+  '240p':  { label: '240p',       filter: 'blur(1.5px) brightness(0.85) saturate(0.6) contrast(0.9)',  description: 'Low quality' },
+  '360p':  { label: '360p',       filter: 'blur(0.8px) brightness(0.9) saturate(0.75) contrast(0.95)', description: 'Standard quality' },
+  '480p':  { label: '480p',       filter: 'blur(0.3px) brightness(0.95) saturate(0.9) contrast(0.98)', description: 'Good quality' },
+  '720p':  { label: '720p ✦',     filter: 'none',                                                      description: 'HD quality' },
+  '1080p': { label: '1080p ✦',    filter: 'brightness(1.05) saturate(1.15) contrast(1.08)',            description: 'Full HD' },
+  '4K':    { label: '4K Ultra ✦', filter: 'brightness(1.12) saturate(1.3) contrast(1.1)',              description: 'Ultra HD' },
+};
+
 const Room = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
@@ -528,6 +972,14 @@ const Room = () => {
   const [room, setRoom] = useState(null);
   const [roomNotFound, setRoomNotFound] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [showActivityMenu, setShowActivityMenu] = useState(false);
+  const [showGameControls, setShowGameControls] = useState(true);
+  const gameControlsTimerRef = useRef(null);
+  const resetGameControlsTimer = () => {
+    setShowGameControls(true);
+    clearTimeout(gameControlsTimerRef.current);
+    gameControlsTimerRef.current = setTimeout(() => setShowGameControls(false), 2800);
+  };
   const [roomTheme, setRoomTheme] = useState('default');
   const [isPublic, setIsPublic] = useState(true);
   const settingsRef = useRef(null);
@@ -537,6 +989,21 @@ const Room = () => {
   const mediaUrlRef = useRef(mediaUrl);
   useEffect(() => {
     mediaUrlRef.current = mediaUrl;
+  }, [mediaUrl]);
+
+  const [lastMediaCategory, setLastMediaCategory] = useState('Streaming');
+  const [lastMediaGameTab, setLastMediaGameTab] = useState('Multiplayer');
+  const [lastMediaActivityTab, setLastMediaActivityTab] = useState('General');
+
+  useEffect(() => {
+    if (mediaUrl) {
+      const matched = OPTIONS.find(o => o.url === mediaUrl || (o.url && (mediaUrl.includes(o.url) || o.url.includes(mediaUrl))));
+      if (matched) {
+        if (matched.category) setLastMediaCategory(matched.category);
+        if (matched.category === 'Games' && matched.gameMode) setLastMediaGameTab(matched.gameMode);
+        if (matched.category === 'Activities' && matched.activityTab) setLastMediaActivityTab(matched.activityTab);
+      }
+    }
   }, [mediaUrl]);
   const [subtitlesUrl, setSubtitlesUrl] = useState(null);
   const [subtitlesVisible, setSubtitlesVisible] = useState(true);
@@ -603,10 +1070,22 @@ const Room = () => {
     return cues;
   }
   const [iframeLoading, setIframeLoading] = useState(false);
+  const [isLaunchingVirtualBrowser, setIsLaunchingVirtualBrowser] = useState(false);
   const [iframeError, setIframeError] = useState(false); // true when iframe is blocked/X-Frame-Options denied
   const [iframeBlockSuspected, setIframeBlockSuspected] = useState(false); // true when page loaded but may be a block page (soft block)
+  const [iframeHintExpanded, setIframeHintExpanded] = useState(true);
+  const [hoveringIframeHint, setHoveringIframeHint] = useState(false);
   const iframeBlockTimeoutRef = useRef(null);
   const [showGlobePopup, setShowGlobePopup] = useState(false);
+  const [showGlobeInstruction, setShowGlobeInstruction] = useState(() => {
+    return localStorage.getItem('hasSeenGameGlobeInstruction') !== 'true';
+  });
+
+  const dismissGlobeInstruction = () => {
+    localStorage.setItem('hasSeenGameGlobeInstruction', 'true');
+    setShowGlobeInstruction(false);
+  };
+
   const globePopupRef = useRef(null);
   const [hbSessionId, setHbSessionId] = useState(null);
   const [browserDisplayUrl, setBrowserDisplayUrl] = useState('');
@@ -1101,6 +1580,15 @@ const Room = () => {
       clearTimeout(topRestoreTimerRef.current);
     };
   }, []);
+
+  // Show game controls/name overlay briefly when game starts loading
+  useEffect(() => {
+    if (mediaUrl && isGameOrActivity(mediaUrl)) {
+      resetGameControlsTimer();
+    } else {
+      setShowGameControls(false);
+    }
+  }, [mediaUrl]);
 
   // Tracking intentional navigation vs page refresh
   const isUnloadingRef = useRef(false);
@@ -1683,7 +2171,7 @@ const Room = () => {
     // Note: checkUnread polling (every 5s) will reconcile totalUnread with the server.
   }, [roomId]);
 
-  // Called by GlobalChatWidget when "Mark all as read" is clicked
+  // Called by GlobalChatWidget or RoomChatPanel when "Mark all as read" is clicked
   const handleMarkAllRead = useCallback(() => {
     // Atomically clear all unread state
     setUnreadCounts({});
@@ -1706,7 +2194,12 @@ const Room = () => {
       localStorage.setItem('chat_unread_counts', '{}');
       localStorage.setItem('chat_group_unread', '{}');
     } catch {}
-  }, []);
+
+    if (socket) {
+      const chatIds = Object.keys(unreadCounts);
+      socket.emit('chat:mark_all_read', { chatIds });
+    }
+  }, [socket, unreadCounts]);
 
   useEffect(() => {
     const tkn = localStorage.getItem('watch_token');
@@ -1771,16 +2264,25 @@ const Room = () => {
   const [isScreensharing, setIsScreensharing] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('preferred_quality') || '720p');
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const qualityMenuRef = useRef(null);
 
   const userCount = userList.length;
 
   const [isCamOn, setIsCamOn] = useState(false);
   const isCamOnRef = useRef(false);
   const [isMicOnCam, setIsMicOnCam] = useState(false);
+  const isMicOnCamRef = useRef(false);
+  useEffect(() => { isMicOnCamRef.current = isMicOnCam; }, [isMicOnCam]);
   const [camPage, setCamPage] = useState(0);
   const localCamRef = useRef(null);
   const cameraPcRefs = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
+  // Kept in sync every render so the socket-effect (which only mounts once) can always
+  // call the LATEST toggleCamera/toggleMic instead of a stale mount-time closure.
+  const toggleCameraRef = useRef(null);
+  const toggleMicRef = useRef(null);
 
   // Auto-switch right panel to "cameras" tab when managed layout activates.
   // Reactive to isCamOn so the host's own camera toggle immediately updates the layout.
@@ -2162,12 +2664,14 @@ const Room = () => {
       setHyperbeamSession({ session_id, embed_url });
       setHbSessionId(session_id);
       setLoadFailed(false);
+      setIsLaunchingVirtualBrowser(false);
     });
     sock.on('hyperbeam_closed', () => {
       setHyperbeamSession(null);
       setHbSessionId(null);
       setLoadFailed(false);
       setHbNavStatus(null);
+      setIsLaunchingVirtualBrowser(false);
     });
 
     sock.on('waiting_for_approval', () => {
@@ -2913,6 +3417,18 @@ const Room = () => {
       }
     });
 
+    sock.on('chat:mark_all_read', () => {
+      setUnreadCounts({});
+      setTotalUnread(0);
+      setGroupUnread(0);
+      setDmUnread({});
+      if (dmUnreadRef.current) dmUnreadRef.current = {};
+      try {
+        localStorage.setItem('chat_unread_counts', '{}');
+        localStorage.setItem('chat_group_unread', '{}');
+      } catch {}
+    });
+
     sock.on('chat:messages_seen', ({ roomId: eventRoomId, username: readerName, messageIds, seenAt, avatar }) => {
       if (eventRoomId === roomId) {
         setGroupMessages(prev => {
@@ -3618,6 +4134,19 @@ const Room = () => {
       setRemoteStreams(prev => { const n = { ...prev }; delete n[socketId]; return n; });
       analyzersRef.current.delete(socketId);
     });
+    // The other participant hung up — this is a call, not a shared broadcast,
+    // so end it on our side too: stop our own camera/mic and close the call screen.
+    sock.on('call_ended', async () => {
+      try {
+        if (isCamOnRef.current) await toggleCameraRef.current?.();
+        if (isMicOnCamRef.current) await toggleMicRef.current?.();
+      } catch (e) {
+        console.error('call_ended cleanup error:', e);
+      }
+      setMediaUrl('');
+      setActiveExternalApp(null);
+      setShowMediaSelector(true);
+    });
     sock.on('cam_offer', async ({ senderSocketId, senderName, offer }) => {
       console.log('Received cam_offer from', senderName);
       if (cameraPcRefs.current[senderSocketId]) {
@@ -4110,12 +4639,45 @@ const Room = () => {
     return () => document.removeEventListener('mousedown', close);
   }, [showGlobePopup]);
 
+  useEffect(() => {
+    if (!showQualityMenu) return;
+    const close = e => {
+      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target)) {
+        setShowQualityMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [showQualityMenu]);
+
   // Reset iframe block state when URL changes so fresh load starts unblocked
   useEffect(() => {
     setIframeBlockSuspected(false);
     setShowGlobePopup(false);
     clearTimeout(iframeBlockTimeoutRef.current);
+
+    if (mediaUrl && isWebIframe(mediaUrl)) {
+      // If the iframe is loaded but potentially blocked or taking too long, we show the 
+      // bottom-right Globe button option to open in the Virtual Browser after 6 seconds.
+      iframeBlockTimeoutRef.current = setTimeout(() => {
+        setIframeBlockSuspected(true);
+      }, 6000);
+    }
+    return () => clearTimeout(iframeBlockTimeoutRef.current);
   }, [mediaUrl]);
+
+  // Manage iframe block/fail hint expanded state
+  useEffect(() => {
+    if (iframeBlockSuspected || iframeError) {
+      setIframeHintExpanded(true);
+      const timer = setTimeout(() => {
+        setIframeHintExpanded(false);
+      }, 4000); // Collapse to globe after 4 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setIframeHintExpanded(true);
+    }
+  }, [iframeBlockSuspected, iframeError]);
 
   // Ã¢â€ â‚¬Ã¢â€ â‚¬ Helpers Ã¢â€ â‚¬Ã¢â€ â‚¬
   function fixReactions(r) {
@@ -5058,6 +5620,15 @@ const Room = () => {
   if (socket) socket.__username = username;
 
   const handleStopMedia = useCallback(() => {
+    // A call is a two-person conversation, not host-controlled shared media: if we're
+    // leaving activity://videocall or activity://voicecall, hang up properly no matter
+    // which button triggered this (End Call, Exit, the Stop menu, player Stop, etc.) —
+    // stop our own camera/mic and tell the other participant to hang up too.
+    if (mediaUrl === 'activity://videocall' || mediaUrl === 'activity://voicecall') {
+      if (isCamOn) toggleCameraRef.current?.();
+      if (isMicOnCam) toggleMicRef.current?.();
+      if (socket) socket.emit('call_ended', { roomId: (roomId || '').toLowerCase() });
+    }
     // Cleanup trigger (a): always end cloud browser session when host stops media
     if (hbSessionId || hyperbeamSession) {
       const rid = (roomId || '').toLowerCase();
@@ -5079,7 +5650,7 @@ const Room = () => {
     setActiveExternalApp(null);
     setInputUrl('');
     if (socket) socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: '' });
-  }, [socket, roomId, hbSessionId, hyperbeamSession]);
+  }, [socket, roomId, hbSessionId, hyperbeamSession, mediaUrl, isCamOn, isMicOnCam]);
 
   const handleCast = () => {
     setShowCastDiscovery(true);
@@ -5138,8 +5709,8 @@ const Room = () => {
   // ─── Hyperbeam Cloud Browser handlers ──────────────────────────────────────
   // SECURITY: API key never touches the frontend. We only talk to our own backend.
 
-  const handleOpenCloudBrowser = async () => {
-    const rawUrl = failedPlaybackUrl || mediaUrl;
+  const handleOpenCloudBrowser = async (overrideUrl) => {
+    const rawUrl = (typeof overrideUrl === 'string' ? overrideUrl : null) || failedPlaybackUrl || mediaUrl;
     if (!rawUrl || !socket) return;
 
     const targetUrl = normalizeUrl(rawUrl);
@@ -5152,13 +5723,27 @@ const Room = () => {
     const rid = (roomId || '').toLowerCase();
     const token = localStorage.getItem('watch_token');
     const authHeaders = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    setIsLaunchingVirtualBrowser(true);
     const loadingToast = toast.loading('Opening Virtual Browser…');
     try {
-      console.log('[HYPERBEAM] Sending create-session with url:', targetUrl);
+      const isGame = isMediaGame(targetUrl);
+
+      // Detect optimal Hyperbeam server region based on browser timezone
+      const getOptimalRegion = () => {
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (tz.includes('Asia') || tz.includes('Calcutta') || tz.includes('Kolkata') || tz.includes('India')) return 'AS';
+          if (tz.includes('Europe') || tz.includes('GMT')) return 'EU';
+        } catch (e) {}
+        return 'NA';
+      };
+      const region = getOptimalRegion();
+
+      console.log('[HYPERBEAM] Sending create-session with url:', targetUrl, 'isGame:', isGame, 'region:', region);
       const res = await fetch(`${SOCKET_SERVER_URL}/api/hyperbeam/create-session`, {
         method: 'POST',
         headers: authHeaders,
-        body: JSON.stringify({ roomId: rid, url: targetUrl })
+        body: JSON.stringify({ roomId: rid, url: targetUrl, isGame, region })
       });
       const data = await res.json();
       if (!res.ok || !data.session_id) throw new Error(data.error || 'Unknown error');
@@ -5183,6 +5768,9 @@ const Room = () => {
     } catch (err) {
       console.error('[HYPERBEAM] Failed to open virtual browser:', err);
       toast.error('Virtual Browser failed to start. Please try again.', { id: loadingToast });
+      setIframeLoading(false);
+      setLoadFailed(true);
+      setIsLaunchingVirtualBrowser(false);
     }
   };
 
@@ -5312,9 +5900,80 @@ const Room = () => {
     };
   }, []);
 
-  const changeMedia = async (url) => {
+  // Legacy Redirect for CrazyGames Lobby URL to new direct URL
+  useEffect(() => {
+    if (mediaUrl === 'lobby://crazygames') {
+      if (isEffectiveHost) {
+        changeMedia('https://www.crazygames.com');
+      } else {
+        setMediaUrl('https://www.crazygames.com');
+      }
+    }
+  }, [mediaUrl, isEffectiveHost]);
+
+  // Virtual Browser loading timeout removed — virtual browser no longer auto-starts.
+
+  // Clear timeout and loading spinner once Hyperbeam session is active
+  useEffect(() => {
+    if (hyperbeamSession) {
+      clearTimeout(loadTimeoutRef.current);
+      setIframeLoading(false);
+      setLoadFailed(false);
+    }
+  }, [hyperbeamSession]);
+
+  // Navigate the active Virtual Browser when mediaUrl changes
+  useEffect(() => {
+    const inst = hyperbeamInstanceRef.current;
+    if (inst && mediaUrl && isEffectiveHost) {
+      const navUrl = normalizeUrl(mediaUrl);
+      if (navUrl && isVirtualBrowserUrl(navUrl)) {
+        console.log('[HYPERBEAM] Navigating active VM to:', navUrl);
+        inst.tabs.query({ active: true, currentWindow: true }).then(activeTabs => {
+          if (activeTabs?.[0]?.id != null) {
+            inst.tabs.update(activeTabs[0].id, { url: navUrl }).catch(err => {
+              console.warn('[HYPERBEAM] tabs.update error:', err.message);
+            });
+          }
+        }).catch(err => {
+          console.warn('[HYPERBEAM] tabs.query error:', err.message);
+        });
+      }
+    }
+  }, [mediaUrl, isEffectiveHost]);
+
+  const changeMedia = async (url, launchType) => {
     if (!url) { toast.error('Enter a URL first'); return; }
     try { new URL(url); } catch { toast.error('Invalid URL'); return; }
+
+    // Virtual browser is no longer auto-launched for any URL.
+    // All game/site URLs now load as plain iframes; user must manually click "Cloud Browser" if needed.
+    const isVirtual = launchType === 'virtual_browser';
+    if (isVirtual) {
+      if (hyperbeamSession || hbSessionId) {
+        await handleCloseCloudBrowser();
+      }
+      setLoadFailed(false);
+      setIframeError(false);
+      setIframeLoading(true);
+      clearTimeout(loadTimeoutRef.current);
+
+      if (isScreensharing) stopScreenshare();
+      setShowYtBrowser(false);
+      setShowTwitchBrowser(false);
+      setShowVimeoBrowser(false);
+
+      setBrowserDisplayUrl(url);
+      setBrowserBarInput(url);
+      socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: url, browserUrl: url });
+
+      if (isEffectiveHost) {
+        setTimeout(() => {
+          handleOpenCloudBrowser(url);
+        }, 100);
+      }
+      return;
+    }
 
     if (url.includes('vimeo.com')) {
       const match = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/[^/]+\/|groups\/[^/]+\/videos\/)?(\d+)/i);
@@ -5699,10 +6358,20 @@ const Room = () => {
         // No stream at all, or audio tracks were stopped — must acquire mic hardware fresh
         try {
           const selectedMic = localStorage.getItem('watch_selected_mic');
-          const audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: selectedMic ? { deviceId: { exact: selectedMic } } : true,
-            video: false,
-          });
+          let audioStream;
+          if (selectedMic) {
+            try {
+              audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: { deviceId: { exact: selectedMic } },
+                video: false,
+              });
+            } catch {
+              // Exact device not accessible in this browser — fall back to system default
+              audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            }
+          } else {
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          }
           const newTrack = audioStream.getAudioTracks()[0];
 
           if (localCamRef.current) {
@@ -5720,7 +6389,13 @@ const Room = () => {
             localCamRef.current = audioStream;
           }
         } catch (err) {
-          toast.error('Could not access microphone.');
+          if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            toast.error('Microphone permission denied. Click the lock icon in your browser address bar and allow microphone access.');
+          } else if (err.name === 'NotFoundError') {
+            toast.error('No microphone found. Please connect a microphone and try again.');
+          } else {
+            toast.error('Could not access microphone. Check your browser permissions.');
+          }
           return;
         }
       } else {
@@ -5764,6 +6439,11 @@ const Room = () => {
     }
     if (socket) socket.emit('self_mute', { roomId: (roomId || '').toLowerCase(), isMuted: !nextState });
   };
+
+  useEffect(() => {
+    toggleCameraRef.current = toggleCamera;
+    toggleMicRef.current = toggleMic;
+  });
 
   const openDM = (uname) => {
     dmTargetRef.current = uname; setDmTarget(uname); setChatTab('dm');
@@ -6110,6 +6790,7 @@ const Room = () => {
 
   // Helper to render camera tiles (shared for overlay and dedicated row modes)
   const renderCameras = (isOverlay) => {
+    if (mediaUrl?.includes('videocall') || mediaUrl?.includes('voicecall')) return null;
     const allCams = [];
     const seenUsers = new Set();
     if (hasStartedCamOnce) {
@@ -6469,11 +7150,15 @@ const Room = () => {
     );
   };
 
+  const activeMediaItem = OPTIONS.find(o => o.url === mediaUrl || (o.url && mediaUrl && (mediaUrl.includes(o.url) || o.url.includes(mediaUrl))));
+  const isVirtualBrowserActivity = activeMediaItem?.type === 'virtual_browser' || isLaunchingVirtualBrowser;
+
   // ─── RENDER ───
 
   return (
     <div
       className={isTvMode ? "tv-mode" : ""}
+      onMouseMove={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
       style={{
         position: 'relative', display: 'flex', height: '100vh', flexDirection: 'column',
         backgroundColor: 'var(--room-main-bg)',
@@ -7181,6 +7866,9 @@ const Room = () => {
       {showMediaSelector && (
         <MediaSelectorModal
           isLight={isLight}
+          initialCategory={lastMediaCategory}
+          initialGameTab={lastMediaGameTab}
+          initialActivityTab={lastMediaActivityTab}
           onClose={() => setShowMediaSelector(false)}
           onSelectPlatform={(id) => {
             setShowMediaSelector(false);
@@ -7188,9 +7876,9 @@ const Room = () => {
             if (id === 'twitch') setShowTwitchBrowser(true);
             if (id === 'vimeo') setShowVimeoBrowser(true);
           }}
-          onSelectUrl={(url) => {
+          onSelectUrl={(url, launchType) => {
             setShowMediaSelector(false);
-            changeMedia(url);
+            changeMedia(url, launchType);
           }}
           onUpload={() => {
             // Modal signals "user wants to upload" — close modal, then trigger Room's own file input
@@ -7275,7 +7963,7 @@ const Room = () => {
           className="no-scrollbar room-player-col"
         >
           {/* Customize Room floating button */}
-          {!isTvMode && !isFullscreen && (
+          {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
             <button
               onClick={() => setShowCustomizeModal(true)}
               title="Customize Room"
@@ -7296,13 +7984,14 @@ const Room = () => {
               <Paintbrush size={15} color="#fff" />
             </button>
           )}
+          {/* ── OLD in-player game overlay REPLACED — game name is now in header ── */}
 
           <div
             ref={playerWrapRef}
             className={`player-wrap${isMobile && isMobileFsMode ? ' player-mob-fs' : ''}`}
-            onMouseMove={resetControlsTimer}
-            onMouseEnter={resetControlsTimer}
-            onMouseLeave={() => setShowControls(false)}
+            onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            onMouseLeave={() => { setShowControls(false); }}
             style={{
               flex: 1,
               background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',
@@ -7317,6 +8006,271 @@ const Room = () => {
               transition: 'box-shadow 0.3s ease',
             }}
           >
+            {/* Active Game/Activity Top-Left Dropdown inside room screen */}
+            {!isTvMode && (hasMounted && mediaUrl) && isGameOrActivity(mediaUrl) && !mediaUrl.includes('videocall') && !mediaUrl.includes('voicecall') && (
+              <div
+                className="sp-game-header-overlay gcw-force-dark stay-white"
+                style={{
+                  position: 'absolute',
+                  top: 12, left: 12,
+                  zIndex: 200,
+                  opacity: showGameControls ? 1 : 0,
+                  transition: 'opacity 0.4s ease',
+                  pointerEvents: showGameControls ? 'auto' : 'none',
+                }}
+              >
+                <button
+                  className="stay-white"
+                  onClick={() => setShowActivityMenu(!showActivityMenu)}
+                  style={{
+                    background: 'rgba(15, 15, 25, 0.75)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 10,
+                    padding: '8px 14px',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(15, 15, 25, 0.9)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(15, 15, 25, 0.75)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                  }}
+                >
+                  <Gamepad2 size={14} color="#818cf8" />
+                  <span className="stay-white">{getActiveMediaName(mediaUrl)}</span>
+                  <ChevronDown size={14} color="#ffffff" style={{ transform: showActivityMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                </button>
+
+                {showActivityMenu && (
+                  <div className="stay-white" style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    background: 'rgba(15, 15, 25, 0.95)',
+                    backdropFilter: 'blur(16px)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: 10,
+                    padding: 6,
+                    minWidth: 110,
+                    boxShadow: '0 10px 32px rgba(0,0,0,0.5)',
+                    zIndex: 210,
+                  }}>
+                    {hasPlayerPrivileges && (
+                      <>
+                        {/* Stop — end game and open App Directory */}
+                        <button
+                          className="stay-white"
+                          onClick={() => {
+                            setShowActivityMenu(false);
+                            handleStopMedia();
+                            setShowMediaSelector(true);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#f59e0b',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.12)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                          <Square size={11} fill="#f59e0b" stroke="none" />
+                          <span style={{ color: '#f59e0b' }}>Stop</span>
+                        </button>
+
+                        {/* Exit — end game and return to empty room */}
+                        <button
+                          className="stay-white"
+                          onClick={() => {
+                            setShowActivityMenu(false);
+                            handleStopMedia();
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#ef4444',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            transition: 'background 0.2s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                        >
+                          <X size={13} color="#ef4444" />
+                          <span style={{ color: '#ef4444' }}>Exit</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Game Fullscreen Button — only for games, top-right, hover-revealed, glassmorphic & high-contrast */}
+            {!isTvMode && (hasMounted && mediaUrl) && isGameOrActivity(mediaUrl) && !mediaUrl.includes('videocall') && !mediaUrl.includes('voicecall') && (
+              <button
+                className="stay-white"
+                onClick={handleFullscreen}
+                title={isFullscreen || isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}
+                style={{
+                  position: 'absolute', top: 12, right: 12, zIndex: 200,
+                  width: 38, height: 38, borderRadius: 10,
+                  background: 'rgba(15, 15, 25, 0.75)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#fff',
+                  opacity: showGameControls ? 1 : 0,
+                  transition: 'opacity 0.4s ease, background 0.18s, border-color 0.18s',
+                  pointerEvents: showGameControls ? 'auto' : 'none',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(15, 15, 25, 0.75)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                }}
+              >
+                {(isFullscreen || isMobileFsMode)
+                  ? <Minimize2 size={18} color="#ffffff" />
+                  : <Maximize2 size={18} color="#ffffff" />}
+              </button>
+            )}
+
+            {/* Game Virtual Browser Fallback Button — only for games, top-right, next to fullscreen button */}
+            {!isTvMode && (hasMounted && mediaUrl) && isMediaGame(mediaUrl) && !hyperbeamSession && !hbSessionId && (
+              <button
+                className="stay-white"
+                onClick={() => {
+                  dismissGlobeInstruction();
+                  if (isEffectiveHost) {
+                    handleOpenCloudBrowser(mediaUrl);
+                  } else {
+                    toast.error('Only the host can launch the Virtual Browser. Please ask the host to launch it.');
+                  }
+                }}
+                title="Launch in Virtual Browser"
+                style={{
+                  position: 'absolute', top: 12, right: 58, zIndex: 200,
+                  width: 38, height: 38, borderRadius: 10,
+                  background: 'rgba(15, 15, 25, 0.75)',
+                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#fff',
+                  opacity: showGameControls ? 1 : 0,
+                  transition: 'opacity 0.4s ease, background 0.18s, border-color 0.18s',
+                  pointerEvents: showGameControls ? 'auto' : 'none',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(15, 15, 25, 0.75)';
+                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                }}
+              >
+                <Globe size={18} color="#ffffff" />
+              </button>
+            )}
+
+            {/* Onboarding / Instruction Tooltip pointing to the Globe button */}
+            {!isTvMode && (hasMounted && mediaUrl) && isMediaGame(mediaUrl) && !hyperbeamSession && !hbSessionId && showGlobeInstruction && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 58,
+                  right: 58,
+                  zIndex: 250,
+                  width: 280,
+                  background: 'rgba(15, 15, 25, 0.98)',
+                  backdropFilter: 'blur(16px)',
+                  border: '1px solid rgba(99, 102, 241, 0.65)',
+                  borderRadius: 12,
+                  padding: 16,
+                  color: '#fff',
+                  boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
+                  pointerEvents: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12
+                }}
+              >
+                {/* Pointer Triangle pointing upwards to the Globe button */}
+                <div style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: 14,
+                  width: 0,
+                  height: 0,
+                  borderLeft: '6px solid transparent',
+                  borderRight: '6px solid transparent',
+                  borderBottom: '6px solid rgba(99, 102, 241, 0.65)',
+                }} />
+                
+                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#e0e7ff', fontWeight: 600 }}>
+                  Game not loading properly or showing a blank screen?
+                </p>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>
+                  Click this **Globe icon** to launch it in a Virtual Browser!
+                </p>
+                <button
+                  onClick={dismissGlobeInstruction}
+                  className="stay-white"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                    transition: 'opacity 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  Got it
+                </button>
+              </div>
+            )}
+
 
 
             {/* ── Management Controls Overlay (Visible for ALL media types) ── */}
@@ -7387,11 +8341,13 @@ const Room = () => {
                   ref={videoRef} autoPlay playsInline controls={false} muted={isScreensharing ? true : playerMuted}
                   onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)}
                   onDoubleClick={handleFullscreen}
-                  style={{ 
-                    width: '100%', 
+                  style={{
+                    width: '100%',
                     height: (isScreensharing && isFullscreen) ? 'calc(100% - 60px)' : '100%',
                     marginTop: (isScreensharing && isFullscreen) ? 60 : 0,
-                    objectFit: 'contain', zIndex: 0
+                    objectFit: 'contain', zIndex: 0,
+                    filter: QUALITY_PRESETS[videoQuality]?.filter || 'none',
+                    transition: 'filter 0.4s ease',
                   }}
                 />
                 {isViewer && !isPlaying && (
@@ -7483,7 +8439,49 @@ const Room = () => {
               </>
             ) : hasMounted && mediaUrl ? (
               <>
-                {isWebIframe(mediaUrl) ? (
+                {mediaUrl === 'lobby://crazygames' ? (
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}>
+                    <CrazyGamesLobby
+                      onSelectGame={async (gameUrl) => {
+                        if (hasPlayerPrivileges) {
+                          await handleSetMedia(gameUrl);
+                        } else {
+                          toast.error(t('hostPrivilegeError', 'Only the host or users with privileges can load games.'));
+                        }
+                      }}
+                      isLight={isLight}
+                    />
+                  </div>
+                ) : mediaUrl === 'activity://timer' ? (
+                  <TimerActivity isLight={isLight} />
+                ) : (mediaUrl === 'activity://videocall' || mediaUrl === 'activity://voicecall') ? (
+                  <CallingActivity
+                    mode={mediaUrl === 'activity://videocall' ? 'video' : 'voice'}
+                    isLight={isLight}
+                    isCamOn={isCamOn}
+                    isMicOn={isMicOnCam}
+                    localCamStream={localCamRef.current}
+                    remoteStreams={remoteStreams}
+                    toggleCamera={toggleCamera}
+                    toggleMic={toggleMic}
+                    username={username}
+                    isFullscreen={isFullscreen}
+                    onToggleFullscreen={handleFullscreen}
+                    localAvatarUrl={(() => { const raw = knownAvatars[username]; return raw ? (raw.startsWith('http') ? raw : `${SOCKET_SERVER_URL}${raw}`) : null; })()}
+                    knownAvatars={knownAvatars}
+                    socketServerUrl={SOCKET_SERVER_URL}
+                    onEndCall={() => {
+                      // handleStopMedia() detects we're leaving a call and hangs up
+                      // (stops our camera/mic + tells the other side to hang up too).
+                      handleStopMedia();
+                      setShowMediaSelector(true);
+                    }}
+                    onStopCall={() => {
+                      handleStopMedia();
+                      setShowMediaSelector(true);
+                    }}
+                  />
+                ) : isWebIframe(mediaUrl) ? (
                   <div
                     style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}
                     onMouseMove={resetControlsTimer}
@@ -7491,36 +8489,34 @@ const Room = () => {
                   >
                     {/* ── iframe content area — no browser toolbar, uses shared bottom control bar ── */}
                     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-                      <iframe
-                        key={mediaUrl}
-                        src={mediaUrl}
-                        style={{ width: '100%', height: '100%', border: 'none', display: iframeLoading ? 'none' : 'block' }}
-                        allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write; encrypted-media; picture-in-picture; payment"
-                        allowFullScreen
-                        onLoad={() => {
-                          setIframeLoading(false);
-                          setIframeError(false);
-                          // Page loaded — may still be a block page (Infoblox / firewall page).
-                          // Block pages finish loading in < 1s, so a short 2.5s timer is plenty.
-                          // When it fires: enable the Globe icon AND auto-open the popup.
-                          clearTimeout(iframeBlockTimeoutRef.current);
-                          iframeBlockTimeoutRef.current = setTimeout(() => {
+                      {!hyperbeamSession && !hbSessionId && !isVirtualBrowserActivity && (
+                        <iframe
+                          key={mediaUrl}
+                          src={mediaUrl}
+                          style={{ width: '100%', height: '100%', border: 'none', display: iframeLoading ? 'none' : 'block' }}
+                          allow="autoplay; fullscreen; camera; microphone; clipboard-read; clipboard-write; encrypted-media; picture-in-picture; payment"
+                          allowFullScreen
+                          onLoad={() => {
+                            setIframeLoading(false);
+                            setIframeError(false);
+                            // Page loaded successfully — clear any block timeout.
+                            clearTimeout(iframeBlockTimeoutRef.current);
+                            // Note: setIframeBlockSuspected and setShowGlobePopup are NOT auto-triggered.
+                            // The user can manually click the Globe icon if the page didn't load correctly.
+                          }}
+                          onError={() => {
+                            // Hard X-Frame-Options / CSP block — show error state.
+                            // Do NOT auto-launch the virtual browser; let the user decide.
+                            clearTimeout(iframeBlockTimeoutRef.current);
+                            setIframeLoading(false);
+                            setIframeError(true);
                             setIframeBlockSuspected(true);
-                            setShowGlobePopup(true); // auto-open popup so user sees it immediately
-                          }, 2500);
-                        }}
-                        onError={() => {
-                          // Hard X-Frame-Options / CSP block — enable Globe + open popup immediately.
-                          clearTimeout(iframeBlockTimeoutRef.current);
-                          setIframeLoading(false);
-                          setIframeError(true);
-                          setIframeBlockSuspected(true);
-                          setShowGlobePopup(true); // auto-open popup straight away
-                          if (isEffectiveHost) handleOpenCloudBrowser();
-                        }}
-                      />
+                            // Globe popup is available for user to manually click if needed.
+                          }}
+                        />
+                      )}
                       {/* ── Loading spinner ── */}
-                      {iframeLoading && (
+                      {(iframeLoading || isLaunchingVirtualBrowser) && !hyperbeamSession && (
                         <div style={{
                           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                           alignItems: 'center', justifyContent: 'center', gap: 20,
@@ -7533,7 +8529,6 @@ const Room = () => {
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Loading page…</div>
-                            <div style={{ color: '#6366f1', fontSize: 13 }}>{(browserDisplayUrl || mediaUrl).length > 55 ? (browserDisplayUrl || mediaUrl).slice(0,55)+'…' : (browserDisplayUrl || mediaUrl)}</div>
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                             {[0,1,2].map(i => (
@@ -7547,38 +8542,142 @@ const Room = () => {
                       {/* ── Subtle "Page not loading?" settings panel — shown after load, only to host ──
                           Appears as a small pill at the bottom of the iframe area when page is loaded.
                           User sees blocked content and can click to switch to Virtual Browser. */}
-                      {!iframeLoading && !hyperbeamSession && !iframeError && isEffectiveHost && (
+                      {/* ── Subtle "Page not loading?" settings panel ── */}
+                      {!iframeLoading && !hyperbeamSession && (iframeBlockSuspected || iframeError) && (
                         <div
                           className="iframe-settings-hint"
                           style={{
-                            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
-                            zIndex: 20, opacity: 0, transition: 'opacity 0.3s',
-                            display: 'flex', alignItems: 'center', gap: 8
+                            position: 'absolute',
+                            bottom: 16,
+                            right: 16,
+                            zIndex: 40,
+                            opacity: showControls ? 0.95 : 0,
+                            pointerEvents: showControls ? 'auto' : 'none',
+                            transition: 'opacity 0.25s ease-in-out, transform 0.25s ease-in-out'
                           }}
-                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                          onMouseLeave={e => e.currentTarget.style.opacity = '0'}
                         >
-                          <button
-                            onClick={handleOpenCloudBrowser}
-                            style={{
-                              background: 'rgba(10,10,20,0.85)', backdropFilter: 'blur(12px)',
-                              border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20,
-                              padding: '6px 16px', fontSize: 12, fontWeight: 600,
-                              color: 'rgba(255,255,255,0.8)', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.3)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(10,10,20,0.85)'; e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
-                              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-                            </svg>
-                            Page blocked? Use Virtual Browser
-                          </button>
+                          {isEffectiveHost ? (
+                            <button
+                              onClick={() => {
+                                setIframeBlockSuspected(false);
+                                setIframeError(false);
+                                handleOpenCloudBrowser();
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: (iframeHintExpanded || hoveringIframeHint) ? 8 : 0,
+                                background: 'rgba(15, 15, 25, 0.95)',
+                                backdropFilter: 'blur(12px)',
+                                border: '1px solid rgba(99, 102, 241, 0.45)',
+                                borderRadius: (iframeHintExpanded || hoveringIframeHint) ? 20 : '50%',
+                                padding: (iframeHintExpanded || hoveringIframeHint) ? '8px 18px' : '11px',
+                                width: (iframeHintExpanded || hoveringIframeHint) ? 'auto' : 40,
+                                height: 40,
+                                justifyContent: 'center',
+                                color: '#a5b4fc',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+                                transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden'
+                              }}
+                              onMouseEnter={() => setHoveringIframeHint(true)}
+                              onMouseLeave={() => setHoveringIframeHint(false)}
+                            >
+                              <Globe size={16} />
+                              <span style={{
+                                opacity: (iframeHintExpanded || hoveringIframeHint) ? 1 : 0,
+                                maxWidth: (iframeHintExpanded || hoveringIframeHint) ? 300 : 0,
+                                transition: 'opacity 0.25s, max-width 0.35s',
+                                fontSize: 12,
+                                fontWeight: 700
+                              }}>
+                                Game not loading? Launch in Cloud Browser
+                              </span>
+                            </button>
+                          ) : (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: (iframeHintExpanded || hoveringIframeHint) ? 8 : 0,
+                                background: 'rgba(15, 15, 25, 0.95)',
+                                backdropFilter: 'blur(12px)',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                borderRadius: (iframeHintExpanded || hoveringIframeHint) ? 20 : '50%',
+                                padding: (iframeHintExpanded || hoveringIframeHint) ? '8px 18px' : '11px',
+                                width: (iframeHintExpanded || hoveringIframeHint) ? 'auto' : 40,
+                                height: 40,
+                                justifyContent: 'center',
+                                color: 'rgba(255, 255, 255, 0.65)',
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+                                transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden'
+                              }}
+                              onMouseEnter={() => setHoveringIframeHint(true)}
+                              onMouseLeave={() => setHoveringIframeHint(false)}
+                            >
+                              <Globe size={15} />
+                              <span style={{
+                                opacity: (iframeHintExpanded || hoveringIframeHint) ? 1 : 0,
+                                maxWidth: (iframeHintExpanded || hoveringIframeHint) ? 350 : 0,
+                                transition: 'opacity 0.25s, max-width 0.35s',
+                                fontSize: 11,
+                                fontWeight: 600
+                              }}>
+                                If game fails to connect, ask Host to launch Cloud Browser
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
+
+                    {/* ── Block Fallback Overlay ── */}
+                    {iframeBlockSuspected && !hyperbeamSession && (
+                      <div style={{
+                        position: 'absolute', inset: 0, zIndex: 30,
+                        background: 'linear-gradient(135deg, rgba(10,10,20,0.97), rgba(20,10,35,0.99))',
+                        backdropFilter: 'blur(16px)',
+                        display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', justifyContent: 'center',
+                        gap: 20
+                      }}>
+                        <div style={{ fontSize: 44 }}>🌐</div>
+                        <div style={{ textAlign: 'center', maxWidth: 360, padding: '0 20px' }}>
+                          <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
+                            Page blocks embedding
+                          </div>
+                          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
+                            This portal does not support direct iframe embedding. Open it in a Virtual Browser to browse and play together.
+                          </div>
+                        </div>
+                        {isEffectiveHost ? (
+                          <button
+                            onClick={() => handleOpenCloudBrowser()}
+                            style={{
+                              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                              border: 'none', borderRadius: 14,
+                              padding: '13px 28px', fontSize: 15, fontWeight: 700,
+                              color: '#fff', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
+                              transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
+                          >
+                            🌐 Open in Virtual Browser
+                          </button>
+                        ) : (
+                          <div style={{ color: '#a855f7', fontSize: 13, fontWeight: 600 }}>
+                            Waiting for the host to launch Virtual Browser...
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* ── Hyperbeam Virtual Browser overlay — seamless, no badges ──
                         Covers the entire iframe area when a virtual browser session is active.
@@ -7594,8 +8693,8 @@ const Room = () => {
                           ref={hyperbeamContainerRef}
                           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
                         />
-                        {/* Hover-revealed thin exit bar — invisible unless you move to the top edge */}
-                        {isEffectiveHost && (
+                        {/* Hover-revealed thin exit bar — hidden when game/activity overlay is active */}
+                        {isEffectiveHost && !isGameOrActivity(mediaUrl) && (
                           <div
                             className="hb-exit-bar"
                             style={{
@@ -7680,7 +8779,9 @@ const Room = () => {
                       <div style={{
                         position: 'absolute',
                         inset: (useCustomVimeoControls && isVimeo) ? '0 0 -40px 0' : 0,
-                        zIndex: 0
+                        zIndex: 0,
+                        filter: QUALITY_PRESETS[videoQuality]?.filter || 'none',
+                        transition: 'filter 0.4s ease',
                       }}>
                         {isLocalStream ? (
                           <>
@@ -7930,34 +9031,98 @@ const Room = () => {
                             alignItems: 'center', justifyContent: 'center',
                             borderRadius: 12, gap: 20
                           }}>
-                            <div style={{ fontSize: 44 }}>⚠️</div>
-                            <div style={{ textAlign: 'center', maxWidth: 360 }}>
-                              <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
-                                Video failed to load
-                              </div>
-                              <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
-                                This URL could not be played directly.
-                                Open it in a Cloud Browser to watch together.
-                              </div>
-                            </div>
-                            {isEffectiveHost && (
-                              <button
-                                id="open-cloud-browser-btn"
-                                onClick={handleOpenCloudBrowser}
-                                style={{
-                                  background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-                                  border: 'none', borderRadius: 14,
-                                  padding: '13px 28px', fontSize: 15, fontWeight: 700,
-                                  color: '#fff', cursor: 'pointer',
-                                  display: 'flex', alignItems: 'center', gap: 10,
-                                  boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
-                                  transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
-                              >
-                                🌐 Open in Cloud Browser
-                              </button>
+                            {isVirtualBrowserUrl(mediaUrl) ? (
+                              <>
+                                <div style={{ fontSize: 44 }}>🎮</div>
+                                <div style={{ textAlign: 'center', maxWidth: 440, padding: '0 24px' }}>
+                                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
+                                    WebGL Game Load Failed
+                                  </div>
+                                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
+                                    This game needs WebGL/WebGL2. The current virtual browser session does not support it. Try another game or use desktop browser mode.
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', maxWidth: 440 }}>
+                                  {isEffectiveHost && (
+                                    <button
+                                      onClick={() => handleOpenCloudBrowser()}
+                                      style={{
+                                        background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                                        border: 'none', borderRadius: 12,
+                                        padding: '11px 22px', fontSize: 13, fontWeight: 700,
+                                        color: '#fff', cursor: 'pointer',
+                                        boxShadow: '0 8px 24px rgba(168,85,247,0.3)',
+                                        transition: 'all 0.2s'
+                                      }}
+                                    >
+                                      🔄 Restart Virtual Browser
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      window.open(mediaUrl, '_blank');
+                                    }}
+                                    style={{
+                                      background: 'rgba(255,255,255,0.06)',
+                                      border: '1px solid rgba(255,255,255,0.15)',
+                                      borderRadius: 12,
+                                      padding: '11px 22px', fontSize: 13, fontWeight: 700,
+                                      color: '#fff', cursor: 'pointer',
+                                      transition: 'all 0.2s'
+                                    }}
+                                  >
+                                    🖥️ Try Desktop Game Mode
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setLoadFailed(false);
+                                      setShowMediaSelector(true);
+                                    }}
+                                    style={{
+                                      background: 'rgba(255,255,255,0.06)',
+                                      border: '1px solid rgba(255,255,255,0.15)',
+                                      borderRadius: 12,
+                                      padding: '11px 22px', fontSize: 13, fontWeight: 700,
+                                      color: '#fff', cursor: 'pointer',
+                                      transition: 'all 0.2s'
+                                    }}
+                                  >
+                                    🎲 Open simpler HTML5 games
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ fontSize: 44 }}>⚠️</div>
+                                <div style={{ textAlign: 'center', maxWidth: 360 }}>
+                                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
+                                    Video failed to load
+                                  </div>
+                                  <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
+                                    This URL could not be played directly.
+                                    Open it in a Cloud Browser to watch together.
+                                  </div>
+                                </div>
+                                {isEffectiveHost && (
+                                  <button
+                                    id="open-cloud-browser-btn"
+                                    onClick={handleOpenCloudBrowser}
+                                    style={{
+                                      background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                                      border: 'none', borderRadius: 14,
+                                      padding: '13px 28px', fontSize: 15, fontWeight: 700,
+                                      color: '#fff', cursor: 'pointer',
+                                      display: 'flex', alignItems: 'center', gap: 10,
+                                      boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
+                                      transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
+                                  >
+                                    🌐 Open in Cloud Browser
+                                  </button>
+                                )}
+                              </>
                             )}
                             <button
                               onClick={() => { setLoadFailed(false); handleStopMedia(); }}
@@ -8307,159 +9472,164 @@ const Room = () => {
 
             {/* Upload progress and loading status indicators hidden to run silently in the background */}
 
-            {/* Custom Control Bar Ã¢â‚¬â€ visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
+            {/* Custom Control Bar — visible ONLY for Direct Videos (Hidden for WebRTC to avoid overlapping native streaming controls) */}
             {/* Bottom control bar — shown for direct video AND web-iframe/HB URLs */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && (
-              <div className="gcw-force-dark" style={{
-                display: hideCustomControls ? 'none' : 'block',
-                position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0,
-                zIndex: 25,
-                background: isEmbedPlatform(mediaUrl) ? 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
-                padding: '24px 14px 10px',
-                // Always visible for URL-based media: embed iframes (YouTube) and web iframes both
-                // capture hover so showControls never fires. Local streams use hover-reveal.
-                opacity: isLocalStream ? (showControls ? 1 : 0) : 1,
-                transition: 'opacity 0.3s ease',
-                pointerEvents: 'none',
-                borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
-              }}>
-                {/* Scrubber — hidden for web iframes */}
-                {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && duration > 0 && (
-                  <div style={{ position: 'relative', height: 4, marginBottom: 10, display: 'flex', alignItems: 'center', pointerEvents: showControls ? 'auto' : 'none' }}>
-                    <div style={{
-                      position: 'absolute', left: 0, height: 4, borderRadius: 2,
-                      width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                      background: 'linear-gradient(90deg,#6366f1,#a855f7)',
-                      pointerEvents: 'none', zIndex: 1
-                    }} />
-                    <div style={{
-                      position: 'absolute', left: 0, right: 0, height: 4,
-                      borderRadius: 2, background: 'rgba(255,255,255,0.15)', zIndex: 0
-                    }} />
-                    <input
-                      type="range" className="player-scrubber"
-                      min={0} max={duration || 100} step={0.1}
-                      value={currentTime}
-                      onChange={handleScrubberChange}
-                      disabled={!hasPlayerPrivileges}
-                      style={{
-                        position: 'absolute', inset: 0, zIndex: 2, width: '100%',
-                        '--track-fill': `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                        cursor: hasPlayerPrivileges ? 'pointer' : 'default',
-                        pointerEvents: hasPlayerPrivileges ? 'auto' : 'none'
-                      }}
-                    />
-                  </div>
-                )}
-                {/* Controls row — always interactive for URL-based media (iframes capture hover) */}
-                <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isLocalStream ? (showControls ? 'auto' : 'none') : 'auto') }}>
-
-                  {/* 1. Load Media — opens App Directory without stopping current playback */}
-                  {hasPlayerPrivileges && (
-                    <button
-                      className="player-ctrl-btn player-ctrl-load-btn"
-                      onClick={() => setShowMediaSelector(true)}
-                      title="Load Media"
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                  )}
-
-                  {/* Play/Pause — only for ReactPlayer URLs (can actually control) and local streams.
-                      Hidden for web iframes (webpage, can't control playback) */}
-                  {hasPlayerPrivileges && !isWebIframe(mediaUrl) && (
-                    <button className="player-ctrl-btn" onClick={togglePlayPause} title={isPlaying ? 'Pause' : 'Play'}>
-                      {isPlaying ? <Pause size={20} fill="#fff" /> : <Play size={20} fill="#fff" />}
-                    </button>
-                  )}
-
-                  {/* Stop button — should be there no matter which video url we pasted */}
-                  {hasPlayerPrivileges && (
-                    <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
-                      <Square size={18} fill="#fff" />
-                    </button>
-                  )}
-
-                  {/* Skip -10s and +10s (Only for videos with valid seekable duration) */}
-                  {duration > 0 && hasPlayerPrivileges && (
-                    <>
-                      <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
-                        <RotateCcw size={18} />
-                      </button>
-                      <button className="player-ctrl-btn" onClick={skipForward10} title="Forward 10s">
-                        <RotateCw size={18} />
-                      </button>
-                    </>
-                  )}
-                  {/* Volume */}
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <button className="player-ctrl-btn" onClick={toggleMutePlayer} title={playerMuted ? 'Unmute' : 'Mute'}>
-                      {playerMuted || playerVolume === 0 ? <VolumeX size={18} /> : playerVolume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
-                    </button>
-                    <input
-                      type="range" className="player-vol-slider"
-                      min={0} max={1} step={0.02}
-                      value={playerMuted ? 0 : playerVolume}
-                      onChange={handleVolumeChange}
-                      style={{
-                        background: `linear-gradient(to right, #a5b4fc ${(playerMuted ? 0 : playerVolume) * 100}%, rgba(255,255,255,0.2) ${(playerMuted ? 0 : playerVolume) * 100}%)`
-                      }}
-                    />
-                  </div>
-                  {isDucked && (
-                    <div className="player-ducked-badge" title={`Audio ducked — ${duckingNotice} is speaking`} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 10, padding: '2px 7px', fontSize: 10, color: '#a5b4fc', fontWeight: 700, userSelect: 'none' }}>
-                      <Mic size={10} /> DUCKED
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && (
+              isGameOrActivity(mediaUrl) ? (
+                /* Game mode: no bottom/top-right control bar — use the top-left game dropdown instead */
+                null
+              ) : !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && (
+                /* Existing video player control bar */
+                <div className="gcw-force-dark" style={{
+                  display: hideCustomControls ? 'none' : 'block',
+                  position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0,
+                  zIndex: 25,
+                  background: isEmbedPlatform(mediaUrl) ? 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
+                  padding: '24px 14px 10px',
+                  // Always visible for URL-based media: embed iframes (YouTube) and web iframes both
+                  // capture hover so showControls never fires. Local streams use hover-reveal.
+                  opacity: isLocalStream ? (showControls ? 1 : 0) : 1,
+                  transition: 'opacity 0.3s ease',
+                  pointerEvents: 'none',
+                  borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
+                }}>
+                  {/* Scrubber — hidden for web iframes */}
+                  {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && duration > 0 && (
+                    <div style={{ position: 'relative', height: 4, marginBottom: 10, display: 'flex', alignItems: 'center', pointerEvents: showControls ? 'auto' : 'none' }}>
+                      <div style={{
+                        position: 'absolute', left: 0, height: 4, borderRadius: 2,
+                        width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                        background: 'linear-gradient(90deg,#6366f1,#a855f7)',
+                        pointerEvents: 'none', zIndex: 1
+                      }} />
+                      <div style={{
+                        position: 'absolute', left: 0, right: 0, height: 4,
+                        borderRadius: 2, background: 'rgba(255,255,255,0.15)', zIndex: 0
+                      }} />
+                      <input
+                        type="range" className="player-scrubber"
+                        min={0} max={duration || 100} step={0.1}
+                        value={currentTime}
+                        onChange={handleScrubberChange}
+                        disabled={!hasPlayerPrivileges}
+                        style={{
+                          position: 'absolute', inset: 0, zIndex: 2, width: '100%',
+                          '--track-fill': `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
+                          cursor: hasPlayerPrivileges ? 'pointer' : 'default',
+                          pointerEvents: hasPlayerPrivileges ? 'auto' : 'none'
+                        }}
+                      />
                     </div>
                   )}
-                  {/* Time — shown for any video with duration */}
-                  {!(isScreensharing || isViewer) && duration > 0 && (
-                    <span style={{ fontSize: 11, color: '#ccc', whiteSpace: 'nowrap', marginLeft: 2, fontVariantNumeric: 'tabular-nums' }}>
-                      {formatDuration(currentTime)} / {formatDuration(duration)}
-                    </span>
-                  )}
-                  <div style={{ flex: 1 }} />
+                  {/* Controls row — always interactive for URL-based media (iframes capture hover) */}
+                  <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isLocalStream ? (showControls ? 'auto' : 'none') : 'auto') }}>
 
-                  {/* Fallback to Native controls button */}
-                  <button
-                    className="player-native-btn"
-                    onClick={() => setHideCustomControls(true)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      borderRadius: '20px',
-                      padding: '6px 14px',
-                      color: '#a5b4fc',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                      pointerEvents: 'auto'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
-                      e.currentTarget.style.border = '1px solid rgba(99, 102, 241, 0.45)';
-                      e.currentTarget.style.color = '#fff';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.25)';
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                      e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
-                      e.currentTarget.style.color = '#a5b4fc';
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-                    }}
-                    title="Hide custom controls and use native player controls"
-                  >
-                    <ChevronDown size={14} color="#a5b4fc" />
-                    <span>Use Native Player</span>
-                  </button>
+                    {/* 1. Load Media — opens App Directory without stopping current playback */}
+                    {hasPlayerPrivileges && (
+                      <button
+                        className="player-ctrl-btn player-ctrl-load-btn"
+                        onClick={() => setShowMediaSelector(true)}
+                        title="Load Media"
+                      >
+                        <LayoutGrid size={16} />
+                      </button>
+                    )}
 
-                  <div style={{ flex: 1 }} />
+                    {/* Play/Pause — only for ReactPlayer URLs (can actually control) and local streams.
+                        Hidden for web iframes (webpage, can't control playback) */}
+                    {hasPlayerPrivileges && !isWebIframe(mediaUrl) && (
+                      <button className="player-ctrl-btn" onClick={togglePlayPause} title={isPlaying ? 'Pause' : 'Play'}>
+                        {isPlaying ? <Pause size={20} fill="#fff" /> : <Play size={20} fill="#fff" />}
+                      </button>
+                    )}
+
+                    {/* Stop button — should be there no matter which video url we pasted */}
+                    {hasPlayerPrivileges && (
+                      <button className="player-ctrl-btn" onClick={handleStopMedia} title="Stop">
+                        <Square size={18} fill="#fff" />
+                      </button>
+                    )}
+
+                    {/* Skip -10s and +10s (Only for videos with valid seekable duration) */}
+                    {duration > 0 && hasPlayerPrivileges && (
+                      <>
+                        <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
+                          <RotateCcw size={18} />
+                        </button>
+                        <button className="player-ctrl-btn" onClick={skipForward10} title="Forward 10s">
+                          <RotateCw size={18} />
+                        </button>
+                      </>
+                    )}
+                    {/* Volume */}
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <button className="player-ctrl-btn" onClick={toggleMutePlayer} title={playerMuted ? 'Unmute' : 'Mute'}>
+                        {playerMuted || playerVolume === 0 ? <VolumeX size={18} /> : playerVolume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
+                      </button>
+                      <input
+                        type="range" className="player-vol-slider"
+                        min={0} max={1} step={0.02}
+                        value={playerMuted ? 0 : playerVolume}
+                        onChange={handleVolumeChange}
+                        style={{
+                          background: `linear-gradient(to right, #a5b4fc ${(playerMuted ? 0 : playerVolume) * 100}%, rgba(255,255,255,0.2) ${(playerMuted ? 0 : playerVolume) * 100}%)`
+                        }}
+                      />
+                    </div>
+                    {isDucked && (
+                      <div className="player-ducked-badge" title={`Audio ducked — ${duckingNotice} is speaking`} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 10, padding: '2px 7px', fontSize: 10, color: '#a5b4fc', fontWeight: 700, userSelect: 'none' }}>
+                        <Mic size={10} /> DUCKED
+                      </div>
+                    )}
+                    {/* Time — shown for any video with duration */}
+                    {!(isScreensharing || isViewer) && duration > 0 && (
+                      <span style={{ fontSize: 11, color: '#ccc', whiteSpace: 'nowrap', marginLeft: 2, fontVariantNumeric: 'tabular-nums' }}>
+                        {formatDuration(currentTime)} / {formatDuration(duration)}
+                      </span>
+                    )}
+                    <div style={{ flex: 1 }} />
+
+                    {/* Fallback to Native controls button */}
+                    <button
+                      className="player-native-btn"
+                      onClick={() => setHideCustomControls(true)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '20px',
+                        padding: '6px 14px',
+                        color: '#a5b4fc',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                        pointerEvents: 'auto'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
+                        e.currentTarget.style.border = '1px solid rgba(99, 102, 241, 0.45)';
+                        e.currentTarget.style.color = '#fff';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.25)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                        e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
+                        e.currentTarget.style.color = '#a5b4fc';
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                      }}
+                      title="Hide custom controls and use native player controls"
+                    >
+                      <ChevronDown size={14} color="#a5b4fc" />
+                      <span>Use Native Player</span>
+                    </button>
+
+                    <div style={{ flex: 1 }} />
  
                   {/* Globe / Virtual Browser button — only shown for web iframe URLs.
                       Disabled until a block is detected (hard X-Frame error OR soft 10s timeout). */}
@@ -8468,15 +9638,15 @@ const Room = () => {
                       <button
                         id="globe-virtual-browser-btn"
                         className="player-ctrl-btn"
-                        disabled={!iframeBlockSuspected && !iframeError}
+                        disabled={false}
                         onClick={() => setShowGlobePopup(v => !v)}
-                        title={iframeBlockSuspected || iframeError ? 'Page blocked? Open in Virtual Browser' : 'Virtual Browser (enabled if page is blocked)'}
+                        title="Open in Virtual Browser"
                         style={{
-                          opacity: (iframeBlockSuspected || iframeError) ? 1 : 0.35,
-                          cursor: (iframeBlockSuspected || iframeError) ? 'pointer' : 'not-allowed',
+                          opacity: 1,
+                          cursor: 'pointer',
                           position: 'relative',
                           transition: 'opacity 0.3s, box-shadow 0.3s',
-                          boxShadow: (iframeBlockSuspected || iframeError) ? '0 0 0 0 rgba(99,102,241,0)' : 'none',
+                          boxShadow: (iframeBlockSuspected || iframeError) ? '0 0 10px rgba(99,102,241,0.5)' : 'none',
                           animation: (iframeBlockSuspected || iframeError) ? 'globePing 1.8s ease-out 2' : 'none',
                         }}
                       >
@@ -8729,6 +9899,72 @@ const Room = () => {
                     </div>
                   )}
  
+                  {/* Quality Selector */}
+                  <div ref={qualityMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <button
+                      className="player-ctrl-btn"
+                      onClick={() => setShowQualityMenu(v => !v)}
+                      title="Visual quality"
+                      style={{
+                        fontSize: '11px', fontWeight: 700,
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
+                        border: showQualityMenu ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(99,102,241,0.35)',
+                        padding: '6px 10px', borderRadius: 8,
+                        color: '#a5b4fc', transition: 'all 0.2s',
+                        letterSpacing: '0.3px', minWidth: 42, justifyContent: 'center',
+                      }}
+                    >
+                      {QUALITY_PRESETS[videoQuality]?.label || videoQuality}
+                    </button>
+                    {showQualityMenu && (
+                      <div style={{
+                        position: 'absolute', bottom: 'calc(100% + 10px)', right: 0,
+                        background: 'rgba(12,12,22,0.97)',
+                        border: '1px solid rgba(255,255,255,0.11)',
+                        borderRadius: 12, padding: '5px', minWidth: 185, zIndex: 9999,
+                        boxShadow: '0 -8px 32px rgba(0,0,0,0.55)',
+                        backdropFilter: 'blur(16px)',
+                      }}>
+                        <div style={{
+                          padding: '8px 12px 6px', color: '#64748b',
+                          fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 3,
+                        }}>
+                          Visual quality enhancement
+                        </div>
+                        {Object.entries(QUALITY_PRESETS).map(([key, preset]) => (
+                          <button
+                            key={key}
+                            onClick={() => { setVideoQuality(key); localStorage.setItem('preferred_quality', key); setShowQualityMenu(false); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              width: '100%', padding: '9px 12px',
+                              background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'none',
+                              border: 'none',
+                              color: videoQuality === key ? '#a5b4fc' : '#d1d5db',
+                              fontSize: 13, cursor: 'pointer', borderRadius: 8,
+                              textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { if (videoQuality !== key) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                            onMouseLeave={e => { if (videoQuality !== key) e.currentTarget.style.background = 'none'; }}
+                          >
+                            <div style={{
+                              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                              background: videoQuality === key ? '#a5b4fc' : 'transparent',
+                              border: videoQuality === key ? 'none' : '1.5px solid #6b7280',
+                            }} />
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: videoQuality === key ? 700 : 500 }}>{preset.label}</div>
+                              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>{preset.description}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Fullscreen */}
                   <button className="player-ctrl-btn" onClick={handleFullscreen} title={isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}>
                     {isMobile && isMobileFsMode ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -8736,10 +9972,11 @@ const Room = () => {
 
                 </div>
               </div>
-            )}
+            )
+          )}
 
             {/* Floating Restore Controls Button — shown at top center when custom controls are hidden */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
               <button
                 onClick={() => setHideCustomControls(false)}
                 style={{
@@ -9184,6 +10421,7 @@ const Room = () => {
                     setClearChatTarget, setClearChatModalOpen, setClearForBoth,
                     SOCKET_SERVER_URL, roomId,
                     onMarkRead: handleMarkRead,
+                    onMarkAllRead: handleMarkAllRead,
                     clearRoomChat: handleClearRoomChat,
                     setDmThreads,
                     socket,
@@ -9526,7 +10764,7 @@ const Room = () => {
                 <Settings2 size={20} /> <span>{t('roomSettings', 'Room Settings')}</span>
               </button>
             )}
-            {isEffectiveHost && (
+            {isEffectiveHost && !isGameOrActivity(mediaUrl) && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
                 <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
               </button>
