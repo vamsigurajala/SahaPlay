@@ -1914,11 +1914,14 @@ const GlobalChatWidget = forwardRef(({
     });
 
     sock.on('chat:mark_read', ({ chatId, timestamp }) => {
-      // Sync unread status across multiple browser tabs/windows
-      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => 
-        (c.id === chatId || c.partner === chatId) ? { ...c, unread: 0 } : c
-      ));
-      if (onMarkRead && activeChatRef.current?.id === chatId) {
+      // Sync unread status across multiple browser tabs/windows (case-insensitive check)
+      const target = (chatId || '').toLowerCase();
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => {
+        const cId = (c.id || '').toLowerCase();
+        const cPartner = (c.partner || '').toLowerCase();
+        return (cId === target || cPartner === target) ? { ...c, unread: 0 } : c;
+      }));
+      if (onMarkRead && (activeChatRef.current?.id || '').toLowerCase() === target) {
         onMarkRead(chatId);
       }
     });

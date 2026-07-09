@@ -796,6 +796,24 @@ function App() {
       html[data-theme='light'] .gcw-force-dark.hiw-section p,
       html[data-theme='light'] .gcw-force-dark.hiw-section p * { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
 
+      /* ── CrazyGames Lobby: always dark-themed, force white text in light mode ── */
+      html[data-theme='light'] .gcw-force-dark button[style*="color: #fff"],
+      html[data-theme='light'] .gcw-force-dark button[style*="color:#fff"],
+      html[data-theme='light'] .gcw-force-dark button[style*="color: #ffffff"],
+      html[data-theme='light'] .gcw-force-dark [style*="color: #fff"],
+      html[data-theme='light'] .gcw-force-dark [style*="color:#fff"],
+      html[data-theme='light'] .gcw-force-dark [style*="color: #ffffff"] {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+      }
+      html[data-theme='light'] .gcw-force-dark button[style*="color: #888"],
+      html[data-theme='light'] .gcw-force-dark button[style*="color:#888"],
+      html[data-theme='light'] .gcw-force-dark [style*="color: #888"],
+      html[data-theme='light'] .gcw-force-dark [style*="color:#888"],
+      html[data-theme='light'] .gcw-force-dark [style*="color: #a5b4fc"] {
+        color: inherit !important;
+      }
+
       /* ── Global Navigation and Components ── */
       html[data-theme='light'] nav { background: rgba(255,255,255,0.95) !important; backdrop-filter: blur(20px) !important; border-bottom: 1px solid rgba(0,0,0,0.08) !important; }
       html[data-theme='light'] nav h1 { color: #111 !important; -webkit-text-fill-color: #111 !important; }

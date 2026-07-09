@@ -1,5 +1,5 @@
 const express = require('express');
-const rateLimit = require('express-rate-limit');
+const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -713,7 +713,7 @@ const uploadLimiter = rateLimit({
   // Per-user bucket when authenticated so users sharing an IP don't collide
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `upload_${username}` : req.ip;
+    return username ? `upload_${username}` : ipKeyGenerator(req);
   },
   handler: (req, res) => {
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
@@ -758,7 +758,7 @@ const streamLimiter = rateLimit({   // A7-F8
   // Per-user bucket — same reasoning as uploadLimiter
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `stream_${username}` : req.ip;
+    return username ? `stream_${username}` : ipKeyGenerator(req);
   },
   message: { error: 'Too many upload chunks' }
 });
@@ -1152,48 +1152,196 @@ const SIMULATED_TWITCH_CHANNELS = [
   thumbnail: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${c.id.toLowerCase()}-440x248.jpg`
 }));
 
-async function getLiveTwitchStreams() {
-  const clientId = process.env.TWITCH_CLIENT_ID;
-  const token = process.env.TWITCH_ACCESS_TOKEN;
-  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+let cachedTwitchToken = null;
+let cachedTwitchTokenExpiry = null;
 
-  try {
-    const r = await fetch('https://api.twitch.tv/helix/streams?first=40', {
-      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
-    });
-    if (!r.ok) return null;
-    const { data } = await r.json();
-    return data.map(s => ({
-      id: s.user_login,
-      name: s.user_name,
-      title: s.title,
-      category: s.game_name,
-      thumbnail: s.thumbnail_url.replace('{width}', '440').replace('{height}', '248')
-    }));
-  } catch (err) {
-    console.error('Twitch API error:', err);
+async function getTwitchAppAccessToken() {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    console.warn('[TWITCH] Client ID or Secret not configured or using placeholders.');
     return null;
+  }
+
+  // Use cached token if valid (leave 60 seconds buffer)
+  const now = Date.now();
+  if (cachedTwitchToken && cachedTwitchTokenExpiry && now < (cachedTwitchTokenExpiry - 60000)) {
+    return cachedTwitchToken;
+  }
+
+  console.log('[TWITCH] Fetching new app access token...');
+  try {
+    const r = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials'
+      })
+    });
+
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[TWITCH] Token request failed:', r.status, errText);
+      return null;
+    }
+
+    const data = await r.json();
+    cachedTwitchToken = data.access_token;
+    cachedTwitchTokenExpiry = Date.now() + (data.expires_in * 1000);
+    console.log('[TWITCH] Token fetched successfully. Expires in:', data.expires_in, 'seconds');
+    return cachedTwitchToken;
+  } catch (err) {
+    console.error('[TWITCH] Token request error:', err.message);
+    return null;
+  }
+}
+
+let cachedTwitchStreams = null;
+let cachedTwitchStreamsExpiry = null;
+
+function processAndCacheStreams(data) {
+  if (!Array.isArray(data)) {
+    return { data: [] };
+  }
+
+  // Strict filtering & normalization
+  const normalized = data
+    .filter(s => s.type === 'live' && s.user_login)
+    .map(s => ({
+      id: s.user_login, // match the existing frontend's expectation for picks
+      user_id: s.user_id,
+      user_login: s.user_login,
+      user_name: s.user_name,
+      name: s.user_name, // keep compatibility with existing card title
+      title: s.title,
+      game_id: s.game_id,
+      game_name: s.game_name,
+      category: s.game_name, // keep compatibility with existing card category
+      viewer_count: s.viewer_count,
+      started_at: s.started_at,
+      thumbnail_url: s.thumbnail_url.replace('{width}', '640').replace('{height}', '360'),
+      thumbnail: s.thumbnail_url.replace('{width}', '440').replace('{height}', '248'), // keep compatibility
+      twitch_url: `https://www.twitch.tv/${s.user_login}`,
+      is_live: true
+    }));
+
+  // Sort by viewer count descending
+  normalized.sort((a, b) => b.viewer_count - a.viewer_count);
+
+  console.log(`[TWITCH] Fetched ${data.length} raw streams, returning ${normalized.length} live streams after filtering.`);
+
+  // Cache for 30 seconds
+  cachedTwitchStreams = normalized;
+  cachedTwitchStreamsExpiry = Date.now() + 30000;
+
+  return { data: normalized };
+}
+
+async function fetchLiveTwitchStreams(refresh = false) {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    return { error: 'Twitch API is not configured. Please configure TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET.', status: 400 };
+  }
+
+  const now = Date.now();
+  if (!refresh && cachedTwitchStreams && cachedTwitchStreamsExpiry && now < cachedTwitchStreamsExpiry) {
+    console.log('[TWITCH] Returning cached live streams.');
+    return { data: cachedTwitchStreams };
+  }
+
+  const token = await getTwitchAppAccessToken();
+  if (!token) {
+    return { error: 'Failed to authenticate with Twitch API.', status: 401 };
+  }
+
+  console.log('[TWITCH] Fetching fresh live streams...');
+  try {
+    const r = await fetch('https://api.twitch.tv/helix/streams?first=40&language=en', {
+      headers: {
+        'Client-ID': clientId,
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (r.status === 401) {
+      console.warn('[TWITCH] 401 Unauthorized received. Invalidating cached token and retrying...');
+      cachedTwitchToken = null;
+      cachedTwitchTokenExpiry = null;
+      
+      const retryToken = await getTwitchAppAccessToken();
+      if (!retryToken) {
+        return { error: 'Failed to re-authenticate with Twitch API.', status: 401 };
+      }
+
+      const retryResponse = await fetch('https://api.twitch.tv/helix/streams?first=40&language=en', {
+        headers: {
+          'Client-ID': clientId,
+          'Authorization': `Bearer ${retryToken}`
+        }
+      });
+
+      if (!retryResponse.ok) {
+        const errText = await retryResponse.text();
+        console.error('[TWITCH] Retry request failed:', retryResponse.status, errText);
+        return { error: `Twitch API error: ${retryResponse.statusText}`, status: retryResponse.status };
+      }
+
+      const { data } = await retryResponse.json();
+      return processAndCacheStreams(data);
+    }
+
+    if (!r.ok) {
+      const errText = await r.text();
+      console.error('[TWITCH] Streams request failed:', r.status, errText);
+      return { error: `Twitch API error: ${r.statusText}`, status: r.status };
+    }
+
+    const { data } = await r.json();
+    return processAndCacheStreams(data);
+  } catch (err) {
+    console.error('[TWITCH] Fetch streams error:', err.message);
+    return { error: 'Failed to contact Twitch API.', status: 500 };
   }
 }
 
 async function searchTwitchChannels(query) {
   const clientId = process.env.TWITCH_CLIENT_ID;
-  const token = process.env.TWITCH_ACCESS_TOKEN;
-  if (!clientId || !token || clientId.includes('your_client_id')) return null;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret || clientId.includes('your_client_id') || clientSecret.includes('your_client_secret')) {
+    return null;
+  }
+
+  const token = await getTwitchAppAccessToken();
+  if (!token) return null;
 
   try {
     const r = await fetch(`https://api.twitch.tv/helix/search/channels?query=${encodeURIComponent(query)}&first=20`, {
-      headers: { 'Client-ID': clientId, 'Authorization': `Bearer ${token}` }
+      headers: {
+        'Client-ID': clientId,
+        'Authorization': `Bearer ${token}`
+      }
     });
     if (!r.ok) return null;
     const { data } = await r.json();
     return data.map(c => ({
       id: c.broadcaster_login,
+      user_login: c.broadcaster_login,
       name: c.display_name,
+      user_name: c.display_name,
       title: c.title,
       category: c.game_name,
       thumbnail: c.thumbnail_url.replace('{width}', '440').replace('{height}', '248'),
-      isLive: c.is_live
+      thumbnail_url: c.thumbnail_url.replace('{width}', '640').replace('{height}', '360'),
+      isLive: c.is_live,
+      is_live: c.is_live,
+      twitch_url: `https://www.twitch.tv/${c.broadcaster_login}`
     }));
   } catch (err) {
     console.error('Twitch Search error:', err);
@@ -1201,9 +1349,27 @@ async function searchTwitchChannels(query) {
   }
 }
 
+app.get('/api/twitch/live', async (req, res) => {
+  const refresh = req.query.refresh === 'true';
+  const result = await fetchLiveTwitchStreams(refresh);
+  
+  if (result.error) {
+    return res.status(result.status || 500).json({ error: result.error });
+  }
+  
+  res.json(result.data);
+});
+
 app.get('/api/twitch/top', async (req, res) => {
-  const live = await getLiveTwitchStreams();
-  res.json(live || SIMULATED_TWITCH_CHANNELS);
+  const refresh = req.query.refresh === 'true';
+  const result = await fetchLiveTwitchStreams(refresh);
+  
+  if (result.error) {
+    // If dynamic API fails/not configured, return fallback in top streams endpoint
+    return res.json(SIMULATED_TWITCH_CHANNELS);
+  }
+  
+  res.json(result.data);
 });
 
 app.get('/api/twitch/search', async (req, res) => {
@@ -1212,7 +1378,7 @@ app.get('/api/twitch/search', async (req, res) => {
 
   const live = await searchTwitchChannels(q);
   if (live) return res.json(live);
-
+  
   const query = q.toLowerCase();
   const matches = SIMULATED_TWITCH_CHANNELS.filter(c => 
     c.id.toLowerCase().includes(query) || 
@@ -4321,10 +4487,24 @@ app.post('/api/browser/session', authenticateToken, async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'url_required' });
   try {
+    const isGame = url.toLowerCase().includes('crazygames.com') ||
+                   url.toLowerCase().includes('poki.com') ||
+                   url.toLowerCase().includes('itch.io') ||
+                   url.toLowerCase().includes('gamepix.com') ||
+                   url.toLowerCase().includes('gamezop.com') ||
+                   url.toLowerCase().includes('foony.com') ||
+                   url.toLowerCase().includes('playgama.com') ||
+                   url.toLowerCase().includes('playhop.com');
+    const isActivity = url.toLowerCase().includes('magma.com') ||
+                       url.toLowerCase().includes('webwhiteboard.com') ||
+                       url.toLowerCase().includes('protectedtext.com') ||
+                       url.toLowerCase().includes('mentimeter.com');
+    const isGameSession = isGame && !isActivity;
+
     const r = await fetch(HB_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ start_url: url, offline_timeout: 600, control_disable_default: false, fps: 30 })
+      body: JSON.stringify({ start_url: url, offline_timeout: 600, control_disable_default: false, fps: 30, kiosk: !isGameSession })
     });
     const data = await r.json();
     res.json(data);
@@ -4380,7 +4560,7 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
   const apiKey = process.env.HYPERBEAM_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'Cloud browser not configured on this server.' });
 
-  const { roomId, url } = req.body;
+  const { roomId, url, isGame } = req.body;
   if (!roomId || !url) return res.status(400).json({ error: 'roomId and url are required' });
 
   const rid = roomId.toLowerCase();
@@ -4413,31 +4593,55 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
   }
 
   try {
-    const hbRequestBody = {
-      start_url: url,
-      kiosk: true,
-      tag: `room_${rid}`,
-      control_disable_default: false,
-      timeout: {
-        offline: 300,
-        absolute: 7200,
-        warning: 30
+    const region = req.body.region || 'NA';
+    const regionsToTry = [region, 'NA', 'EU', 'AS'].filter((v, i, a) => a.indexOf(v) === i);
+    
+    let rawBody = '';
+    let success = false;
+    let finalStatus = 502;
+
+    for (const currentRegion of regionsToTry) {
+      const hbRequestBody = {
+        start_url: url,
+        tag: `room_${rid}`,
+        kiosk: !isGame,
+        region: currentRegion,
+        webgl: true,
+        ublock: true,
+        adblock: true
+      };
+      
+      console.log(`[HYPERBEAM] Attempting to create session in region: ${currentRegion}`);
+      try {
+        const r = await fetch(HB_API, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(hbRequestBody)
+        });
+        
+        rawBody = await r.text();
+        finalStatus = r.status;
+        if (r.ok) {
+          success = true;
+          console.log(`[HYPERBEAM] Successfully created session in region: ${currentRegion}`);
+          break;
+        } else {
+          console.warn(`[HYPERBEAM] Region ${currentRegion} failed with status ${r.status}:`, rawBody);
+          // Only retry other regions if it's a 503 or 429 or vm availability issue
+          if (r.status !== 503 && r.status !== 429 && !rawBody.includes('err_no_available_vm')) {
+            break;
+          }
+        }
+      } catch (fetchErr) {
+        console.error(`[HYPERBEAM] Network error in region ${currentRegion}:`, fetchErr.message);
       }
-    };
-    console.log('[HYPERBEAM] Creating session with start_url:', url);
-    console.log('[HYPERBEAM][DEBUG] Request body:', JSON.stringify(hbRequestBody));
-    const r = await fetch(HB_API, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(hbRequestBody)
-    });
-    console.log('[HYPERBEAM][DEBUG] HTTP status:', r.status);
-    const rawBody = await r.text();
-    console.log('[HYPERBEAM][DEBUG] Response received (body suppressed for security)');
-    if (!r.ok) {
-      console.error('[HYPERBEAM] API error creating session:', r.status, rawBody);
+    }
+
+    if (!success) {
+      console.error('[HYPERBEAM] All regions exhausted or encountered hard error');
       return res.status(502).json({ error: 'Hyperbeam API error', details: rawBody });
     }
+
     const data = JSON.parse(rawBody);
     const ts = new Date().toISOString();
     console.log(`[HYPERBEAM] Session created: ${data.session_id} at ${ts} for room ${rid}`);
@@ -4940,9 +5144,12 @@ io.on('connection', (socket) => {
         roomObj.hostId = targetSocket.id;
         roomObj.hostUsername = username;
       }
-      roomObj.currentMedia = null;
-      roomObj.currentTime = 0;
-      roomObj.isPlaying = false;
+      // Preserve media state on rejoin/reconnect
+      if (roomObj.currentMedia === undefined) {
+        roomObj.currentMedia = null;
+        roomObj.currentTime = 0;
+        roomObj.isPlaying = false;
+      }
       roomObj.timestampUpdatedAt = Date.now();
     } else if (isDbHost) {
       // True host rejoined while others are inside
@@ -5852,20 +6059,28 @@ io.on('connection', (socket) => {
   });
 
   // Mark all chats as read — sets lastSeen=now for every chat in user's history
-  socket.on('chat:mark_all_read', async () => {
+  socket.on('chat:mark_all_read', async (data) => {
     if (!socket.username) return;
     const now = Date.now();
+    const chatIds = data?.chatIds || [];
     try {
-      // Fetch all chats this user participated in
-      const recentRes = await pool.query(`
-        SELECT DISTINCT "roomId"
-        FROM messages
-        WHERE LOWER("senderName") = LOWER($1)
-           OR "roomId" LIKE 'dm-' || $1 || '-%'
-           OR "roomId" LIKE 'dm-%-' || $1
-        ORDER BY "roomId"
-        LIMIT 200
-      `, [socket.username]);
+      let targetChats = [];
+      if (Array.isArray(chatIds) && chatIds.length > 0) {
+        targetChats = chatIds;
+      } else {
+        const userLower = socket.username.toLowerCase();
+        // Fetch all chats this user participated in
+        const recentRes = await pool.query(`
+          SELECT DISTINCT "roomId"
+          FROM messages
+          WHERE LOWER("senderName") = LOWER($1)
+             OR "roomId" LIKE 'dm-' || $2 || '-%'
+             OR "roomId" LIKE 'dm-%-' || $2
+          ORDER BY "roomId"
+          LIMIT 200
+        `, [socket.username, userLower]);
+        targetChats = recentRes.rows.map(r => r.roomId);
+      }
 
       // Build a lastSeen object with now for all chats
       const row = await new Promise((res, rej) =>
@@ -5873,14 +6088,35 @@ io.on('connection', (socket) => {
       );
       let ls = {};
       try { ls = JSON.parse(row?.lastSeen || '{}'); } catch {}
-      recentRes.rows.forEach(r => { ls[r.roomId] = now; });
+      targetChats.forEach(chatId => {
+        if (chatId) {
+          ls[chatId.toLowerCase()] = now;
+        }
+      });
       
       await new Promise((res, rej) =>
         db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username], e => e ? rej(e) : res())
       );
 
+      // Mark all messages as seen in message_seen table
+      for (const chatId of targetChats) {
+        if (!chatId) continue;
+        const targetRoomId = await getRoomIdForChat(chatId, socket.username, chatId.startsWith('dm-') || chatId.includes('-'));
+        await pool.query(`
+          INSERT INTO message_seen (message_id, room_id, username, seen_at)
+          SELECT id, "roomId", $1::varchar, $2::bigint
+          FROM messages
+          WHERE "roomId" = $3::varchar
+            AND LOWER("senderName") != LOWER($1::varchar)
+            AND NOT EXISTS (
+              SELECT 1 FROM message_seen
+              WHERE message_id = messages.id AND username = $1::varchar
+            )
+        `, [socket.username, now, targetRoomId]);
+      }
+
       // Broadcast to other tabs/devices of the same user
-      emitToUser(socket.username, 'chat:mark_all_read', { timestamp: now });
+      emitToUser(socket.username, 'chat:mark_all_read', { timestamp: now, chatIds: targetChats });
     } catch (e) {
       console.error('[chat:mark_all_read] error:', e.message);
     }
@@ -6710,6 +6946,17 @@ io.on('connection', (socket) => {
       console.error('[SOCKET] cam_stopped error:', err.message, 'user:', socket.username);
     }
   });
+  // Either participant hanging up a call ends it for everyone in it —
+  // tells peers to stop their own camera/mic and close the call screen too.
+  socket.on('call_ended', ({ roomId: rawRoomId }) => {
+    try {
+      const roomId = (rawRoomId ? rawRoomId.toLowerCase() : null) || socket.roomId;
+      if (!roomId) return;
+      socket.to(roomId).emit('call_ended', { socketId: socket.id });
+    } catch (err) {
+      console.error('[SOCKET] call_ended error:', err.message, 'user:', socket.username);
+    }
+  });
   socket.on('cam_offer', ({ targetSocketId, offer }) => {
     if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_offer', { senderSocketId: socket.id, senderName: socket.username, offer });
@@ -7496,11 +7743,10 @@ io.on('connection', (socket) => {
             room.hostId = null;
             io.in(socket.roomId).emit('host_changed', { newHostId: null, newHostName: null });
           }
-        } else if (room.users.length === 0) {
-          // Room is completely empty, clear state
-          room.currentMedia = null;
-          room.currentTime = 0;
-          room.isPlaying = false;
+          // Preserve active media state across reloads/disconnects
+          // room.currentMedia = null;
+          // room.currentTime = 0;
+          // room.isPlaying = false;
           room.hostId = null;
 
           // COST CONTROL (trigger c): End any Hyperbeam session when the last user leaves

@@ -1655,27 +1655,32 @@ export default function RoomChatPanel({ p }) {
   };
 
   const markAllAsRead = () => {
-    // Collect all unread chat keys (DMs and Room Group)
-    const dmKeys = Object.keys(p.dmUnread).filter(k => p.dmUnread[k] > 0);
-    const keysToMark = [...dmKeys];
-    if (p.groupUnread > 0) keysToMark.push(p.roomId);
-    
-    if (keysToMark.length === 0) {
-      toast.success('All messages are read');
-      setShowHeaderMenu(false);
-      return;
+    if (typeof p.onMarkAllRead === 'function') {
+      p.onMarkAllRead();
+      toast.success('All marked as read');
+    } else {
+      // Collect all unread chat keys (DMs and Room Group)
+      const dmKeys = Object.keys(p.dmUnread).filter(k => p.dmUnread[k] > 0);
+      const keysToMark = [...dmKeys];
+      if (p.groupUnread > 0) keysToMark.push(p.roomId);
+      
+      if (keysToMark.length === 0) {
+        toast.success('All messages are read');
+        setShowHeaderMenu(false);
+        return;
+      }
+
+      keysToMark.forEach(key => {
+        if (typeof p.onMarkRead === 'function') {
+          p.onMarkRead(key);
+        }
+        if (p.socket) {
+          p.socket.emit('chat:mark_read', { chatId: key, isDm: key !== p.roomId, userRead: true });
+        }
+      });
+
+      toast.success('All marked as read');
     }
-
-    keysToMark.forEach(key => {
-      if (typeof p.onMarkRead === 'function') {
-        p.onMarkRead(key);
-      }
-      if (p.socket) {
-        p.socket.emit('chat:mark_read', { chatId: key, isDm: key !== p.roomId, userRead: true });
-      }
-    });
-
-    toast.success('All marked as read');
     setShowHeaderMenu(false);
   };
 
