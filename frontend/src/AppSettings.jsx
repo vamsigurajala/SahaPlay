@@ -8,6 +8,7 @@ import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import { appCache } from './cache/appCache.js';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
+import { getAvatarUrl } from './utils/avatarUtils';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -960,7 +961,7 @@ const AppSettings = () => {
                            onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -1025,7 +1026,7 @@ const AppSettings = () => {
                         onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                         onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -1077,7 +1078,7 @@ const AppSettings = () => {
             >
               <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {profile?.avatarPath ? (
-                  <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <UserIcon size={14} style={{ color: '#6366f1' }} />
                 )}

@@ -6,6 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { getRoomThumbnailUrl } from './utils/avatarUtils';
 
 const getCategoryLabel = (id, t) => {
   const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
@@ -688,7 +689,7 @@ const Home = () => {
               {pinnedRooms.slice(0, 6).map(room => (
                 <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">
-                    <img src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} alt={t('roomCover', 'Room Cover')} className="pinned-img" />
+                    <img src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`} alt={t('roomCover', 'Room Cover')} className="pinned-img" />
                     <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
                     <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title="Unpin Room">
                       <Pin className="unpin-icon" size={16} />

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Lock, Maximize2, Minimize2, Grid, VolumeX } from 'lucide-react';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 export default function CallingActivity({
   mode,
@@ -17,7 +18,6 @@ export default function CallingActivity({
   onStopCall,
   localAvatarUrl,
   knownAvatars,
-  socketServerUrl,
 }) {
   const [joined, setJoined] = useState(false);
   const localVideoRef = useRef(null);
@@ -65,10 +65,10 @@ export default function CallingActivity({
     onEndCall();
   };
 
-  // Resolve avatar URL (relative → absolute)
+  // Resolve avatar URL (relative → absolute, or already-absolute Supabase URL)
   const resolveAvatar = (path) => {
     if (!path || typeof path !== 'string' || path.trim().length < 5) return null;
-    return path.startsWith('http') ? path : `${socketServerUrl}${path}`;
+    return getAvatarUrl(path);
   };
 
   // Compile list of participants

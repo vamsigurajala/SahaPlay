@@ -2509,25 +2509,14 @@ app.get('/api/me', authenticateToken, async (req, res) => {
   }
 });
 
-// ─── Avatar upload storage ───
-const avatarStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, 'avatars');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, `${req.user.id}-${Date.now()}${ext}`);
-  }
-});
+// ─── Avatar upload storage (memoryStorage — buffer uploaded to Supabase Storage) ───
 // A6-F2: avatar accepts only image types (frontend always sends image/png from canvas crop)
 const avatarImageFilter = (req, file, cb) => {
   const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   if (allowed.includes(file.mimetype)) cb(null, true);
   else cb(Object.assign(new Error('Only image files are allowed for avatars'), { code: 'INVALID_MIME' }), false);
 };
-const avatarUpload = multer({ storage: avatarStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: avatarImageFilter });
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: avatarImageFilter });
 
 const roomThumbnailStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -3934,21 +3923,85 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
 });
 
 // â"€â"€ Upload Avatar â"€â"€
-app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar'), (req, res) => {
+app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const avatarUrl = `/avatars/${req.file.filename}`;
-  // Delete old avatar if exists
-  db.get('SELECT avatarPath FROM users WHERE id = ?', [req.user.id], (err, row) => {
-    if (!err && row && row.avatarPath) {
-      const oldPath = path.join(__dirname, row.avatarPath);
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-    }
-    db.run('UPDATE users SET avatarPath = ? WHERE id = ?', [avatarUrl, req.user.id], function(updateErr) {
-      if (updateErr) return res.status(500).json({ error: 'Database error' });
-      invalidateCacheForUser(req.user.username);
-      res.json({ message: 'Avatar updated', avatarPath: avatarUrl });
+
+  const ext = path.extname(req.file.originalname) || '.png';
+  const filename = `${req.user.id}-${Date.now()}${ext}`;
+
+  try {
+    // 1. Check existing avatarPath in database for cleanup
+    db.get('SELECT avatarPath FROM users WHERE id = ?', [req.user.id], async (err, row) => {
+      if (err) {
+        console.error('[Avatar Upload] Database select error:', err.message);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      const oldPath = row?.avatarPath;
+
+      // 2. Upload new avatar buffer to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filename, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('[Avatar Upload] Supabase upload error:', uploadError.message);
+        return res.status(500).json({ error: 'Upload failed' });
+      }
+
+      // 3. Get Public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filename);
+
+      const avatarUrl = urlData?.publicUrl;
+      if (!avatarUrl) {
+        return res.status(500).json({ error: 'Failed to generate public URL' });
+      }
+
+      // 4. Cleanup old avatar
+      if (oldPath) {
+        if (oldPath.startsWith('/avatars/')) {
+          // Old local path cleanup
+          const oldLocalPath = path.join(__dirname, oldPath);
+          if (fs.existsSync(oldLocalPath)) {
+            try {
+              fs.unlinkSync(oldLocalPath);
+            } catch (unlinkErr) {
+              console.error('[Avatar Upload] Local cleanup error:', unlinkErr.message);
+            }
+          }
+        } else if (oldPath.includes('/storage/v1/object/public/avatars/')) {
+          // Old Supabase path cleanup
+          const oldFilename = oldPath.split('/avatars/').pop();
+          if (oldFilename) {
+            await supabase.storage
+              .from('avatars')
+              .remove([oldFilename])
+              .catch(removeErr => {
+                console.error('[Avatar Upload] Supabase remove error:', removeErr.message);
+              });
+          }
+        }
+      }
+
+      // 5. Update database and cache
+      db.run('UPDATE users SET avatarPath = ? WHERE id = ?', [avatarUrl, req.user.id], function(updateErr) {
+        if (updateErr) {
+          console.error('[Avatar Upload] Database update error:', updateErr.message);
+          return res.status(500).json({ error: 'Database error' });
+        }
+        invalidateCacheForUser(req.user.username);
+        res.json({ message: 'Avatar updated', avatarPath: avatarUrl });
+      });
     });
-  });
+  } catch (e) {
+    console.error('[Avatar Upload] Unexpected error:', e.message);
+    res.status(500).json({ error: 'Upload failed' });
+  }
 });
 
 // â"€â"€ Change Password â"€â"€

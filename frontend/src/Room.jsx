@@ -47,6 +47,7 @@ import CustomizeRoomModal from './components/CustomizeRoomModal';
 import TimerActivity from './components/TimerActivity';
 import CallingActivity from './components/CallingActivity';
 import { ROOM_THEMES } from './data/roomThemes';
+import { getAvatarUrl, getRoomThumbnailUrl } from './utils/avatarUtils';
 import { FaWhatsapp, FaTelegramPlane, FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP, FaApple, FaSpotify, FaTiktok } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv, SiGmail } from 'react-icons/si';
@@ -284,7 +285,7 @@ function playPing() {
 // -------------------------------- Avatar --------------------------------
 function Avatar({ name, size = 36, isHost = false, isAdmin = false, isMuted = false, src, avatarPath, style = {} }) {
   const bg = getAvatarColor(name);
-  const imgUrl = src || avatarPath;
+  const imgUrl = getAvatarUrl(src || avatarPath);
 
   let borderColor = 'rgba(255,255,255,0.15)';
   let shadow = 'none';
@@ -1174,7 +1175,7 @@ const Room = () => {
               
               {/* Avatar */}
               {requesterAvatar ? (
-                <img src={requesterAvatar.startsWith('http') ? requesterAvatar : `${SOCKET_SERVER_URL}${requesterAvatar}`} alt={requesterName} style={{
+                <img src={getAvatarUrl(requesterAvatar)} alt={requesterName} style={{
                   width: 48, height: 48, borderRadius: '50%', objectFit: 'cover',
                   boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(99,102,241,0.2)' : '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
                   animation: 'joinPulse 2s infinite', flexShrink: 0
@@ -3167,7 +3168,7 @@ const Room = () => {
         let changed = false;
         users.forEach(u => {
           if (u.avatarPath) {
-            const full = u.avatarPath.startsWith('http') ? u.avatarPath : `${SOCKET_SERVER_URL}${u.avatarPath}`;
+            const full = getAvatarUrl(u.avatarPath);
             if (next[u.username] !== full) {
               next[u.username] = full;
               changed = true;
@@ -3200,7 +3201,7 @@ const Room = () => {
     sock.on('user_joined', ({ username: uname, avatarPath }) => {
       setKnownUsers(prev => new Set(prev).add(uname));
       if (avatarPath) {
-        const full = avatarPath.startsWith('http') ? avatarPath : `${SOCKET_SERVER_URL}${avatarPath}`;
+        const full = getAvatarUrl(avatarPath);
         setKnownAvatars(prev => ({ ...prev, [uname]: full }));
       }
       if (notifSettingsRef.current.app && notifSettingsRef.current.join && uname !== usernameRef.current) {
@@ -6666,7 +6667,7 @@ const Room = () => {
       const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
       const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
       const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
-        ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
+        ? getAvatarUrl(rawAvatar) : null;
       const isFocused = focusedCameraUserId === cam.id;
 
       const handleTileClick = () => {
@@ -6839,8 +6840,8 @@ const Room = () => {
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
             const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
             const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar || uObj?.profilePic;
-            const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5) 
-              ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
+            const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
+              ? getAvatarUrl(rawAvatar) : null;
             const isCircle = circleCams.has(cam.id);
             const isDraggable = allCams.length <= CAMERA_MANAGED_LAYOUT_THRESHOLD;
             const pos = camPositions[cam.id] || { x: 0, y: 0 };
@@ -7407,7 +7408,7 @@ const Room = () => {
         {isMobile && (
           <div className="room-mob-center" onClick={() => { setShowUserPanel(v => !v); setShowSettings(false); setShowRecentChats(false); }}>
             {room?.thumbnailPath ? (
-              <img src={room.thumbnailPath.startsWith('http') ? room.thumbnailPath : `${SOCKET_SERVER_URL}${room.thumbnailPath}`} className="room-mob-avatar" alt="" />
+              <img src={getRoomThumbnailUrl(room.thumbnailPath)} className="room-mob-avatar" alt="" />
             ) : (
               <div className="room-mob-avatar-placeholder"><Play size={14} fill="#fff" color="#fff" /></div>
             )}
@@ -7523,7 +7524,7 @@ const Room = () => {
                       </div>
                       {joinRequests.map(req => {
                         const rawAvatar = req.avatarPath || knownAvatars[req.username];
-                        const avatarSrc = rawAvatar ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`) : null;
+                        const avatarSrc = getAvatarUrl(rawAvatar);
                         return (
                           <div key={req.socketId} style={{ 
                             display: 'flex', alignItems: 'center', gap: 12, padding: '10px', borderRadius: 16, 
@@ -7611,9 +7612,7 @@ const Room = () => {
                       const uIsAdmin = !!u.isAdmin;
                       const uIsMe = u.socketId === socket?.id;
                       const rawAvatar = u.avatarPath || knownAvatars[u.username];
-                      const avatarSrc = rawAvatar
-                        ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`)
-                        : null;
+                      const avatarSrc = getAvatarUrl(rawAvatar);
                       return (
                         <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent' }} className="usr-row">
                           <div onClick={() => navigate(`/profile/${u.username}`)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
@@ -8526,7 +8525,7 @@ const Room = () => {
                     username={username}
                     isFullscreen={isFullscreen}
                     onToggleFullscreen={handleFullscreen}
-                    localAvatarUrl={(() => { const raw = knownAvatars[username]; return raw ? (raw.startsWith('http') ? raw : `${SOCKET_SERVER_URL}${raw}`) : null; })()}
+                    localAvatarUrl={getAvatarUrl(knownAvatars[username])}
                     knownAvatars={knownAvatars}
                     socketServerUrl={SOCKET_SERVER_URL}
                     onEndCall={() => {
