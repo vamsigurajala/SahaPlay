@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
+import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -55,9 +56,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Always connect to port 3001 via HTTP — works for both localhost and LAN IPs (e.g. 192.168.x.x)
 // LAN mode is used when the TV/phone opens the app from the Cast URL on the same WiFi network
-const SOCKET_SERVER_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+const SOCKET_SERVER_URL = API_SOCKET_URL;
 
 const resolveMediaUrl = (url, baseUrl) => {
   if (!url) return '';

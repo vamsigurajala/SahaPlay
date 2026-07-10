@@ -8,6 +8,7 @@ import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import PinSetupModal from './PinSetupModal';
+import { API } from '../lib/api';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
@@ -402,10 +403,6 @@ import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia } from '../lib/crypto';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
-
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 
 const resolveMediaUrl = (url, baseUrl) => {
   if (!url) return '';

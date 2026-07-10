@@ -1,9 +1,4 @@
-// Matches the API-base-URL detection already duplicated across every page/component
-// in this app (Profile.jsx, Navbar.jsx, Room.jsx, Home.jsx, etc.) — kept identical here
-// rather than introducing a new VITE_API_URL env var this project doesn't define.
-const API_BASE = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API as API_BASE } from '../lib/api';
 
 function resolveAssetUrl(assetPath) {
   if (!assetPath) return null;
