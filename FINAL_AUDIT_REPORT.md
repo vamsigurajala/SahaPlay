@@ -1,5 +1,8 @@
 # SahaPlay — Final Production-Readiness Audit Report
 
+**Last updated: 10 July 2026**
+**Items marked [RESOLVED] below have been addressed since the initial audit.**
+
 **Audit date:** 2026-07-04
 **Areas covered:** 1 through 14
 **Conducted by:** Claude Code (Anthropic) with SahaPlay developer
@@ -54,11 +57,14 @@ However, several gaps remain that make a full public launch premature:
 - No staging environment — every test runs against production infrastructure
 - No external error tracking (Sentry or equivalent) — silent crashes are invisible
 - No uptime monitoring — outages are only discovered when users report them
-- CORS is still open — must be locked to the production domain before public exposure
-- CSP is disabled — must be configured before public exposure
+- [RESOLVED] ~~CORS is still open — must be locked to the production domain before public exposure~~ — restricted to an explicit origin allowlist (localhost + `FRONTEND_URL`)
+- [RESOLVED] ~~CSP is disabled — must be configured before public exposure~~ — enabled via Helmet with per-directive allowlisting
 - Load testing has not been run — unknown behavior under concurrent user load
 - Supabase free tier is in use — storage/bandwidth/connection limits are untested under real load
 - Lighthouse performance baselines are pending re-run against production build
+- [RESOLVED] Avatar/room-thumbnail storage — migrated from local filesystem to Supabase Storage
+- [RESOLVED] Transactional email — now sent via Resend on the `sahaplay.com` domain (legacy Gmail SMTP path deprecated)
+- PM2 process manager — config finalized (`ecosystem.config.js`) and documented in `DEPLOYMENT.md`; **still pending actual activation on a live production server**
 
 **Recommended launch stage:** Private beta with 10–50 trusted users. This validates real-world behavior before opening to the public, without the risk of public abuse, scale failure, or silent production errors going unnoticed.
 
@@ -127,23 +133,23 @@ All critical issues found during the audit have been fixed.
 - **Recommended fix:** BetterUptime, UptimeRobot, or Freshping (all free tiers) — ping the `/api/server-info` health endpoint every 60 seconds; alert via email/Slack on failure.
 - **Status:** Pending — not yet implemented.
 
-### E-4: CORS is open (`*`)
+### E-4: CORS is open (`*`) — [RESOLVED]
 - **Area:** 5 (API Key and Environment Variable Security)
 - **Why it matters:** Any origin can make credentialed requests to the backend. Acceptable in local dev; dangerous in production where the domain is fixed and known.
-- **Recommended fix:** Set `CORS_ORIGIN=https://yourdomain.com` in the production `.env`. The backend's CORS config already reads from `process.env.CORS_ORIGIN` or defaults to `*` — just set the env var at deployment time.
-- **Status:** Pending — requires production domain.
+- **What was actually done:** Rather than a new `CORS_ORIGIN` var, CORS now uses an explicit `allowedOrigins` allowlist (`http://localhost:5173`, `http://localhost:3000`, `process.env.FRONTEND_URL`) with a custom `origin` callback that rejects and logs (`[CORS] Blocked origin:`) anything else. The same allowlist is applied to Socket.IO's CORS config (previously `origin: '*'`).
+- **Status:** [RESOLVED] — set `FRONTEND_URL` to the real production domain at deploy time; no further code change needed.
 
-### E-5: CSP disabled
+### E-5: CSP disabled — [RESOLVED]
 - **Area:** 5 (API Key and Environment Variable Security)
 - **Why it matters:** Without a Content Security Policy, XSS attacks have no browser-level mitigation. Inline scripts, unexpected third-party resources, and injected frames all run unchallenged.
-- **Recommended fix:** Enable the CSP middleware in the backend. Start with a report-only policy to identify violations, then tighten. Must be configured for the production domain.
-- **Status:** Pending — requires production domain.
+- **What was actually done:** Helmet's `contentSecurityPolicy` is now fully configured with per-directive allowlists (script/style/font/img/connect/media/frame/worker src) covering Google OAuth, Supabase, Hyperbeam, YouTube, Twitch, and the flag/avatar CDNs the app actually uses. `crossOriginEmbedderPolicy` is explicitly kept `false` (required for the Hyperbeam/YouTube iframes) and `crossOriginResourcePolicy: 'cross-origin'` was preserved so cross-origin avatar/media loads keep working.
+- **Status:** [RESOLVED] — verified with a live browser smoke test for CSP console violations before commit.
 
-### E-6: PM2 not active
+### E-6: PM2 not active — [RESOLVED] (config); activation still pending
 - **Area:** 12 (Reliability and Recovery)
 - **Why it matters:** The backend uses `process.exit(1)` on `uncaughtException`, meaning a crash leaves it dead until manually restarted. `ecosystem.config.js` was created but PM2 has not been started.
-- **Recommended fix:** `npm install -g pm2 && pm2 start ecosystem.config.js` on the production server. After confirming, `pm2 save && pm2 startup` to survive reboots.
-- **Status:** Config created; activation pending at deployment.
+- **What was actually done:** `ecosystem.config.js` now has log paths (`./logs/err.log`, `./logs/out.log`), `max_memory_restart: '512M'`, `instances: 1`, and `env_development`/`env` blocks. `DEPLOYMENT.md` documents the full `pm2 start/status/logs/restart/stop` command set plus `pm2 startup && pm2 save` for reboot survival.
+- **Status:** Config [RESOLVED]. Actual activation (`pm2 start backend/ecosystem.config.js` running on a real production host) is still pending — that can only happen once a production server exists.
 
 ### E-7: Supabase free tier — no PITR
 - **Area:** 13 / 12
@@ -289,8 +295,8 @@ The E2EE boundary is strictly enforced: encrypted message content (`message`, `n
 ### Sensitive logging
 No passwords, JWT tokens, session secrets, or E2EE field values are logged. Error logs capture stack traces server-side only — API error responses return generic messages to clients. **Status: sound.**
 
-### CORS/Security headers
-CORS currently allows all origins (`*`). CSP is disabled. Both must be locked to the production domain before public exposure. Helmet.js is available in the stack — enabling it with appropriate directives is a deployment-time step. **Status: pending production domain.**
+### CORS/Security headers — [RESOLVED]
+CORS is now restricted to an explicit origin allowlist (localhost + `FRONTEND_URL`), applied to both Express and Socket.IO. CSP is enabled via Helmet with per-directive allowlists for every third-party origin the app actually loads from (Google OAuth, Supabase, Hyperbeam, YouTube, Twitch, flag/avatar CDNs). **Status: [RESOLVED] — set `FRONTEND_URL` to the real production domain at deploy time.**
 
 ### Guest access controls
 Guest users have read/write access to public rooms only. Private rooms require authentication. Guest users cannot access admin features, their own profile settings, or private message history across sessions. **Status: sound.**
@@ -439,8 +445,8 @@ The `requireAdmin` middleware caches role lookups for 5 minutes per user. Public
 ### Public beta checklist (required before opening to unknown users)
 
 - [ ] Staging Supabase project created and in use for all testing
-- [ ] CORS locked to production domain
-- [ ] CSP enabled (report-only first, then enforced)
+- [x] CORS locked to an explicit allowlist — [RESOLVED] (set `FRONTEND_URL` to the production domain at deploy time)
+- [x] CSP enabled — [RESOLVED] (enforced via Helmet, not report-only — verified with zero console violations in manual testing)
 - [ ] Sentry integrated in frontend and backend
 - [ ] Uptime monitoring active on `/api/server-info`
 - [ ] Honeypot on all public forms (signup, contact, support, report)
@@ -460,7 +466,7 @@ The `requireAdmin` middleware caches role lookups for 5 minutes per user. Public
 - [ ] Load testing completed at medium scale (500 VUs, 100 rooms)
 - [ ] Storage cleanup automation active (scheduled, not manual)
 - [ ] Abuse monitoring active (report rate, signup rate, message velocity anomalies)
-- [ ] Avatar storage migrated from local filesystem to Supabase Storage
+- [x] Avatar storage migrated from local filesystem to Supabase Storage — [RESOLVED]
 - [ ] Full penetration/security review of public endpoints
 - [ ] Admin duplicate report detection implemented
 
@@ -518,7 +524,7 @@ The `requireAdmin` middleware caches role lookups for 5 minutes per user. Public
 | Admin stats caching | Pending |
 | Audit log cursor pagination (replace OFFSET) | Pending |
 | Lighthouse re-run against production build | Pending |
-| Avatar storage to Supabase (not local filesystem) | Pending |
+| Avatar storage to Supabase (not local filesystem) | [RESOLVED] |
 
 **Risk:** Admin stats degrade under multi-admin concurrency without caching. Audit log OFFSET pagination degrades at 10,000+ log entries.
 
@@ -638,14 +644,14 @@ The `requireAdmin` middleware caches role lookups for 5 minutes per user. Public
 
 The safest immediate next step is **to open a private beta** with a small group of 10–50 trusted users. Before doing so, complete two final steps that take less than an hour:
 
-1. **Activate PM2 on the production server** (`pm2 start ecosystem.config.js`, then `pm2 save && pm2 startup`) — this converts a manual crash-recovery process into an automatic one.
+1. **Activate PM2 on the production server** (`pm2 start backend/ecosystem.config.js`, then `pm2 save && pm2 startup`) — config is [RESOLVED] and documented in `DEPLOYMENT.md`; only the actual activation on a live host remains.
 2. **Run through the smoke test checklist above** (Section O) as yourself: sign up, create a room, send a DM, check the admin dashboard, verify the ban/terminate buttons behave correctly for admin accounts.
 
 After private beta opens, the highest-leverage work is in this order:
 1. Create the staging Supabase project
 2. Set up Sentry (frontend + backend)
 3. Set up an uptime monitor
-4. Lock CORS and enable CSP once the production domain is known
+4. ~~Lock CORS and enable CSP once the production domain is known~~ — [RESOLVED]; just set `FRONTEND_URL` to the production domain at deploy time
 5. Run the `LOAD_TEST_PLAN.md` G-1 and F-1 scenarios against staging
 
 ---
