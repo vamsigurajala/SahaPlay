@@ -508,18 +508,18 @@ export default function MediaSelectorModal({
           <div style={{ flex: 1 }} />
           <button
             onClick={onClose}
-            className="stay-white"
+            className={isLight ? "media-selector-close-btn" : "stay-white"}
             style={{
               width: 36, height: 36, borderRadius: '50%', 
               background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)', 
               border: 'none',
-              color: isLight ? '#0f172a' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: isLight ? '#000000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', transition: 'all 0.2s'
             }}
             onMouseEnter={e => { e.currentTarget.style.background='#ef4444'; e.currentTarget.style.color='#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color=isLight ? '#0f172a' : '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color=isLight ? '#000000' : '#fff'; }}
           >
-            <X size={18} className="stay-white" />
+            <X size={18} className={isLight ? "media-selector-close-btn-svg" : "stay-white"} />
           </button>
         </div>
 
