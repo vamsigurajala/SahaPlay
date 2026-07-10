@@ -2,6 +2,7 @@
 
 **Last updated: 10 July 2026**
 **Items marked [RESOLVED] below have been addressed since the initial audit.**
+**See Section R for the honest launch-readiness assessment after Phase 4 (CI hardening, security test baseline).**
 
 **Audit date:** 2026-07-04
 **Areas covered:** 1 through 14
@@ -79,35 +80,35 @@ All critical issues found during the audit have been fixed.
 - **Risk:** Any connected socket could inject an arbitrary `senderName` into chat messages by manipulating the event payload, allowing impersonation of other users.
 - **Impact:** Data integrity and trust — malicious user could send messages that appear to come from another user.
 - **Fix:** Backend now always overrides `senderName` with `socket.username` (authenticated identity), ignoring the client-supplied value.
-- **Status:** Fixed and verified.
+- **Status:** [VERIFIED] Fixed and verified across all 3 send paths (`chat_message`, `private_message`, `/api/chats/send`).
 
 ### D-2: `/api/rooms/make-private` unauthenticated
 - **Area:** 6 (Input Validation)
 - **Risk:** Endpoint was missing `authenticateToken` middleware — any unauthenticated caller could change a room's privacy setting.
 - **Impact:** Unauthorized room manipulation; denial of service if rooms silently made private.
 - **Fix:** `authenticateToken` added to the route.
-- **Status:** Fixed and verified.
+- **Status:** [VERIFIED] Fixed and verified.
 
 ### D-3: E2EE field presence bypass
 - **Area:** 6 (Input Validation)
-- **Risk:** Messages could be sent without the required E2EE fields (`message`, `nonce`, `ephemeralPublicKey`), potentially inserting plaintext into the encrypted message store.
+- **Risk:** Messages could be sent without the required E2EE fields (`nonce`, `ephemeralPublicKey`), potentially inserting plaintext into the encrypted message store.
 - **Impact:** E2EE boundary violation — plaintext could mix with ciphertext in the messages table.
-- **Fix:** Backend now validates all three E2EE fields are present and non-empty before inserting any message.
-- **Status:** Fixed and verified.
+- **Fix:** `validateE2EEMessage()` (extracted to `backend/lib/crypto-helpers.js`, unit-tested in `backend/tests/security.test.js`) is applied to the `private_message` socket handler and the `/api/chats/send` DM path. Media-only messages (image/voice/file) bypass the text-field check by design.
+- **Status:** [VERIFIED - partial]. Applies only to the two DM (private-message) send paths. The group `chat_message` socket handler and the `/api/chats/send` `type==='room'` branch intentionally do **not** enforce this — group chat has no client-side E2EE today (Room.jsx and GlobalChatWidget.jsx both gate group encryption off via `if (false && ...)`); group messages are encrypted server-side at rest instead. Applying this check to group chat would reject every legitimate group text message.
 
 ### D-4: super_admin self-delete not guarded
 - **Area:** 12 (Reliability and Recovery)
 - **Risk:** The `DELETE /api/profile` route allowed any user, including `super_admin`, to permanently delete their own account.
 - **Impact:** Irreversible loss of the only super-admin account with no recovery path without direct DB access.
 - **Fix:** Backend checks `user.role === 'super_admin'` before executing the delete; returns 403 with a clear message.
-- **Status:** Fixed and verified.
+- **Status:** [VERIFIED] Fixed and verified.
 
 ### D-5: Admin/super_admin Ban and Terminate buttons visible in UI
 - **Area:** 12 (Reliability and Recovery)
 - **Risk:** Admin dashboard showed Ban and Terminate action buttons next to admin and super_admin accounts in the "Logged-in Users Online" modal. The `role` field was not returned in the API response, so frontend role guards were always `undefined`.
 - **Impact:** Admins could attempt to ban other admins/super_admins via the UI (backend guard existed, but button should never be visible).
 - **Fix:** Added `role` to both `/api/admin/online-users` and `/api/admin/guest-users` responses; added `u.role` target-role guard to both button conditions in Admin.jsx.
-- **Status:** Fixed and verified.
+- **Status:** [VERIFIED] Fixed and verified.
 
 **Summary:** No known critical issues remain based on this audit. Staging verification is still required before public launch.
 
@@ -659,3 +660,53 @@ After private beta opens, the highest-leverage work is in this order:
 ## Q. Stop Point
 
 Final audit report complete. No code was changed in Area 14.
+
+---
+
+## R. Phase 4 CodeRabbit Assessment — Honest Launch-Readiness Update (10 July 2026)
+
+This section reflects the state of the app after all four CodeRabbit remediation phases (rate limiting/secrets/credential hygiene, CI + dependency cleanup, DB index hardening, and CI quality gates + security test baseline).
+
+### Verified fixes (all confirmed in code)
+
+- **D-1:** `senderName` sourced from the authenticated JWT identity only, never the client payload — [VERIFIED]
+- **D-2:** `/api/rooms/make-private` requires `authenticateToken` — [VERIFIED]
+- **D-3:** E2EE field validation applied on the `private_message` socket path and the `/api/chats/send` DM path — [VERIFIED - partial, group chat uses server-side encryption instead of client-side E2EE]
+- **D-4:** `super_admin` self-delete blocked with a 403 — [VERIFIED]
+- **D-5:** `role` present in both `/api/admin/online-users` and `/api/admin/guest-users` responses — [VERIFIED]
+
+### Current verdict
+
+**Suitable for PRIVATE BETA with a small trusted group. NOT yet ready for full public launch.**
+
+### Remaining gaps before public launch (prioritized)
+
+1. **No staging environment** (HIGH) — deploy to Render/Railway staging before production
+2. **No Sentry or external error tracking** (HIGH) — blind to production crashes
+3. **No uptime monitoring** (HIGH) — no alerts if the server goes down
+4. **Google OAuth origin not configured for the production domain** (BLOCKER for OAuth users at launch — fix during deployment)
+5. **CORS/CSP configured but need the production domain added to allowlists** (fix during deployment)
+6. **Load testing not executed** (MEDIUM) — unknown capacity limits
+7. **No captcha/honeypot** (LOW) — rate limiting provides basic protection
+8. **`CHAT_ENCRYPTION_SECRET` fallback to `JWT_SECRET`** is documented tech debt — set explicitly before public launch (currently set to a real generated value in `.env`, but the fallback path itself remains in code)
+9. **Supabase free-tier PITR limitations** (MEDIUM) — upgrade plan if user data grows
+10. **Avatar storage migrated but old local paths may exist** for users who never re-uploaded (LOW — handled gracefully by fallback)
+
+### Recommended launch sequence
+
+1. Fix Google OAuth for the production domain
+2. Deploy backend to Render
+3. Deploy frontend to Vercel
+4. Point `sahaplay.com` DNS to Vercel
+5. Add `sahaplay.com` to Google OAuth origins
+6. Set up UptimeRobot (free, 5 minutes)
+7. Open to private beta (5–20 trusted users)
+8. Add Sentry after the first week of beta
+9. Run load tests after one month of beta data
+10. Public launch after monitoring confirms stability
+
+### Quality-gate additions this phase
+
+- CI backend check upgraded from `node --check` (syntax-only) to a real module-load startup check that tolerates expected placeholder-credential DB connection failures but fails on genuine import/reference errors.
+- `backend/tests/security.test.js` added — 9 unit tests covering `validateE2EEMessage` and `normalizeRecoveryKey` (both extracted to `backend/lib/crypto-helpers.js` for testability), wired into CI via `npm test`.
+- Frontend lint: 470 lint errors existed at the start of this phase (not zero, as originally assumed). Fixing all of them was out of scope for this pass — most are stylistic (`no-unused-vars`, `no-empty`) or require real component refactors (`react-hooks/static-components`, `set-state-in-effect`, `purity`). The ~15 errors that indicated genuine correctness bugs were fixed instead: 2 undefined-variable references (`disconnectedRef`, `handleSetMedia` in Room.jsx; `currentMyUser` in GlobalChatWidget.jsx — 3 total `no-undef` sites), 2 duplicate-key prop bugs in Room.jsx where `isHost`/`userList` were each defined twice in the same object literal (the second silently won), and hooks called after an early `return` in `ChatLockScreen.jsx` and `GuidedShareModal.jsx` (`rules-of-hooks` — a real crash risk if either component's early-return condition changes between renders). `continue-on-error: true` remains on the CI lint step; the lint gate is not yet a hard blocker.

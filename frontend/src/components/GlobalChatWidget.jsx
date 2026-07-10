@@ -2347,7 +2347,7 @@ const GlobalChatWidget = forwardRef(({
               // ─── Hidden Chat: show privacy-safe preview if this chat is hidden ───
               let isHidden = false;
               try {
-                const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${currentMyUser}`) || '[]');
+                const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${myUsername}`) || '[]');
                 if (hiddenList.some(u => u.toLowerCase() === partner.toLowerCase())) isHidden = true;
               } catch {}
 

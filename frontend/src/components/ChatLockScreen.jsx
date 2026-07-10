@@ -82,7 +82,16 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
   const [checking, setChecking] = useState(false);
   const [wiping, setWiping] = useState(false);
   const inputRef = useRef(null);
-  
+  const [isLight, setIsLight] = useState(document.documentElement.getAttribute('data-theme') === 'light');
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
   const token = localStorage.getItem('watch_token');
   const isBlocked = blockedUntil && blockedUntil > Date.now();
 
@@ -240,16 +249,6 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
       </div>
     );
   }
-
-  const [isLight, setIsLight] = useState(document.documentElement.getAttribute('data-theme') === 'light');
-  
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => observer.disconnect();
-  }, []);
 
   const isEnabled = mode === 'pin' ? pin.length === PIN_LENGTH : recoveryKey.trim().length >= 16;
 

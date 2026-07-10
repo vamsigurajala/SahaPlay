@@ -165,7 +165,7 @@ const AdminRoute = ({ children }) => {
   return status === 'admin' ? children : <Navigate to="/" replace />;
 };
 
-const roomMatch = window.location.pathname.match(/^\/room\/([^\/]+)/);
+const roomMatch = window.location.pathname.match(/^\/room\/([^/]+)/);
 if (roomMatch) {
   const token = localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
