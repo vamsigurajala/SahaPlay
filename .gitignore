@@ -50,9 +50,11 @@ backend/patch_*.js
 backend/migrate_*.js
 backend/deep_debug*.js
 backend/test2.js
+backend/debug.js
 old_room.jsx
 **/old_room.jsx
 **/*_checkpoint*.jsx
 *.bak
 *.backup
 *.old
+backend/logs/*.log

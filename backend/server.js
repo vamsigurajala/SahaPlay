@@ -266,10 +266,9 @@ pool.on('error', (err, client) => {
 });
 
 // ─── Server-side message encryption ───
-// TECH DEBT (A5-F6): CHAT_ENCRYPTION_SECRET intentionally falls back to JWT_SECRET.
-// Separating the keys would render all existing encv1: ciphertext in the DB permanently
-// unreadable without a decryption-and-re-encryption migration. Deferred until that
-// migration is planned and executed.
+// CHAT_ENCRYPTION_SECRET must be set explicitly in .env and must NEVER change
+// after first use without running a full key migration first. Falling back to
+// JWT_SECRET is only acceptable before first deployment.
 const CHAT_ENCRYPTION_SECRET = process.env.CHAT_ENCRYPTION_SECRET || process.env.JWT_SECRET;
 const chatKey = crypto.createHash('sha256').update(CHAT_ENCRYPTION_SECRET).digest();
 
@@ -312,6 +311,9 @@ function encryptServerText(text) {
   }
 }
 
+let decryptFailureCount = 0;
+let lastDecryptWarnAt = 0;
+
 function decryptServerText(text) {
   if (!text || typeof text !== 'string') return text;
   if (!text.startsWith('encv1:')) return text;
@@ -325,7 +327,13 @@ function decryptServerText(text) {
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch (e) {
-    console.error('[decryptServerText] Failed to decrypt:', e.message);
+    decryptFailureCount++;
+    const now = Date.now();
+    if (now - lastDecryptWarnAt >= 60 * 1000) {
+      console.warn(`[DECRYPT] ${decryptFailureCount} rows failed to decrypt - likely legacy encv1: rows from before CHAT_ENCRYPTION_SECRET was set`);
+      decryptFailureCount = 0;
+      lastDecryptWarnAt = now;
+    }
     return text;
   }
 }
@@ -7856,7 +7864,10 @@ io.on('connection', (socket) => {
 const chatLockRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  keyGenerator: (req) => req.user?.username || req['ip'],
+  keyGenerator: (req) => {
+    const username = req.user?.username;
+    return username ? `chatlock_${username}` : ipKeyGenerator(req);
+  },
   validate: false,
   handler: (req, res) => {
     const blockedUntil = Date.now() + 30 * 1000;
