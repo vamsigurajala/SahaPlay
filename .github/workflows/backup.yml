@@ -10,17 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install PostgreSQL client
-        run: sudo apt-get install -y postgresql-client
+        run: sudo apt-get install -y postgresql-client-16
 
       - name: Run backup
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          pg_dump "$DATABASE_URL" \
+          pg_dump "$DATABASE_URL?sslmode=require" \
             --no-password \
             --format=plain \
+            --no-acl \
+            --no-owner \
             --file=backup_$(date +%Y%m%d_%H%M%S).sql
-          echo "Backup complete"
+          echo "Backup complete. Size:"
           ls -lh backup_*.sql
 
       - name: Upload backup artifact
