@@ -338,6 +338,41 @@ function decryptServerText(text) {
   }
 }
 
+// [VERIFIED D-3] E2EE field validation applied consistently across all three send paths
+// NOTE: applied to private_message (socket) and /api/chats/send (REST) only — NOT to the
+// chat_message (group) socket handler. Group chat is intentionally not client-side E2EE
+// (Room.jsx sends e2ee: null for every group text message; server-side encryption at rest
+// is used instead), so requiring nonce/ephemeralPublicKey there would reject every
+// legitimate group text message.
+function validateE2EEMessage(data) {
+  // Media-only messages (images, files, voice notes) do not carry text E2EE fields — they are allowed through
+  const isMediaOnly = (
+    !data.message &&
+    !data.e2ee &&
+    (data.mediaUrl || data.fileUrl || data.mediaType)
+  );
+  if (isMediaOnly) return { valid: true };
+
+  // Text and mixed messages must have E2EE encryption fields present
+  const e2ee = data.e2ee || {};
+  const missing = [];
+
+  if (!e2ee.nonce && !data.nonce) {
+    missing.push('nonce');
+  }
+  if (!e2ee.ephemeralPublicKey && !data.ephemeralPublicKey) {
+    missing.push('ephemeralPublicKey');
+  }
+
+  if (missing.length > 0) {
+    return {
+      valid: false,
+      reason: `Missing E2EE fields: ${missing.join(', ')}`
+    };
+  }
+  return { valid: true };
+}
+
 function encryptParamsInQuery(sql, params) {
   if (!params || params.length === 0) return params;
   const isInsert = /insert\s+into\s+messages/i.test(sql);
@@ -3354,6 +3389,7 @@ app.post('/api/chats/react', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/chats/send', authenticateToken, async (req, res) => {
+  // [VERIFIED D-1] senderName from authenticated req.user.username, not req.body
   const username = req.user.username.toLowerCase();
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
@@ -3374,6 +3410,15 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
     const senderAvatar = senderUser ? senderUser.avatarPath : null;
 
     if (type === 'private') {
+      // Only DM sends are validated here — group (type === 'room') sends are exempt because
+      // group chat is not client-side E2EE today (GlobalChatWidget.jsx gates group encryption
+      // behind `if (false && ...)`; server-side encryption at rest is used instead).
+      const e2eeCheck = validateE2EEMessage(req.body);
+      if (!e2eeCheck.valid) {
+        console.warn('[E2EE] /api/chats/send rejected:', e2eeCheck.reason, 'user:', req.user?.username);
+        return res.status(400).json({ error: 'Message rejected: missing encryption fields' });
+      }
+
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [username, partner]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [partner, username]);
       const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
@@ -3985,6 +4030,7 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
   db.get('SELECT username, role FROM users WHERE id = ?', [req.user.id], (err, user) => {
     if (err || !user) return res.status(500).json({ error: 'Failed to find user' });
 
+    // [VERIFIED D-4] super_admin self-delete blocked
     if (user.role === 'super_admin') {
       return res.status(403).json({ error: 'Super admin accounts cannot be self-deleted. Use the Supabase dashboard to manage this account.' });
     }
@@ -4345,6 +4391,7 @@ app.post('/api/rooms/create', roomCreateLimiter, authenticateToken, (req, res) =
 });
 
 // A6-F3: requires authentication — host identity from JWT, not body
+// [VERIFIED D-2] authenticateToken required
 app.post('/api/rooms/make-private', authenticateToken, (req, res) => {
   const { roomId } = req.body;
   const callerUsername = req.user.username;
@@ -5998,6 +6045,7 @@ io.on('connection', (socket) => {
       return;
     }
     // A6-F1: sender identity always from JWT-verified socket.username, never from client payload
+    // [VERIFIED D-1] senderName from authenticated socket.username, not client payload
     const username = socket.username;
     console.log(`[Chat] ${username} → ${roomId} (${mediaUrl ? 'media' : 'text'})`);
 
@@ -6690,7 +6738,14 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const e2eeCheck = validateE2EEMessage(data);
+    if (!e2eeCheck.valid) {
+      console.warn('[E2EE] private_message rejected:', e2eeCheck.reason, 'user:', socket.username);
+      return socket.emit('message_error', { error: 'Message rejected: missing encryption' });
+    }
+
     const timestamp = Date.now();
+    // [VERIFIED D-1] senderName from authenticated socket.username, not client payload
     const payload = {
       id: msgId || `sock-${timestamp}-${Math.floor(Math.random()*1000)}`,
       senderId: socket.id,
@@ -7936,6 +7991,12 @@ io.on('connection', (socket) => {
 // ═══════════════════════════════════════════════════════════════════
 // CHAT LOCK — Secure PIN-based chat privacy
 // ═══════════════════════════════════════════════════════════════════
+
+// Normalize recovery key — strip dashes and whitespace, uppercase for consistent comparison
+function normalizeRecoveryKey(key) {
+  if (!key) return '';
+  return key.replace(/[-\s]/g, '').toUpperCase();
+}
 const chatLockRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -8043,7 +8104,7 @@ app.post('/api/chat-lock/verify-recovery', authenticateToken, async (req, res) =
     const user = result.rows[0];
     if (!user || !user.chat_lock_recovery_hash) return res.status(400).json({ error: 'Recovery key not set up' });
 
-    const valid = await bcrypt.compare(recoveryKey.toUpperCase().replace(/-/g, ''), user.chat_lock_recovery_hash);
+    const valid = await bcrypt.compare(normalizeRecoveryKey(recoveryKey), user.chat_lock_recovery_hash);
     if (valid) {
       await pool.query('UPDATE users SET "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)', [req.user.username]);
       return res.json({ success: true });
@@ -8190,7 +8251,7 @@ app.post('/api/chat-lock/recover-with-key', authenticateToken, async (req, res) 
     const result = await pool.query('SELECT "chat_lock_recovery_hash" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
     const user = result.rows[0];
     if (!user?.chat_lock_recovery_hash) return res.status(400).json({ error: 'No recovery key registered' });
-    const valid = await bcrypt.compare(recoveryKey.toUpperCase(), user.chat_lock_recovery_hash);
+    const valid = await bcrypt.compare(normalizeRecoveryKey(recoveryKey), user.chat_lock_recovery_hash);
     if (!valid) return res.status(401).json({ error: 'Recovery key is incorrect' });
     const newPinHash = await bcrypt.hash(newPin, 12);
     await pool.query(
@@ -9031,6 +9092,7 @@ app.get('/api/admin/online-users', authenticateToken, requireAdmin, requireAdmin
   try {
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
+    // [VERIFIED D-5] role included in response
     const result = await pool.query(
       `SELECT id, username, "displayName", "avatarPath", role FROM users WHERE username = ANY($1) AND email IS NOT NULL`,
       [usernames]
@@ -9047,6 +9109,7 @@ app.get('/api/admin/guest-users', authenticateToken, requireAdmin, requireAdminR
   try {
     const usernames = [...connectedSockets.keys()];
     if (usernames.length === 0) return res.json({ users: [], count: 0 });
+    // [VERIFIED D-5] role included in response
     const result = await pool.query(
       `SELECT id, username, "displayName", "avatarPath", role FROM users WHERE username = ANY($1) AND (email IS NULL OR email = '')`,
       [usernames]
