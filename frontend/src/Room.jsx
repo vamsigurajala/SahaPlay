@@ -4423,7 +4423,7 @@ const Room = () => {
 
   // E2EE: Emit public key when available so others can DM us encrypted
   useEffect(() => {
-    if (socket && socket.connected && keyPair && keyPair.publicKey && roomId && !disconnectedRef.current) {
+    if (socket && socket.connected && keyPair && keyPair.publicKey && roomId) {
       socket.emit('chat:publicKey', { roomId: roomId.toLowerCase(), publicKey: encodeBase64(keyPair.publicKey) });
     }
   }, [socket, keyPair, roomId]);
@@ -8501,7 +8501,7 @@ const Room = () => {
                     <CrazyGamesLobby
                       onSelectGame={async (gameUrl) => {
                         if (hasPlayerPrivileges) {
-                          await handleSetMedia(gameUrl);
+                          await changeMedia(gameUrl);
                         } else {
                           toast.error(t('hostPrivilegeError', 'Only the host or users with privileges can load games.'));
                         }
@@ -10445,7 +10445,7 @@ const Room = () => {
                   <RoomChatPanel p={{
                     chatTab, setChatTab, chatTabRef,
                     groupMessages, groupUnread, setGroupUnread,
-                    userList, room, isHost, isAdmin,
+                    room, isAdmin,
                     dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
                     dmDecryptedMediaUrls, dmMediaUrlVersion,
                     groupDecryptedMediaUrls, groupMediaUrlVersion,
@@ -10717,7 +10717,7 @@ const Room = () => {
               <RoomChatPanel p={{
                 chatTab, setChatTab, chatTabRef,
                 groupMessages, groupUnread, setGroupUnread,
-                userList, room, isHost, isAdmin,
+                room, isAdmin,
                 dmThreads, dmClearedTsRef, dmTarget, setDmTarget, dmTargetRef, dmUnread, setDmUnread,
                 dmDecryptedMediaUrls, dmMediaUrlVersion,
                 groupDecryptedMediaUrls, groupMediaUrlVersion,

@@ -3,13 +3,13 @@ import { X, PlayCircle, MonitorUp, Info, ArrowRight, CheckCircle2, ChevronRight,
 import { useTranslation } from 'react-i18next';
 
 export default function GuidedShareModal({ app, onClose, onScreenshare, isLight }) {
-  if (!app) return null;
-
   const [step, setStep] = useState(1);
   const { t } = useTranslation();
   const [quality, setQuality] = useState('auto');
   const [showQualityDropdown, setShowQualityDropdown] = useState(false);
   const popupRef = useRef(null);
+
+  if (!app) return null;
 
   // 'auto' passes no video constraints — browser negotiates best quality based on available bandwidth
   // 'enhancement' is a CSS filter string applied on the sender's canvas — all viewers see the result

@@ -15,6 +15,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const emailTranslations = require('./email-translations');
+const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
 
 // ─── Email — Resend (migrated from Gmail SMTP) ──────────────────────────────
 const { sendEmail, EMAILS } = require('./utils/email');
@@ -343,34 +344,7 @@ function decryptServerText(text) {
 // (Room.jsx sends e2ee: null for every group text message; server-side encryption at rest
 // is used instead), so requiring nonce/ephemeralPublicKey there would reject every
 // legitimate group text message.
-function validateE2EEMessage(data) {
-  // Media-only messages (images, files, voice notes) do not carry text E2EE fields — they are allowed through
-  const isMediaOnly = (
-    !data.message &&
-    !data.e2ee &&
-    (data.mediaUrl || data.fileUrl || data.mediaType)
-  );
-  if (isMediaOnly) return { valid: true };
-
-  // Text and mixed messages must have E2EE encryption fields present
-  const e2ee = data.e2ee || {};
-  const missing = [];
-
-  if (!e2ee.nonce && !data.nonce) {
-    missing.push('nonce');
-  }
-  if (!e2ee.ephemeralPublicKey && !data.ephemeralPublicKey) {
-    missing.push('ephemeralPublicKey');
-  }
-
-  if (missing.length > 0) {
-    return {
-      valid: false,
-      reason: `Missing E2EE fields: ${missing.join(', ')}`
-    };
-  }
-  return { valid: true };
-}
+// validateE2EEMessage is defined in ./lib/crypto-helpers.js (extracted for unit testing).
 
 function encryptParamsInQuery(sql, params) {
   if (!params || params.length === 0) return params;
@@ -8035,11 +8009,7 @@ io.on('connection', (socket) => {
 // CHAT LOCK — Secure PIN-based chat privacy
 // ═══════════════════════════════════════════════════════════════════
 
-// Normalize recovery key — strip dashes and whitespace, uppercase for consistent comparison
-function normalizeRecoveryKey(key) {
-  if (!key) return '';
-  return key.replace(/[-\s]/g, '').toUpperCase();
-}
+// normalizeRecoveryKey is defined in ./lib/crypto-helpers.js (extracted for unit testing).
 const chatLockRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
