@@ -899,6 +899,24 @@ function App() {
       html[data-theme='light'] .guest-outline-btn * {
         color: #ffffff !important;
       }
+
+      /* ── Media Selector Modal Close Button ── */
+      html[data-theme='light'] .media-selector-close-btn {
+        background: #f1f5f9 !important;
+        color: #000000 !important;
+      }
+      html[data-theme='light'] .media-selector-close-btn-svg {
+        color: #000000 !important;
+        stroke: #000000 !important;
+      }
+      html[data-theme='light'] .media-selector-close-btn:hover {
+        background: #ef4444 !important;
+        color: #ffffff !important;
+      }
+      html[data-theme='light'] .media-selector-close-btn:hover .media-selector-close-btn-svg {
+        color: #ffffff !important;
+        stroke: #ffffff !important;
+      }
     `;
 
     const applyTheme = () => {
