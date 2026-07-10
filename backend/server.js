@@ -497,7 +497,63 @@ const db = new SupabaseAdapter();
 
 const app = express();
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        'https://accounts.google.com',
+        'https://apis.google.com'
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        'https://fonts.googleapis.com'
+      ],
+      fontSrc: [
+        "'self'",
+        'https://fonts.gstatic.com'
+      ],
+      imgSrc: [
+        "'self'",
+        'data:',
+        'blob:',
+        'https://*.supabase.co',
+        'https://flagcdn.com',
+        'https://picsum.photos',
+        'https://lh3.googleusercontent.com',
+        'https://*.googleusercontent.com'
+      ],
+      connectSrc: [
+        "'self'",
+        process.env.FRONTEND_URL || 'http://localhost:5173',
+        'wss:',
+        'ws:',
+        'https://*.supabase.co',
+        'https://accounts.google.com',
+        'https://ip-api.com'
+      ],
+      mediaSrc: [
+        "'self'",
+        'blob:',
+        'https://*.supabase.co'
+      ],
+      frameSrc: [
+        "'self'",
+        'https://accounts.google.com',
+        'https://*.hyperbeam.com',
+        'https://www.youtube.com',
+        'https://player.twitch.tv'
+      ],
+      workerSrc: ["'self'", 'blob:'],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  // IMPORTANT: must stay false — the app embeds cross-origin iframes (Hyperbeam, YouTube)
+  crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 const server = http.createServer(app);
@@ -663,7 +719,25 @@ function broadcastAdminBadges() {
   io.to('admins').emit('admin_badges_updated');
 }
 
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn('[CORS] Blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 // A8-F6: per-route large-body overrides must come BEFORE the global 1mb default
 app.use('/api/contact', express.json({ limit: '50mb' }));
 app.use('/api/report-bug', express.json({ limit: '50mb' }));
@@ -805,8 +879,9 @@ app.get('/api/test-limit', (req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'],
+    credentials: true
   },
   pingTimeout: 30000,
   pingInterval: 10000,

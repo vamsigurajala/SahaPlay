@@ -36,6 +36,26 @@
 7. Serve the `frontend/dist` folder via nginx or your hosting platform
 8. Update `FRONTEND_URL` in `backend/.env` to your production domain
 
+## Starting the backend in production
+
+Do NOT use: `node backend/server.js`
+DO use: `pm2 start backend/ecosystem.config.js`
+
+Commands:
+```
+pm2 start backend/ecosystem.config.js
+pm2 status
+pm2 logs sahaplay-backend
+pm2 restart sahaplay-backend
+pm2 stop sahaplay-backend
+```
+
+PM2 auto-restart on server reboot:
+```
+pm2 startup
+pm2 save
+```
+
 ## Rolling Back a Bad Deploy
 1. Find the last known-good commit:
    ```
