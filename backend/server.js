@@ -1198,6 +1198,50 @@ const migrationsReady = (async () => {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING GIN (username gin_trgm_ops)`)
     .catch(e => console.warn('[Migration] idx_users_username_trgm:', e.message));
 
+  // ─── Phase 3: Database Integrity Hardening ───────────────────────────────
+  // bans table
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_bans_user_id ON bans(user_id)`)
+    .catch(e => console.warn('[Migration] idx_bans_user_id:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_bans_active_status ON bans(active, user_id) WHERE active = true`)
+    .catch(e => console.warn('[Migration] idx_bans_active_status:', e.message));
+
+  // admin_audit_logs table
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_admin_user_id ON admin_audit_logs(admin_user_id)`)
+    .catch(e => console.warn('[Migration] idx_audit_logs_admin_user_id:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_target_user_id ON admin_audit_logs(target_user_id)`)
+    .catch(e => console.warn('[Migration] idx_audit_logs_target_user_id:', e.message));
+
+  // reports table — NOTE: spec asked for submitted_by_user_id, but that column does not exist on
+  // this table (it exists on support_requests). The reports table's real "who filed this" column
+  // is "reporterUsername", indexed here instead.
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)`)
+    .catch(e => console.warn('[Migration] idx_reports_status:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_reporter_username ON reports("reporterUsername")`)
+    .catch(e => console.warn('[Migration] idx_reports_reporter_username:', e.message));
+
+  // support_requests table
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_support_status ON support_requests(status)`)
+    .catch(e => console.warn('[Migration] idx_support_status:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_support_submitted_by ON support_requests(submitted_by_user_id)`)
+    .catch(e => console.warn('[Migration] idx_support_submitted_by:', e.message));
+
+  // admin_invites table
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_invites_email ON admin_invites(email)`)
+    .catch(e => console.warn('[Migration] idx_invites_email:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_invites_status ON admin_invites(status)`)
+    .catch(e => console.warn('[Migration] idx_invites_status:', e.message));
+  // NOTE: A unique constraint on email for pending invites would be desirable but requires
+  // verifying no duplicate pending invites exist in production data first. Deferred to a
+  // manual migration step before public launch.
+
+  // Prevent a user from having two active bans simultaneously. Verified via a live query
+  // before adding this that zero users currently have >1 active ban, so no backfill/dedup
+  // UPDATE was needed.
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bans_one_active_per_user ON bans(user_id) WHERE active = true`)
+    .catch(e => console.warn('[Migration] idx_bans_one_active_per_user:', e.message));
+  // NOTE: Foreign key constraints on bans.user_id, reports.submitted_by_user_id etc. would
+  // strengthen integrity but require verifying no orphaned rows exist first. Deferred.
+
   console.log('[Migration] Admin system migrations complete');
 })();
 
