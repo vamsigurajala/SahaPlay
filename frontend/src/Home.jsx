@@ -7,6 +7,7 @@ import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { getRoomThumbnailUrl } from './utils/avatarUtils';
+import { API } from './lib/api';
 
 const getCategoryLabel = (id, t) => {
   const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
@@ -14,10 +15,6 @@ const getCategoryLabel = (id, t) => {
   const defaultMap = { movies: 'Movies', anime: 'Anime', songs: 'Music', gaming: 'Gaming', sports: 'Sports', other: 'Other' };
   return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
 };
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 
 const GROUP_SCRIPT = [
   { user: 'Alex', initial: 'A', color: '#a855f7', type: 'in', text: 'This part coming up is insane 🔥', reactions: ['👍 3', '❤️ 2'] },

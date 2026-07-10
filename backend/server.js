@@ -12,7 +12,6 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config(); // Load variables
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-// const nodemailer = require('nodemailer'); // migrated to Resend — remove package after confirming Resend works
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const emailTranslations = require('./email-translations');

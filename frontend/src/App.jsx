@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { CryptoProvider } from './contexts/CryptoContext';
+import { API as SHARED_API_BASE } from './lib/api';
 const Home = lazy(() => import('./Home'));
 const Room = lazy(() => import('./Room'));
 const Login = lazy(() => import('./Login'));
@@ -76,10 +77,7 @@ function AcceptInvitePage() {
       return;
     }
     setStatus('loading');
-    const apiHost = window.location.hostname;
-    const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
-      ? `http://${apiHost}:3001`
-      : `https://${apiHost}`;
+    const apiBase = SHARED_API_BASE;
     fetch(`${apiBase}/api/admin/accept-invite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -150,10 +148,7 @@ const AdminRoute = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
     if (!token) { setStatus('denied'); return; }
-    const apiHost = window.location.hostname;
-    const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
-      ? `http://${apiHost}:3001`
-      : `https://${apiHost}`;
+    const apiBase = SHARED_API_BASE;
     fetch(`${apiBase}/api/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setStatus(['super_admin', 'admin', 'moderator', 'support'].includes(data.role) ? 'admin' : 'denied'))
@@ -205,10 +200,7 @@ function App() {
     const fetchAndApplySettings = () => {
       const token = localStorage.getItem('watch_token');
       if (token) {
-        const apiHost = window.location.hostname;
-        const apiBase = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
-          ? `http://${apiHost}:3001`
-          : `https://${apiHost}`;
+        const apiBase = SHARED_API_BASE;
         fetch(`${apiBase}/api/settings`, { headers: { 'Authorization': `Bearer ${token}` } })
           .then(r => r.json())
           .then(data => {
