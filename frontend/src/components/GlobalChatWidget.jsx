@@ -13,6 +13,7 @@ import { io } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
+import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
@@ -763,7 +764,7 @@ function resolveReplyMessages(messages) {
   });
 }
 
-function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
+function ReadReceipt({ msg, isGroup, username, isLight }) {
   const [isOpen, setIsOpen] = useState(false);
   const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== username.toLowerCase());
   
@@ -799,7 +800,7 @@ function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
           <div style={{ display: 'flex', alignItems: 'center' }}>
             {readers.slice(0, 3).map((r, idx) => {
               const avatar = r.avatar;
-              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div 
                   key={r.username} 
@@ -885,7 +886,7 @@ function ReadReceipt({ msg, isGroup, username, socketServerUrl, isLight }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 150, overflowY: 'auto' }}>
             {readers.map(r => {
               const avatar = r.avatar;
-              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <div 
@@ -5058,7 +5059,7 @@ const GlobalChatWidget = forwardRef(({
                   >
                     <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {u.avatarPath ? (
-                        <img src={`${API}${u.avatarPath}`} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={getAvatarUrl(u.avatarPath)} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <User size={18} color="#888" />
                       )}
@@ -5159,14 +5160,14 @@ const GlobalChatWidget = forwardRef(({
                         {chat.type === 'room' ? (
                           <div style={{ width: '100%', height: '100%', background: displayAvatar ? 'none' : 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
-                              <img src={`${API}${displayAvatar}`} alt="Room" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <img src={getAvatarUrl(displayAvatar)} alt="Room" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                               <Users size={20} color="#fff" />
                             )}
                           </div>
                         ) : (
                           displayAvatar ? (
-                            <img src={`${API}${displayAvatar}`} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={getAvatarUrl(displayAvatar)} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', background: getAvatarColor(displayName || chat.partner), display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
                               <span className="stay-white" style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{getInitials(displayName || chat.partner)}</span>
@@ -5447,7 +5448,7 @@ const GlobalChatWidget = forwardRef(({
                            const partner = sNameOriginal.toLowerCase();
                            const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
                            const sName = isBlocked ? 'User' : sNameOriginal;
-                           const aSrc = isBlocked ? null : (msg.senderAvatar ? `${API}${msg.senderAvatar}` : null);
+                           const aSrc = isBlocked ? null : getAvatarUrl(msg.senderAvatar);
                            return (
                              <div
                                onClick={(e) => { 

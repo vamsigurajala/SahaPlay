@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/CropImage';
+import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -32,7 +33,7 @@ const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: color, fontSize: 13, fontWeight: 800, overflow: 'hidden' }}>
-          {avatar ? <img src={`${API}${avatar}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : uname.slice(0,2).toUpperCase()}
+          {avatar ? <img src={getAvatarUrl(avatar)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : uname.slice(0,2).toUpperCase()}
         </div>
         <span style={{ fontSize: 15, color: document.documentElement.getAttribute('data-theme') === 'light' ? '#000' : '#eee', fontWeight: 600 }}>@{uname}</span>
       </div>
@@ -258,7 +259,7 @@ export default function RoomSettingsModal({
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: thumbnail ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.2)', overflow: 'hidden' }}>
                 {thumbnail ? (
-                  <img src={`${API}${thumbnail}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getRoomThumbnailUrl(thumbnail)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <Settings size={22} color="#fff" />
                 )}
@@ -331,7 +332,7 @@ export default function RoomSettingsModal({
                   <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
                     <div style={{ width: 160, height: 100, borderRadius: 18, background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)' }}>
                       {thumbnail ? (
-                        <img src={`${API}${thumbnail}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={getRoomThumbnailUrl(thumbnail)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
                         <ImageIcon size={24} color="#333" />
                       )}

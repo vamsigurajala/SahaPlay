@@ -6,6 +6,7 @@ import { ArrowLeft, Filter, Pin, Star, Hash, Users, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import { getRoomThumbnailUrl } from './utils/avatarUtils';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -410,7 +411,7 @@ const PublicRooms = () => {
                 <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">
                     <img 
-                      src={room.thumbnailPath ? `${API}${room.thumbnailPath}` : `https://picsum.photos/seed/${room.id}/600/400`} 
+                      src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`}
                       alt="Room Cover" 
                       className="pinned-img"
                       onLoad={(e) => e.target.classList.add('loaded')}

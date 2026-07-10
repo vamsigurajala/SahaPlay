@@ -10,6 +10,7 @@ import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
+import { getAvatarUrl } from './utils/avatarUtils';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -907,7 +908,7 @@ const Profile = () => {
       </div>
     );
   }
-  const avatarUrl = profile.avatarPath ? `${API}${profile.avatarPath}` : null;
+  const avatarUrl = getAvatarUrl(profile.avatarPath);
   const displayProfile = isOwnProfile ? profile : otherProfile;
 
   // Follow button state
@@ -1186,7 +1187,7 @@ const Profile = () => {
                            onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} loading="lazy" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} loading="lazy" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -1251,7 +1252,7 @@ const Profile = () => {
                         onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                         onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -1303,7 +1304,7 @@ const Profile = () => {
             >
               <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {profile?.avatarPath ? (
-                  <img src={`${API}${profile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <UserIcon size={14} style={{ color: '#6366f1' }} />
                 )}
@@ -1419,7 +1420,7 @@ const Profile = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative' }}>
                       <div style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid rgba(99,102,241,0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {otherProfile.avatarPath ? <img src={`${API}${otherProfile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={38} color="#6366f1" />}
+                        {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={38} color="#6366f1" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
                         <h2 style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: 800, color: isLight ? '#1e293b' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1477,7 +1478,7 @@ const Profile = () => {
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 24 }}>
                       <div style={{ width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(99,102,241,0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {otherProfile.avatarPath ? <img src={`${API}${otherProfile.avatarPath}`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={44} color="#6366f1" />}
+                        {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={44} color="#6366f1" />}
                       </div>
                       <div style={{ display: 'flex', gap: 32 }}>
                         <button onClick={() => openFollowModal('followers', otherProfile.username)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
@@ -1923,7 +1924,7 @@ const Profile = () => {
                     {blockedUsers.map(u => (
                       <div key={u.username} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                          {u.avatarPath ? <img src={`${API}${u.avatarPath}`} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#fff" />}
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ color: '#fff', fontSize: 14, fontWeight: 700 }}>{u.displayName || u.username}</div>
@@ -2147,7 +2148,7 @@ const Profile = () => {
                   (followListData[followModalTab] || []).map(u => (
                     <div key={u.username} className="follow-user-item" onClick={() => { setShowFollowModal(false); navigate(`/profile/${u.username}`); }}>
                       <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(99,102,241,0.3)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {u.avatarPath ? <img src={`${API}${u.avatarPath}`} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#6366f1" />}
+                        {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="#6366f1" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="follow-user-name">{u.displayName || u.username}</div>

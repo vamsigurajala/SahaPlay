@@ -13,6 +13,7 @@ import {
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import crownImg from '../assets/crown.svg';
 import { getFlagUrl } from '../utils/countryFlags.js';
+import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
 import ChatLockScreen from './ChatLockScreen';
 import { getMessagePreview } from '../utils/messagePreview';
 
@@ -897,7 +898,7 @@ function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
   );
 }
 
-function ReadReceipt({ msg, isGroup, username, userList, socketServerUrl, isLight }) {
+function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
   const [isOpen, setIsOpen] = React.useState(false);
   const readers = (msg.seenBy || []).filter(r => r.username.toLowerCase() !== username.toLowerCase());
   
@@ -934,7 +935,7 @@ function ReadReceipt({ msg, isGroup, username, userList, socketServerUrl, isLigh
             {readers.slice(0, 3).map((r, idx) => {
               const uObj = userList?.find(u => u.username.toLowerCase() === r.username.toLowerCase());
               const avatar = r.avatar || uObj?.avatarPath;
-              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div 
                   key={r.username} 
@@ -1021,7 +1022,7 @@ function ReadReceipt({ msg, isGroup, username, userList, socketServerUrl, isLigh
             {readers.map(r => {
               const uObj = userList?.find(u => u.username.toLowerCase() === r.username.toLowerCase());
               const avatar = r.avatar || uObj?.avatarPath;
-              const avatarSrc = avatar ? (avatar.startsWith('http') ? avatar : `${socketServerUrl}${avatar}`) : null;
+              const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <div 
@@ -1976,7 +1977,7 @@ export default function RoomChatPanel({ p }) {
             }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                 {p.room?.thumbnailPath ? (
-                  <img src={`${p.SOCKET_SERVER_URL}${p.room.thumbnailPath}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={getRoomThumbnailUrl(p.room.thumbnailPath)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <Users size={18} color="#fff" />
                 )}
@@ -2081,10 +2082,7 @@ export default function RoomChatPanel({ p }) {
               const groupAvatar = p.groupMessages.find(m => (m.username === uname || m.senderName === uname) && m.senderAvatar)?.senderAvatar;
               const fallbackAvatar = threadAvatar || groupAvatar || p.knownAvatars?.[uname] || p.knownAvatars?.[uname.toLowerCase()];
 
-              const displayAvatarSrc = isBlocked ? null : (
-                (uObj?.avatarPath ? `${p.SOCKET_SERVER_URL}${uObj.avatarPath}` : null) || 
-                (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null)
-              );
+              const displayAvatarSrc = isBlocked ? null : (getAvatarUrl(uObj?.avatarPath) || getAvatarUrl(fallbackAvatar));
 
               const chatKey = partner;
               const isDmLocked = chatLockEnabled && lockedChats.includes(chatKey) && !unlockedSessionsRef.current[chatKey];
@@ -2168,7 +2166,7 @@ export default function RoomChatPanel({ p }) {
             </button>
             <div style={{ width: 32, height: 32, borderRadius: 10, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
               {p.room?.thumbnailPath ? (
-                <img src={`${p.SOCKET_SERVER_URL}${p.room.thumbnailPath}`} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={getRoomThumbnailUrl(p.room.thumbnailPath)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
                 <Users size={15} color="#fff" />
               )}
@@ -2281,7 +2279,7 @@ export default function RoomChatPanel({ p }) {
                       
                       const displayUsername = amIBlockedBySender ? 'User' : formatUsername(partnerName);
                       const fallbackAvatar = msg.senderAvatar || p.knownAvatars?.[partnerName];
-                      const displayAvatarSrc = amIBlockedBySender ? null : (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null);
+                      const displayAvatarSrc = amIBlockedBySender ? null : getAvatarUrl(fallbackAvatar);
                       
                       const userObj = p.userList?.find(u => u.username === partnerName);
                       const uIsHost = userObj?.isHost || (p.room?.hostUsername && partnerName.toLowerCase() === p.room.hostUsername.toLowerCase());
@@ -2605,10 +2603,7 @@ export default function RoomChatPanel({ p }) {
                     const groupAvatar = p.groupMessages.find(m => (m.username === p.dmTarget || m.senderName === p.dmTarget) && m.senderAvatar)?.senderAvatar;
                     const fallbackAvatar = threadAvatar || groupAvatar || p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[p.dmTarget.toLowerCase()];
 
-                    const displayAvatarSrc = isBlocked ? null : (
-                      (uObj?.avatarPath ? `${p.SOCKET_SERVER_URL}${uObj.avatarPath}` : null) || 
-                      (fallbackAvatar ? (fallbackAvatar.startsWith('http') ? fallbackAvatar : `${p.SOCKET_SERVER_URL}${fallbackAvatar}`) : null)
-                    );
+                    const displayAvatarSrc = isBlocked ? null : (getAvatarUrl(uObj?.avatarPath) || getAvatarUrl(fallbackAvatar));
 
                     return (
                       <>
@@ -2747,9 +2742,7 @@ export default function RoomChatPanel({ p }) {
                             const displayUsername = isSenderBlocked ? 'User' : rName;
                             const uObj = p.userList.find(u => u.username === rName);
                             const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
-                            const avatarSrc = isSenderBlocked ? null : (fallbackMsgAvatar
-                              ? (fallbackMsgAvatar.startsWith('http') ? fallbackMsgAvatar : `${p.SOCKET_SERVER_URL}${fallbackMsgAvatar}`)
-                              : null);
+                            const avatarSrc = isSenderBlocked ? null : getAvatarUrl(fallbackMsgAvatar);
                             return <Avatar name={displayUsername} size={28} src={avatarSrc}/>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>

@@ -9,6 +9,7 @@ import {
   Trash2, FileText, Crown, UserMinus, ChevronDown, ChevronUp,
   Inbox, UserCog, Mail, Paperclip, Calendar,
 } from 'lucide-react';
+import { getAvatarUrl } from './utils/avatarUtils';
 
 // ─── API base (mirrors the pattern used throughout the app) ─────────────────
 const apiHost = window.location.hostname;
@@ -348,7 +349,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                       border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.06)'
                     }}>
                       {u.avatarPath
-                        ? <img src={`${API_BASE}${u.avatarPath}`} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        ? <img src={getAvatarUrl(u.avatarPath)} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         : <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: isGuest ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{(u.username || '?')[0].toUpperCase()}</span>
                           </div>
@@ -1321,7 +1322,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       {u.avatarPath ? (
-                        <img src={`${API_BASE}${u.avatarPath}`} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        <img src={getAvatarUrl(u.avatarPath)} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                       ) : (
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{(u.username || '?')[0].toUpperCase()}</span>
@@ -1672,7 +1673,7 @@ function ActiveRoomsPage() {
                     {room.members.map(m => (
                       <div key={m.socketId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
                         {m.avatarPath ? (
-                          <img src={`${API_BASE}${m.avatarPath}`} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          <img src={getAvatarUrl(m.avatarPath)} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
                           <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(m.username || '?')[0].toUpperCase()}</span>
