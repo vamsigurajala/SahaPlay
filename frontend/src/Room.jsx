@@ -958,6 +958,7 @@ const Room = () => {
   const mySocketIdRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [showUserPanel, setShowUserPanel] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const userPanelRef = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(null);
   const [kickedReason, setKickedReason] = useState(null);
@@ -1244,6 +1245,7 @@ const Room = () => {
   }, [roomId, socket, SOCKET_SERVER_URL]);
 
   useEffect(() => {
+    setMemberSearchQuery('');
     if (showUserPanel) {
       // Dismiss all toasts when panel opens
       activeJoinToastIds.current.forEach(id => toast.dismiss(id, 'system'));
@@ -7462,7 +7464,53 @@ const Room = () => {
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }} className="custom-scrollbar">
+
+                {/* Search Bar for Members */}
+                <div style={{ padding: '0 12px', marginBottom: 16 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Search size={14} color={isLight ? '#64748b' : '#94a3b8'} style={{ position: 'absolute', left: 12, pointerEvents: 'none' }} />
+                    <input
+                      type="text"
+                      placeholder={t('searchMembers', 'Search members...')}
+                      value={memberSearchQuery}
+                      onChange={e => setMemberSearchQuery(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 36px',
+                        borderRadius: 12,
+                        border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                        background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)',
+                        color: isLight ? '#0f172a' : '#ffffff',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        outline: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                      onFocus={e => {
+                        e.target.style.borderColor = '#6366f1';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.15)';
+                      }}
+                      onBlur={e => {
+                        e.target.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)';
+                        e.target.style.boxShadow = 'none';
+                      }}
+                    />
+                    {memberSearchQuery && (
+                      <button
+                        onClick={() => setMemberSearchQuery('')}
+                        style={{
+                          position: 'absolute', right: 12, background: 'none', border: 'none',
+                          color: isLight ? '#64748b' : '#94a3b8', cursor: 'pointer', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center', padding: 0
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 350, overflowY: 'auto', paddingRight: 4 }} className="custom-scrollbar">
                   {/* — Pending Joins (if host) — */}
                   {isEffectiveHost && joinRequests.length > 0 && (
                     <div style={{ marginBottom: 16 }}>
@@ -7535,86 +7583,97 @@ const Room = () => {
                     </div>
                   )}
 
-                  {/* User List with sorting: Host first, then Me, then others */}
-                  {[...userList].sort((a, b) => {
-                    // 1. Host always first
-                    if (a.isHost && !b.isHost) return -1;
-                    if (!a.isHost && b.isHost) return 1;
-                    // 2. Me second (if not host)
-                    const aIsMe = a.socketId === socket?.id;
-                    const bIsMe = b.socketId === socket?.id;
-                    if (aIsMe && !bIsMe) return -1;
-                    if (!aIsMe && bIsMe) return 1;
-                    // 3. Alphabetical for others
-                    return (a.username || '').localeCompare(b.username || '');
-                  }).map(u => {
-                    const uIsHost = !!u.isHost;
-                    const uIsAdmin = !!u.isAdmin;
-                    
-                    const uIsMe = u.socketId === socket?.id;
-                    const rawAvatar = u.avatarPath || knownAvatars[u.username];
-                    const avatarSrc = rawAvatar
-                      ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`)
-                      : null;
-                    return (
-                      <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent' }} className="usr-row">
-                        <div onClick={() => navigate(`/profile/${u.username}`)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                          <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isAdmin={uIsAdmin} isMuted={!!u.isMuted} size={38} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontSize: 13, color: uIsMe ? (isLight ? '#000' : '#fff') : (isLight ? '#1e293b' : '#eee'), fontWeight: uIsMe ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {formatUsername(u.username)}{uIsMe ? t('youSuffix', ' (You)') : ''}
-                              </span>
-                              {uIsHost ? (
-                                <span title="Host" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                  <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                  {/* User List with sorting and filtering */}
+                  {(() => {
+                    const query = memberSearchQuery.trim().toLowerCase();
+                    const filtered = [...userList].filter(u => 
+                      (u.username || '').toLowerCase().includes(query)
+                    );
+
+                    if (query && filtered.length === 0) {
+                      return (
+                        <div style={{ padding: '24px 12px', textAlign: 'center', color: isLight ? '#64748b' : '#94a3b8', fontSize: 13, fontWeight: 600 }}>
+                          {t('notExists', 'Not exists')}
+                        </div>
+                      );
+                    }
+
+                    return filtered.sort((a, b) => {
+                      if (a.isHost && !b.isHost) return -1;
+                      if (!a.isHost && b.isHost) return 1;
+                      const aIsMe = a.socketId === socket?.id;
+                      const bIsMe = b.socketId === socket?.id;
+                      if (aIsMe && !bIsMe) return -1;
+                      if (!aIsMe && bIsMe) return 1;
+                      return (a.username || '').localeCompare(b.username || '');
+                    }).map(u => {
+                      const uIsHost = !!u.isHost;
+                      const uIsAdmin = !!u.isAdmin;
+                      const uIsMe = u.socketId === socket?.id;
+                      const rawAvatar = u.avatarPath || knownAvatars[u.username];
+                      const avatarSrc = rawAvatar
+                        ? (rawAvatar.startsWith('http') ? rawAvatar : `${SOCKET_SERVER_URL}${rawAvatar}`)
+                        : null;
+                      return (
+                        <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent' }} className="usr-row">
+                          <div onClick={() => navigate(`/profile/${u.username}`)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                            <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isAdmin={uIsAdmin} isMuted={!!u.isMuted} size={38} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontSize: 13, color: uIsMe ? (isLight ? '#000' : '#fff') : (isLight ? '#1e293b' : '#eee'), fontWeight: uIsMe ? 800 : 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {formatUsername(u.username)}{uIsMe ? t('youSuffix', ' (You)') : ''}
                                 </span>
-                              ) : uIsAdmin ? (
-                                <span title="Admin" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                  <Shield size={12} color={isLight ? "#4f46e5" : "#818cf8"} fill={isLight ? "#4f46e5" : "#818cf8"} />
-                                </span>
-                              ) : null}
-                              {(getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)) && (
-                                <img
-                                  src={getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)}
-                                  alt={u.country || u.countryCode}
-                                  title={u.country || u.countryCode}
-                                  loading="lazy"
-                                  style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
-                                  onError={e => { e.target.style.display = 'none'; }}
-                                />
-                              )}
+                                {uIsHost ? (
+                                  <span title="Host" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                    <Star size={12} color="#fbbf24" fill="#fbbf24" />
+                                  </span>
+                                ) : uIsAdmin ? (
+                                  <span title="Admin" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                    <Shield size={12} color={isLight ? "#4f46e5" : "#818cf8"} fill={isLight ? "#4f46e5" : "#818cf8"} />
+                                  </span>
+                                ) : null}
+                                {(getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)) && (
+                                  <img
+                                    src={getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)}
+                                    alt={u.country || u.countryCode}
+                                    title={u.country || u.countryCode}
+                                    loading="lazy"
+                                    style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
+                                    onError={e => { e.target.style.display = 'none'; }}
+                                  />
+                                )}
+                              </div>
                             </div>
                           </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {!uIsMe && (
+                              <button className="usr-btn" title="Private chat" onClick={() => { openDM(u.username); setShowUserPanel(false); }} style={{ width: 32, height: 32, borderRadius: 10, background: isLight ? '#fff' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLight ? '#64748b' : '#888' }}>
+                                <MessageCircle size={14} />
+                              </button>
+                            )}
+                            
+                            {/* Moderation Menu (3 dots) */}
+                            {isEffectiveHost && !uIsMe && (
+                              <button 
+                                className={`usr-btn mod-btn${modMenuTarget === u.socketId ? ' active' : ''}`} 
+                                title="Moderation" 
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setModMenuPos({ top: rect.bottom + 8, left: rect.left - 110 });
+                                  setModMenuTarget(modMenuTarget === u.socketId ? null : u.socketId); 
+                                  setShowHeaderModMenu(false);
+                                }}
+                                style={{ width: 32, height: 32, borderRadius: 10, background: modMenuTarget === u.socketId ? 'rgba(99,102,241,0.2)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'), border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: modMenuTarget === u.socketId ? '#4f46e5' : (isLight ? '#64748b' : '#888') }}
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {!uIsMe && (
-                            <button className="usr-btn" title="Private chat" onClick={() => { openDM(u.username); setShowUserPanel(false); }} style={{ width: 32, height: 32, borderRadius: 10, background: isLight ? '#fff' : 'rgba(255,255,255,0.03)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: isLight ? '#64748b' : '#888' }}>
-                              <MessageCircle size={14} />
-                            </button>
-                          )}
-                          
-                          {/* Moderation Menu (3 dots) */}
-                          {isEffectiveHost && !uIsMe && (
-                            <button 
-                              className={`usr-btn mod-btn${modMenuTarget === u.socketId ? ' active' : ''}`} 
-                              title="Moderation" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setModMenuPos({ top: rect.bottom + 8, left: rect.left - 110 });
-                                setModMenuTarget(modMenuTarget === u.socketId ? null : u.socketId); 
-                                setShowHeaderModMenu(false);
-                              }}
-                              style={{ width: 32, height: 32, borderRadius: 10, background: modMenuTarget === u.socketId ? 'rgba(99,102,241,0.2)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'), border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: modMenuTarget === u.socketId ? '#4f46e5' : (isLight ? '#64748b' : '#888') }}
-                            >
-                              <MoreVertical size={14} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
 
                 {/* Floating Moderation Dropdown (Fixed to avoid clipping) */}
