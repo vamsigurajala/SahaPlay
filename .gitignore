@@ -35,9 +35,7 @@ backend/db.sqlite
 **/checkpoint*
 **/*.lnk
 backend/uploads/
-backend/avatars/*.png
-backend/avatars/*.jpg
-backend/avatars/*.jpeg
+backend/avatars/
 backend/*.txt
 frontend/*.txt
 scratch/
