@@ -16,6 +16,8 @@ import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
+import { useSwipeToReply } from '../hooks/useSwipeToReply';
+import { useLongPress } from '../hooks/useLongPress';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -430,6 +432,11 @@ const typingCss = `
   @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
   @keyframes wave-bar { from { height: 20%; } to { height: 80%; } }
+
+  /* ── Mobile/tablet: replace visible Reply/timestamp/Report with swipe + long-press gestures ── */
+  @media (max-width: 1023.98px) {
+    .msg-meta-row { display: none !important; }
+  }
   .typing-dots { display: inline-flex; gap: 2px; align-items: center; margin-left: 4px; }
   .typing-dot { width: 4px; height: 4px; background: #6366f1; borderRadius: 50%; display: inline-block; animation: dot-wave 1.3s infinite ease-in-out; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -730,6 +737,11 @@ function truncateToFewWords(str) {
 function getDateKey(ts) {
   const d = new Date(Number(ts));
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatTime(ts) {
+  const d = new Date(Number(ts) || Date.now());
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDateSeparator(ts) {
@@ -1352,6 +1364,10 @@ const GlobalChatWidget = forwardRef(({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
   const [reportMsgTarget, setReportMsgTarget] = useState(null);
+  // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
+  // these aren't called per-message inside the .map() below.
+  const swipe = useSwipeToReply();
+  const longPress = useLongPress();
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
@@ -5379,7 +5395,7 @@ const GlobalChatWidget = forwardRef(({
                   loadMoreHistory(el);
                 }
               }}
-              onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); }} 
+              onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} 
               style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
             >
               {historyLoading && (
@@ -5410,6 +5426,21 @@ const GlobalChatWidget = forwardRef(({
                   const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
                   const prevMsg = i > 0 ? messages[i - 1] : null;
                   const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
+                  const rowKey = msg.tempId || msg.id || i;
+                  const canReport = activeChat?.type === 'room' && !isMe;
+                  const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => setReplyToMsg(msg));
+                  const longPressHandlers = longPress.getHandlers(rowKey);
+                  const gestureHandlers = {
+                    onTouchStart: (e) => { if (longPress.activeId === rowKey) longPress.close(); swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e); },
+                    onTouchMove: (e) => { swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
+                    onTouchEnd: (e) => { swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
+                  };
+                  const isSwipingRow = swipe.activeId === rowKey;
+                  const rowDragX = isSwipingRow ? swipe.dragX : 0;
+                  const rowThresholdMet = isSwipingRow && swipe.isThresholdMet;
+                  const rowDragging = isSwipingRow && swipe.isDragging;
+                  const rowBounce = swipe.bounceId === rowKey;
+                  const showLongPressMenu = longPress.activeId === rowKey;
                   return (
                     <React.Fragment key={msg.tempId || msg.id || i}>
                     {showDateSep && (
@@ -5475,14 +5506,27 @@ const GlobalChatWidget = forwardRef(({
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
                           )}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
-                               onMouseEnter={() => setHoveredRowId(msg.id||i)} 
-                               onMouseLeave={() => setHoveredRowId(null)}>
+                               onMouseEnter={() => setHoveredRowId(msg.id||i)}
+                               onMouseLeave={() => setHoveredRowId(null)}
+                               onTouchStart={gestureHandlers.onTouchStart}
+                               onTouchMove={gestureHandlers.onTouchMove}
+                               onTouchEnd={gestureHandlers.onTouchEnd}>
+                            <div className="swipe-reply-icon" style={{
+                              position:'absolute', [isMe ? 'right' : 'left']: 8, top:'50%',
+                              transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
+                              transition: 'transform 0.15s ease',
+                              opacity: isSwipingRow ? 1 : 0,
+                              color: '#7c3aed', zIndex: 1, pointerEvents: 'none'
+                            }}>
+                              <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
+                            </div>
                             <div
                               className={`msg-bubble ${isMe ? 'msg-sent stay-white' : 'msg-received'}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               style={{
                                 position: 'relative',
+                                zIndex: 2,
                                 background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
                                 padding: isMediaOnly ? '0' : '10px 16px',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
@@ -5490,7 +5534,9 @@ const GlobalChatWidget = forwardRef(({
                                 color: transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
                                 textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
                                 maxWidth: '100%',
-                                wordBreak: 'break-word'
+                                wordBreak: 'break-word',
+                                transform: `translateX(${rowDragX}px)`,
+                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
                               }}
                             >
                               {msg.decryptedText !== null ? (
@@ -5582,7 +5628,25 @@ const GlobalChatWidget = forwardRef(({
                                   </div>
                                 )}
                             </div>
-                            
+                            {showLongPressMenu && (
+                              <div className="long-press-menu" style={{
+                                position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8,
+                                background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
+                                borderRadius:12, padding:'8px 12px', zIndex:100, display:'flex',
+                                flexDirection:'column', gap:8, minWidth:130, boxShadow: 'var(--dropdown-shadow)', fontSize:13
+                              }} onClick={e => e.stopPropagation()}>
+                                <span style={{ color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 11 }}>{formatTime(msg.timestamp)}</span>
+                                <button onClick={() => { setReplyToMsg(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                  <Reply size={14} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} /> {t('reply', 'Reply')}
+                                </button>
+                                {canReport && (
+                                  <button onClick={() => { setReportMsgTarget(msg); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                    <Flag size={14} /> {t('report', 'Report')}
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
                                                     <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i}`}>
                               <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
                                 <SmilePlus size={16}/>
@@ -5601,7 +5665,7 @@ const GlobalChatWidget = forwardRef(({
                             </div>
                           )}
 
-                          <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
+                          <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
