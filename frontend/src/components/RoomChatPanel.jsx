@@ -11,6 +11,8 @@ import {
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock
 } from 'lucide-react';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
+import { useSwipeToReply } from '../hooks/useSwipeToReply';
+import { useLongPress } from '../hooks/useLongPress';
 import crownImg from '../assets/crown.svg';
 import { getFlagUrl } from '../utils/countryFlags.js';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
@@ -622,6 +624,11 @@ const MenuStyles = () => (
       -webkit-text-fill-color: var(--menu-item-text) !important;
       stroke: var(--menu-item-text) !important;
     }
+
+    /* ── Mobile/tablet: replace visible Reply/timestamp/Report with swipe + long-press gestures ── */
+    @media (max-width: 1023.98px) {
+      #room-chat-panel .msg-meta-row { display: none !important; }
+    }
   `}</style>
 );
 
@@ -1097,6 +1104,10 @@ export default function RoomChatPanel({ p }) {
   const messageMenuRef = React.useRef(null);
 
   const [hoveredMsgId, setHoveredMsgId] = React.useState(null);
+  // Shared across the whole panel (both group + DM tabs) — only one message
+  // can be mid-swipe or long-pressed at a time, so a single instance is enough.
+  const swipe = useSwipeToReply();
+  const longPress = useLongPress();
   const [clearGroupChatModalOpen, setClearGroupChatModalOpen] = React.useState(false);
   const fileInputRef = React.useRef(null);
   const dmFileInputRef = React.useRef(null);
@@ -2120,7 +2131,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
@@ -2144,7 +2155,21 @@ export default function RoomChatPanel({ p }) {
               )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
               const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
-              
+              const rowKey = msg.tempId || msg.id || i;
+              const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setGroupReplyTo(msg));
+              const longPressHandlers = longPress.getHandlers(rowKey);
+              const gestureHandlers = {
+                onTouchStart: (e) => { if (longPress.activeId === rowKey) longPress.close(); swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e); },
+                onTouchMove: (e) => { swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
+                onTouchEnd: (e) => { swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
+              };
+              const isSwipingRow = swipe.activeId === rowKey;
+              const rowDragX = isSwipingRow ? swipe.dragX : 0;
+              const rowThresholdMet = isSwipingRow && swipe.isThresholdMet;
+              const rowDragging = isSwipingRow && swipe.isDragging;
+              const rowBounce = swipe.bounceId === rowKey;
+              const showLongPressMenu = longPress.activeId === rowKey;
+
               return (
                 <React.Fragment key={msg.tempId || msg.id || i}>
                 {showDateSep && (
@@ -2214,20 +2239,37 @@ export default function RoomChatPanel({ p }) {
                             })()}
                           </div>
                       )}
-                      <div style={{position:'relative', display:'flex', alignItems:'center'}}>
+                      <div style={{position:'relative', display:'flex', alignItems:'center'}}
+                        onTouchStart={gestureHandlers.onTouchStart}
+                        onTouchMove={gestureHandlers.onTouchMove}
+                        onTouchEnd={gestureHandlers.onTouchEnd}>
+                        <div className="swipe-reply-icon" style={{
+                          position:'absolute', [isMe ? 'right' : 'left']: 8, top:'50%',
+                          transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
+                          transition: 'transform 0.15s ease',
+                          opacity: isSwipingRow ? 1 : 0,
+                          color: '#7c3aed', zIndex: 1, pointerEvents: 'none'
+                        }}>
+                          <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
+                        </div>
                         <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
+                          zIndex: 2,
                           background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
                           color: isMe ? '#fff' : (isLight ? '#111827' : '#fff'),
                           maxWidth:'100%',
-                          wordBreak:'break-word'
+                          wordBreak:'break-word',
+                          transform: `translateX(${rowDragX}px)`,
+                          transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}>
-                          {msg.decryptedText !== null ? (
+                          {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                            <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                          ) : msg.decryptedText !== null ? (
                             <MessageText text={msg.decryptedText} isMe={isMe} />
                           ) : (
                             (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
@@ -2293,6 +2335,24 @@ export default function RoomChatPanel({ p }) {
                           )}
 
                         </div>
+                        {showLongPressMenu && (
+                          <div className="long-press-menu" style={{
+                            position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8,
+                            background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
+                            borderRadius:12, padding:'8px 12px', zIndex:100, display:'flex',
+                            flexDirection:'column', gap:8, minWidth:130, boxShadow: 'var(--dropdown-shadow)', fontSize:13
+                          }} onClick={e => e.stopPropagation()}>
+                            <span style={{ color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 11 }}>{formatTime(msg.timestamp)}</span>
+                            <button onClick={() => { p.setGroupReplyTo(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                              <Reply size={14} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} /> {t('reply', 'Reply')}
+                            </button>
+                            {!isMe && (
+                              <button onClick={() => { p.reportMsg(msg); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                <Flag size={14} /> {t('report', 'Report')}
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                             <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
@@ -2301,7 +2361,7 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         )}
                       </div>
-                      <div style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
+                      <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                         {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                         <span style={{flex:1}}></span>
                         <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
@@ -2582,7 +2642,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
@@ -2611,6 +2671,20 @@ export default function RoomChatPanel({ p }) {
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                     const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+                    const rowKey = msg.tempId || msg.id || i;
+                    const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setDmReplyTo(msg));
+                    const longPressHandlers = longPress.getHandlers(rowKey);
+                    const gestureHandlers = {
+                      onTouchStart: (e) => { if (longPress.activeId === rowKey) longPress.close(); swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e); },
+                      onTouchMove: (e) => { swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
+                      onTouchEnd: (e) => { swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
+                    };
+                    const isSwipingRow = swipe.activeId === rowKey;
+                    const rowDragX = isSwipingRow ? swipe.dragX : 0;
+                    const rowThresholdMet = isSwipingRow && swipe.isThresholdMet;
+                    const rowDragging = isSwipingRow && swipe.isDragging;
+                    const rowBounce = swipe.bounceId === rowKey;
+                    const showLongPressMenu = longPress.activeId === rowKey;
 
                     return (
                       <React.Fragment key={msg.tempId || msg.id || i}>
@@ -2647,20 +2721,37 @@ export default function RoomChatPanel({ p }) {
                             return <Avatar name={displayUsername} size={28} src={avatarSrc}/>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
-                            <div style={{position:'relative', display:'flex', alignItems:'center'}}>
+                            <div style={{position:'relative', display:'flex', alignItems:'center'}}
+                              onTouchStart={gestureHandlers.onTouchStart}
+                              onTouchMove={gestureHandlers.onTouchMove}
+                              onTouchEnd={gestureHandlers.onTouchEnd}>
+                              <div className="swipe-reply-icon" style={{
+                                position:'absolute', [isMe ? 'right' : 'left']: 8, top:'50%',
+                                transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
+                                transition: 'transform 0.15s ease',
+                                opacity: isSwipingRow ? 1 : 0,
+                                color: '#7c3aed', zIndex: 1, pointerEvents: 'none'
+                              }}>
+                                <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
+                              </div>
                               <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
+                                zIndex: 2,
                                 background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
                                 color: isMe ? '#fff' : (isLight ? '#111827' : '#ddd'),
                                 maxWidth:'100%',
-                                wordBreak:'break-word'
+                                wordBreak:'break-word',
+                                transform: `translateX(${rowDragX}px)`,
+                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}>
-                                {msg.decryptedText !== null ? (
+                                {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                                  <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                ) : msg.decryptedText !== null ? (
                                   <MessageText text={msg.decryptedText} isMe={isMe} />
                                 ) : (
                                   (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
@@ -2728,6 +2819,19 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                               </div>
+                                {showLongPressMenu && (
+                                  <div className="long-press-menu" style={{
+                                    position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8,
+                                    background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
+                                    borderRadius:12, padding:'8px 12px', zIndex:100, display:'flex',
+                                    flexDirection:'column', gap:8, minWidth:130, boxShadow: 'var(--dropdown-shadow)', fontSize:13
+                                  }} onClick={e => e.stopPropagation()}>
+                                    <span style={{ color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 11 }}>{formatTime(msg.timestamp)}</span>
+                                    <button onClick={() => { p.setDmReplyTo(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                      <Reply size={14} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} /> {t('reply', 'Reply')}
+                                    </button>
+                                  </div>
+                                )}
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                   <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                                     <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
@@ -2736,7 +2840,7 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                             </div>
-                            <div style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
+                            <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                               {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                               <span style={{flex:1}}></span>
                               <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
