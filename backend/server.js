@@ -1,3 +1,13 @@
+require('dotenv').config(); // Load variables first so SENTRY_DSN is available before Sentry.init()
+
+const Sentry = require('@sentry/node');
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'development',
+  tracesSampleRate: 0.1,
+  enabled: !!process.env.SENTRY_DSN
+});
+
 const express = require('express');
 const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const helmet = require('helmet');
@@ -9,7 +19,6 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config(); // Load variables
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -10667,10 +10676,22 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Sentry error handler must be registered after all routes but before any other error-handling middleware
+Sentry.setupExpressErrorHandler(app);
+
 // Global Express Error Handler
 app.use((err, req, res, next) => {
   console.error('[Express Error Catch]:', err.stack || err);
   res.status(500).json({ error: 'Internal Server Error. Please contact support.' });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 const PORT = 3001;
