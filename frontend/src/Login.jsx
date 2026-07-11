@@ -637,7 +637,7 @@ const Login = () => {
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'left' }} noValidate>
             <div>
-              <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('email', 'Username or Email')}</label>
+              <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('usernameOrEmailLabel', 'Username/Email')}</label>
               <div style={{ position: 'relative' }}>
                 <Mail size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                 <input type="text" className="login-input" style={{ borderColor: errors.username ? '#ef4444' : undefined }} placeholder="name@example.com" value={username} onChange={e => { setUsername(e.target.value); if (errors.username) setErrors({...errors, username: null}); }} />
