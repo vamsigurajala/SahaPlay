@@ -14,6 +14,10 @@ const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1
   ? `http://${window.location.hostname}:3001`
   : `https://${window.location.hostname}`;
 
+// Minimum time the skeleton loader stays visible on first load, so the shimmer wave
+// has time to actually be perceived instead of flashing by on fast (local) connections.
+const MIN_SKELETON_MS = 500;
+
 // ─── Isolated camera preview ─────────────────────────────────────────────────
 // Owns its own stream + video ref so parent re-renders never blank the preview.
 function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
@@ -239,6 +243,7 @@ const AppSettings = () => {
 
   // Settings state
   const [settings, setSettings] = useState(null);
+  const hasLoadedSettingsOnce = useRef(false);
   const [language, setLanguage] = useState(() => (localStorage.getItem('watch_language') || i18n.language || 'en').split('-')[0].toLowerCase());
   const [country, setCountry] = useState('');
   const [countryCode, setCountryCode] = useState('');
@@ -455,22 +460,30 @@ const AppSettings = () => {
   const micCanvasRef = useRef(null);
 
   const fetchSettings = useCallback(() => {
+    const isInitialLoad = !hasLoadedSettingsOnce.current;
+    const startedAt = Date.now();
     const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`${API}/api/settings`, { headers })
       .then(r => r.json())
       .then(data => {
         if (data.error) return;
-        setSettings(data);
-        setLanguage((data.language || 'en').split('-')[0].toLowerCase());
-        setCountry(data.country || '');
-        setCountryCode(data.country_code || '');
-        setShowCountry(data.showCountry === 1 || data.showCountry === true);
-        setNotifyApp(data.notifyApp === 1 || data.notifyApp === true);
-        setNotifyJoin(data.notifyJoin === 1 || data.notifyJoin === true);
-        setNotifyMessages(data.notifyMessages === 1 || data.notifyMessages === true);
-        setNotifyFriendRequests(data.notifyFriendRequests === 1 || data.notifyFriendRequests === true);
-        setNotifyLeave(data.notifyLeave === 1 || data.notifyLeave === true);
-        setNotifyJoinRequests(data.notifyJoinRequests === 1 || data.notifyJoinRequests === true);
+        const apply = () => {
+          hasLoadedSettingsOnce.current = true;
+          setSettings(data);
+          setLanguage((data.language || 'en').split('-')[0].toLowerCase());
+          setCountry(data.country || '');
+          setCountryCode(data.country_code || '');
+          setShowCountry(data.showCountry === 1 || data.showCountry === true);
+          setNotifyApp(data.notifyApp === 1 || data.notifyApp === true);
+          setNotifyJoin(data.notifyJoin === 1 || data.notifyJoin === true);
+          setNotifyMessages(data.notifyMessages === 1 || data.notifyMessages === true);
+          setNotifyFriendRequests(data.notifyFriendRequests === 1 || data.notifyFriendRequests === true);
+          setNotifyLeave(data.notifyLeave === 1 || data.notifyLeave === true);
+          setNotifyJoinRequests(data.notifyJoinRequests === 1 || data.notifyJoinRequests === true);
+        };
+        const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
+        if (remaining > 0) setTimeout(apply, remaining);
+        else apply();
       })
       .catch(() => toast.error('Failed to load settings'));
 

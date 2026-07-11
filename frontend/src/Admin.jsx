@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { io } from 'socket.io-client';
 import './Admin.css';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +11,7 @@ import {
   Inbox, UserCog, Mail, Paperclip, Calendar,
 } from 'lucide-react';
 import { getAvatarUrl } from './utils/avatarUtils';
+import MediaLightbox from './components/MediaLightbox';
 
 // ─── API base (mirrors the pattern used throughout the app) ─────────────────
 const apiHost = window.location.hostname;
@@ -1808,6 +1810,39 @@ function AuditLogsPage() {
   );
 }
 
+// ─── Ticket detail skeleton (shared by ReportsPage / SupportInboxPage loading states) ────
+function TicketDetailSkeleton({ isLight }) {
+  const row = (w, h = 14) => <div className="skeleton-block" style={{ width: w, height: h }} />;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {row(160, 18)}
+          {row(100, 12)}
+        </div>
+        <div className="skeleton-block" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
+      </div>
+      <div style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} style={{ display: 'flex', gap: 16 }}>
+            {row(70, 11)}
+            {row(140, 13)}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {row(120, 11)}
+        <div className="skeleton-block" style={{ width: '100%', height: 60, borderRadius: 10 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {row(90, 32)}
+        {row(90, 32)}
+        {row(90, 32)}
+      </div>
+    </div>
+  );
+}
+
 // ─── Reports Page ─────────────────────────────────────────────────────────────
 function ReportsPage({ refreshBadges }) {
   const isLight = React.useContext(AdminThemeCtx);
@@ -2056,12 +2091,12 @@ function ReportsPage({ refreshBadges }) {
 
       {/* Report detail modal */}
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.3)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="admin-modal-overlay admin-ticket-overlay" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.22)' : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => { setSelected(null); setDetailData(null); }}>
-          <div style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
+          <div className="admin-modal-card admin-ticket-card" style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 620, maxHeight: '90vh', overflowY: 'auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}
             onClick={e => e.stopPropagation()}>
           {detailLoading ? (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 13 }}>Loading…</div>
+            <TicketDetailSkeleton isLight={isLight} />
           ) : (
             (() => {
               const displayData = detailData || selected;
@@ -2134,7 +2169,7 @@ function ReportsPage({ refreshBadges }) {
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {displayData.attachments.map((att, i) => (
-                          <button key={i} onClick={() => setLightbox({ src: att.data, filename: att.filename })}
+                          <button key={i} onClick={() => setLightbox({ items: displayData.attachments.map(a => ({ url: a.data, type: 'image/*', filename: a.filename })), index: i })}
                             title={`View ${att.filename}`}
                             style={{ display: 'block', position: 'relative', borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', flexShrink: 0, padding: 0, background: 'none' }}>
                             <img src={att.data} alt={att.filename} loading="lazy" style={{ width: 120, height: 90, objectFit: 'cover', display: 'block' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
@@ -2335,12 +2370,15 @@ function ReportsPage({ refreshBadges }) {
       )}
 
       {/* Image lightbox */}
-      {lightbox && (
-        <div onClick={() => setLightbox(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-          <button onClick={() => setLightbox(null)} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff' }}><X size={18} /></button>
-          <img src={lightbox.src} alt={lightbox.filename} style={{ maxWidth: '90vw', maxHeight: '85vh', borderRadius: 12, objectFit: 'contain' }} onClick={e => e.stopPropagation()} />
-          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{lightbox.filename}</p>
-        </div>
+      {lightbox && createPortal(
+        <MediaLightbox
+          items={lightbox.items}
+          index={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
+          onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+        />,
+        document.body
       )}
     </div>
   );
@@ -2610,9 +2648,9 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
 
       {/* Detail modal */}
       {selected && (
-        <div className="admin-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.3)' : 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="admin-modal-overlay admin-ticket-overlay" style={{ position: 'fixed', inset: 0, zIndex: 5000, background: isLight ? 'rgba(30,30,50,0.22)' : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={closeDetail}>
-          <div className="admin-modal-card" style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}
+          <div className="admin-modal-card admin-ticket-card" style={{ background: isLight ? '#ffffff' : '#0f0f1e', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', padding: 28, position: 'relative' }}
             onClick={e => e.stopPropagation()}>
           <button onClick={closeDetail} style={{
             position: 'absolute', top: 16, right: 16,
@@ -2624,7 +2662,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
             <X size={14} />
           </button>
 
-          {detailLoading && <div style={{ color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 13, paddingTop: 40, textAlign: 'center' }}>Loading…</div>}
+          {detailLoading && <TicketDetailSkeleton isLight={isLight} />}
 
           {!detailLoading && detailData && (
             <>
@@ -2667,7 +2705,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {detailData.attachments.map((att, i) => (
-                      <button key={i} onClick={() => setLightbox({ src: att.data, filename: att.filename, index: i, total: detailData.attachments.length, all: detailData.attachments })}
+                      <button key={i} onClick={() => setLightbox({ items: detailData.attachments.map(a => ({ url: a.data, type: 'image/*', filename: a.filename })), index: i })}
                         title={`View ${att.filename}`}
                         style={{ display: 'block', position: 'relative', borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', flexShrink: 0, padding: 0, background: 'none' }}>
                         <img
@@ -2804,94 +2842,15 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
       )}
 
       {/* Lightbox */}
-      {lightbox && (
-        <div
-          onClick={() => setLightbox(null)}
-          onKeyDown={e => e.key === 'Escape' && setLightbox(null)}
-          tabIndex={-1}
-          className="media-lightbox-overlay"
-          style={{
-            position: 'fixed', inset: 0,
-            background: isLight ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.92)',
-            backdropFilter: 'blur(10px)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            zIndex: 99999, cursor: 'zoom-out'
-          }}
-        >
-          {/* Prev / Next arrows */}
-          {lightbox.total > 1 && (
-            <button
-              onClick={e => { e.stopPropagation(); const prev = (lightbox.index - 1 + lightbox.total) % lightbox.total; const att = lightbox.all[prev]; setLightbox({ ...lightbox, src: att.data, filename: att.filename, index: prev }); }}
-              style={{
-                position: 'fixed', left: 20, top: '50%', transform: 'translateY(-50%)',
-                background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)',
-                border: isLight ? '1px solid rgba(0,0,0,0.15)' : '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: isLight ? '#111827' : '#fff', fontSize: 20, zIndex: 1,
-                transition: 'all 0.15s'
-              }}
-            >‹</button>
-          )}
-          {lightbox.total > 1 && (
-            <button
-              onClick={e => { e.stopPropagation(); const next = (lightbox.index + 1) % lightbox.total; const att = lightbox.all[next]; setLightbox({ ...lightbox, src: att.data, filename: att.filename, index: next }); }}
-              style={{
-                position: 'fixed', right: 20, top: '50%', transform: 'translateY(-50%)',
-                background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)',
-                border: isLight ? '1px solid rgba(0,0,0,0.15)' : '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '50%', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: isLight ? '#111827' : '#fff', fontSize: 20, zIndex: 1,
-                transition: 'all 0.15s'
-              }}
-            >›</button>
-          )}
-
-          {/* Image */}
-          <img
-            src={lightbox.src}
-            alt={lightbox.filename}
-            onClick={e => e.stopPropagation()}
-            style={{
-              maxWidth: '88vw', maxHeight: '78vh', borderRadius: 10,
-              boxShadow: isLight ? '0 12px 48px rgba(0,0,0,0.12)' : '0 8px 40px rgba(0,0,0,0.8)',
-              cursor: 'default', objectFit: 'contain',
-              border: isLight ? '4px solid #ffffff' : '1px solid rgba(255,255,255,0.15)',
-              outline: isLight ? '1px solid #d1d5db' : 'none'
-            }}
-          />
-
-          {/* Bottom bar */}
-          <div onClick={e => e.stopPropagation()} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span style={{ color: isLight ? '#374151' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600 }}>{lightbox.filename}{lightbox.total > 1 ? ` (${lightbox.index + 1} / ${lightbox.total})` : ''}</span>
-            <a
-              href={lightbox.src}
-              download={lightbox.filename}
-              className="stay-white stay-color"
-              style={{
-                padding: '6px 16px', borderRadius: 8,
-                background: '#6366f1', border: '1px solid #4f46e5',
-                color: '#ffffff', fontWeight: 700, fontSize: 12, textDecoration: 'none',
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                boxShadow: isLight ? '0 2px 4px rgba(99,102,241,0.2)' : 'none'
-              }}
-            >
-              ↓ Download
-            </a>
-            <button
-              onClick={() => setLightbox(null)}
-              style={{
-                padding: '6px 16px', borderRadius: 8,
-                background: isLight ? '#ffffff' : 'rgba(255,255,255,0.07)',
-                border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.15)',
-                color: isLight ? '#374151' : 'rgba(255,255,255,0.7)',
-                fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                boxShadow: isLight ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
-              }}
-            >
-              ✕ Close
-            </button>
-          </div>
-        </div>
+      {lightbox && createPortal(
+        <MediaLightbox
+          items={lightbox.items}
+          index={lightbox.index}
+          onClose={() => setLightbox(null)}
+          onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
+          onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+        />,
+        document.body
       )}
 
       {/* Resolve confirmation modal */}

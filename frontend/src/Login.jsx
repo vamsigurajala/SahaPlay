@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
 import { ArrowLeft, Mail, Lock, LogIn, Eye, EyeOff, User, Shield, Ban } from 'lucide-react';
 import { useCrypto } from './contexts/CryptoContext';
-import { decryptPrivateKey, generateKeyPair } from './lib/crypto.js';
+import { decryptPrivateKey, generateKeyPair, hashRecoveryPhrase } from './lib/crypto.js';
 import nacl from 'tweetnacl';
-import { encodeBase64 } from 'tweetnacl-util';
+import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
+import RecoveryPhraseModal from './components/RecoveryPhraseModal';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -26,6 +27,9 @@ const Login = () => {
   const [guestName, setGuestName]       = useState('');
   const [bannedInfo, setBannedInfo]     = useState(null); // { type: 'temp'|'permanent'|'terminated', reason, bannedUntil }
   const [countdown, setCountdown]       = useState('');
+  const [recoveryPhrase, setRecoveryPhrase] = useState('');
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [postRecoveryNav, setPostRecoveryNav] = useState('/');
 
   const navigate        = useNavigate();
   const location        = useLocation();
@@ -178,8 +182,56 @@ const Login = () => {
         localStorage.setItem('watch_token', data.token);
         localStorage.setItem('watch_username', data.username);
         localStorage.setItem('watch_role', data.role || 'user');
-        window.dispatchEvent(new Event('login_success'));
-        navigate(safeNext || '/');
+
+        if (data.needsKeySetup) {
+          // First Google login (or a legacy Google account missing keys): generate an E2EE
+          // key pair. Google users have no password, so it's wrapped server-side instead
+          // (see /api/auth/setup-google-keys) rather than with a client-derived password key.
+          try {
+            const chars = 'abcdefghijklmnopqrstuvwxyz';
+            let phraseStr = '';
+            const randBytes = crypto.getRandomValues(new Uint8Array(24));
+            for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+            const phrase = phraseStr.toUpperCase();
+
+            const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+            const secretKey = new Uint8Array(hashBuf);
+            const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+            const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+
+            await fetch(`${API}/api/auth/setup-google-keys`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+              body: JSON.stringify({
+                publicKey: encodeBase64(keyPair.publicKey),
+                rawPrivateKey: encodeBase64(keyPair.secretKey),
+                recoveryKeyHash
+              })
+            });
+
+            await setKeyPair(keyPair);
+            window.dispatchEvent(new Event('login_success'));
+            setPostRecoveryNav(safeNext || '/');
+            setRecoveryPhrase(phrase);
+            setShowRecoveryModal(true);
+          } catch (keyErr) {
+            console.error('[Login] Google key setup failed:', keyErr);
+            window.dispatchEvent(new Event('login_success'));
+            navigate(safeNext || '/');
+          }
+        } else {
+          if (data.rawPrivateKeyB64) {
+            try {
+              const secretKey = decodeBase64(data.rawPrivateKeyB64);
+              const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+              await setKeyPair(keyPair);
+            } catch (restoreErr) {
+              console.warn('[Login] Failed to restore Google E2EE key:', restoreErr);
+            }
+          }
+          window.dispatchEvent(new Event('login_success'));
+          navigate(safeNext || '/');
+        }
       } else {
         const code   = data.code;
         const reason = data.reason || 'Policy violation';
@@ -198,6 +250,12 @@ const Login = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePhraseConfirmed = () => {
+    setShowRecoveryModal(false);
+    setRecoveryPhrase('');
+    navigate(postRecoveryNav);
   };
 
   const handleGuestJoin = (e) => {
@@ -661,6 +719,7 @@ const Login = () => {
         </div>
         )}
       </div>
+      {showRecoveryModal && <RecoveryPhraseModal phrase={recoveryPhrase} onConfirmed={handlePhraseConfirmed} />}
     </div>
   );
 };
