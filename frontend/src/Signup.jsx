@@ -10,7 +10,7 @@ import {
   secretKeyToMnemonic,
   hashRecoveryPhrase
 } from './lib/crypto.js';
-import { encodeBase64 } from 'tweetnacl-util';
+import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
 import nacl from 'tweetnacl';
 
@@ -121,8 +121,55 @@ const Signup = () => {
         } catch(e) {}
         localStorage.setItem('watch_token', data.token);
         localStorage.setItem('watch_username', data.username);
-        window.dispatchEvent(new Event('login_success'));
-        navigate('/');
+
+        if (data.needsKeySetup) {
+          // First Google login (or a legacy Google account missing keys): generate an E2EE
+          // key pair. Google users have no password, so it's wrapped server-side instead
+          // (see /api/auth/setup-google-keys) rather than with a client-derived password key.
+          try {
+            const chars = 'abcdefghijklmnopqrstuvwxyz';
+            let phraseStr = '';
+            const randBytes = crypto.getRandomValues(new Uint8Array(24));
+            for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+            const phrase = phraseStr.toUpperCase();
+
+            const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+            const secretKey = new Uint8Array(hashBuf);
+            const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+            const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+
+            await fetch(`${API}/api/auth/setup-google-keys`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+              body: JSON.stringify({
+                publicKey: encodeBase64(keyPair.publicKey),
+                rawPrivateKey: encodeBase64(keyPair.secretKey),
+                recoveryKeyHash
+              })
+            });
+
+            await setKeyPair(keyPair);
+            window.dispatchEvent(new Event('login_success'));
+            setRecoveryPhrase(phrase);
+            setShowRecoveryModal(true);
+          } catch (keyErr) {
+            console.error('[Signup] Google key setup failed:', keyErr);
+            window.dispatchEvent(new Event('login_success'));
+            navigate('/');
+          }
+        } else {
+          if (data.rawPrivateKeyB64) {
+            try {
+              const secretKey = decodeBase64(data.rawPrivateKeyB64);
+              const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+              await setKeyPair(keyPair);
+            } catch (restoreErr) {
+              console.warn('[Signup] Failed to restore Google E2EE key:', restoreErr);
+            }
+          }
+          window.dispatchEvent(new Event('login_success'));
+          navigate('/');
+        }
       } else {
         setGlobalError(data.error || t('googleSignupFailed', 'Google Signup failed'));
       }

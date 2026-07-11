@@ -13,6 +13,10 @@ import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 
+// Minimum time the skeleton loader stays visible on first load, so the shimmer wave
+// has time to actually be perceived instead of flashing by on fast (local) connections.
+const MIN_SKELETON_MS = 500;
+
 const Profile = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -89,6 +93,10 @@ const Profile = () => {
   const [savingUsername, setSavingUsername] = useState(false);
   const editingUsernameOriginal = useRef(''); // snapshot of username at edit-start, never changes during a session
   const editingUsernameId = useRef(null);
+  // First load of profile/otherProfile is gated to a minimum visible duration so the skeleton's
+  // shimmer wave actually has time to be seen on fast (local) connections instead of flashing by.
+  const hasLoadedProfileOnce = useRef(false);
+  const hasLoadedOtherProfileOnce = useRef(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -455,12 +463,20 @@ const Profile = () => {
 
   const fetchProfile = useCallback(() => {
     if (isGuest || !token) return;
+    const isInitialLoad = !hasLoadedProfileOnce.current;
+    const startedAt = Date.now();
     fetch(`${API}/api/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        setProfile(data);
-        setDisplayName(prev => (prev && prev !== data.displayName && prev !== data.username) ? prev : (data.displayName || data.username || ''));
-        setBio(prev => (prev && prev !== data.bio) ? prev : (data.bio || ''));
+        const apply = () => {
+          hasLoadedProfileOnce.current = true;
+          setProfile(data);
+          setDisplayName(prev => (prev && prev !== data.displayName && prev !== data.username) ? prev : (data.displayName || data.username || ''));
+          setBio(prev => (prev && prev !== data.bio) ? prev : (data.bio || ''));
+        };
+        const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
+        if (remaining > 0) setTimeout(apply, remaining);
+        else apply();
       })
       .catch(() => {});
   }, [token, isGuest]);
@@ -479,6 +495,8 @@ const Profile = () => {
 
   const fetchOtherProfile = useCallback(() => {
     if (!viewingUsername) return;
+    const isInitialLoad = !hasLoadedOtherProfileOnce.current;
+    const startedAt = Date.now();
     const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
     fetch(`${API}/api/users/${viewingUsername}`, { headers })
       .then(r => {
@@ -489,8 +507,14 @@ const Profile = () => {
       .then(data => {
         if (!data) return;
         if (data.error) { setUserNotFound(true); return; }
-        setOtherProfile(data);
-        try { localStorage.setItem(`profile_cache_${viewingUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
+        const apply = () => {
+          hasLoadedOtherProfileOnce.current = true;
+          setOtherProfile(data);
+          try { localStorage.setItem(`profile_cache_${viewingUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
+        };
+        const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
+        if (remaining > 0) setTimeout(apply, remaining);
+        else apply();
       })
       .catch(() => {});
   }, [viewingUsername, token]);

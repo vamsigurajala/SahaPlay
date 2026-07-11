@@ -422,6 +422,44 @@ function App() {
         backdrop-filter: blur(4px) !important;
         -webkit-backdrop-filter: blur(4px) !important;
       }
+
+      /* ── Admin ticket detail (Reports / Support) — right-side drawer on real desktop ── */
+      /* Gated on hover+fine pointer (not just width) so iPads of any size/orientation keep the centered modal below */
+      @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+        .admin-ticket-overlay {
+          justify-content: flex-end !important;
+          align-items: stretch !important;
+          padding: 0 !important;
+        }
+        .admin-ticket-card {
+          width: min(480px, 100vw) !important;
+          max-width: 480px !important;
+          height: 100vh !important;
+          max-height: 100vh !important;
+          border-radius: 16px 0 0 16px !important;
+          animation: adminTicketSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+      }
+      @keyframes adminTicketSlideIn {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+      }
+
+      /* Skeleton shimmer — used for the admin ticket-detail loading state */
+      @keyframes skeletonShimmer {
+        0% { background-position: -400px 0; }
+        100% { background-position: 400px 0; }
+      }
+      .skeleton-block {
+        border-radius: 8px;
+        background-image: linear-gradient(90deg, var(--skel-base, rgba(255,255,255,0.06)) 25%, var(--skel-shine, rgba(255,255,255,0.14)) 37%, var(--skel-base, rgba(255,255,255,0.06)) 63%);
+        background-size: 800px 100%;
+        animation: skeletonShimmer 1.4s ease-in-out infinite;
+      }
+      html[data-theme='light'] .skeleton-block {
+        --skel-base: rgba(15,23,42,0.06);
+        --skel-shine: rgba(15,23,42,0.14);
+      }
       html[data-theme='light'] .chat-widget-main-panel:not(.gcw-force-dark) {
         background: rgba(255, 255, 255, 0.85) !important;
         border-color: rgba(0, 0, 0, 0.08) !important;
@@ -504,7 +542,7 @@ function App() {
       html[data-theme='light'] .nav-dropdown button[style*="f87171"]:not(.gcw-force-dark button) {
         color: #ef4444 !important;
       }
-      
+
       /* Enhance Profile Menu Icon backgrounds in Light Mode */
       html[data-theme='light'] .nav-dropdown div[style*="99, 102, 241"],
       html[data-theme='light'] .nav-dropdown div[style*="99,102,241"] {

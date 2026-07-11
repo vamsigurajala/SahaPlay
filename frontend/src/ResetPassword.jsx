@@ -5,6 +5,7 @@ import { Eye, EyeOff, Key, LogIn, CheckCircle, Shield } from 'lucide-react';
 import { mnemonicToSecretKey, encryptPrivateKey, hashRecoveryPhrase } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import nacl from 'tweetnacl';
+import PasswordResetWarningModal from './components/PasswordResetWarningModal';
 
 const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
   ? `http://${window.location.hostname}:3001`
@@ -21,6 +22,7 @@ const ResetPassword = () => {
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [globalError, setGlobalError]     = useState('');
   const [successMsg, setSuccessMsg]       = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const navigate  = useNavigate();
   const location  = useLocation();
@@ -47,12 +49,18 @@ const ResetPassword = () => {
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setGlobalError('');
     if (!token) { setGlobalError(t('invalidResetTokenShort', 'Invalid reset token.')); return; }
     if (!validate()) return;
+    // Warn the user about the consequences (message loss without a recovery key) before
+    // actually submitting — see PasswordResetWarningModal.
+    setShowConfirmModal(true);
+  };
 
+  const performReset = async () => {
+    setShowConfirmModal(false);
     setIsSubmitting(true);
     try {
       let payload = { token, newPassword: password };
@@ -376,6 +384,13 @@ const ResetPassword = () => {
           )}
         </div>
       </div>
+      {showConfirmModal && (
+        <PasswordResetWarningModal
+          hasRecoveryKey={!!recoveryKey.trim()}
+          onCancel={() => setShowConfirmModal(false)}
+          onConfirm={performReset}
+        />
+      )}
     </div>
   );
 };

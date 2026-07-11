@@ -311,6 +311,44 @@ function encryptServerText(text) {
   }
 }
 
+// ─── Google OAuth private-key wrapping ───────────────────────────────────────
+// Google OAuth users have no password, so client-side PBKDF2 wrapping (used for
+// email/password accounts) isn't available to them. As an accepted tradeoff
+// (documented, not ideal — the server itself can decrypt these keys, unlike the
+// password-based scheme where the raw key never reaches the server), we wrap
+// their private key server-side with a key derived from their stable Google
+// "sub" ID plus CHAT_ENCRYPTION_SECRET. Uses a distinct 'gkv1:' prefix so it can
+// never be confused with password-wrapped blobs or 'encv1:' chat-text ciphertext.
+function deriveGoogleWrapKey(googleSub) {
+  return crypto.createHash('sha256').update(`${CHAT_ENCRYPTION_SECRET}:${googleSub}`).digest();
+}
+
+function encryptRawKeyForGoogle(rawKeyBase64, googleSub) {
+  const key = deriveGoogleWrapKey(googleSub);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(rawKeyBase64, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return 'gkv1:' + iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptGoogleWrappedKey(blob, googleSub) {
+  if (!blob || typeof blob !== 'string' || !blob.startsWith('gkv1:')) return null;
+  try {
+    const parts = blob.split(':');
+    if (parts.length < 3) return null;
+    const key = deriveGoogleWrapKey(googleSub);
+    const iv = Buffer.from(parts[1], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(parts[2], 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted; // base64 raw NaCl secret key
+  } catch (e) {
+    console.error('[decryptGoogleWrappedKey] Error:', e.message);
+    return null;
+  }
+}
+
 let decryptFailureCount = 0;
 let lastDecryptWarnAt = 0;
 
@@ -968,6 +1006,12 @@ const migrationsReady = (async () => {
   // firstJoined: JSON object mapping roomId -> join timestamp
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "firstJoined" TEXT DEFAULT '{}'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] firstJoined:', e.message);
+  });
+  // google_sub: Google's stable per-account subject ID. Used (alongside CHAT_ENCRYPTION_SECRET)
+  // to derive a per-user server-side wrapping key for encryptedPrivateKey, since Google OAuth
+  // users have no password to derive a client-side wrapping key from.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] google_sub:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -1998,11 +2042,12 @@ app.post('/api/auth/google', async (req, res) => {
     });
     
     const payload = ticket.getPayload();
-    const { email, name } = payload;
-    
+    const { email, name, sub: googleSub } = payload;
+
     // Check if user exists
     const existingUser = await pool.query(
-      `SELECT id, username, email, role, "isVerified", terminated, is_permanently_banned, banned_until, ban_reason
+      `SELECT id, username, email, role, "isVerified", terminated, is_permanently_banned, banned_until, ban_reason,
+              google_sub, "publicKey", "encryptedPrivateKey"
        FROM users WHERE email = $1`,
       [email]
     );
@@ -2042,19 +2087,44 @@ app.post('/api/auth/google', async (req, res) => {
       // ─── Track last login ───
       pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
 
+      // Backfill google_sub for accounts created before this column existed
+      const effectiveGoogleSub = user.google_sub || googleSub;
+      if (!user.google_sub && googleSub) {
+        pool.query('UPDATE users SET google_sub = $1 WHERE id = $2', [googleSub, user.id]).catch(() => {});
+      }
+
       const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-      return res.json({ message: 'Login successful', token, username: user.username, role: user.role || 'user' });
+
+      // ─── E2EE key restoration ───
+      // Google users have no password, so their encryptedPrivateKey (if any) is wrapped
+      // server-side (see encryptRawKeyForGoogle) instead of client-side. Decrypt it here
+      // so the client can restore the same key pair without ever needing a password.
+      let rawPrivateKeyB64 = null;
+      if (user.encryptedPrivateKey) {
+        rawPrivateKeyB64 = decryptGoogleWrappedKey(user.encryptedPrivateKey, effectiveGoogleSub);
+      }
+      const needsKeySetup = !user.encryptedPrivateKey || !rawPrivateKeyB64;
+
+      return res.json({
+        message: 'Login successful',
+        token,
+        username: user.username,
+        role: user.role || 'user',
+        publicKey: user.publicKey || null,
+        rawPrivateKeyB64,
+        needsKeySetup,
+      });
     } else {
       // User does not exist, create them
       const baseUsername = (name || 'user').replace(/\s+/g, '').toLowerCase();
       const randSuffix = Math.floor(Math.random() * 10000);
       const finalUsername = `${baseUsername}${randSuffix}`;
-      
+
       const verificationToken = crypto.randomBytes(32).toString('hex');
 
       const insertResult = await pool.query(
-        'INSERT INTO users (username, email, password, "isVerified", "verificationToken") VALUES ($1, $2, NULL, 0, $3) RETURNING id',
-        [finalUsername, email, verificationToken]
+        'INSERT INTO users (username, email, password, "isVerified", "verificationToken", google_sub) VALUES ($1, $2, NULL, 0, $3, $4) RETURNING id',
+        [finalUsername, email, verificationToken, googleSub]
       );
       
       const newId = insertResult.rows[0]?.id;
@@ -2117,7 +2187,7 @@ app.post('/api/auth/google', async (req, res) => {
         replyTo: EMAILS.contact,
       });
 
-      return res.json({ message: 'Signup successful', token, username: finalUsername });
+      return res.json({ message: 'Signup successful', token, username: finalUsername, needsKeySetup: true });
     }
 
   } catch (error) {
@@ -2317,6 +2387,40 @@ app.post('/api/auth/setup-keys', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[setup-keys] DB error:', err);
+    res.status(500).json({ error: 'Failed to store keys' });
+  }
+});
+
+/**
+ * POST /api/auth/setup-google-keys
+ * Called after first Google OAuth login (or as a repair for legacy Google accounts
+ * that predate this endpoint). Unlike /api/auth/setup-keys, the client sends the RAW
+ * private key — there is no password to wrap it with client-side. The server wraps it
+ * with a key derived from the account's Google sub ID + CHAT_ENCRYPTION_SECRET before
+ * storing it. Restricted to accounts that actually have a google_sub on file, so this
+ * path can't be used to bypass password-based wrapping for a normal account.
+ */
+app.post('/api/auth/setup-google-keys', authenticateToken, async (req, res) => {
+  const { publicKey, rawPrivateKey, recoveryKeyHash } = req.body;
+  if (!publicKey || !rawPrivateKey) {
+    return res.status(400).json({ error: 'publicKey and rawPrivateKey are required' });
+  }
+
+  try {
+    const result = await pool.query('SELECT google_sub FROM users WHERE id = $1', [req.user.id]);
+    const googleSub = result.rows[0]?.google_sub;
+    if (!googleSub) {
+      return res.status(400).json({ error: 'This endpoint is only available to Google OAuth accounts' });
+    }
+
+    const encryptedPrivateKey = encryptRawKeyForGoogle(rawPrivateKey, googleSub);
+    await pool.query(
+      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
+      [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[setup-google-keys] DB error:', err);
     res.status(500).json({ error: 'Failed to store keys' });
   }
 });
