@@ -9957,9 +9957,12 @@ app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, requireA
     await pool.query(`DELETE FROM messages WHERE "roomId" = $1 AND type IN ('room', 'group')`, [roomId]);
     await pool.query(`DELETE FROM room_names WHERE "roomId" = $1`, [roomId]);
 
-    if (thumbnailPath) {
-      const fullPath = path.join(__dirname, thumbnailPath.replace(/^\//, ''));
-      fs.unlink(fullPath, () => {});
+    if (thumbnailPath && thumbnailPath.includes('/storage/v1/object/public/room-thumbnails/')) {
+      const filename = thumbnailPath.split('/room-thumbnails/').pop();
+      await supabase.storage
+        .from('room-thumbnails')
+        .remove([filename])
+        .catch(e => console.warn('[Thumbnail cleanup]', e.message));
     }
 
     await pool.query(
