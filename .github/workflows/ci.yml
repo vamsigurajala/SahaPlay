@@ -60,10 +60,17 @@ jobs:
           cd backend
           timeout 10s node -e "
             process.env.NODE_ENV = 'test';
-            // Attempt to load the module graph
-            // without actually binding a port
+            // require('./server.js') calls server.listen(), which succeeds and
+            // keeps the process alive (open HTTP/Socket.IO listener) even though
+            // the DB connection to the placeholder DATABASE_URL fails in the
+            // background. So a successful load must exit(0) explicitly here —
+            // otherwise the process hangs until the outer 'timeout' kills it,
+            // which would fail this step (via SIGTERM) on every healthy commit,
+            // not just genuine load failures.
             try {
               require('./server.js');
+              console.log('Module load check passed');
+              process.exit(0);
             } catch(e) {
               // Expected — server tries to connect
               // to DB which will fail with placeholders
@@ -82,8 +89,9 @@ jobs:
                 process.exit(1);
               }
               console.log('Module load check passed');
+              process.exit(0);
             }
-          " || true
+          "
 
       - name: Run backend tests
         run: cd backend && npm test
