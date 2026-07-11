@@ -7,10 +7,7 @@ import { useTranslation } from 'react-i18next';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/CropImage';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API } from '../lib/api';
 
 const BannedUserItem = ({ uname, onUnban, socket, roomId }) => {
   const { t } = useTranslation();

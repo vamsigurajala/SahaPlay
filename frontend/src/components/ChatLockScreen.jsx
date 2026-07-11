@@ -2,10 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Lock, X, ShieldAlert, Timer, Eye, EyeOff, ChevronRight, Loader2, Key, AlertTriangle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
+import { API } from '../lib/api';
 
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 4; 
 const LOCKOUT_ATTEMPTS = 3;

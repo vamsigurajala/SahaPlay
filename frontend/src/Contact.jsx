@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { CheckCircle, Send, X, Upload, AlertCircle, ChevronDown, MessageCircle } from 'lucide-react';
+import { API } from './lib/api';
 
 const MAX_CHARS = 1000;
 const MAX_IMAGES = 5;
@@ -19,10 +20,6 @@ const SUBJECTS = [
   { value: 'Content / Copyright Issue', labelKey: 'contactSubjectCopyright' },
   { value: 'Other', labelKey: 'contactSubjectOther' },
 ];
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 
 const getBorderColor = (hasError, isLight) =>
   hasError ? '#ef4444' : isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)';

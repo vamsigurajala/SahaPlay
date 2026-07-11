@@ -2,10 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Search, Play, User, Tv } from 'lucide-react';
 import { FaTwitch } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
-
-const SOCKET_SERVER_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { SOCKET_URL as SOCKET_SERVER_URL } from '../lib/api';
 
 export default function TwitchBrowserModal({ onSelect, onClose, isLight, currentUrl }) {
   const { t } = useTranslation();

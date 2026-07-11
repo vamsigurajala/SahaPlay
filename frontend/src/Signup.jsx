@@ -13,10 +13,7 @@ import {
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
 import nacl from 'tweetnacl';
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API } from './lib/api';
 
 const Signup = () => {
   const [username, setUsername]             = useState('');

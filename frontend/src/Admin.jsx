@@ -12,12 +12,7 @@ import {
 } from 'lucide-react';
 import { getAvatarUrl } from './utils/avatarUtils';
 import MediaLightbox from './components/MediaLightbox';
-
-// ─── API base (mirrors the pattern used throughout the app) ─────────────────
-const apiHost = window.location.hostname;
-const API_BASE = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(apiHost)
-  ? `http://${apiHost}:3001`
-  : `https://${apiHost}`;
+import { API as API_BASE } from './lib/api';
 
 function authHeaders() {
   const token = localStorage.getItem('watch_token');

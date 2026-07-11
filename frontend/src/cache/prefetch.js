@@ -1,15 +1,5 @@
 import { appCache } from './appCache.js';
-
-/**
- * Returns the API base URL using the same logic as GlobalChatWidget's `API` constant,
- * so prefetched cache keys match what components look up.
- */
-function apiBase() {
-  const h = window.location.hostname;
-  return /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(h)
-    ? `http://${h}:3001`
-    : `https://${h}`;
-}
+import { API } from '../lib/api';
 
 async function quietly(p) {
   try { await p; } catch { /* prefetch failures are non-fatal */ }
@@ -38,7 +28,7 @@ export async function prefetchAll() {
 
   _lastRun = Date.now();
 
-  const base = apiBase();
+  const base = API;
   const h = { Authorization: `Bearer ${token}` };
 
   // ── Tier 1: critical, all in parallel ──────────────────────────────────────
