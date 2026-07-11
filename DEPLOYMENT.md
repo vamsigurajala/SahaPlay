@@ -113,12 +113,40 @@ Before opening to users, verify:
 - [ ] Send an image — confirms Supabase Storage
 - [ ] Check admin dashboard loads at /admin
 
-## Starting the backend in production
+## Storage
 
-Do NOT use: `node backend/server.js`
-DO use: `pm2 start backend/ecosystem.config.js`
+Room thumbnails and avatars are uploaded to Supabase Storage (`room-thumbnails` and
+`avatars` buckets, both public) — not the server filesystem. This is required for
+correctness on Render and other PaaS platforms, where the filesystem is ephemeral
+and wiped on every redeploy/restart.
 
-Commands:
+`backend/uploads/` and `backend/avatars/` were previously committed to git and have
+since been untracked (`git rm -r --cached`) and added to `.gitignore`. This stops
+new user media from being committed going forward, but **pre-existing git history
+still contains this user media** in old commits. Before making this repository
+public, that history must be purged with `git filter-repo` (or BFG Repo-Cleaner) —
+this is a destructive rewrite of history requiring a force-push and is intentionally
+not done as part of routine deploys.
+
+### Stream chunk storage
+Video stream chunks uploaded via `/api/stream/*` are stored temporarily in
+`uploads/streams/` on the server filesystem. These are transient by design — chunks
+are deleted after the stream session ends, and are not persisted across server
+restarts or redeploys. This is expected behavior and does not affect stored chat
+history or media (which uses Supabase Storage).
+
+For multi-instance deployments, stream uploads must be routed to a single instance
+(sticky sessions) since chunks are not shared across instances.
+
+## Backend process supervision
+
+### On Render (recommended)
+Render manages process supervision automatically.
+Use start command: `node server.js`
+Do NOT use PM2 on Render — it is not needed and may conflict with Render's process model.
+
+### On a VPS/self-hosted server
+Use PM2 for process supervision:
 ```
 pm2 start backend/ecosystem.config.js
 pm2 status

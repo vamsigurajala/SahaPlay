@@ -248,8 +248,21 @@ function getLanIp() {
 const LAN_IP = getLanIp();
 console.log(`[Server] Detected LAN IP: ${LAN_IP}`);
 
+const requiredEnvVars = ['JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+
+// In production, DATABASE_URL is also required
+if (process.env.NODE_ENV === 'production') {
+  requiredEnvVars.push('DATABASE_URL');
+}
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`[FATAL] Required env var ${envVar} is not set. Server will not start.`);
+    process.exit(1);
+  }
+}
+
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) { console.error('[FATAL] JWT_SECRET environment variable is not set. Server cannot start.'); process.exit(1); }
 
 // Initialize Supabase (replaces SQLite)
 const supabase = createClient(
@@ -259,11 +272,19 @@ const supabase = createClient(
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE'; // In a real app, use dotenv
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
+// Google OAuth warning (not fatal — app works without it, just no Google login)
+if (!process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE') {
+  console.warn('[WARN] GOOGLE_CLIENT_ID not set or is placeholder — Google Sign-In will not work');
+}
+
 
 // Initialize DB
 const { Pool } = require('pg');
-const pool = new Pool({ 
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false,
   max: 20,
   idleTimeoutMillis: 60000,
   connectionTimeoutMillis: 10000,
@@ -2772,46 +2793,86 @@ const avatarImageFilter = (req, file, cb) => {
 };
 const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: avatarImageFilter });
 
-const roomThumbnailStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, 'uploads', 'room_thumbnails');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, `room-${Date.now()}${ext}`);
-  }
-});
 // A6-F2: room thumbnail accepts only image types (frontend always sends image/jpeg from canvas crop)
 const thumbnailImageFilter = (req, file, cb) => {
   const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   if (allowed.includes(file.mimetype)) cb(null, true);
   else cb(Object.assign(new Error('Only image files are allowed for thumbnails'), { code: 'INVALID_MIME' }), false);
 };
-const roomThumbnailUpload = multer({ storage: roomThumbnailStorage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: thumbnailImageFilter });
+const roomThumbnailUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: thumbnailImageFilter });
 
-app.use('/uploads/room_thumbnails', express.static(path.join(__dirname, 'uploads', 'room_thumbnails')));
-
-app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('thumbnail'), (req, res) => {
+app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('thumbnail'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   const { roomId } = req.body;
   if (!roomId) return res.status(400).json({ error: 'roomId required' });
-  const thumbnailPath = `/uploads/room_thumbnails/${req.file.filename}`;
-  db.run('UPDATE room_names SET thumbnailPath = ? WHERE roomId = ?', [thumbnailPath, roomId], (err) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    
-    // Sync in-memory room if it exists
-    const room = rooms.get(roomId);
-    if (room) {
-      room.thumbnailPath = thumbnailPath;
-    }
-    
-    // Broadcast to all users in the room so the UI updates immediately
-    io.in(roomId).emit('room_thumbnail_updated', { thumbnailPath });
-    
-    res.json({ thumbnailPath });
-  });
+
+  const ext = path.extname(req.file.originalname) || '.jpg';
+  const filename = `room-${Date.now()}${ext}`;
+
+  try {
+    db.get('SELECT thumbnailPath FROM room_names WHERE roomId = ?', [roomId], async (err, row) => {
+      if (err) {
+        console.error('[Room Thumbnail Upload] Database select error:', err.message);
+        return res.status(500).json({ error: 'Database error' });
+      }
+
+      const oldPath = row?.thumbnailPath;
+
+      const { error: uploadError } = await supabase.storage
+        .from('room-thumbnails')
+        .upload(filename, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('[Room Thumbnail Upload] Supabase upload error:', uploadError.message);
+        return res.status(500).json({ error: 'Upload failed' });
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('room-thumbnails')
+        .getPublicUrl(filename);
+
+      const thumbnailPath = urlData?.publicUrl;
+      if (!thumbnailPath) {
+        return res.status(500).json({ error: 'Failed to generate public URL' });
+      }
+
+      if (oldPath && oldPath.includes('/storage/v1/object/public/room-thumbnails/')) {
+        const oldFilename = oldPath.split('/room-thumbnails/').pop();
+        if (oldFilename) {
+          await supabase.storage
+            .from('room-thumbnails')
+            .remove([oldFilename])
+            .catch(removeErr => {
+              console.error('[Room Thumbnail Upload] Supabase remove error:', removeErr.message);
+            });
+        }
+      }
+
+      db.run('UPDATE room_names SET thumbnailPath = ? WHERE roomId = ?', [thumbnailPath, roomId], (updateErr) => {
+        if (updateErr) {
+          console.error('[Room Thumbnail Upload] Database update error:', updateErr.message);
+          return res.status(500).json({ error: 'Database error' });
+        }
+
+        // Sync in-memory room if it exists
+        const room = rooms.get(roomId);
+        if (room) {
+          room.thumbnailPath = thumbnailPath;
+        }
+
+        // Broadcast to all users in the room so the UI updates immediately
+        io.in(roomId).emit('room_thumbnail_updated', { thumbnailPath });
+
+        res.json({ thumbnailPath });
+      });
+    });
+  } catch (err) {
+    console.error('[Room Thumbnail Upload] error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // Serve avatars statically
@@ -10717,6 +10778,31 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
   console.log(`Cast TV URL: http://${LAN_IP}:${FRONTEND_PORT}/tv`);
 });
+
+async function gracefulShutdown(signal) {
+  console.log(`[Server] ${signal} received, shutting down`);
+  server.close(async () => {
+    console.log('[Server] HTTP server closed');
+    try {
+      await io.close();
+      console.log('[Server] Socket.IO closed');
+      await pool.end();
+      console.log('[Server] Database pool closed');
+      process.exit(0);
+    } catch (err) {
+      console.error('[Server] Shutdown error:', err);
+      process.exit(1);
+    }
+  });
+  // Force exit if graceful shutdown takes too long
+  setTimeout(() => {
+    console.error('[Server] Forced exit after timeout');
+    process.exit(1);
+  }, 10000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // ─── Media Expiry Cleanup Job (runs every 24 hours) ───
 async function cleanupExpiredMedia() {
