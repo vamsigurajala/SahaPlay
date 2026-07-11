@@ -777,8 +777,14 @@ function broadcastAdminBadges() {
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  process.env.FRONTEND_URL
-].filter(Boolean);
+  ...(process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL
+        .split(',')
+        .map(u => u.trim())
+        .filter(Boolean)
+    : []
+  )
+];
 
 app.use(cors({
   origin: function(origin, callback) {
@@ -10694,7 +10700,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 5173;
 
 // ─── Server Info Endpoint (for Cast to TV LAN URL) ───

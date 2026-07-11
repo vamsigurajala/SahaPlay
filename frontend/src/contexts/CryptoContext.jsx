@@ -13,10 +13,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey } from '../lib/crypto.js';
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API } from '../lib/api';
 
 const CryptoContext = createContext(null);
 

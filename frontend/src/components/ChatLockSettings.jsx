@@ -3,10 +3,7 @@ import { Lock, Unlock, Trash2, Clock, Shield, ChevronDown, AlertTriangle } from 
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import PinSetupModal from './PinSetupModal';
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API } from '../lib/api';
 
 const AUTO_LOCK_OPTIONS = [
   { value: 0,  labelKey: 'autoLockImmediately', label: 'Immediately' },

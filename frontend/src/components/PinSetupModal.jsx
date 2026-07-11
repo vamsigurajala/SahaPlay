@@ -2,10 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Lock, Eye, EyeOff, Copy, Check, ChevronRight, Shield, Key, X, ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
+import { API } from '../lib/api';
 
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 const PIN_LENGTH = 6;
 
 function SimplePinDisplay({ value, secret, active, error }) {

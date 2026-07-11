@@ -8,6 +8,7 @@ import {
   Zap, Activity, Palette, Link, Shield, HelpCircle,
   AlertTriangle, Flame, Bug, Search, Home
 } from 'lucide-react';
+import { API } from './lib/api';
 
 const BUG_TYPES = [
   { key: 'video-sync', Icon: Play,          color: '#6366f1', labelKey: 'rbTypeVideoSync',    fallback: 'Video / Sync Issue' },
@@ -30,10 +31,6 @@ const SEVERITIES = [
   { key: 'major',    Icon: Zap,          color: '#f97316', labelKey: 'rbSeverityMajorLabel',    descKey: 'rbSeverityMajorDesc',    fallbackLabel: 'Major',    fallbackDesc: 'Significantly affects my experience' },
   { key: 'critical', Icon: Flame,        color: '#ef4444', labelKey: 'rbSeverityCriticalLabel', descKey: 'rbSeverityCriticalDesc', fallbackLabel: 'Critical', fallbackDesc: 'App completely broken for me' },
 ];
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
 
 const MAX_ATTACH = 5;
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB

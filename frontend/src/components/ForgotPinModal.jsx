@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { Key, Mail, ArrowLeft, X, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-
-const API = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { API } from '../lib/api';
 
 export default function ForgotPinModal({ onClose, onSuccess }) {
   const { t } = useTranslation();

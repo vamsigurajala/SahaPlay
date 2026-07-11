@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-
-// ─── Public-safe socket URL ──────────────────────────────────────────────────
-// Works on LAN, production, and any network since it connects to the same server
-// that served this page — whether that's localhost:3001 or sahaplay.com.
-const SOCKET_URL = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname)
-  ? `http://${window.location.hostname}:3001`
-  : `https://${window.location.hostname}`;
+import { SOCKET_URL } from './lib/api';
 
 // ─── Animated digit component ─────────────────────────────────────────────────
 function CodeDigit({ char, index, revealed }) {

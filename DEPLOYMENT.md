@@ -26,15 +26,92 @@
    - Frontend: `cd frontend && npm run dev`
    - Or use `start.ps1` (Windows PowerShell)
 
-## Production Deploy
-1. Set up a Linux server (VPS, Render, Railway, etc.)
-2. Copy all files except `.env` files
-3. Create `backend/.env` on the server with production values
-4. Install PM2: `npm install -g pm2`
-5. Start backend: `pm2 start backend/ecosystem.config.js`
-6. Build frontend: `cd frontend && npm run build`
-7. Serve the `frontend/dist` folder via nginx or your hosting platform
-8. Update `FRONTEND_URL` in `backend/.env` to your production domain
+## Production Deploy (Render + Vercel)
+
+### Step 1: Deploy backend to Render
+
+1. Go to render.com → New → Web Service
+2. Connect your GitHub repo (SahaPlay)
+3. Settings:
+   - Root directory: backend
+   - Build command: npm install
+   - Start command: node server.js
+   - Instance type: Free (or paid for no sleep)
+4. Add environment variables (all required):
+   - JWT_SECRET (generate: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))")
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - DATABASE_URL (use direct connection string)
+   - FRONTEND_URL=https://sahaplay.com,https://www.sahaplay.com
+   - RESEND_API_KEY
+   - FROM_EMAIL=noreply@sahaplay.com
+   - SUPPORT_EMAIL=support@sahaplay.com
+   - GOOGLE_CLIENT_ID
+   - GOOGLE_CLIENT_SECRET
+   - CHAT_ENCRYPTION_SECRET (generate same as JWT_SECRET — NEVER change after first deploy)
+   - SENTRY_DSN (optional, from sentry.io)
+   - NODE_ENV=production
+5. Deploy. Render gives you a URL like: https://sahaplay-backend.onrender.com
+6. Verify: GET /health returns {"status":"ok"}
+
+Note: PM2/ecosystem.config.js is for VPS deployments only. Render manages its own process supervision — do not use PM2 on Render.
+
+### Step 2: Deploy frontend to Vercel
+
+1. Go to vercel.com → New Project
+2. Import your GitHub repo
+3. Settings:
+   - Root directory: frontend
+   - Build command: npm run build
+   - Output directory: dist
+4. Add environment variables:
+   - VITE_API_URL=https://sahaplay-backend.onrender.com
+   - VITE_SOCKET_URL=https://sahaplay-backend.onrender.com
+   - VITE_GOOGLE_CLIENT_ID (your Google OAuth client ID)
+   - VITE_SENTRY_DSN (optional)
+5. Deploy. Vercel gives you a URL like: https://sahaplay.vercel.app
+
+### Step 3: Connect sahaplay.com domain
+
+In Vercel → your project → Settings → Domains:
+Add sahaplay.com and www.sahaplay.com
+
+In Porkbun DNS, add:
+- A record: @ → 76.76.21.21 (Vercel IP)
+- CNAME record: www → cname.vercel-dns.com
+
+### Step 4: Update environment variables
+
+In Render, update FRONTEND_URL to: https://sahaplay.com,https://www.sahaplay.com
+
+In Vercel, VITE_API_URL stays as the Render URL.
+
+### Step 5: Google OAuth production setup
+
+In Google Cloud Console → APIs & Services → Credentials → your OAuth client:
+- Authorized JavaScript origins: add https://sahaplay.com
+- Authorized redirect URIs: add https://sahaplay.com
+
+### Step 6: Set up UptimeRobot (free)
+
+Go to uptimerobot.com → Add Monitor:
+- Monitor type: HTTPS
+- URL: https://sahaplay-backend.onrender.com/health
+- Check interval: 5 minutes
+- Alert contact: your email
+
+### Pre-deploy verification checklist
+
+Before opening to users, verify:
+- [ ] GET https://sahaplay-backend.onrender.com/health returns {"status":"ok","uptime":...}
+- [ ] Open https://sahaplay.com — app loads correctly
+- [ ] No CORS errors in browser DevTools console
+- [ ] Socket.IO connects (check DevTools → Network → WS tab shows an active connection)
+- [ ] Login with email/password works
+- [ ] Google Sign-In works (tests OAuth origin config)
+- [ ] Create a room, send a message — confirms Socket.IO, DB write, E2EE all working
+- [ ] Send an image — confirms Supabase Storage
+- [ ] Check admin dashboard loads at /admin
 
 ## Starting the backend in production
 
