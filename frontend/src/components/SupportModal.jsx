@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Copy, Mail, Check, MessageSquare, Shield, Bug, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const SupportModal = ({ isOpen, onClose }) => {
+  const { t } = useTranslation();
   const [copiedKey, setCopiedKey] = useState(null);
   const [isLight, setIsLight] = useState(document.documentElement.getAttribute('data-theme') === 'light');
 
@@ -32,46 +34,66 @@ const SupportModal = ({ isOpen, onClose }) => {
   const handleCopy = (email, key) => {
     navigator.clipboard.writeText(email);
     setCopiedKey(key);
-    toast.success('Email copied to clipboard!');
+    toast.success(t('supportModalCopiedToast', 'Email copied to clipboard!'));
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
   const contactOptions = [
     {
       key: 'general',
-      title: 'General Questions',
+      title: t('supportModalGeneralTitle', 'General Questions'),
       email: 'contact@sahaplay.com',
       Icon: MessageSquare,
       color: '#6366f1',
-      useFor: ['Account questions', 'Room issues', 'General support', 'App usage questions'],
-      note: 'We usually respond within 48 hours.'
+      useFor: [
+        t('supportModalGeneralUse1', 'Account questions'),
+        t('supportModalGeneralUse2', 'Room issues'),
+        t('supportModalGeneralUse3', 'General support'),
+        t('supportModalGeneralUse4', 'App usage questions')
+      ],
+      note: t('supportModalGeneralNote', 'We usually respond within 48 hours.')
     },
     {
       key: 'safety',
-      title: 'Safety Concerns',
+      title: t('supportModalSafetyTitle', 'Safety Concerns'),
       email: 'safety@sahaplay.com',
       Icon: Shield,
       color: '#ef4444',
-      useFor: ['Abuse', 'Harassment', 'Harmful content', 'Privacy or safety concerns'],
-      note: 'Safety-related reports are reviewed with priority.'
+      useFor: [
+        t('supportModalSafetyUse1', 'Abuse'),
+        t('supportModalSafetyUse2', 'Harassment'),
+        t('supportModalSafetyUse3', 'Harmful content'),
+        t('supportModalSafetyUse4', 'Privacy or safety concerns')
+      ],
+      note: t('supportModalSafetyNote', 'Safety-related reports are reviewed with priority.')
     },
     {
       key: 'technical',
-      title: 'Bug Reports / Technical Issues',
+      title: t('supportModalTechTitle', 'Bug Reports / Technical Issues'),
       email: 'report@sahaplay.com',
       Icon: Bug,
       color: '#10b981',
-      useFor: ['Bugs', 'Broken features', 'Login issues', 'Upload issues', 'Room or chat problems'],
-      note: 'Technical issues may take longer depending on complexity, but we will review them as soon as possible.'
+      useFor: [
+        t('supportModalTechUse1', 'Bugs'),
+        t('supportModalTechUse2', 'Broken features'),
+        t('supportModalTechUse3', 'Login issues'),
+        t('supportModalTechUse4', 'Upload issues'),
+        t('supportModalTechUse5', 'Room or chat problems')
+      ],
+      note: t('supportModalTechNote', 'Technical issues may take longer depending on complexity, but we will review them as soon as possible.')
     },
     {
       key: 'founders',
-      title: 'Founders / Admin Contact',
+      title: t('supportModalFoundersTitle', 'Founders / Admin Contact'),
       email: 'founders@sahaplay.com',
       Icon: User,
       color: '#a855f7',
-      useFor: ['Founder/admin contact', 'Business inquiries', 'Serious account or platform concerns'],
-      note: 'For admin/founder-level concerns only.'
+      useFor: [
+        t('supportModalFoundersUse1', 'Founder/admin contact'),
+        t('supportModalFoundersUse2', 'Business inquiries'),
+        t('supportModalFoundersUse3', 'Serious account or platform concerns')
+      ],
+      note: t('supportModalFoundersNote', 'For admin/founder-level concerns only.')
     }
   ];
 
@@ -96,7 +118,7 @@ const SupportModal = ({ isOpen, onClose }) => {
           }}
         >
           <h2 style={{ fontSize: '20px', fontWeight: 800, color: isLight ? '#0f172a' : '#ffffff', margin: 0 }}>
-            Contact SahaPlay Support
+            {t('supportModalTitle', 'Contact SahaPlay Support')}
           </h2>
           <button
             onClick={onClose}
@@ -123,7 +145,7 @@ const SupportModal = ({ isOpen, onClose }) => {
         {/* Scrollable Content */}
         <div className="support-modal-content no-scrollbar" style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <p style={{ fontSize: '14px', color: isLight ? '#475569' : '#9ca3af', lineHeight: 1.6, margin: 0 }}>
-            Need help with SahaPlay? Choose the right contact below and our team will review your request.
+            {t('supportModalSubtitle', 'Need help with SahaPlay? Choose the right contact below and our team will review your request.')}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -204,7 +226,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
                     >
                       {copiedKey === opt.key ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
-                      {copiedKey === opt.key ? 'Copied' : 'Copy'}
+                      {copiedKey === opt.key ? t('supportModalCopied', 'Copied') : t('supportModalCopy', 'Copy')}
                     </button>
                     <a
                       href={`mailto:${opt.email}`}
@@ -231,7 +253,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                       onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                     >
                       <Mail size={14} className="stay-white" color="#ffffff" />
-                      <span className="stay-white" style={{ color: '#ffffff' }}>Email</span>
+                      <span className="stay-white" style={{ color: '#ffffff' }}>{t('supportModalEmail', 'Email')}</span>
                     </a>
                   </div>
                 </div>
@@ -241,7 +263,7 @@ const SupportModal = ({ isOpen, onClose }) => {
 
           {/* Footer Note */}
           <div className="support-note">
-            <strong style={{ color: 'inherit' }}>Note:</strong> Please include your username, room ID, ticket ID, screenshots, or error details when possible. This helps us resolve issues faster.
+            <strong style={{ color: 'inherit' }}>{t('supportModalNoteLabel', 'Note:')}</strong>{t('supportModalNoteText', ' Please include your username, room ID, ticket ID, screenshots, or error details when possible. This helps us resolve issues faster.')}
           </div>
         </div>
 
@@ -271,7 +293,7 @@ const SupportModal = ({ isOpen, onClose }) => {
             onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.04)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
-            Close
+            {t('supportModalClose', 'Close')}
           </button>
         </div>
       </div>
