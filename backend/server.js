@@ -572,6 +572,17 @@ const db = new SupabaseAdapter();
 
 
 const app = express();
+
+// FRONTEND_URL may be a comma-separated list (e.g. apex + www) — helmet's CSP
+// directives require each entry to be its own array element, so parse it the
+// same way allowedOrigins does further down rather than passing the raw string.
+const frontendOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL
+      .split(',')
+      .map(u => u.trim())
+      .filter(Boolean)
+  : ['http://localhost:5173'];
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -604,7 +615,7 @@ app.use(helmet({
       ],
       connectSrc: [
         "'self'",
-        process.env.FRONTEND_URL || 'http://localhost:5173',
+        ...frontendOrigins,
         'wss:',
         'ws:',
         'https://*.supabase.co',
