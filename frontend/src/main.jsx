@@ -1,11 +1,28 @@
 import { StrictMode } from 'react'
 import { clearUserSession } from './lib/authUtils.js';
 import { createRoot } from 'react-dom/client'
+import * as Sentry from '@sentry/react'
 import './index.css'
 import './i18n'
 import App from './App.jsx'
 import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
+
+Sentry.init({
+  dsn: import.meta.env.VITE_SENTRY_DSN,
+  environment: import.meta.env.MODE,
+  tracesSampleRate: 0.1,
+  enabled: !!import.meta.env.VITE_SENTRY_DSN,
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration({
+      maskAllText: true,
+      blockAllMedia: false
+    })
+  ],
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0.1
+})
 
 // Global Fetch Interceptor to elegantly handle expired/invalid JWT tokens app-wide
 const originalFetch = window.fetch;
