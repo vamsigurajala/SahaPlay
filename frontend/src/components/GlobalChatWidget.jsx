@@ -1900,7 +1900,7 @@ const GlobalChatWidget = forwardRef(({
 
     sock.on('connect', () => {
       console.log('[WIDGET SOCKET] Connected/Reconnected');
-      fetchConversations();
+      fetchConversationsWithRetry();
       // Vital for retaining real-time tracking if socket reconnects gracefully after a brief dropout or server bounce
       setConversations(currentConvos => {
         if (!Array.isArray(currentConvos)) return currentConvos;
@@ -2919,8 +2919,8 @@ const GlobalChatWidget = forwardRef(({
   }, [view, activeChat, replyToMsg]);
 
   const fetchConversations = async () => {
-    if (!token) return;
-    
+    if (!token) return true; // nothing to do — not a failure
+
     // Only show blocking loader if we have no cached data at all
     const cached = localStorage.getItem('watch_recent_chats');
     let localRooms = [];
@@ -3187,15 +3187,33 @@ const GlobalChatWidget = forwardRef(({
         });
 
         const all = [...finalFetched, ...preserved, ...extras];
-        
+
         // FORCE LIFO SORT: Newest activity first
         return all.sort((a,b) => getSortTime(b) - getSortTime(a));
       });
+      return true;
     } catch(e) {
       console.error(e);
+      return false;
     } finally {
       setLoading(false);
     }
+  };
+
+  // fetchConversations already catches its own errors internally (so other
+  // fire-and-forget callers never see a rejection) and now reports success via
+  // its return value instead. Retries on that signal rather than a thrown
+  // error, since nothing here ever actually throws.
+  const fetchConversationsWithRetry = async (retries = 3, delayMs = 1000) => {
+    for (let i = 0; i < retries; i++) {
+      const ok = await fetchConversations();
+      if (ok) return;
+      console.warn(`[GlobalChat] fetchConversations attempt ${i + 1} failed`);
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+      }
+    }
+    console.error('[GlobalChat] fetchConversations failed after all retries — conversations may be stale until next reconnect');
   };
 
   // Auto-track rooms whenever conversation list changes to ensure we get typing/messages for all active chats
@@ -5539,7 +5557,9 @@ const GlobalChatWidget = forwardRef(({
                                 transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
                               }}
                             >
-                              {msg.decryptedText !== null ? (
+                              {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                                <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                              ) : msg.decryptedText !== null ? (
                                 <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
                               ) : (
                                 (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (

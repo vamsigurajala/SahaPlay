@@ -2267,7 +2267,9 @@ export default function RoomChatPanel({ p }) {
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}>
-                          {msg.decryptedText !== null ? (
+                          {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                            <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                          ) : msg.decryptedText !== null ? (
                             <MessageText text={msg.decryptedText} isMe={isMe} />
                           ) : (
                             (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
@@ -2747,7 +2749,9 @@ export default function RoomChatPanel({ p }) {
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}>
-                                {msg.decryptedText !== null ? (
+                                {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                                  <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                ) : msg.decryptedText !== null ? (
                                   <MessageText text={msg.decryptedText} isMe={isMe} />
                                 ) : (
                                   (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
