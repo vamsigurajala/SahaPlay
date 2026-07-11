@@ -583,6 +583,11 @@ const frontendOrigins = process.env.FRONTEND_URL
       .filter(Boolean)
   : ['http://localhost:5173'];
 
+// Single canonical URL for building links that go into outbound content (emails,
+// invites) — FRONTEND_URL may be a comma-separated list for CORS/CSP purposes,
+// but a link can only ever point at one URL, so always use the first entry.
+const PRIMARY_FRONTEND_URL = frontendOrigins[0];
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -1847,7 +1852,7 @@ app.post('/api/signup', async (req, res) => {
     const setupToken = jwt.sign({ id: newUserId, username }, JWT_SECRET, { expiresIn: '10m' });
 
     // Send Verification Email
-    const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${verificationToken}`;
+    const verifyLink = `${PRIMARY_FRONTEND_URL}/verify?token=${verificationToken}`;
     const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
@@ -1944,7 +1949,7 @@ app.post('/api/resend-verification', loginLimiter, async (req, res) => {
     if (!user || user.isVerified !== 0) return;
     const newToken = crypto.randomBytes(32).toString('hex');
     await pool.query('UPDATE users SET "verificationToken" = $1 WHERE id = $2', [newToken, user.id]);
-    const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${newToken}`;
+    const verifyLink = `${PRIMARY_FRONTEND_URL}/verify?token=${newToken}`;
     const resendHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
@@ -2179,7 +2184,7 @@ app.post('/api/auth/google', async (req, res) => {
       const token = jwt.sign({ id: newId, username: finalUsername }, JWT_SECRET, { expiresIn: '10m' });
 
       // Send verification email to new Google user
-      const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify?token=${verificationToken}`;
+      const verifyLink = `${PRIMARY_FRONTEND_URL}/verify?token=${verificationToken}`;
       const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
@@ -2272,7 +2277,7 @@ app.post('/api/forgot-password', async (req, res) => {
       [resetToken, resetExpiry, user.id]
     );
 
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    const resetLink = `${PRIMARY_FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     // Send real email via Gmail SMTP
     const resetHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -10466,7 +10471,7 @@ app.post('/api/admin/invites', authenticateToken, requireAdmin, requireAdminRole
       [cleanEmail, role, tokenHash, String(req.user.id), expiresAt]
     );
 
-    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const clientOrigin = (req.headers.origin || req.headers.referer || PRIMARY_FRONTEND_URL).replace(/\/$/, '');
     const inviteUrl = `${clientOrigin}/admin/accept-invite?token=${rawToken}&email=${encodeURIComponent(cleanEmail)}`;
     const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[role] || role;
 
@@ -10592,7 +10597,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
     );
 
     const inv = check.rows[0];
-    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const clientOrigin = (req.headers.origin || req.headers.referer || PRIMARY_FRONTEND_URL).replace(/\/$/, '');
     const inviteLink = `${clientOrigin}/admin/accept-invite?token=${newToken}&email=${encodeURIComponent(inv.email)}`;
     const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[inv.role] || inv.role;
 
@@ -10697,7 +10702,7 @@ app.post('/api/admin/accept-invite', authenticateToken, async (req, res) => {
     broadcastAdminBadges();
 
     // Send confirmation email
-    const clientOrigin = (req.headers.origin || req.headers.referer || process.env.FRONTEND_URL || 'https://sahaplay.com').replace(/\/$/, '');
+    const clientOrigin = (req.headers.origin || req.headers.referer || PRIMARY_FRONTEND_URL).replace(/\/$/, '');
     const roleLabel = { admin: 'Admin', moderator: 'Moderator', support: 'Support' }[inv.role] || inv.role;
     const acceptHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
