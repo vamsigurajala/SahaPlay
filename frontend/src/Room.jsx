@@ -8602,37 +8602,39 @@ const Room = () => {
                     {/* Redundant Fullscreen/Chat buttons removed - relying on Global Overlay at same position */}
                   </div>
 
-                  {/* ── Minimal Single Stop Button (Bottom-Left, auto-hides on idle) ── */}
+                  {/* ── End Screen Share (Top-Right, auto-hides on idle) ── */}
                   {(isScreensharing || isViewer) && (
                     <div style={{
                       position: 'absolute',
-                      bottom: 24,
-                      left: 20,
+                      top: 20,
+                      right: 20,
                       zIndex: 100,
                       pointerEvents: showControls ? 'auto' : 'none',
                       opacity: showControls ? 1 : 0,
-                      transform: showControls ? 'translateY(0)' : 'translateY(12px)',
+                      transform: showControls ? 'translateY(0)' : 'translateY(-12px)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     }}>
                       <button
                         title={isScreensharing ? 'End screen share for everyone' : 'Stop watching this screen share'}
                         onClick={isScreensharing ? stopScreenshare : leaveScreenshareView}
                         style={{
-                          width: 42, height: 42,
-                          background: 'rgba(15, 15, 20, 0.8)',
-                          backdropFilter: 'blur(10px)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                          borderRadius: 12,
+                          padding: '10px 22px',
+                          background: 'rgba(15, 15, 20, 0.65)',
+                          backdropFilter: 'blur(12px)',
+                          WebkitBackdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          borderRadius: 999,
                           color: '#fff',
+                          fontSize: 14, fontWeight: 800, letterSpacing: '0.2px',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
                           boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15, 15, 20, 0.8)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.85)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.9)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15, 15, 20, 0.65)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
                       >
-                        <div style={{ width: 14, height: 14, background: '#ef4444', borderRadius: 2 }} />
+                        End
                       </button>
                     </div>
                   )}
