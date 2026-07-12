@@ -44,6 +44,34 @@ function normalizeUrl(input) {
     return null;
   }
 }
+
+// Shared ICE server config for all camera and screen-share WebRTC peer connections.
+// STUN alone only helps peers discover their public IP for a direct connection — it
+// fails whenever either side is behind a NAT type that can't hole-punch (mobile
+// carrier CGNAT, symmetric NAT, many corporate/hotel networks), which is the common
+// case for two strangers on arbitrary real-world networks. Without a TURN relay as a
+// fallback, ICE negotiation just silently fails and video/audio never flows — no
+// error is shown, it just looks broken. Set VITE_TURN_URL/USERNAME/CREDENTIAL once a
+// TURN provider is set up; until then this safely falls back to STUN-only (same as
+// before), or host-only candidates on localhost.
+function buildRtcConfig() {
+  const isLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
+  if (isLocalhost) return { iceServers: [] }; // host candidates only — fastest for same-machine
+
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ];
+
+  const turnUrl = import.meta.env.VITE_TURN_URL;
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME;
+  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL;
+  if (turnUrl && turnUsername && turnCredential) {
+    iceServers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+  }
+
+  return { iceServers };
+}
 import CustomizeRoomModal from './components/CustomizeRoomModal';
 import TimerActivity from './components/TimerActivity';
 import CallingActivity from './components/CallingActivity';
@@ -4071,10 +4099,7 @@ const Room = () => {
       setSubtitlesVisible(true);
     });
 
-    const camIsLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
-    const CAM_RTC_CONFIG = camIsLocalhost
-      ? { iceServers: [] }
-      : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+    const CAM_RTC_CONFIG = buildRtcConfig();
     const camIceCandidateBuffer = {}; // { socketId: RTCIceCandidateInit[] }
     const drainCamIceCandidates = async (pc, sid) => {
       if (!camIceCandidateBuffer[sid]) return;
@@ -4277,10 +4302,7 @@ const Room = () => {
     const iceCandidateBuffer = {}; // { senderSocketId: RTCIceCandidateInit[] }
 
     // Shared ICE config — skip Google STUN on localhost (causes ~3 s timeout delay)
-    const isLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
-    const RTC_CONFIG = isLocalhost
-      ? { iceServers: [] } // host candidates only — fastest for same-machine
-      : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+    const RTC_CONFIG = buildRtcConfig();
 
     // Helper: apply buffered ICE candidates once remote description is ready
     const drainIceCandidates = async (pc, sid) => {
