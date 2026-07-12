@@ -74,26 +74,36 @@ export default function CallingActivity({
   // Compile list of participants
   const participants = [];
   if (joined) {
+    const localHasVideo = mode === 'video' && isCamOn;
+    // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+    console.log('[CAM DEBUG] CallingActivity local participant', {
+      hasVideo: localHasVideo, hasStream: !!localCamStream, isCamOn, mode
+    });
     participants.push({
       id: 'local',
       username: username + ' (You)',
       isLocal: true,
       stream: localCamStream,
       isMuted: !isMicOn,
-      hasVideo: mode === 'video' && isCamOn,
+      hasVideo: localHasVideo,
       avatarUrl: localAvatarUrl || null,
     });
   }
 
   Object.entries(remoteStreams).forEach(([sid, data]) => {
     const rawAvatar = knownAvatars?.[data.username];
+    const remoteHasVideo = mode === 'video' && !!data.stream?.getVideoTracks().length;
+    // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+    console.log('[CAM DEBUG] CallingActivity remote participant', {
+      sid, username: data.username, hasVideo: remoteHasVideo, hasStream: !!data.stream
+    });
     participants.push({
       id: sid,
       username: data.username,
       isLocal: false,
       stream: data.stream,
       isMuted: data.isMuted,
-      hasVideo: mode === 'video' && !!data.stream?.getVideoTracks().length,
+      hasVideo: remoteHasVideo,
       avatarUrl: resolveAvatar(rawAvatar),
     });
   });

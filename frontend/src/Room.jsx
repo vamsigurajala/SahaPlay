@@ -2338,9 +2338,22 @@ const Room = () => {
     if (tracks.length === 0) return;
 
     const bump = () => setVideoTrackTick(t => t + 1);
+    const localVideoTrackIds = new Set((localCamRef.current?.getVideoTracks() || []).map(t => t.id));
     tracks.forEach(t => {
-      t.onmute = bump;
-      t.onunmute = bump;
+      const isLocal = localVideoTrackIds.has(t.id);
+      // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+      console.log('[CAM DEBUG] attaching onmute/onunmute listener', {
+        isLocal, trackId: t.id, label: t.label,
+        mutedAtAttach: t.muted, enabledAtAttach: t.enabled, readyStateAtAttach: t.readyState
+      });
+      t.onmute = () => {
+        console.log('[CAM DEBUG] onmute FIRED', { isLocal, trackId: t.id, label: t.label });
+        bump();
+      };
+      t.onunmute = () => {
+        console.log('[CAM DEBUG] onunmute FIRED', { isLocal, trackId: t.id, label: t.label });
+        bump();
+      };
     });
     // A track may have already unmuted before this effect ran (e.g. frames
     // started decoding between getUserMedia resolving and this effect
@@ -6740,6 +6753,11 @@ const Room = () => {
       // producing frames, whereas readyState reliably reflects whether the
       // track itself is still active.
       const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
+      // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+      console.log('[CAM DEBUG] hasVideo eval @renderCamerasPanel', {
+        camId: cam.id, isLocal: cam.isLocal, username: cam.username, hasVideo,
+        trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
+      });
       const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
       const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
       const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -6918,6 +6936,11 @@ const Room = () => {
             // producing frames, whereas readyState reliably reflects whether the
             // track itself is still active.
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
+            // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+            console.log('[CAM DEBUG] hasVideo eval @renderCameras(floating)', {
+              camId: cam.id, isLocal: cam.isLocal, username: cam.username, hasVideo,
+              trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
+            });
             const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
             const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar || uObj?.profilePic;
             const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -10389,6 +10412,11 @@ const Room = () => {
             // producing frames, whereas readyState reliably reflects whether the
             // track itself is still active.
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
+            // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
+            console.log('[CAM DEBUG] hasVideo eval @focusedCamView', {
+              camId: focusedCam.id, isLocal: focusedCam.isLocal, username: focusedCam.username, hasVideo,
+              trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
+            });
 
             // Shared card content used by both mobile overlay and desktop float
             const cardInner = (
