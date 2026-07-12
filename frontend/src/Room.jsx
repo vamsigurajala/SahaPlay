@@ -6366,6 +6366,29 @@ const Room = () => {
         }
         console.log('getUserMedia success', stream.getTracks());
 
+        // TEMP DEBUG — Edge/laptop camera rendering investigation, remove after diagnosis.
+        stream.getVideoTracks().forEach(t => {
+          console.log('[CAM DEBUG] video track state:', { enabled: t.enabled, muted: t.muted, readyState: t.readyState, label: t.label });
+        });
+        stream.getAudioTracks().forEach(t => {
+          console.log('[CAM DEBUG] audio track state:', { enabled: t.enabled, muted: t.muted, readyState: t.readyState, label: t.label });
+        });
+        // Attach directly to a throwaway <video>, bypassing the app's hasVideo/VideoTile
+        // gate entirely, to check whether real frames are decoding regardless of what
+        // track.muted currently reports.
+        const debugVideo = document.createElement('video');
+        debugVideo.srcObject = stream;
+        debugVideo.muted = true;
+        debugVideo.playsInline = true;
+        console.log('[CAM DEBUG] srcObject set on debug video element:', !!debugVideo.srcObject);
+        debugVideo.play().catch(e => console.warn('[CAM DEBUG] debug video play() failed:', e));
+        setTimeout(() => {
+          console.log('[CAM DEBUG] after 1500ms — debug video videoWidth x videoHeight:', debugVideo.videoWidth, 'x', debugVideo.videoHeight);
+          stream.getVideoTracks().forEach(t => {
+            console.log('[CAM DEBUG] video track state (after 1500ms):', { enabled: t.enabled, muted: t.muted, readyState: t.readyState });
+          });
+        }, 1500);
+
         if (localCamRef.current) {
           localCamRef.current.getTracks().forEach(t => t.stop());
         }
