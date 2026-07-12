@@ -6256,6 +6256,22 @@ const Room = () => {
 
 
   const startScreenshare = async (videoConstraints = true, appWindow = null, appInfo = null) => {
+    // getDisplayMedia is a desktop-browser API. iOS Safari (all browsers on iOS use
+    // Safari's engine, including Chrome/Edge for iOS) has no screen-capture API at all
+    // for regular web pages — that's an Apple platform restriction, not something a
+    // website can work around. Android Chrome supports it from ~v105 with a native
+    // OS picker (which already gives the "entire screen / a window / a tab" choice —
+    // we don't need to build our own picker UI for that). Without this check the call
+    // below throws synchronously and was being swallowed by console.error with zero
+    // user-facing feedback, which is what made this look like "does nothing" on mobile.
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      toast.error(
+        isMobile
+          ? "Screen sharing isn't supported on this browser. iOS (Safari/Chrome/Edge) can't screen-share from a website at all — try a recent Chrome on Android, or share from a desktop browser instead."
+          : "Screen sharing isn't supported on this browser. Try Chrome, Edge, or Firefox."
+      );
+      return;
+    }
     try {
       if (appWindow) appWindowRef.current = appWindow;
 
@@ -6348,7 +6364,20 @@ const Room = () => {
       setActiveExternalApp(appInfo);
       socket.emit('webrtc_start_screenshare', { roomId: (roomId || '').toLowerCase(), app: appInfo });
       streamToShare.getVideoTracks()[0].onended = () => stopScreenshare();
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      // Surface *something* to the user — this used to fail completely silently,
+      // which on mobile (denied permission, or the OS picker being dismissed) looked
+      // indistinguishable from "screen share doesn't work at all".
+      if (err.name === 'NotAllowedError') {
+        toast.error('Screen share permission was denied or cancelled.');
+      } else if (err.name === 'NotSupportedError') {
+        toast.error("Your browser doesn't support screen sharing.");
+      } else if (err.name !== 'AbortError') {
+        // AbortError = user closed the OS picker without choosing anything — not worth a toast.
+        toast.error(`Couldn't start screen sharing: ${err.message || err.name}`);
+      }
+    }
   };
   const stopScreenshare = () => {
     // Stop the canvas enhancement pipeline (animation loop + source video) if active
@@ -6362,6 +6391,17 @@ const Room = () => {
     appWindowRef.current?.close(); appWindowRef.current = null;
     Object.values(peerConnectionsRef.current).forEach(p => p.close()); peerConnectionsRef.current = {};
     socket?.emit('webrtc_stop_screenshare', (roomId || '').toLowerCase());
+  };
+  // Local-only: a viewer stepping away from someone else's screenshare. Does NOT
+  // notify the server or other participants — the broadcast keeps running for
+  // everyone else. Mirrors the cleanup the 'webrtc_screenshare_stopped' socket
+  // handler does when the actual sharer ends it.
+  const leaveScreenshareView = () => {
+    setIsViewer(false);
+    setRemoteStream(null);
+    setActiveExternalApp(null);
+    Object.values(peerConnectionsRef.current).forEach(p => p.close());
+    peerConnectionsRef.current = {};
   };
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Camera / Mic Toggle Ã¢â€â‚¬Ã¢â€â‚¬
@@ -8153,6 +8193,7 @@ const Room = () => {
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => { setShowControls(false); }}
+            onTouchStart={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             style={{
               flex: 1,
               background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',
@@ -8574,8 +8615,8 @@ const Room = () => {
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     }}>
                       <button
-                        title="Stop & exit stream"
-                        onClick={stopScreenshare}
+                        title={isScreensharing ? 'End screen share for everyone' : 'Stop watching this screen share'}
+                        onClick={isScreensharing ? stopScreenshare : leaveScreenshareView}
                         style={{
                           width: 42, height: 42,
                           background: 'rgba(15, 15, 20, 0.8)',
@@ -8647,6 +8688,7 @@ const Room = () => {
                     style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}
                     onMouseMove={resetControlsTimer}
                     onMouseEnter={resetControlsTimer}
+                    onTouchStart={resetControlsTimer}
                   >
                     {/* ── iframe content area — no browser toolbar, uses shared bottom control bar ── */}
                     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>

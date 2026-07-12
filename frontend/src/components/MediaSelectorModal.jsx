@@ -494,33 +494,32 @@ export default function MediaSelectorModal({
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center',
+          display: 'flex', flexDirection: 'column',
           padding: '24px 28px 20px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.04)', flexShrink: 0
         }}>
-          <div>
-            <h2 style={{ margin: '0 0 2px', fontSize: 22, fontWeight: 900, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: isLight ? '#0f172a' : '#fff', letterSpacing: '-0.5px', flex: 1 }}>
               App Directory
             </h2>
-            <p style={{ margin: 0, fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 500 }}>
-              Launch shared activities, video streams, portals, or local files
-            </p>
+            <button
+              onClick={onClose}
+              className={isLight ? "media-selector-close-btn" : "stay-white"}
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)',
+                border: 'none', flexShrink: 0,
+                color: isLight ? '#000000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background='#ef4444'; e.currentTarget.style.color='#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color=isLight ? '#000000' : '#fff'; }}
+            >
+              <X size={18} className={isLight ? "media-selector-close-btn-svg" : "stay-white"} />
+            </button>
           </div>
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={onClose}
-            className={isLight ? "media-selector-close-btn" : "stay-white"}
-            style={{
-              width: 36, height: 36, borderRadius: '50%', 
-              background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)', 
-              border: 'none',
-              color: isLight ? '#000000' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 0.2s'
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background='#ef4444'; e.currentTarget.style.color='#fff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background=isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'; e.currentTarget.style.color=isLight ? '#000000' : '#fff'; }}
-          >
-            <X size={18} className={isLight ? "media-selector-close-btn-svg" : "stay-white"} />
-          </button>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 500 }}>
+            Launch shared activities, video streams, portals, or local files
+          </p>
         </div>
 
         {/* Custom URL Input Bar */}

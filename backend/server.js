@@ -7317,12 +7317,19 @@ io.on('connection', (socket) => {
   socket.on('webrtc_stop_screenshare', (rawRoomId) => {
     try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
-    if (rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      room.screenshareHostId = null;
-      room.activeExternalApp = null;
-    }
-    const state = getSerializableRoom(rooms.get(roomId));
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+
+    // Only the person actually sharing (or the room host/admin) can end a
+    // screenshare for everyone. Without this check, any viewer merely watching
+    // the share could kill it room-wide by triggering this same event.
+    const isSharer = room.screenshareHostId === socket.id;
+    const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+    if (!isSharer && !isHost && !isUserAdmin(room, socket)) return;
+
+    room.screenshareHostId = null;
+    room.activeExternalApp = null;
+    const state = getSerializableRoom(room);
     io.in(roomId).emit('room_state', state);
     socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id);
     } catch (err) {
