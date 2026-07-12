@@ -389,12 +389,36 @@ function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
       });
       setTimeout(() => {
         // TEMP DEBUG — cross-component local-tile investigation, remove after diagnosis.
+        // Decisive test: sample actual decoded pixel data via canvas. If the average
+        // brightness is near-zero, the camera itself is genuinely producing black
+        // frames (hardware/driver/lighting). If it's NOT near-zero, the video has real
+        // image data and something is visually hiding/covering the <video> element in
+        // CSS despite it playing correctly — two very different fixes.
+        let pixelSample = null;
+        try {
+          const c = document.createElement('canvas');
+          c.width = el.videoWidth || 1;
+          c.height = el.videoHeight || 1;
+          const ctx = c.getContext('2d');
+          ctx.drawImage(el, 0, 0, c.width, c.height);
+          const { data } = ctx.getImageData(0, 0, c.width, c.height);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+          pixelSample = { avgBrightness: Math.round(sum / (data.length / 4)), sampledPixels: data.length / 4 };
+        } catch (e) {
+          pixelSample = { error: e.message };
+        }
         console.log('[CAM DEBUG] VideoTile after 1500ms', {
           isLocal, debugLabel,
           videoWidth: el.videoWidth, videoHeight: el.videoHeight,
           readyState: el.readyState, paused: el.paused, ended: el.ended,
           currentSrcObjectIsSameStream: el.srcObject === stream,
           srcObjectIsNull: el.srcObject === null,
+          pixelSample,
+          computedOpacity: window.getComputedStyle(el).opacity,
+          computedVisibility: window.getComputedStyle(el).visibility,
+          computedDisplay: window.getComputedStyle(el).display,
+          boundingRect: el.getBoundingClientRect(),
         });
       }, 1500);
     }
