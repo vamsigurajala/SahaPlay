@@ -357,13 +357,27 @@ function Avatar({ name, size = 36, isHost = false, isAdmin = false, isMuted = fa
 }
 
 // -------------------------------- Video Tile --------------------------------
-function VideoTile({ stream, isMuted, style }) {
+function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
   const { t } = useTranslation();
   const videoRef = useRef(null);
   const [playBlocked, setPlayBlocked] = useState(false);
 
   useEffect(() => {
     if (videoRef.current && stream) {
+      // TEMP DEBUG — cross-component local-tile investigation, remove after diagnosis.
+      console.log('[CAM DEBUG] VideoTile srcObject assign', {
+        isLocal, debugLabel,
+        hasStream: !!stream,
+        trackCount: stream.getTracks().length,
+        videoTrackCount: stream.getVideoTracks().length,
+        videoTrackState: stream.getVideoTracks()[0] ? {
+          enabled: stream.getVideoTracks()[0].enabled,
+          muted: stream.getVideoTracks()[0].muted,
+          readyState: stream.getVideoTracks()[0].readyState,
+        } : null,
+        streamActive: stream.active,
+      });
+      const el = videoRef.current;
       videoRef.current.srcObject = stream;
       videoRef.current.play().catch(e => {
         console.error('Video play error:', e);
@@ -373,13 +387,23 @@ function VideoTile({ stream, isMuted, style }) {
           videoRef.current.play().catch(err => console.error('Muted fallback failed:', err));
         }
       });
+      setTimeout(() => {
+        // TEMP DEBUG — cross-component local-tile investigation, remove after diagnosis.
+        console.log('[CAM DEBUG] VideoTile after 1500ms', {
+          isLocal, debugLabel,
+          videoWidth: el.videoWidth, videoHeight: el.videoHeight,
+          readyState: el.readyState, paused: el.paused, ended: el.ended,
+          currentSrcObjectIsSameStream: el.srcObject === stream,
+          srcObjectIsNull: el.srcObject === null,
+        });
+      }, 1500);
     }
     return () => {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
     };
-  }, [stream]);
+  }, [stream, isLocal, debugLabel]);
 
   const handleUnmute = (e) => {
     e.stopPropagation();
@@ -4493,6 +4517,15 @@ const Room = () => {
       }
 
       if (localCamRef.current) {
+        // TEMP DEBUG — cross-component local-tile investigation, remove after diagnosis.
+        // This cleanup fires whenever [roomId, username, SOCKET_SERVER_URL, cryptoReady]
+        // change, not only on unmount. If this fires mid-session while isCamOn is still
+        // true, it silently kills the local camera stream without resetting isCamOn.
+        console.warn('[CAM DEBUG] socket-effect cleanup is stopping localCamRef.current', {
+          isCamOnAtCleanup: isCamOnRef.current,
+          roomId, username, SOCKET_SERVER_URL, cryptoReady,
+          stack: new Error().stack,
+        });
         localCamRef.current.getTracks().forEach(t => t.stop());
         localCamRef.current = null;
       }
@@ -6831,6 +6864,8 @@ const Room = () => {
             <VideoTile
               stream={cam.stream}
               isMuted={cam.isMuted || cam.isLocal}
+              isLocal={cam.isLocal}
+              debugLabel="renderCamerasPanel"
               style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
             />
           ) : (
@@ -7107,7 +7142,7 @@ const Room = () => {
                   touchAction: 'none'
                 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: isCircle ? '50%' : 14, overflow: 'hidden', zIndex: 1 }}>
-                  <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+                  <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} isLocal={cam.isLocal} debugLabel="renderCameras(floating)" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
                 </div>
 
                 {/* Resize Handles - High-end Glassmorphic Overlays */}
@@ -10506,6 +10541,7 @@ const Room = () => {
                 <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000' }}>
                   {hasVideo ? (
                     <VideoTile stream={focusedCam.stream} isMuted={focusedCam.isMuted || focusedCam.isLocal}
+                      isLocal={focusedCam.isLocal} debugLabel="focusedCamView"
                       style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
                   ) : (
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #312e81, #1e1b4b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
