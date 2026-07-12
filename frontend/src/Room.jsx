@@ -45,32 +45,38 @@ function normalizeUrl(input) {
   }
 }
 
-// Shared ICE server config for all camera and screen-share WebRTC peer connections.
+// Shared ICE server fetch for all camera and screen-share WebRTC peer connections.
 // STUN alone only helps peers discover their public IP for a direct connection — it
 // fails whenever either side is behind a NAT type that can't hole-punch (mobile
 // carrier CGNAT, symmetric NAT, many corporate/hotel networks), which is the common
-// case for two strangers on arbitrary real-world networks. Without a TURN relay as a
-// fallback, ICE negotiation just silently fails and video/audio never flows — no
-// error is shown, it just looks broken. Set VITE_TURN_URL/USERNAME/CREDENTIAL once a
-// TURN provider is set up; until then this safely falls back to STUN-only (same as
-// before), or host-only candidates on localhost.
-function buildRtcConfig() {
+// case for two strangers on arbitrary real-world networks. TURN credentials are
+// fetched from the backend (which holds the Metered.ca API key) once per call
+// session — see getSharedIceServers() below, which caches the in-flight/resolved
+// promise so repeat peer connections in the same room-join session reuse it
+// instead of re-fetching on every camera toggle or additional peer. Falls back to
+// STUN-only if the fetch fails, or host-only candidates on localhost.
+async function fetchIceServers(socketServerUrl) {
   const isLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
-  if (isLocalhost) return { iceServers: [] }; // host candidates only — fastest for same-machine
+  if (isLocalhost) return []; // host candidates only — fastest for same-machine
 
-  const iceServers = [
+  const stunFallback = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
   ];
 
-  const turnUrl = import.meta.env.VITE_TURN_URL;
-  const turnUsername = import.meta.env.VITE_TURN_USERNAME;
-  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL;
-  if (turnUrl && turnUsername && turnCredential) {
-    iceServers.push({ urls: turnUrl, username: turnUsername, credential: turnCredential });
+  try {
+    const token = localStorage.getItem('watch_token');
+    const res = await fetch(`${socketServerUrl}/api/turn-credentials`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (!res.ok) throw new Error(`turn-credentials returned ${res.status}`);
+    const data = await res.json();
+    if (Array.isArray(data.iceServers) && data.iceServers.length > 0) return data.iceServers;
+    throw new Error('empty iceServers response');
+  } catch (err) {
+    console.warn('[RTC] TURN credential fetch failed, falling back to STUN-only:', err.message);
+    return stunFallback;
   }
-
-  return { iceServers };
 }
 import CustomizeRoomModal from './components/CustomizeRoomModal';
 import TimerActivity from './components/TimerActivity';
@@ -4099,7 +4105,15 @@ const Room = () => {
       setSubtitlesVisible(true);
     });
 
-    const CAM_RTC_CONFIG = buildRtcConfig();
+    // Lazily fetches TURN credentials once per room-join session, on first use by
+    // either the camera or screen-share flow below, and caches the promise so
+    // additional peers / camera toggles in this session reuse it instead of
+    // re-fetching from the backend every time.
+    let sharedIceServersPromise = null;
+    const getSharedIceServers = () => {
+      if (!sharedIceServersPromise) sharedIceServersPromise = fetchIceServers(SOCKET_SERVER_URL);
+      return sharedIceServersPromise;
+    };
     const camIceCandidateBuffer = {}; // { socketId: RTCIceCandidateInit[] }
     const drainCamIceCandidates = async (pc, sid) => {
       if (!camIceCandidateBuffer[sid]) return;
@@ -4115,12 +4129,13 @@ const Room = () => {
       }
     });
 
-    sock.on('cam_started', ({ socketId, username: uname }) => {
+    sock.on('cam_started', async ({ socketId, username: uname }) => {
       console.log('Received cam_started from', uname, socketId);
       if (cameraPcRefs.current[socketId]) {
         cameraPcRefs.current[socketId].close();
       }
-      const pc = new RTCPeerConnection(CAM_RTC_CONFIG);
+      const iceServers = await getSharedIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
       cameraPcRefs.current[socketId] = pc;
       pc.onicecandidate = e => { if (e.candidate) sock.emit('cam_ice', { targetSocketId: socketId, candidate: e.candidate }); };
       pc.ontrack = e => {
@@ -4179,7 +4194,8 @@ const Room = () => {
       if (cameraPcRefs.current[senderSocketId]) {
         cameraPcRefs.current[senderSocketId].close();
       }
-      const pc = new RTCPeerConnection(CAM_RTC_CONFIG);
+      const iceServers = await getSharedIceServers();
+      const pc = new RTCPeerConnection({ iceServers });
       cameraPcRefs.current[senderSocketId] = pc;
       pc.onicecandidate = e => { if (e.candidate) sock.emit('cam_ice', { targetSocketId: senderSocketId, candidate: e.candidate }); };
       pc.ontrack = e => {
@@ -4301,8 +4317,8 @@ const Room = () => {
     // We buffer them and drain the queue as soon as the remote description is set.
     const iceCandidateBuffer = {}; // { senderSocketId: RTCIceCandidateInit[] }
 
-    // Shared ICE config — skip Google STUN on localhost (causes ~3 s timeout delay)
-    const RTC_CONFIG = buildRtcConfig();
+    // Screen-share peer connections reuse the same lazily-fetched TURN credentials
+    // as the camera flow above (getSharedIceServers), cached once per session.
 
     // Helper: apply buffered ICE candidates once remote description is ready
     const drainIceCandidates = async (pc, sid) => {
@@ -4315,7 +4331,8 @@ const Room = () => {
 
     sock.on('webrtc_viewer_joined', async vid => {
       if (!localStreamRef.current) return;
-      const peer = new RTCPeerConnection(RTC_CONFIG);
+      const iceServers = await getSharedIceServers();
+      const peer = new RTCPeerConnection({ iceServers });
       peerConnectionsRef.current[vid] = peer;
 
       localStreamRef.current.getTracks().forEach(t => peer.addTrack(t, localStreamRef.current));
@@ -4330,7 +4347,8 @@ const Room = () => {
     });
 
     sock.on('webrtc_offer', async ({ senderSocketId, offer }) => {
-      const peer = new RTCPeerConnection(RTC_CONFIG);
+      const iceServers = await getSharedIceServers();
+      const peer = new RTCPeerConnection({ iceServers });
       peerConnectionsRef.current[senderSocketId] = peer;
 
       peer.ontrack = e => {

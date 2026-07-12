@@ -2936,6 +2936,26 @@ app.get('/api/profile/notifications', authenticateToken, (_req, res) => {
   res.json([]);
 });
 
+// ── WebRTC TURN credentials (Metered.ca) ──
+// Short-lived, per-request TURN credentials for camera/screen-share peer connections.
+// The API key never reaches the client — the frontend calls this route once per
+// call session and reuses the returned iceServers list for all peer connections.
+app.get('/api/turn-credentials', authenticateToken, async (_req, res) => {
+  const apiKey = process.env.METERED_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'TURN credentials not configured' });
+  }
+  try {
+    const response = await fetch(`https://sahaplay.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`);
+    if (!response.ok) throw new Error(`Metered API returned ${response.status}`);
+    const iceServers = await response.json();
+    res.json({ iceServers });
+  } catch (err) {
+    console.error('[TURN] Failed to fetch credentials:', err.message);
+    res.status(502).json({ error: 'Failed to fetch TURN credentials' });
+  }
+});
+
 // â"€â"€ UPDATE Pinned Rooms â"€â"€
 app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
   const { pinnedRooms } = req.body;
