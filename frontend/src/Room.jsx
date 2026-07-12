@@ -8574,17 +8574,17 @@ const Room = () => {
             )}
 
             {!isTvMode && room?.settings?.playerCustomName && (isScreensharing || isViewer) && !isFullscreen && (
-              <div style={{ 
-                position: 'absolute', top: 12, left: 12, zIndex: 10, 
-                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', 
-                padding: '6px 12px', borderRadius: 10, fontSize: 11, fontWeight: 700, 
-                color: '#fff', border: '1px solid rgba(255,255,255,0.1)', 
+              <div className="stay-white" style={{
+                position: 'absolute', top: 12, left: 12, zIndex: 10,
+                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                padding: '6px 12px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                color: '#fff', border: '1px solid rgba(255,255,255,0.1)',
                 pointerEvents: 'none',
                 opacity: (showPlayerBranding && showControls) ? 1 : 0,
                 display: (showPlayerBranding && showControls) ? 'block' : 'none',
                 visibility: (showPlayerBranding && showControls) ? 'visible' : 'hidden',
                 transform: `translateY(${showPlayerBranding ? 0 : -10}px)`,
-                transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)' 
+                transition: 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)'
               }}>
                 {room.settings.playerCustomName}
               </div>
@@ -8654,19 +8654,42 @@ const Room = () => {
                     {/* Redundant Fullscreen/Chat buttons removed - relying on Global Overlay at same position */}
                   </div>
 
-                  {/* ── End Screen Share (Top-Right, auto-hides on idle) ── */}
+                  {/* ── Fullscreen + End Screen Share (Top-Right, auto-hides on idle) ── */}
                   {(isScreensharing || isViewer) && (
                     <div style={{
                       position: 'absolute',
                       top: 12,
                       right: 20,
                       zIndex: 100,
+                      display: 'flex', alignItems: 'center', gap: 8,
                       pointerEvents: showControls ? 'auto' : 'none',
                       opacity: showControls ? 1 : 0,
                       transform: showControls ? 'translateY(0)' : 'translateY(-12px)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     }}>
                       <button
+                        className="stay-white"
+                        onClick={handleFullscreen}
+                        title={isFullscreen || isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}
+                        style={{
+                          width: 34, height: 34, borderRadius: 10,
+                          background: 'rgba(15, 15, 25, 0.75)',
+                          backdropFilter: 'blur(12px)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', color: '#fff',
+                          transition: 'background 0.18s, border-color 0.18s',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15, 15, 25, 0.75)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
+                      >
+                        {(isFullscreen || isMobileFsMode)
+                          ? <Minimize2 size={16} color="#ffffff" />
+                          : <Maximize2 size={16} color="#ffffff" />}
+                      </button>
+                      <button
+                        className="stay-white"
                         title={isScreensharing ? 'End screen share for everyone' : 'Stop watching this screen share'}
                         onClick={isScreensharing ? stopScreenshare : leaveScreenshareView}
                         style={{
@@ -8678,11 +8701,11 @@ const Room = () => {
                           fontSize: 13, fontWeight: 800, letterSpacing: '0.2px',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer',
-                          transition: 'all 0.2s',
+                          transition: 'transform 0.15s',
                           boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(239,68,68,0.4)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #a855f7)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.4)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                       >
                         End
                       </button>
