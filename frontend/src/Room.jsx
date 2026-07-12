@@ -408,18 +408,21 @@ function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
         } catch (e) {
           pixelSample = { error: e.message };
         }
-        console.log('[CAM DEBUG] VideoTile after 1500ms', {
-          isLocal, debugLabel,
-          videoWidth: el.videoWidth, videoHeight: el.videoHeight,
-          readyState: el.readyState, paused: el.paused, ended: el.ended,
-          currentSrcObjectIsSameStream: el.srcObject === stream,
-          srcObjectIsNull: el.srcObject === null,
-          pixelSample,
-          computedOpacity: window.getComputedStyle(el).opacity,
-          computedVisibility: window.getComputedStyle(el).visibility,
-          computedDisplay: window.getComputedStyle(el).display,
-          boundingRect: el.getBoundingClientRect(),
-        });
+        const rect = el.getBoundingClientRect();
+        const cs = window.getComputedStyle(el);
+        // Flat primitives on purpose — nested objects get collapsed to "…" when the
+        // console is copy-pasted as text, which is exactly what hid this data last time.
+        console.log(
+          '###PIXELCHECK### isLocal=' + isLocal,
+          'label=' + debugLabel,
+          'brightness=' + (pixelSample?.avgBrightness ?? ('ERROR:' + pixelSample?.error)),
+          'videoWH=' + el.videoWidth + 'x' + el.videoHeight,
+          'rectWH=' + Math.round(rect.width) + 'x' + Math.round(rect.height),
+          'opacity=' + cs.opacity,
+          'visibility=' + cs.visibility,
+          'display=' + cs.display,
+          'paused=' + el.paused
+        );
       }, 1500);
     }
     return () => {
@@ -6850,11 +6853,6 @@ const Room = () => {
       // producing frames, whereas readyState reliably reflects whether the
       // track itself is still active.
       const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
-      // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
-      console.log('[CAM DEBUG] hasVideo eval @renderCamerasPanel', {
-        camId: cam.id, isLocal: cam.isLocal, username: cam.username, hasVideo,
-        trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
-      });
       const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
       const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
       const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -7035,11 +7033,6 @@ const Room = () => {
             // producing frames, whereas readyState reliably reflects whether the
             // track itself is still active.
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
-            // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
-            console.log('[CAM DEBUG] hasVideo eval @renderCameras(floating)', {
-              camId: cam.id, isLocal: cam.isLocal, username: cam.username, hasVideo,
-              trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
-            });
             const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
             const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar || uObj?.profilePic;
             const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -10515,11 +10508,6 @@ const Room = () => {
             // producing frames, whereas readyState reliably reflects whether the
             // track itself is still active.
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
-            // TEMP DEBUG — camera visibility re-investigation, remove after diagnosis.
-            console.log('[CAM DEBUG] hasVideo eval @focusedCamView', {
-              camId: focusedCam.id, isLocal: focusedCam.isLocal, username: focusedCam.username, hasVideo,
-              trackCount: vTracks.length, enabled: vTracks[0]?.enabled, muted: vTracks[0]?.muted, readyState: vTracks[0]?.readyState
-            });
 
             // Shared card content used by both mobile overlay and desktop float
             const cardInner = (
