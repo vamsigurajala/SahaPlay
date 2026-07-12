@@ -35,6 +35,23 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error('[ERROR BOUNDARY]', error, info.componentStack);
+
+    // Lazy-loaded route chunks are hashed per-deploy. If a tab has been open
+    // across a new deploy, its in-memory route table still points at chunk
+    // filenames that no longer exist on the server, so the dynamic import
+    // 404s and fails this MIME/type check instead of throwing a normal
+    // network error. Auto-reload once to pick up the current index.html
+    // (and therefore current chunk hashes) instead of leaving the user
+    // stuck on a manual "Refresh" button. Guarded by sessionStorage so a
+    // genuinely broken chunk doesn't reload-loop forever.
+    const isChunkLoadError = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(error?.message || '');
+    if (isChunkLoadError) {
+      const guardKey = 'watch_chunk_reload_attempted';
+      if (!sessionStorage.getItem(guardKey)) {
+        sessionStorage.setItem(guardKey, '1');
+        window.location.reload();
+      }
+    }
   }
   render() {
     if (this.state.hasError) {
@@ -195,6 +212,13 @@ if (roomMatch) {
 
 function App() {
   const { i18n } = useTranslation();
+
+  // A successful mount means the current chunk hashes loaded fine — clear the
+  // ErrorBoundary's one-shot auto-reload guard so a future genuine chunk load
+  // failure (e.g. after the next deploy) can still trigger one auto-reload.
+  useEffect(() => {
+    sessionStorage.removeItem('watch_chunk_reload_attempted');
+  }, []);
 
   useEffect(() => {
     const fetchAndApplySettings = () => {
