@@ -8658,7 +8658,7 @@ const Room = () => {
                   {(isScreensharing || isViewer) && (
                     <div style={{
                       position: 'absolute',
-                      top: 20,
+                      top: 12,
                       right: 20,
                       zIndex: 100,
                       pointerEvents: showControls ? 'auto' : 'none',
@@ -8670,21 +8670,19 @@ const Room = () => {
                         title={isScreensharing ? 'End screen share for everyone' : 'Stop watching this screen share'}
                         onClick={isScreensharing ? stopScreenshare : leaveScreenshareView}
                         style={{
-                          padding: '10px 22px',
-                          background: 'rgba(15, 15, 20, 0.65)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                          border: '1px solid rgba(255, 255, 255, 0.15)',
-                          borderRadius: 999,
+                          padding: '7px 16px',
+                          background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                          border: 'none',
+                          borderRadius: 10,
                           color: '#fff',
-                          fontSize: 14, fontWeight: 800, letterSpacing: '0.2px',
+                          fontSize: 13, fontWeight: 800, letterSpacing: '0.2px',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer',
                           transition: 'all 0.2s',
-                          boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                          boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.85)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.9)'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15, 15, 20, 0.65)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(239,68,68,0.4)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #a855f7)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.4)'; }}
                       >
                         End
                       </button>
