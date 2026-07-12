@@ -8153,7 +8153,7 @@ const Room = () => {
 
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && mediaUrl && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}`}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -10331,7 +10331,7 @@ const Room = () => {
         {!isTvMode && (
         <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
           {/* Mobile: Browse Media button pinned above chat when no media playing */}
-          {isMobile && !mediaUrl && !isTvMode && (
+          {isMobile && !mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
             <button onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
               <LayoutGrid size={18} color="#fff" />
               <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
