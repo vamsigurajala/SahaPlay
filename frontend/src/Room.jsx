@@ -2320,6 +2320,39 @@ const Room = () => {
   const toggleCameraRef = useRef(null);
   const toggleMicRef = useRef(null);
 
+  // hasVideo (camera tile video-vs-avatar gate, computed on every render from
+  // track.enabled/muted/readyState) is a snapshot — it doesn't automatically
+  // re-evaluate when a track's muted state flips after the fact. A freshly
+  // captured/received video track can briefly report muted:true before its
+  // first frame decodes, then fire 'unmute' once real frames start; without
+  // listening for that event nothing forces React to re-render, so the tile
+  // can get stuck showing the avatar forever even after frames are flowing.
+  // videoTrackTick exists purely to force that re-render on mute/unmute.
+  const [videoTrackTick, setVideoTrackTick] = useState(0);
+  useEffect(() => {
+    const tracks = [];
+    if (localCamRef.current) tracks.push(...localCamRef.current.getVideoTracks());
+    Object.values(remoteStreams).forEach(({ stream }) => {
+      if (stream) tracks.push(...stream.getVideoTracks());
+    });
+    if (tracks.length === 0) return;
+
+    const bump = () => setVideoTrackTick(t => t + 1);
+    tracks.forEach(t => {
+      t.onmute = bump;
+      t.onunmute = bump;
+    });
+    // A track may have already unmuted before this effect ran (e.g. frames
+    // started decoding between getUserMedia resolving and this effect
+    // mounting) — bump once now so that case self-corrects immediately
+    // instead of waiting for some unrelated future re-render.
+    bump();
+
+    return () => {
+      tracks.forEach(t => { t.onmute = null; t.onunmute = null; });
+    };
+  }, [isCamOn, remoteStreams]);
+
   // Auto-switch right panel to "cameras" tab when managed layout activates.
   // Reactive to isCamOn so the host's own camera toggle immediately updates the layout.
   useEffect(() => {
@@ -6366,29 +6399,6 @@ const Room = () => {
         }
         console.log('getUserMedia success', stream.getTracks());
 
-        // TEMP DEBUG — Edge/laptop camera rendering investigation, remove after diagnosis.
-        stream.getVideoTracks().forEach(t => {
-          console.log('[CAM DEBUG] video track state:', { enabled: t.enabled, muted: t.muted, readyState: t.readyState, label: t.label });
-        });
-        stream.getAudioTracks().forEach(t => {
-          console.log('[CAM DEBUG] audio track state:', { enabled: t.enabled, muted: t.muted, readyState: t.readyState, label: t.label });
-        });
-        // Attach directly to a throwaway <video>, bypassing the app's hasVideo/VideoTile
-        // gate entirely, to check whether real frames are decoding regardless of what
-        // track.muted currently reports.
-        const debugVideo = document.createElement('video');
-        debugVideo.srcObject = stream;
-        debugVideo.muted = true;
-        debugVideo.playsInline = true;
-        console.log('[CAM DEBUG] srcObject set on debug video element:', !!debugVideo.srcObject);
-        debugVideo.play().catch(e => console.warn('[CAM DEBUG] debug video play() failed:', e));
-        setTimeout(() => {
-          console.log('[CAM DEBUG] after 1500ms — debug video videoWidth x videoHeight:', debugVideo.videoWidth, 'x', debugVideo.videoHeight);
-          stream.getVideoTracks().forEach(t => {
-            console.log('[CAM DEBUG] video track state (after 1500ms):', { enabled: t.enabled, muted: t.muted, readyState: t.readyState });
-          });
-        }, 1500);
-
         if (localCamRef.current) {
           localCamRef.current.getTracks().forEach(t => t.stop());
         }
@@ -6725,7 +6735,11 @@ const Room = () => {
 
     const renderTile = (cam) => {
       const vTracks = cam.stream ? cam.stream.getVideoTracks() : [];
-      const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
+      // readyState === 'live' is trusted as an alternative to !muted — muted can
+      // stay stale (see videoTrackTick above) even once a track is genuinely
+      // producing frames, whereas readyState reliably reflects whether the
+      // track itself is still active.
+      const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
       const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
       const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
       const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -6899,7 +6913,11 @@ const Room = () => {
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', pointerEvents: 'none' }}>
           {paginatedCams.map(cam => {
             const vTracks = cam.stream ? cam.stream.getVideoTracks() : [];
-            const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
+            // readyState === 'live' is trusted as an alternative to !muted — muted can
+            // stay stale (see videoTrackTick above) even once a track is genuinely
+            // producing frames, whereas readyState reliably reflects whether the
+            // track itself is still active.
+            const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
             const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
             const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar || uObj?.profilePic;
             const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
@@ -10366,7 +10384,11 @@ const Room = () => {
             const focusedCam = allCams.find(c => c.id === focusedCameraUserId);
             if (!focusedCam) return null;
             const vTracks = focusedCam.stream ? focusedCam.stream.getVideoTracks() : [];
-            const hasVideo = vTracks.length > 0 && vTracks[0].enabled && !vTracks[0].muted;
+            // readyState === 'live' is trusted as an alternative to !muted — muted can
+            // stay stale (see videoTrackTick above) even once a track is genuinely
+            // producing frames, whereas readyState reliably reflects whether the
+            // track itself is still active.
+            const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
 
             // Shared card content used by both mobile overlay and desktop float
             const cardInner = (
