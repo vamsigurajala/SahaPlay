@@ -7,6 +7,7 @@ import {
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { useTranslation } from 'react-i18next';
+import { useBackIntercept } from './hooks/useBackIntercept';
 
 export default function Safety() {
   const { t } = useTranslation();
@@ -47,6 +48,11 @@ export default function Safety() {
       document.documentElement.style.overflow = '';
     };
   }, [showChatLockModal, showReportModal]);
+
+  // Mobile/iPad swipe-back should close these modals instead of navigating away.
+  useBackIntercept((showChatLockModal || showReportModal) ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) { setShowChatLockModal(false); setShowReportModal(false); }
+  });
 
   const isLight = theme === 'light';
 

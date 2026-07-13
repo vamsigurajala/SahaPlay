@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Hash, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API } from '../lib/api';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 
 const CLOSE_DURATION = 220; // ms — must match CSS animation duration
 
@@ -41,6 +42,9 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
       return () => clearTimeout(t);
     }
   }, [isOpen]); // eslint-disable-line
+
+  // Mobile/iPad swipe-back should close this modal instead of navigating away.
+  useBackIntercept(isOpen ? 1 : 0, (newLevel) => { if (newLevel === 0) onClose(); });
 
   // Cleanup on unmount
   useEffect(() => () => { document.body.style.overflow = 'unset'; }, []);

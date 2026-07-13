@@ -3,6 +3,7 @@ import { Lock, Eye, EyeOff, Copy, Check, ChevronRight, Shield, Key, X, ArrowLeft
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { API } from '../lib/api';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 
 const PIN_LENGTH = 6;
 
@@ -65,6 +66,9 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
   const [error, setError] = useState('');
 
   const token = localStorage.getItem('watch_token');
+
+  // Mobile/iPad swipe-back should close this modal instead of navigating away.
+  useBackIntercept(1, (newLevel) => { if (newLevel === 0) onClose && onClose(); });
 
   // Disable background scroll when modal is open
   useEffect(() => {

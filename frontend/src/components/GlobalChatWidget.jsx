@@ -18,6 +18,8 @@ import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
+import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -1372,6 +1374,19 @@ const GlobalChatWidget = forwardRef(({
     }
     setView('list');
   };
+
+  // Mobile/iPad swipe-back (and hardware back) should step back one level
+  // instead of leaving the page: closed -> list -> chat. Without this, a
+  // swipe-left gesture falls through to the browser's real back navigation
+  // and exits the whole site.
+  useBackIntercept(!isOpen ? 0 : (view === 'chat' ? 2 : 1), (newLevel) => {
+    if (newLevel === 0) {
+      onClose && onClose();
+    } else if (newLevel === 1) {
+      handleBackToList();
+    }
+  });
+
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -1464,6 +1479,7 @@ const GlobalChatWidget = forwardRef(({
   const messagesEndRef = useRef(null);
   const prevMsgCountRef = useRef(0);
   const inputRef = useRef(null);
+  useAutoResizeTextarea(inputRef, inputValue);
   const socketRef = useRef(null);
   const activeChatRef = useRef(null);
   const viewRef = useRef('list');
@@ -5956,11 +5972,11 @@ const GlobalChatWidget = forwardRef(({
                   )}
 
                   {!isRecording && !audioBlob && (
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                        <input
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                        <textarea
                           ref={inputRef}
-                          type="text"
+                          rows={1}
                           placeholder={activeChat?.type === 'room' && chatLocked && !isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
                           disabled={!!(activeChat?.type === 'room' && chatLocked && !isHost)}
                           value={inputValue}
@@ -5982,6 +5998,11 @@ const GlobalChatWidget = forwardRef(({
                           }}
                           style={{
                             flex: 1,
+                            resize: 'none',
+                            maxHeight: 120,
+                            overflowY: 'auto',
+                            lineHeight: 1.4,
+                            fontFamily: 'inherit',
                             background: 'rgba(255,255,255,0.04)',
                             border: '1px solid rgba(255,255,255,0.08)',
                             borderRadius: 14,
@@ -5992,7 +6013,7 @@ const GlobalChatWidget = forwardRef(({
                             outline: 'none',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(99,102,241,0.3)'; }}
+                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(99,102,241,0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
                           onBlur={e => { e.target.style.background = 'rgba(255,255,255,0.04)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                         />
 

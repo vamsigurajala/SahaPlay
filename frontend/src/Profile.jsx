@@ -12,6 +12,7 @@ import SupportModal from './components/SupportModal';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
+import { useBackIntercept } from './hooks/useBackIntercept';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -460,6 +461,11 @@ const Profile = () => {
     }
     return () => { document.body.style.overflow = ''; };
   }, [showFollowModal, showCropModal]);
+
+  // Mobile/iPad swipe-back should close these modals instead of navigating away.
+  useBackIntercept((showFollowModal || showCropModal) ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) { setShowFollowModal(false); setShowCropModal(false); }
+  });
 
   const fetchProfile = useCallback(() => {
     if (isGuest || !token) return;

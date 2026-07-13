@@ -10,6 +10,7 @@ import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -100,6 +101,9 @@ const Navbar = () => {
     }
     return () => { document.body.style.overflow = ''; };
   }, [showMobileMenu]);
+
+  // Mobile/iPad swipe-back should close the mobile menu drawer instead of navigating away.
+  useBackIntercept(showMobileMenu ? 1 : 0, (newLevel) => { if (newLevel === 0) setShowMobileMenu(false); });
 
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }

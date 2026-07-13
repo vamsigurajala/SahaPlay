@@ -13,6 +13,8 @@ import {
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
+import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import crownImg from '../assets/crown.svg';
 import { getFlagUrl } from '../utils/countryFlags.js';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
@@ -1358,6 +1360,17 @@ export default function RoomChatPanel({ p }) {
     if(p.dmTargetRef) p.dmTargetRef.current = null;
   };
 
+  // Mobile/iPad swipe-back (and hardware back) should return to the chat
+  // list instead of leaving the room. Without this, swiping back while a
+  // group/DM chat is open falls through to the browser's real back
+  // navigation and exits to the home page.
+  useBackIntercept(p.chatTab === 'list' ? 0 : 1, (newLevel) => {
+    if (newLevel === 0) handleBackToList();
+  });
+
+  useAutoResizeTextarea(p.groupInputRef, p.groupChatInput);
+  useAutoResizeTextarea(p.dmInputRef, p.dmChatInput);
+
   // Fetch block/relation status when DM target changes to ensure sync
   React.useEffect(() => {
     if (p.dmTarget && p.username) {
@@ -2480,18 +2493,24 @@ export default function RoomChatPanel({ p }) {
                     if (hasImage && p.allowMedia === false) { e.preventDefault(); toast.error('Media (images/videos) are not allowed in this room'); return; }
                     p.sendGroupChat(e); 
                     p.setShowGroupEmojiPicker(false); 
-                  }} style={{display:'flex',gap:8, alignItems:'center'}}>
-                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                  }} style={{display:'flex',gap:8, alignItems:'flex-end'}}>
+                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                       <input type="file" ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
-                      <input 
-                        ref={p.groupInputRef} 
-                        value={p.groupChatInput} 
-                        onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}} 
-                        onFocus={() => p.setShowGroupEmojiPicker(false)} 
-                        placeholder={t('msgRoomPlace', 'Message the room...')} 
-                        disabled={isDisabled} 
+                      <textarea
+                        ref={p.groupInputRef}
+                        rows={1}
+                        value={p.groupChatInput}
+                        onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
+                        onFocus={(e) => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+                        placeholder={t('msgRoomPlace', 'Message the room...')}
+                        disabled={isDisabled}
                         style={{
                           flex:1,
+                          resize:'none',
+                          maxHeight:120,
+                          overflowY:'auto',
+                          lineHeight:1.4,
+                          fontFamily:'inherit',
                           background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
                           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
                           borderRadius:10,
@@ -3023,17 +3042,23 @@ export default function RoomChatPanel({ p }) {
                         <form onSubmit={(e) => {
                           p.sendDmChat(e);
                           p.setShowDmEmojiPicker(false);
-                        }} style={{display:'flex',gap:8,alignItems:'center'}}>
-                        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                        }} style={{display:'flex',gap:8,alignItems:'flex-end'}}>
+                        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                           <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
-                          <input 
-                            ref={p.dmInputRef} 
-                            value={p.dmChatInput} 
-                            onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}} 
-                            onFocus={() => p.setShowDmEmojiPicker(false)} 
-                            placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')} 
+                          <textarea
+                            ref={p.dmInputRef}
+                            rows={1}
+                            value={p.dmChatInput}
+                            onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
+                            onFocus={(e) => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+                            placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,
+                              resize:'none',
+                              maxHeight:120,
+                              overflowY:'auto',
+                              lineHeight:1.4,
+                              fontFamily:'inherit',
                               background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
                               border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
                               borderRadius:10,

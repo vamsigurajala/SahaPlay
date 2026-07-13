@@ -3,6 +3,7 @@ import { Lock, X, ShieldAlert, Timer, Eye, EyeOff, ChevronRight, Loader2, Key, A
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { API } from '../lib/api';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 4; 
@@ -55,7 +56,10 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
   const { t } = useTranslation();
   const myUsername = localStorage.getItem('watch_username') || '';
   const storageKey = `chat_lock_state_${myUsername}`;
-  
+
+  // Mobile/iPad swipe-back should close this lock screen instead of navigating away.
+  useBackIntercept(1, (newLevel) => { if (newLevel === 0) onClose && onClose(); });
+
   const [attempts, setAttempts] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey));
