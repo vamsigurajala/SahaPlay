@@ -532,6 +532,22 @@ const typingCss = `
     --input-text: #0f172a;
   }
 
+  /* Mobile & iPad view: the panel's fixed 380px width + right:20 anchor can push it
+     past the left edge on narrow screens. Make it a proper full-screen, centered
+     takeover instead — matches how the rest of the app treats modals on small screens. */
+  @media (max-width: 1024px) {
+    .chat-widget-main-panel:not(.gcw-force-dark) {
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
+      border-radius: 0 !important;
+    }
+  }
+
   .chat-menu-item {
     transition: background 0.18s ease-in-out !important;
   }
@@ -1598,6 +1614,15 @@ const GlobalChatWidget = forwardRef(({
       unlockedSessionsRef.current = {};
     }
   }, [isOpen, autoLockOnClose]);
+
+  // ── Lock background page scroll while the widget is open ──
+  useEffect(() => {
+    if (isOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = original; };
+    }
+  }, [isOpen]);
 
   const deleteChat = (chatKey) => {
     // Step 1: Find the chat so we know its type (private vs room)
@@ -4329,9 +4354,9 @@ const GlobalChatWidget = forwardRef(({
         right: transparentMode ? 0 : 20,
         width: transparentMode ? 400 : 380,
         height: transparentMode ? '100vh' : 'calc(100vh - 100px)',
-        background: transparentMode ? 'transparent' : 'rgba(10, 10, 10, 0.82)',
-        backdropFilter: transparentMode ? 'none' : 'blur(24px) saturate(180%)',
-        WebkitBackdropFilter: transparentMode ? 'none' : 'blur(24px) saturate(180%)',
+        background: transparentMode ? 'transparent' : '#0a0a0a',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
         boxShadow: transparentMode ? 'none' : '0 20px 50px rgba(0,0,0,0.5)',
         display: isOpen ? 'flex' : 'none',
         flexDirection: 'column',
@@ -4642,7 +4667,7 @@ const GlobalChatWidget = forwardRef(({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {view === 'list' && (
             <div className="chat-list-header" style={{ 
               padding: '16px 20px', 
@@ -5404,8 +5429,9 @@ const GlobalChatWidget = forwardRef(({
           {/* ── Re-auth overlay removed as requested ── */}
 
           {view === 'chat' && (
-            <div 
+            <div
               ref={scrollContainerRef}
+              className="no-scrollbar"
               onScroll={(e) => {
                 handleScroll(e);
                 const el = e.currentTarget;
@@ -5413,7 +5439,7 @@ const GlobalChatWidget = forwardRef(({
                   loadMoreHistory(el);
                 }
               }}
-              onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} 
+              onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
               style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
             >
               {historyLoading && (

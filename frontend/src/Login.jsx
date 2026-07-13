@@ -474,8 +474,8 @@ const Login = () => {
         html[data-theme='light'] .ban-switch-btn:hover { background: rgba(0,0,0,0.04) !important; }
       `}</style>
 
-      {/* Absolute Back Button */}
-      <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
+      {/* Absolute Back Button — hidden on mobile/iPad, see .login-back-btn media query below */}
+      <div className="login-back-btn" style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
         <button onClick={() => navigate('/')} className="back-box-btn" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', width: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', transition: 'all 0.2s', backdropFilter: 'blur(10px)' }} title={t('backToHome', 'Back to Home')}>
           <ArrowLeft size={20} />
         </button>

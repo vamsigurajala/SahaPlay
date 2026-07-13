@@ -485,7 +485,9 @@ function App() {
         --skel-shine: rgba(15,23,42,0.14);
       }
       html[data-theme='light'] .chat-widget-main-panel:not(.gcw-force-dark) {
-        background: rgba(255, 255, 255, 0.85) !important;
+        background: #ffffff !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
         border-color: rgba(0, 0, 0, 0.08) !important;
       }
 

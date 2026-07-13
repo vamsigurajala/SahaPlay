@@ -368,8 +368,8 @@ const Signup = () => {
           }
         `}</style>
 
-        {/* ── Back Button ── */}
-        <div style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
+        {/* ── Back Button — hidden on mobile/iPad, see .login-back-btn media query ── */}
+        <div className="login-back-btn" style={{ position: 'absolute', top: '24px', left: '24px', zIndex: 50 }}>
           <button
             onClick={() => navigate('/')}
             className="back-box-btn"

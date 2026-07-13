@@ -568,6 +568,13 @@ html[data-theme='light'] .btn-secondary:hover {
   }
 }
 
+/* Mobile & iPad view: Login/Signup back button removed entirely */
+@media (max-width: 1024px) {
+  .login-back-btn {
+    display: none !important;
+  }
+}
+
 @keyframes blobFloat {
   0% {
     transform: scale(1) translate(0, 0);
