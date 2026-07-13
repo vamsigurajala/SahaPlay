@@ -2583,7 +2583,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                       <input type="file" ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
                       <textarea
-                        className="chat-msg-textarea"
+                        className="chat-msg-textarea no-scrollbar"
                         ref={p.groupInputRef}
                         rows={1}
                         value={p.groupChatInput}
@@ -3176,7 +3176,7 @@ export default function RoomChatPanel({ p }) {
                         <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                           <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
                           <textarea
-                            className="chat-msg-textarea"
+                            className="chat-msg-textarea no-scrollbar"
                             ref={p.dmInputRef}
                             rows={1}
                             value={p.dmChatInput}

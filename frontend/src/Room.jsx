@@ -24,6 +24,7 @@ import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
+import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from './utils/reactionPreviewsPersist';
 import ReactPlayerRaw from 'react-player/lazy';
 const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
@@ -1735,8 +1736,9 @@ const Room = () => {
   const [dmMediaUrlVersion, setDmMediaUrlVersion] = useState(0);
   const groupDecryptedMediaUrls = useRef({});
   const [groupMediaUrlVersion, setGroupMediaUrlVersion] = useState(0);
-  // reaction preview overrides: key → previewText, shown in chat list until user opens that chat
-  const [reactionPreviews, setReactionPreviews] = useState({});
+  // reaction preview overrides: key → previewText, shown in chat list until user opens that chat.
+  // Persisted to localStorage (shared with GlobalChatWidget) so it survives a refresh.
+  const [reactionPreviews, setReactionPreviews] = useState(getPersistedReactionPreviews);
 
   const [groupUnread, setGroupUnread] = useState(() => {
     try {
@@ -2497,6 +2499,8 @@ const Room = () => {
 
     if (chatTab === 'dm' && dmTarget) {
       const dmKey = dmTarget.toLowerCase();
+      setReactionPreviews(prev => { const next = { ...prev }; delete next[dmKey]; return next; });
+      clearPersistedReactionPreview(dmKey);
       setDmUnread(prev => {
         const next = { ...prev };
         delete next[dmKey];
@@ -2527,6 +2531,8 @@ const Room = () => {
       chatWidgetRef.current?.markReadFor?.(dmKey);
     } else if (chatTab === 'group') {
       const roomKey = (roomId || '').toLowerCase();
+      setReactionPreviews(prev => { const next = { ...prev }; delete next[roomKey]; return next; });
+      clearPersistedReactionPreview(roomKey);
       setGroupUnread(0);
       // Clear from unreadCounts (source of truth for totalUnread / chat button badge)
       setUnreadCounts(prev => {
@@ -3670,8 +3676,9 @@ const Room = () => {
           dmUnreadRef.current[otherNameLower] = newCount;
           setDmUnread(prev => ({ ...prev, [otherNameLower]: newCount }));
           setTotalUnread(p => p + 1);
-          // Update Room panel preview + push to GCW
+          // Update Room panel preview + push to GCW — persisted so it survives a refresh
           setReactionPreviews(prev => ({ ...prev, [otherNameLower]: `Reacted ${emoji} to your message` }));
+          setPersistedReactionPreview(otherNameLower, `Reacted ${emoji} to your message`);
           chatWidgetRef.current?.updateConversationPreview?.(senderName, `Reacted ${emoji} to your message`, 'private');
         }
       }
@@ -3762,8 +3769,9 @@ const Room = () => {
             return newVal;
           });
           setTotalUnread(p => p + 1);
-          // Update Room panel preview + push to GCW
+          // Update Room panel preview + push to GCW — persisted so it survives a refresh
           setReactionPreviews(prev => ({ ...prev, [roomId.toLowerCase()]: `${senderUsername} reacted ${emoji} to your message` }));
+          setPersistedReactionPreview(roomId.toLowerCase(), `${senderUsername} reacted ${emoji} to your message`);
           chatWidgetRef.current?.updateConversationPreview?.(roomId, `${senderUsername} reacted ${emoji} to your message`, 'room');
         }
       }
@@ -6689,6 +6697,7 @@ const Room = () => {
       dmUnreadRef.current[uname.toLowerCase()] = 0;
     }
     setReactionPreviews(prev => { const next = { ...prev }; delete next[uname.toLowerCase()]; return next; });
+    clearPersistedReactionPreview(uname.toLowerCase());
   };
   const totalDmUnread = Object.values(dmUnread).reduce((a, b) => a + b, 0);
 

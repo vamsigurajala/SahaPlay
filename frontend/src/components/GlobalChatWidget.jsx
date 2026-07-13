@@ -20,6 +20,7 @@ import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
+import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -1476,7 +1477,7 @@ const GlobalChatWidget = forwardRef(({
   // reactionPreviews state so both surfaces show the same thing. Cleared
   // when that chat is opened (doOpenChat) or marked read from elsewhere
   // (markReadFor).
-  const [reactionPreviewOverrides, setReactionPreviewOverrides] = useState({});
+  const [reactionPreviewOverrides, setReactionPreviewOverrides] = useState(getPersistedReactionPreviews);
   // Same idea but for the desktop click-to-open dropdown (chevron button),
   // derived from the click's mouse Y.
   const [dropdownPlacement, setDropdownPlacement] = useState('down');
@@ -1940,6 +1941,7 @@ const GlobalChatWidget = forwardRef(({
         if (!(key in prev)) return prev;
         const next = { ...prev }; delete next[key]; return next;
       });
+      clearPersistedReactionPreview(key);
     },
     // Called by Room.jsx when someone reacts to the current user's message,
     // so the conversation list shows "X reacted 🙂 to your message" like
@@ -1953,6 +1955,7 @@ const GlobalChatWidget = forwardRef(({
           .sort((a, b) => getSortTime(b) - getSortTime(a));
       });
       setReactionPreviewOverrides(prev => ({ ...prev, [chatKey]: previewText }));
+      setPersistedReactionPreview(chatKey, previewText);
     },
     markAllRead: () => {
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
@@ -2276,6 +2279,7 @@ const GlobalChatWidget = forwardRef(({
         if (!(key in prev)) return prev;
         const next = { ...prev }; delete next[key]; return next;
       });
+      clearPersistedReactionPreview(partner.toLowerCase());
 
       // Purge partner from clearedPartnersRef if a new message arrives
       if (clearedPartnersRef.current) {
@@ -2305,7 +2309,8 @@ const GlobalChatWidget = forwardRef(({
         if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
       } catch {}
       
-      const isViewingThis = currentView === 'chat' && (currentChat?.partner === partner || currentChat?.id === partner);
+      const partnerLower = (partner || '').toLowerCase();
+      const isViewingThis = currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
 
       // Compute a short preview text
       const _mt0 = msg.mediaType;
@@ -2533,7 +2538,7 @@ const GlobalChatWidget = forwardRef(({
       setConversations(prev => {
         const conversations = Array.isArray(prev) ? prev : [];
         const exists = conversations.find(c => c.partner === partner || c.id === partner);
-        const isViewingThis = currentView === 'chat' && (currentChat?.partner === partner || currentChat?.id === partner);
+        const isViewingThis = currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
 
         let updatedList;
         if (exists) {
@@ -3626,6 +3631,7 @@ const GlobalChatWidget = forwardRef(({
       if (!(key in prev)) return prev;
       const next = { ...prev }; delete next[key]; return next;
     });
+    clearPersistedReactionPreview((targetPartner || '').toLowerCase());
 
     // For room chats, attach permissions from the conversations list so the input UI can enforce them
     let chatPerms = chat.permissions || null;
@@ -6135,7 +6141,7 @@ const GlobalChatWidget = forwardRef(({
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
                       <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                         <textarea
-                          className="chat-msg-textarea"
+                          className="chat-msg-textarea no-scrollbar"
                           ref={inputRef}
                           rows={1}
                           placeholder={activeChat?.type === 'room' && chatLocked && !isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
