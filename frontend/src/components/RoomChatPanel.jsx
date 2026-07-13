@@ -1958,7 +1958,7 @@ export default function RoomChatPanel({ p }) {
                       return <span style={{ color: '#10b981' }}>{typers.join(', ')} typing...</span>;
                     }
                     const rxnPreview = p.reactionPreviews?.[(p.roomId||'').toLowerCase()];
-                    if (rxnPreview) return <span style={{ color: '#a78bfa' }}>{rxnPreview}</span>;
+                    if (rxnPreview) return rxnPreview;
                     const lastMsg = p.groupMessages.length > 0 ? p.groupMessages[p.groupMessages.length-1] : null;
                     if (!lastMsg) return t('startConv', 'Start a conversation');
                     const chatObj = {
@@ -2079,7 +2079,7 @@ export default function RoomChatPanel({ p }) {
                           return <span style={{ color: '#10b981' }}>typing...</span>;
                         }
                         const dmRxnPreview = p.reactionPreviews?.[uname.toLowerCase()];
-                        if (dmRxnPreview) return <span style={{ color: '#a78bfa' }}>{dmRxnPreview}</span>;
+                        if (dmRxnPreview) return dmRxnPreview;
                         return last ? (() => {
                           const chatObj = {
                             type: 'private',
@@ -2588,6 +2588,7 @@ export default function RoomChatPanel({ p }) {
                         rows={1}
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                         onFocus={(e) => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
@@ -3180,6 +3181,7 @@ export default function RoomChatPanel({ p }) {
                             rows={1}
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                             onFocus={(e) => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{

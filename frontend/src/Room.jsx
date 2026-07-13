@@ -10457,7 +10457,7 @@ const Room = () => {
                 onMarkAllRead={handleMarkAllRead}
                 onNewMessage={handleNewMessage}
                 activeRoomTab={chatTab}
-                activeRoomPartner={roomId}
+                activeRoomPartner={chatTab === 'dm' ? dmTarget : roomId}
                 transparentMode={isFullscreen}
                 roomPermissions={room?.permissions}
                 isRoomHost={isEffectiveHost}

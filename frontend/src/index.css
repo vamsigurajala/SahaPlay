@@ -621,16 +621,17 @@ html[data-theme='light'] .btn-secondary:hover {
   .react-btn-container {
     display: none !important;
   }
-  /* Message composer textarea grows with content up to a max-height, and
-     mobile browsers show a visible scrollbar once it's scrollable — keep
-     scrolling but hide the bar. */
-  .chat-msg-textarea {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .chat-msg-textarea::-webkit-scrollbar {
-    display: none;
-  }
+}
+
+/* Message composer textarea grows with content up to a max-height, and
+   browsers show a visible scrollbar once it's scrollable — keep scrolling
+   but hide the bar, in every view (not just mobile/iPad). */
+.chat-msg-textarea {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chat-msg-textarea::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes blobFloat {

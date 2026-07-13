@@ -1471,6 +1471,12 @@ const GlobalChatWidget = forwardRef(({
   // derived from raw touch Y at press-start so it tracks the row's actual
   // on-screen position (mirrors the same pattern in RoomChatPanel.jsx).
   const [longPressPlacement, setLongPressPlacement] = useState('up');
+  // Client-side-only override shown in place of the real last-message preview
+  // (e.g. "krish reacted 🔥 to your message") — mirrors Room.jsx's own
+  // reactionPreviews state so both surfaces show the same thing. Cleared
+  // when that chat is opened (doOpenChat) or marked read from elsewhere
+  // (markReadFor).
+  const [reactionPreviewOverrides, setReactionPreviewOverrides] = useState({});
   // Same idea but for the desktop click-to-open dropdown (chevron button),
   // derived from the click's mouse Y.
   const [dropdownPlacement, setDropdownPlacement] = useState('down');
@@ -1930,6 +1936,23 @@ const GlobalChatWidget = forwardRef(({
           ? { ...c, unread: 0 }
           : c
       ));
+      setReactionPreviewOverrides(prev => {
+        if (!(key in prev)) return prev;
+        const next = { ...prev }; delete next[key]; return next;
+      });
+    },
+    // Called by Room.jsx when someone reacts to the current user's message,
+    // so the conversation list shows "X reacted 🙂 to your message" like
+    // Room's own chat-list panel does — persists until that chat is opened.
+    updateConversationPreview: (key, previewText) => {
+      const chatKey = (key || '').toLowerCase();
+      setConversations(prev => {
+        const convs = Array.isArray(prev) ? prev : [];
+        if (!convs.some(c => ((c.id || c.partner) || '').toLowerCase() === chatKey)) return convs;
+        return convs.map(c => (((c.id || c.partner) || '').toLowerCase() === chatKey) ? { ...c, lastTimestamp: Date.now() } : c)
+          .sort((a, b) => getSortTime(b) - getSortTime(a));
+      });
+      setReactionPreviewOverrides(prev => ({ ...prev, [chatKey]: previewText }));
     },
     markAllRead: () => {
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
@@ -2245,6 +2268,14 @@ const GlobalChatWidget = forwardRef(({
       const isGroup = msg.type === 'group' || msg.type === 'room' || !!msg.roomId;
       const partner = isGroup ? (msg.roomId || msg.partner) : ((msg.isMe || (msg.senderName && msg.senderName === myUsername)) ? msg.targetName : msg.senderName);
       if (!partner) return;
+
+      // A genuine new message supersedes any pending "reacted to your
+      // message" preview override for this chat.
+      setReactionPreviewOverrides(prev => {
+        const key = partner.toLowerCase();
+        if (!(key in prev)) return prev;
+        const next = { ...prev }; delete next[key]; return next;
+      });
 
       // Purge partner from clearedPartnersRef if a new message arrives
       if (clearedPartnersRef.current) {
@@ -3590,6 +3621,11 @@ const GlobalChatWidget = forwardRef(({
   const doOpenChat = async (chat) => {
     // Ensure we have the correct identifier for history
     const targetPartner = chat.id || chat.partner;
+    setReactionPreviewOverrides(prev => {
+      const key = (targetPartner || '').toLowerCase();
+      if (!(key in prev)) return prev;
+      const next = { ...prev }; delete next[key]; return next;
+    });
 
     // For room chats, attach permissions from the conversations list so the input UI can enforce them
     let chatPerms = chat.permissions || null;
@@ -5350,7 +5386,9 @@ const GlobalChatWidget = forwardRef(({
                         <div style={{ fontSize: '0.85rem', color: isLight ? 'var(--header-btn)' : '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0 }}>
                             <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {(!chat.lastTimestamp || chat.lastTimestamp === 0)
+                              {reactionPreviewOverrides[chatKey]
+                                ? reactionPreviewOverrides[chatKey]
+                                : (!chat.lastTimestamp || chat.lastTimestamp === 0)
                                 ? <span style={{ color: 'var(--menu-icon)' }}>{chat.type === 'room' ? 'Start a conversation' : 'Start a private chat'}</span>
                                 : getMessagePreview(chat, myUsername)
                               }
@@ -6119,6 +6157,7 @@ const GlobalChatWidget = forwardRef(({
                                }, 3000);
                             }
                           }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                           style={{
                             flex: 1,
                             resize: 'none',
