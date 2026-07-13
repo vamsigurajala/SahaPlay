@@ -1125,6 +1125,11 @@ export default function RoomChatPanel({ p }) {
   // can be mid-swipe or long-pressed at a time, so a single instance is enough.
   const swipe = useSwipeToReply();
   const longPress = useLongPress();
+  // 'up' = menu opens above the touched row (row is near the bottom of the
+  // screen, close to the composer); 'down' = opens below (row is near the
+  // top, close to the header). Computed from raw touch Y at press-start so
+  // it tracks the row's actual on-screen position, not its array index.
+  const [longPressPlacement, setLongPressPlacement] = React.useState('up');
   const [clearGroupChatModalOpen, setClearGroupChatModalOpen] = React.useState(false);
   const fileInputRef = React.useRef(null);
   const dmFileInputRef = React.useRef(null);
@@ -2187,9 +2192,19 @@ export default function RoomChatPanel({ p }) {
               const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setGroupReplyTo(msg));
               const longPressHandlers = longPress.getHandlers(rowKey);
               const gestureHandlers = {
-                onTouchStart: (e) => { if (longPress.activeId === rowKey) longPress.close(); swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e); },
-                onTouchMove: (e) => { swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
-                onTouchEnd: (e) => { swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
+                // Taps inside the open long-press menu bubble through to this
+                // wrapper's own touchstart (it's a sibling under the same
+                // gesture div), which was closing the menu on touch-DOWN
+                // before the tap could register on a button — skip entirely
+                // when the touch actually started on the menu itself.
+                onTouchStart: (e) => {
+                  if (e.target.closest && e.target.closest('.long-press-menu')) return;
+                  if (longPress.activeId === rowKey) { longPress.close(); }
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((window.innerHeight - touch.clientY) < 260 ? 'up' : 'down'); }
+                  swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
+                },
+                onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
+                onTouchEnd: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
               };
               const isSwipingRow = swipe.activeId === rowKey;
               const rowDragX = isSwipingRow ? swipe.dragX : 0;
@@ -2207,7 +2222,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: showLongPressMenu ? 'relative' : undefined, zIndex: showLongPressMenu ? 50 : undefined}}>
                   {msg.replyTo && (
                     <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid #6366f1',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
                       <span style={{color: isLight ? '#1e293b' : '#a0aab2',fontWeight:600}}>{(() => { 
@@ -2309,16 +2324,16 @@ export default function RoomChatPanel({ p }) {
                           {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup)}
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
-                            <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
+                            <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
                               <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
                                  <div className="menu-dropdown" style={{
-                                   position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, 
-                                   background: 'var(--dropdown-bg)', 
-                                   border: '1px solid var(--dropdown-border)', 
-                                   borderRadius:12, padding:6, zIndex:100, 
+                                   position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4,
+                                   background: 'var(--dropdown-bg)',
+                                   border: '1px solid var(--dropdown-border)',
+                                   borderRadius:12, padding:6, zIndex:100,
                                    boxShadow: 'var(--dropdown-shadow)', minWidth: 160
                                  }} onClick={e => e.stopPropagation()}>
                                    {isMe ? (
@@ -2365,15 +2380,37 @@ export default function RoomChatPanel({ p }) {
                         </div>
                         {showLongPressMenu && (
                           <div className="long-press-menu" style={{
-                            position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8,
+                            position:'absolute',
+                            [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
+                            [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,
+                            [isMe?'right':'left']:0,
                             background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
-                            borderRadius:12, padding:'8px 12px', zIndex:100, display:'flex',
-                            flexDirection:'column', gap:8, minWidth:130, boxShadow: 'var(--dropdown-shadow)', fontSize:13
+                            borderRadius:14, padding:10, zIndex:100, display:'flex',
+                            flexDirection:'column', gap:8, minWidth:180, boxShadow: 'var(--dropdown-shadow)', fontSize:13
                           }} onClick={e => e.stopPropagation()}>
-                            <span style={{ color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 11 }}>{formatTime(msg.timestamp)}</span>
-                            <button onClick={() => { p.setGroupReplyTo(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
-                              <Reply size={14} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} /> {t('reply', 'Reply')}
-                            </button>
+                            <div style={{display:'flex',alignItems:'center',gap:4}}>
+                              {QUICK_EMOJIS.map(em=>(
+                                <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
+                              ))}
+                              <button onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true); longPress.close(); }} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border:'none',cursor:'pointer',width:30,height:30,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                <Plus size={15} color="#000" style={{ WebkitTextFillColor: '#000' }}/>
+                              </button>
+                            </div>
+                            <div style={{height:1,background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}} />
+                            {isMe ? (
+                              <>
+                                <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                  <Trash2 size={14}/> {t('unsend', 'Unsend')}
+                                </button>
+                                <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                  <Trash2 size={14}/> {t('deleteForMe', 'Delete for me')}
+                                </button>
+                              </>
+                            ) : (
+                              <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                <Trash2 size={14}/> {t('delete', 'Delete')}
+                              </button>
+                            )}
                             {!isMe && (
                               <button onClick={() => { p.reportMsg(msg); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
                                 <Flag size={14} /> {t('report', 'Report')}
@@ -2709,9 +2746,16 @@ export default function RoomChatPanel({ p }) {
                     const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setDmReplyTo(msg));
                     const longPressHandlers = longPress.getHandlers(rowKey);
                     const gestureHandlers = {
-                      onTouchStart: (e) => { if (longPress.activeId === rowKey) longPress.close(); swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e); },
-                      onTouchMove: (e) => { swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
-                      onTouchEnd: (e) => { swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
+                      // See the group-chat gestureHandlers above for why the
+                      // '.long-press-menu' guard is needed.
+                      onTouchStart: (e) => {
+                        if (e.target.closest && e.target.closest('.long-press-menu')) return;
+                        if (longPress.activeId === rowKey) { longPress.close(); }
+                        else { const touch = e.touches[0]; if (touch) setLongPressPlacement((window.innerHeight - touch.clientY) < 260 ? 'up' : 'down'); }
+                        swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
+                      },
+                      onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
+                      onTouchEnd: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchEnd(e); longPressHandlers.onTouchEnd(e); },
                     };
                     const isSwipingRow = swipe.activeId === rowKey;
                     const rowDragX = isSwipingRow ? swipe.dragX : 0;
@@ -2729,7 +2773,7 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4}}>
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: showLongPressMenu ? 'relative' : undefined, zIndex: showLongPressMenu ? 50 : undefined}}>
                         {msg.replyTo && (
                           <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
                             <span style={{color:'#6366f1',fontWeight:600}} className="reply-sender">
@@ -2797,8 +2841,8 @@ export default function RoomChatPanel({ p }) {
                                 {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm)}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
-                                  <div style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                    <button 
+                                  <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
+                                    <button
                                       className={(isLight && msg.mediaType) ? 'stay-white' : ''}
                                       ref={activeMessageMenu === msg.id ? messageMenuRef : null}
                                       onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
@@ -2855,15 +2899,37 @@ export default function RoomChatPanel({ p }) {
                               </div>
                                 {showLongPressMenu && (
                                   <div className="long-press-menu" style={{
-                                    position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8,
+                                    position:'absolute',
+                                    [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
+                                    [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,
+                                    [isMe?'right':'left']:0,
                                     background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
-                                    borderRadius:12, padding:'8px 12px', zIndex:100, display:'flex',
-                                    flexDirection:'column', gap:8, minWidth:130, boxShadow: 'var(--dropdown-shadow)', fontSize:13
+                                    borderRadius:14, padding:10, zIndex:100, display:'flex',
+                                    flexDirection:'column', gap:8, minWidth:180, boxShadow: 'var(--dropdown-shadow)', fontSize:13
                                   }} onClick={e => e.stopPropagation()}>
-                                    <span style={{ color: isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)', fontSize: 11 }}>{formatTime(msg.timestamp)}</span>
-                                    <button onClick={() => { p.setDmReplyTo(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
-                                      <Reply size={14} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} /> {t('reply', 'Reply')}
-                                    </button>
+                                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                                      {QUICK_EMOJIS.map(em=>(
+                                        <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
+                                      ))}
+                                      <button onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true); longPress.close(); }} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border:'none',cursor:'pointer',width:30,height:30,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                        <Plus size={15} color="#000" style={{ WebkitTextFillColor: '#000' }}/>
+                                      </button>
+                                    </div>
+                                    <div style={{height:1,background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}} />
+                                    {isMe ? (
+                                      <>
+                                        <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                          <Trash2 size={14}/> {t('unsend', 'Unsend')}
+                                        </button>
+                                        <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                          <Trash2 size={14}/> {t('deleteForMe', 'Delete for me')}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'local'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                        <Trash2 size={14}/> {t('delete', 'Delete')}
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (

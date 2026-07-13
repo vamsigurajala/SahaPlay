@@ -11122,7 +11122,7 @@ const Room = () => {
               <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
             </button>
             <div className="mob-sheet-divider" />
-            <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowMobileMenu(false); navigate('/'); }}>
+            <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { roomModalsBack.skipNextClose(); socket?.emit('leave_room', { roomId }); setShowMobileMenu(false); navigate('/'); }}>
               <LogOut size={20} /> <span>{t('leaveRoom', 'Leave Room')}</span>
             </button>
           </div>
@@ -11188,6 +11188,7 @@ const Room = () => {
                       )));
                       window.dispatchEvent(new Event('conversations_updated'));
                     } catch(e) {}
+                    roomModalsBack.skipNextClose();
                     setShowPersonalDeleteConfirm(false);
                     navigate('/');
                     toast.success('Room removed from your view');

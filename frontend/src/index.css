@@ -604,6 +604,13 @@ html[data-theme='light'] .btn-secondary:hover {
     position: sticky !important;
     top: 0 !important;
   }
+  /* Chat messages: the desktop tap-to-reveal dropdown arrow and the
+     side reaction icon are replaced by a single long-press menu
+     (emoji reactions + delete/unsend) on mobile/iPad, so hide both. */
+  .msg-hover-menu,
+  .react-btn-container {
+    display: none !important;
+  }
 }
 
 @keyframes blobFloat {
