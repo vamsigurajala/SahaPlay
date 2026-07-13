@@ -1652,7 +1652,7 @@ const Profile = () => {
               </div>
               <h3 style={{ color: '#fff', fontSize: 20, fontWeight: 700, marginBottom: 8 }}>User Not Found</h3>
               <p style={{ color: '#555', fontSize: 14 }}>This account doesn't exist or has been deleted.</p>
-              <button onClick={() => navigate('/')} style={{ marginTop: 20, padding: '10px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Go Home</button>
+              <button className="stay-white" onClick={() => navigate('/')} style={{ marginTop: 20, padding: '10px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Go Home</button>
             </div>
           ) : (
             <div style={{ padding: '40px 20px' }}>

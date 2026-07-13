@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
+import { useInactivityLogout } from './hooks/useInactivityLogout';
 const Home = lazy(() => import('./Home'));
 const Room = lazy(() => import('./Room'));
 const Login = lazy(() => import('./Login'));
@@ -155,12 +156,14 @@ function ScrollToTop() {
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+  useInactivityLogout();
   return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
 };
 
 // AdminRoute: checks role from the DB via /api/me on every render — never trusts localStorage
 const AdminRoute = ({ children }) => {
   const [status, setStatus] = useState('loading'); // 'loading' | 'admin' | 'denied'
+  useInactivityLogout();
 
   useEffect(() => {
     const token = localStorage.getItem('watch_token');

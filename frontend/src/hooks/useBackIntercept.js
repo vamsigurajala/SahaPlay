@@ -48,6 +48,11 @@ export function useBackIntercept(level, onPop) {
   const onPopRef = useRef(onPop);
   onPopRef.current = onPop;
   const skipConsumeRef = useRef(false);
+  // Path the page was on when this instance last went from closed to open —
+  // used at unmount to tell "the surrounding route navigated away" (leave
+  // entries alone) apart from "this component was simply removed in place"
+  // (safe to physically pop them).
+  const pathAtOpenRef = useRef(null);
 
   useEffect(() => {
     ensureListener();
@@ -55,6 +60,7 @@ export function useBackIntercept(level, onPop) {
 
   useEffect(() => {
     if (level > currentLevelRef.current) {
+      if (currentLevelRef.current === 0) pathAtOpenRef.current = window.location.pathname;
       for (let i = currentLevelRef.current; i < level; i++) {
         const depthAtPush = i + 1;
         window.history.pushState({ __backLevel: depthAtPush }, '');
@@ -90,6 +96,14 @@ export function useBackIntercept(level, onPop) {
   useEffect(() => () => {
     const diff = currentLevelRef.current;
     if (diff > 0) {
+      if (pathAtOpenRef.current !== null && window.location.pathname !== pathAtOpenRef.current) {
+        // The surrounding page/route changed (e.g. navigating away from a
+        // room to a profile) — that's what unmounted us, not an in-app
+        // close. Physically going back now would undo that navigation, so
+        // leave the entries inert instead (same tradeoff as skipNextClose).
+        currentLevelRef.current = 0;
+        return;
+      }
       for (let i = 0; i < diff; i++) sharedStack.pop();
       currentLevelRef.current = 0;
       suppressCount += 1;
