@@ -13,6 +13,7 @@ import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { useBackIntercept } from './hooks/useBackIntercept';
+import { getPersistedGcwOpen } from './utils/gcwPersist';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -143,7 +144,7 @@ const Profile = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [showRecentChats, setShowRecentChats] = useState(false);
+  const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }

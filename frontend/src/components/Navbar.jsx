@@ -11,6 +11,7 @@ import SupportModal from './SupportModal';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { getPersistedGcwOpen } from '../utils/gcwPersist';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
-  const [showRecentChats, setShowRecentChats] = useState(false);
+  const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);

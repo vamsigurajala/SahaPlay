@@ -23,6 +23,7 @@ import SubtitleSettingsModal from './components/SubtitleSettingsModal';
 import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';
+import { getPersistedGcwOpen } from './utils/gcwPersist';
 import ReactPlayerRaw from 'react-player/lazy';
 const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
@@ -1012,7 +1013,7 @@ const Room = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [showRecentChats, setShowRecentChats] = useState(false);
+  const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});

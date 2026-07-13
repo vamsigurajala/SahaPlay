@@ -1285,8 +1285,28 @@ const GlobalChatWidget = forwardRef(({
     };
   }, []);
   const getSortTime = React.useCallback((c) => Math.max(Number(c.lastTimestamp) || 0, Number(c.clearedAt) || 0), []);
-  const [view, setView] = useState('list'); // 'list' or 'chat'
-  const [activeChat, setActiveChat] = useState(null);
+  // Restore last open view/conversation across page navigations (e.g. tapping
+  // a message avatar to view a profile) — this + isOpen persistence below is
+  // what makes a swipe-back land back on the same open chat instead of a
+  // freshly-mounted, closed widget.
+  const [view, setView] = useState(() => {
+    try { return sessionStorage.getItem('gcw_view') || 'list'; } catch { return 'list'; }
+  }); // 'list' or 'chat'
+  const [activeChat, setActiveChat] = useState(() => {
+    try { const raw = sessionStorage.getItem('gcw_active_chat'); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem('gcw_view', view); } catch {}
+  }, [view]);
+  useEffect(() => {
+    try {
+      if (activeChat) sessionStorage.setItem('gcw_active_chat', JSON.stringify(activeChat));
+      else sessionStorage.removeItem('gcw_active_chat');
+    } catch {}
+  }, [activeChat]);
+  useEffect(() => {
+    try { sessionStorage.setItem('gcw_is_open', isOpen ? 'true' : 'false'); } catch {}
+  }, [isOpen]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const paginationStateRef = useRef({});
   const scrollContainerRef = useRef(null);

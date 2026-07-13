@@ -598,6 +598,12 @@ html[data-theme='light'] .btn-secondary:hover {
   .custom-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /* Room header (name/member count) was scrolling out of view above the
+     fold — pin it to the top of whatever scrolls beneath it. */
+  .room-header {
+    position: sticky !important;
+    top: 0 !important;
+  }
 }
 
 @keyframes blobFloat {

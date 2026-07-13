@@ -10,6 +10,7 @@ import { appCache } from './cache/appCache.js';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
+import { getPersistedGcwOpen } from './utils/gcwPersist';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -275,7 +276,7 @@ const AppSettings = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
-  const [showRecentChats, setShowRecentChats] = useState(false);
+  const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [recentChats, setRecentChats] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);

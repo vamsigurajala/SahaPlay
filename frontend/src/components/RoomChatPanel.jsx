@@ -2752,7 +2752,7 @@ export default function RoomChatPanel({ p }) {
                             const uObj = p.userList.find(u => u.username === rName);
                             const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
                             const avatarSrc = isSenderBlocked ? null : getAvatarUrl(fallbackMsgAvatar);
-                            return <Avatar name={displayUsername} size={28} src={avatarSrc}/>;
+                            return <span onClick={() => !isSenderBlocked && navigate(`/profile/${rName}`)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
