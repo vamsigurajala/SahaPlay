@@ -759,6 +759,21 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// Snapshot of the message being replied to, sent alongside a reply so the
+// recipient can render a preview. Keeps mediaType/mediaFileName (rather than
+// collapsing every non-video media type to a hardcoded 'Photo' string) so a
+// reply to a voice note or file shows the real label/filename.
+function buildReplySnapshot(src, fallbackUsername) {
+  if (!src) return null;
+  return {
+    id: src.id,
+    username: src.senderName || src.username || fallbackUsername,
+    mediaType: src.mediaType || null,
+    mediaFileName: src._fileName || src.mediaFileName || null,
+    message: src.mediaType ? null : (src.decryptedText || (looksLikeCiphertext(src.message || '') ? '' : (src.message || '')))
+  };
+}
+
 function truncateToFewWords(str) {
   if (!str) return 'New message';
   const lines = str.split('\n');
@@ -1456,6 +1471,9 @@ const GlobalChatWidget = forwardRef(({
   // derived from raw touch Y at press-start so it tracks the row's actual
   // on-screen position (mirrors the same pattern in RoomChatPanel.jsx).
   const [longPressPlacement, setLongPressPlacement] = useState('up');
+  // Same idea but for the desktop click-to-open dropdown (chevron button),
+  // derived from the click's mouse Y.
+  const [dropdownPlacement, setDropdownPlacement] = useState('down');
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
   const [activeConvMenu, setActiveConvMenu] = useState(null);
   const [hoveredConvId, setHoveredConvId] = useState(null);
@@ -3743,11 +3761,7 @@ const GlobalChatWidget = forwardRef(({
       message: inputValue.trim(),
       decryptedText: inputValue.trim(),
       timestamp: ts,
-      replyTo: replyToMsg ? {
-        id: replyToMsg.id,
-        username: replyToMsg.senderName || replyToMsg.username || activeChat?.displayName,
-        message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : replyToMsg.mediaType.startsWith('image') ? 'Photo' : replyToMsg.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : (replyToMsg.decryptedText || (looksLikeCiphertext(replyToMsg.message||'') ? '' : (replyToMsg.message||'')))
-      } : null
+      replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName)
     };
     const previousConversations = [...conversations];
     
@@ -4049,11 +4063,7 @@ const GlobalChatWidget = forwardRef(({
           ephemeralPublicKey: mediaEphemeral,
           e2eeKeys: e2eeKeysGroup,
           encrypted: isEncrypted,
-          replyTo: replyToMsg ? {
-            id: replyToMsg.id,
-            username: replyToMsg.senderName || replyToMsg.username || activeChat?.displayName,
-            message: replyToMsg.mediaType ? (replyToMsg.mediaType.startsWith('video') ? 'Video' : replyToMsg.mediaType.startsWith('image') ? 'Photo' : replyToMsg.mediaType.startsWith('audio') ? 'Voice Note' : 'File') : (replyToMsg.decryptedText || replyToMsg.message)
-          } : null,
+          replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName),
           tempId: tempId,
           mediaFileName: file.name || null,
           mediaFileSize: file.size || null,
@@ -5585,7 +5595,7 @@ const GlobalChatWidget = forwardRef(({
                     )}
                     <div
                          id={`gcw-msg-${msg.id || msg.tempId || i}`}
-                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: showLongPressMenu ? 'relative' : undefined, zIndex: showLongPressMenu ? 50 : undefined}}>
+                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined}}>
                       {msg.replyTo && (
                         <div onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
                           <span style={{color:isMe?'#6366f1':'#a855f7',fontWeight:600}}>{(() => {
@@ -5596,6 +5606,7 @@ const GlobalChatWidget = forwardRef(({
                             return rName;
                           })()}: </span>{(() => {
                             const r = msg.replyTo;
+                            if (r.mediaType) { const rmt6=r.mediaType; return rmt6.startsWith('video')?'Video':rmt6.startsWith('image')?'Photo':rmt6.startsWith('audio')?'Voice Note':(r.mediaFileName || r._fileName || 'File'); }
                             const raw = r.message || '';
                             if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                             return raw.slice(0,60) || 'Media';
@@ -5714,13 +5725,16 @@ const GlobalChatWidget = forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((window.innerHeight - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
                                     <div style={{
-                                      position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:4, 
-                                      background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)', 
+                                      position:'absolute',
+                                      [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
+                                      [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
+                                      [isMe?'right':'left']:0,
+                                      background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)',
                                       borderRadius:12, padding:6, zIndex:100, 
                                       boxShadow:'var(--dropdown-shadow)', minWidth: 145,
                                       WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
@@ -5983,7 +5997,7 @@ const GlobalChatWidget = forwardRef(({
                   <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
                     <span><span style={{color:'#6366f1',fontWeight:600}}>{replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}: </span>{(() => {
                       const r = replyToMsg;
-                      if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':'File'; }
+                      if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
                       if (r.decryptedText) return r.decryptedText.slice(0,50);
                       const raw = r.message || '';
                       if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
@@ -6083,6 +6097,7 @@ const GlobalChatWidget = forwardRef(({
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
                       <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                         <textarea
+                          className="chat-msg-textarea"
                           ref={inputRef}
                           rows={1}
                           placeholder={activeChat?.type === 'room' && chatLocked && !isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}

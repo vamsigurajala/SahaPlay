@@ -463,6 +463,22 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// Snapshot of the message being replied to, sent alongside a reply so the
+// recipient can render a preview. Keeps mediaType/mediaFileName (rather than
+// collapsing every non-video media type to a hardcoded 'Photo' string) so a
+// reply to a voice note or file shows the real label/filename, not just the
+// wrong media icon text.
+function buildReplySnapshot(src) {
+  if (!src) return null;
+  return {
+    id: src.id,
+    username: src.username || src.senderName || src.targetName,
+    mediaType: src.mediaType || null,
+    mediaFileName: src._fileName || src.mediaFileName || null,
+    message: src.mediaType ? null : (src.decryptedText || (looksLikeCiphertext(src.message || '') ? '' : (src.message || '')))
+  };
+}
+
 // Second-pass resolver: after decrypting history, replaces any ciphertext stored in
 // replyTo.message with the decryptedText of the original message in the same batch.
 function resolveReplyMessages(messages) {
@@ -5220,7 +5236,7 @@ const Room = () => {
       decryptedText: msgText,
       timestamp: ts,
       reactions: {},
-      replyTo: groupReplyTo ? { id: groupReplyTo.id, username: groupReplyTo.username || groupReplyTo.senderName, message: groupReplyTo.mediaType ? (groupReplyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (groupReplyTo.decryptedText || (looksLikeCiphertext(groupReplyTo.message||'') ? '' : (groupReplyTo.message||''))) } : null,
+      replyTo: buildReplySnapshot(groupReplyTo),
       _isOptimistic: true
     };
     
@@ -5308,7 +5324,7 @@ const Room = () => {
       mediaType: type,
       isMe: true,
       reactions: {},
-      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
+      replyTo: buildReplySnapshot(replyTo),
       _isOptimistic: true,
       _fileName: rawFile?.name || null,
       _fileSize: rawFile?.size || null,
@@ -5413,7 +5429,7 @@ const Room = () => {
       timestamp: ts,
       isMe: true,
       reactions: {},
-      replyTo: dmReplyTo ? { id: dmReplyTo.id, username: dmReplyTo.username || dmReplyTo.senderName || dmReplyTo.targetName, message: dmReplyTo.mediaType ? (dmReplyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (dmReplyTo.decryptedText || (looksLikeCiphertext(dmReplyTo.message||'') ? '' : (dmReplyTo.message||''))) } : null,
+      replyTo: buildReplySnapshot(dmReplyTo),
       _isOptimistic: true
     };
     setDmThreads(prev => {
@@ -5615,7 +5631,7 @@ const Room = () => {
       timestamp: ts,
       isMe: true,
       reactions: {},
-      replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName || replyTo.targetName, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
+      replyTo: buildReplySnapshot(replyTo),
       _isOptimistic: true,
       _fileName: rawFile?.name || null,
       _fileSize: rawFile?.size || null,
@@ -5716,7 +5732,7 @@ const Room = () => {
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: isEncrypted,
-          replyTo: replyTo ? { id: replyTo.id, username: replyTo.username || replyTo.senderName, message: replyTo.mediaType ? (replyTo.mediaType.startsWith('video') ? 'Video' : 'Photo') : (replyTo.decryptedText || replyTo.message) } : null,
+          replyTo: buildReplySnapshot(replyTo),
           tempId
         })
       });

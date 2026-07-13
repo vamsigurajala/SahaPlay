@@ -153,6 +153,27 @@ function ScrollToTop() {
   return null;
 }
 
+// Suspense fallback shown while a lazy route chunk loads. Delayed by
+// SHOW_DELAY_MS so cached/fast chunk loads (the common case after the first
+// visit) never flash it at all — it only appears for loads that are
+// actually slow enough to need one.
+const ROUTE_FALLBACK_SHOW_DELAY_MS = 200;
+function RouteLoadingFallback() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShow(true), ROUTE_FALLBACK_SHOW_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  if (!show) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, height: '100vh', width: '100%', background: '#0a0a12' }}>
+      <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 44, height: 44, opacity: 0.9 }} />
+      <div style={{ width: 30, height: 30, border: '3px solid rgba(129,140,248,0.2)', borderTop: '3px solid #818cf8', borderRadius: '50%', animation: 'app-route-spin 0.8s linear infinite' }} />
+      <style>{'@keyframes app-route-spin { to { transform: rotate(360deg); } }'}</style>
+    </div>
+  );
+}
+
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
@@ -1009,7 +1030,7 @@ function App() {
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
           <ScrollToTop />
-          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0f0a1e', color: '#7c3aed', fontSize: 18 }}>Loading...</div>}>
+          <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />

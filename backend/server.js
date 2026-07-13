@@ -6317,13 +6317,19 @@ io.on('connection', (socket) => {
     // A6-F11: If e2ee object present, require nonce and keys before storing
     if (e2ee && (!e2ee.nonce || !e2ee.keys)) return;
 
-    // A6-F12: Sanitize replyTo — only known keys, preview capped at 150 chars
+    // A6-F12: Sanitize replyTo — only known keys, preview capped at 150 chars.
+    // Field names must match what the client actually sends (username/message/
+    // mediaType/mediaFileName) — this previously looked for senderName/preview,
+    // which no client ever sent, so every group-chat reply preview was silently
+    // dropped once it round-tripped through the server.
     let safeReplyTo = null;
     if (replyTo && typeof replyTo === 'object') {
       safeReplyTo = {
         id: replyTo.id ?? null,
-        senderName: typeof replyTo.senderName === 'string' ? replyTo.senderName.slice(0, 60) : null,
-        preview: typeof replyTo.preview === 'string' ? replyTo.preview.slice(0, 150) : null,
+        username: typeof replyTo.username === 'string' ? replyTo.username.slice(0, 60) : null,
+        mediaType: typeof replyTo.mediaType === 'string' ? replyTo.mediaType.slice(0, 100) : null,
+        mediaFileName: typeof replyTo.mediaFileName === 'string' ? replyTo.mediaFileName.slice(0, 255) : null,
+        message: typeof replyTo.message === 'string' ? replyTo.message.slice(0, 150) : null,
       };
     }
 
