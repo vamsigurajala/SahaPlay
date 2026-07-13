@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
-  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock
+  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy
 } from 'lucide-react';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -23,6 +23,24 @@ import MediaLightbox from './MediaLightbox';
 import { getMessagePreview } from '../utils/messagePreview';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
+
+const getMessageCopyText = (msg) => {
+  if (!msg) return '';
+  if (msg.decryptedText) return msg.decryptedText;
+  if (!msg.mediaType && msg.message && !looksLikeCiphertext(msg.message)) return msg.message;
+  return '';
+};
+
+const copyMessageText = async (msg) => {
+  const text = getMessageCopyText(msg);
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success('Message copied');
+  } catch {
+    toast.error('Could not copy message');
+  }
+};
 
 const formatUsername = (name) => {
   if (!name) return '';
@@ -2336,6 +2354,11 @@ export default function RoomChatPanel({ p }) {
                                    borderRadius:12, padding:6, zIndex:100,
                                    boxShadow: 'var(--dropdown-shadow)', minWidth: 160
                                  }} onClick={e => e.stopPropagation()}>
+                                   {!!getMessageCopyText(msg) && (
+                                     <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                       <Copy size={16}/> {t('copy', 'Copy')}
+                                     </button>
+                                   )}
                                    {isMe ? (
                                      <>
                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
@@ -2397,6 +2420,11 @@ export default function RoomChatPanel({ p }) {
                               </button>
                             </div>
                             <div style={{height:1,background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}} />
+                            {!!getMessageCopyText(msg) && (
+                              <button onClick={() => { copyMessageText(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                <Copy size={14}/> {t('copy', 'Copy')}
+                              </button>
+                            )}
                             {isMe ? (
                               <>
                                 <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -2856,6 +2884,11 @@ export default function RoomChatPanel({ p }) {
                                         borderRadius:12, padding:6, zIndex:100, 
                                         boxShadow: 'var(--dropdown-shadow)', minWidth: 160
                                       }} onClick={e => e.stopPropagation()}>
+                                        {!!getMessageCopyText(msg) && (
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
+                                            <Copy size={16}/> {t('copy', 'Copy')}
+                                          </button>
+                                        )}
                                         {isMe ? (
                                           <>
                                             <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
@@ -2916,6 +2949,11 @@ export default function RoomChatPanel({ p }) {
                                       </button>
                                     </div>
                                     <div style={{height:1,background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}} />
+                                    {!!getMessageCopyText(msg) && (
+                                      <button onClick={() => { copyMessageText(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                        <Copy size={14}/> {t('copy', 'Copy')}
+                                      </button>
+                                    )}
                                     {isMe ? (
                                       <>
                                         <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -3198,7 +3236,7 @@ export default function RoomChatPanel({ p }) {
             onEmojiSelect={(e) => { p.setGroupChatInput(prev => prev + e.native); }}
             theme={isLight ? 'light' : 'dark'}
             previewPosition="none"
-            searchPosition="none"
+            searchPosition="sticky"
             navPosition="bottom"
             perLine={7}
           />
@@ -3213,7 +3251,7 @@ export default function RoomChatPanel({ p }) {
             onEmojiSelect={(e) => { p.setDmChatInput(prev => prev + e.native); }}
             theme={isLight ? 'light' : 'dark'}
             previewPosition="none"
-            searchPosition="none"
+            searchPosition="sticky"
             navPosition="bottom"
             perLine={7}
           />
@@ -3227,7 +3265,7 @@ export default function RoomChatPanel({ p }) {
             data={data} 
             theme={isLight ? 'light' : 'dark'} 
             previewPosition="none" 
-            searchPosition="none" 
+            searchPosition="sticky" 
             navPosition="bottom" 
             perLine={6} 
             onEmojiSelect={(emojiObj) => { 

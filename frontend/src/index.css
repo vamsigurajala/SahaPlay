@@ -1,5 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
+/* Chat message bubbles: a long-press (mobile) or click-drag (desktop) used
+   to select the raw text underneath, which fought with the menu/long-press
+   popup. Selection is no longer needed now every message menu has a Copy
+   option, so it's disabled everywhere the bubble renders. */
+.msg-sent, .msg-received {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 :root {
   --bg-color: #0b0c10;
   --bg-gradient-1: #1a0b2e;

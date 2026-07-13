@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
@@ -22,6 +22,24 @@ import { useBackIntercept } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
+
+const getMessageCopyText = (msg) => {
+  if (!msg) return '';
+  if (msg.decryptedText) return msg.decryptedText;
+  if (!msg.mediaType && msg.message && !looksLikeCiphertext(msg.message)) return msg.message;
+  return '';
+};
+
+const copyMessageText = async (msg) => {
+  const text = getMessageCopyText(msg);
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success('Message copied');
+  } catch {
+    toast.error('Could not copy message');
+  }
+};
 
 const FILE_LIMITS = {
   'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
@@ -5707,6 +5725,11 @@ const GlobalChatWidget = forwardRef(({
                                       boxShadow:'var(--dropdown-shadow)', minWidth: 145,
                                       WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
                                     }} onClick={e => e.stopPropagation()}>
+                                      {!!getMessageCopyText(msg) && (
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                          <Copy size={12} color="currentColor"/> {t('copy', 'Copy')}
+                                        </button>
+                                      )}
                                       {isMe ? (
                                         <>
                                           <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
@@ -5767,6 +5790,11 @@ const GlobalChatWidget = forwardRef(({
                                   </button>
                                 </div>
                                 <div style={{height:1,background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}} />
+                                {!!getMessageCopyText(msg) && (
+                                  <button onClick={() => { copyMessageText(msg); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                    <Copy size={14}/> {t('copy', 'Copy')}
+                                  </button>
+                                )}
                                 {isMe ? (
                                   <>
                                     <button onClick={() => { handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -5967,7 +5995,7 @@ const GlobalChatWidget = forwardRef(({
                 
                 {showEmojiPicker && (
                   <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onMouseDown={(e) => e.stopPropagation()}>
-                    <Picker data={data} onEmojiSelect={(e) => { setInputValue(prev => prev + e.native); }} theme={isLight ? 'light' : 'dark'} previewPosition="none" searchPosition="none" navPosition="bottom" />
+                    <Picker data={data} onEmojiSelect={(e) => { setInputValue(prev => prev + e.native); }} theme={isLight ? 'light' : 'dark'} previewPosition="none" searchPosition="sticky" navPosition="bottom" />
                   </div>
                 )}
                 
@@ -6389,7 +6417,7 @@ const GlobalChatWidget = forwardRef(({
               data={data} 
               theme={isLight ? 'light' : 'dark'} 
               previewPosition="none" 
-              searchPosition="none" 
+              searchPosition="sticky"
               navPosition="bottom" 
               perLine={6} 
               onEmojiSelect={(emojiObj) => { setShowAllEmojis(false); handleReact(activeReactionMsg, emojiObj.native); setActiveReactionMsg(null); }}
