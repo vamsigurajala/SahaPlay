@@ -1689,9 +1689,26 @@ const Room = () => {
   }, []);
 
 
-  const [chatTab, setChatTab] = useState('list');
+  // Restore which chat view (list/group/dm) was open in this room across a
+  // navigate-away-and-back cycle (e.g. tapping a message avatar to view a
+  // profile then swiping back) — Room.jsx fully unmounts on that navigation
+  // so plain useState would otherwise reset to a closed chat every time.
+  const [chatTab, setChatTab] = useState(() => {
+    try { return sessionStorage.getItem(`room_chat_tab_${roomId}`) || 'list'; } catch { return 'list'; }
+  });
   const [groupMessages, setGroupMessages] = useState([]);
-  const [dmTarget, setDmTarget] = useState(null);
+  const [dmTarget, setDmTarget] = useState(() => {
+    try { return sessionStorage.getItem(`room_dm_target_${roomId}`) || null; } catch { return null; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(`room_chat_tab_${roomId}`, chatTab); } catch {}
+  }, [chatTab, roomId]);
+  useEffect(() => {
+    try {
+      if (dmTarget) sessionStorage.setItem(`room_dm_target_${roomId}`, dmTarget);
+      else sessionStorage.removeItem(`room_dm_target_${roomId}`);
+    } catch {}
+  }, [dmTarget, roomId]);
   const dmTargetRef = useRef(null);
   const [dmThreads, setDmThreads] = useState({});
   const dmClearedTsRef = useRef({});
@@ -6661,6 +6678,28 @@ const Room = () => {
 
   const copyRoomLink = () => { if (copied) return; navigator.clipboard.writeText(window.location.href); setCopied(true); setTimeout(() => setCopied(false), 2000); toast.success('Link copied!'); };
 
+  // Shared by the desktop settings dropdown and the mobile bottom sheet.
+  const togglePinRoom = async () => {
+    const isPinned = pinnedRooms.includes(roomId);
+    const next = isPinned ? pinnedRooms.filter(r => r !== roomId) : [...pinnedRooms, roomId];
+    setPinnedRooms(next);
+    localStorage.setItem('pinned_rooms', JSON.stringify(next));
+
+    const token = localStorage.getItem('watch_token');
+    if (token) {
+      try {
+        await fetch(`${SOCKET_SERVER_URL}/api/profile/pinned-rooms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ pinnedRooms: next })
+        });
+      } catch (err) {
+        console.error('Failed to sync pinned rooms', err);
+      }
+    }
+    toast.success(isPinned ? 'Room unpinned' : 'Room pinned!');
+  };
+
   const [reportMsgTarget, setReportMsgTarget] = React.useState(null);
 
   const reportMsg = (msg) => {
@@ -6674,7 +6713,7 @@ const Room = () => {
   const anyRoomModalOpen = showMediaSelector || showYtBrowser || showTwitchBrowser || showVimeoBrowser
     || roomSettingsModalOpen || showShareModal || showCustomizeModal || showSubtitleSettingsModal
     || !!showGuidedShare || !!banConfirmTarget || renameModalOpen || clearChatModalOpen
-    || showCastDiscovery || !!reportMsgTarget;
+    || showCastDiscovery || !!reportMsgTarget || showMobileMenu || showPersonalDeleteConfirm;
   const roomModalsBack = useBackIntercept(anyRoomModalOpen ? 1 : 0, (newLevel) => {
     if (newLevel === 0) {
       setShowMediaSelector(false);
@@ -6691,6 +6730,8 @@ const Room = () => {
       setClearChatModalOpen(false);
       setShowCastDiscovery(false);
       setReportMsgTarget(null);
+      setShowMobileMenu(false);
+      setShowPersonalDeleteConfirm(false);
     }
   });
 
@@ -8055,28 +8096,7 @@ const Room = () => {
             {showSettings && (
               <div style={{ position: 'absolute', top: 'calc(100% + 12px)', right: 0, background: isLight ? '#fff' : '#141414', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 6, minWidth: 200, zIndex: 5000, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)' }}>
                 <button className="settings-menu-btn" onClick={async () => {
-                  const isPinned = pinnedRooms.includes(roomId);
-                  const next = isPinned ? pinnedRooms.filter(r => r !== roomId) : [...pinnedRooms, roomId];
-                  setPinnedRooms(next);
-                  localStorage.setItem('pinned_rooms', JSON.stringify(next));
-                  
-                  const token = localStorage.getItem('watch_token');
-                  if (token) {
-                    try {
-                      await fetch(`${SOCKET_SERVER_URL}/api/profile/pinned-rooms`, {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                          'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ pinnedRooms: next })
-                      });
-                    } catch (err) {
-                      console.error('Failed to sync pinned rooms', err);
-                    }
-                  }
-
-                  toast.success(isPinned ? 'Room unpinned' : 'Room pinned!');
+                  await togglePinRoom();
                   setShowSettings(false);
                 }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <Pin size={16} color={isLight ? '#4f46e5' : '#888'} /> {pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}
@@ -11074,6 +11094,15 @@ const Room = () => {
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowShareModal(true); }}>
               <Share2 size={20} /> <span>{t('invite', 'Invite')}</span>
             </button>
+            <button className="mob-sheet-item" onClick={async () => { await togglePinRoom(); setShowMobileMenu(false); }}>
+              <Pin size={20} /> <span>{pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}</span>
+            </button>
+            {isEffectiveHost && (
+              <button className="mob-sheet-item" onClick={() => { socket.emit('toggle_public', { isPublic: !isPublic }); setShowMobileMenu(false); }}>
+                {isPublic ? <Lock size={20} color="#f59e0b" /> : <Globe size={20} color="#10b981" />}
+                <span>{isPublic ? t('makePrivate', 'Make this private') : t('makePublic', 'Make this public')}</span>
+              </button>
+            )}
             {isEffectiveHost && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setRoomSettingsModalOpen(true); }}>
                 <Settings2 size={20} /> <span>{t('roomSettings', 'Room Settings')}</span>
@@ -11084,8 +11113,17 @@ const Room = () => {
                 <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
               </button>
             )}
+            {!isEffectiveHost && (
+              <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { setShowMobileMenu(false); setShowPersonalDeleteConfirm(true); }}>
+                <Trash2 size={20} /> <span>{t('deleteRoom', 'Delete Room')}</span>
+              </button>
+            )}
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleFullscreen(); }}>
               <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
+            </button>
+            <div className="mob-sheet-divider" />
+            <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowMobileMenu(false); navigate('/'); }}>
+              <LogOut size={20} /> <span>{t('leaveRoom', 'Leave Room')}</span>
             </button>
           </div>
         </>

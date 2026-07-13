@@ -5554,15 +5554,18 @@ const GlobalChatWidget = forwardRef(({
                          {!isMe && (() => {
                            const sNameOriginal = msg.senderName || msg.username || '?';
                            const partner = sNameOriginal.toLowerCase();
-                           const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
+                           let isBlocked = false;
+                           try {
+                             isBlocked = blockingMe.some(u => String(u || '').toLowerCase() === partner) || blockedChats.some(u => String(u || '').toLowerCase() === partner);
+                           } catch (err) { console.error('[GCW] block-check failed, treating as not blocked', err); }
                            const sName = isBlocked ? 'User' : sNameOriginal;
                            const aSrc = isBlocked ? null : getAvatarUrl(msg.senderAvatar);
                            return (
                              <div
-                               onClick={(e) => { 
-                                 e.stopPropagation(); 
-                                 if (!isBlocked) {
-                                   navigate(`/profile/${sNameOriginal}`); 
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 if (!isBlocked && sNameOriginal && sNameOriginal !== '?') {
+                                   navigate(`/profile/${sNameOriginal}`);
                                  }
                                }}
                                title={isBlocked ? 'Blocked User' : `View ${sNameOriginal}'s profile`}

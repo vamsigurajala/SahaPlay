@@ -1494,6 +1494,18 @@ html[data-theme='light'] .mobile-nav-divider {
   .mob-sheet-item:hover, .mob-sheet-item:active {
     background: rgba(255,255,255,0.06);
   }
+  .mob-sheet-item-danger {
+    color: #f87171 !important;
+  }
+  .mob-sheet-item:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .mob-sheet-divider {
+    height: 1px;
+    background: var(--room-border);
+    margin: 8px 0;
+  }
 
   /* Part 4 — Share modal: 3-column grid on mobile */
   .share-social-grid {
@@ -1624,6 +1636,12 @@ html[data-theme='light'] .mob-sheet-item {
 }
 html[data-theme='light'] .mob-sheet-item:hover {
   background: rgba(0,0,0,0.04);
+}
+html[data-theme='light'] .mob-sheet-item-danger {
+  color: #ef4444 !important;
+}
+html[data-theme='light'] .mob-sheet-divider {
+  background: #e2e8f0;
 }
 html[data-theme='light'] .rsm-mob-list-item {
   color: #0f172a;
