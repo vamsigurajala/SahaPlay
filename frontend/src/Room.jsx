@@ -22,6 +22,7 @@ import StreamUploadProgress from './components/StreamUploadProgress';
 import SubtitleSettingsModal from './components/SubtitleSettingsModal';
 import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
+import { useBackIntercept } from './hooks/useBackIntercept';
 import ReactPlayerRaw from 'react-player/lazy';
 const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
@@ -6663,6 +6664,33 @@ const Room = () => {
     setReportMsgTarget(msg);
   };
 
+  // Mobile/iPad swipe-back should close whichever room modal/browser is
+  // open instead of leaving the room. Grouped as a single level since these
+  // are mutually exclusive in practice (opening one already closes the
+  // others — see MediaSelectorModal's onSelectPlatform etc).
+  const anyRoomModalOpen = showMediaSelector || showYtBrowser || showTwitchBrowser || showVimeoBrowser
+    || roomSettingsModalOpen || showShareModal || showCustomizeModal || showSubtitleSettingsModal
+    || !!showGuidedShare || !!banConfirmTarget || renameModalOpen || clearChatModalOpen
+    || showCastDiscovery || !!reportMsgTarget;
+  const roomModalsBack = useBackIntercept(anyRoomModalOpen ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) {
+      setShowMediaSelector(false);
+      setShowYtBrowser(false);
+      setShowTwitchBrowser(false);
+      setShowVimeoBrowser(false);
+      setRoomSettingsModalOpen(false);
+      setShowShareModal(false);
+      setShowCustomizeModal(false);
+      setShowSubtitleSettingsModal(false);
+      setShowGuidedShare(null);
+      setBanConfirmTarget(null);
+      setRenameModalOpen(false);
+      setClearChatModalOpen(false);
+      setShowCastDiscovery(false);
+      setReportMsgTarget(null);
+    }
+  });
+
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
 
@@ -8181,6 +8209,7 @@ const Room = () => {
         socket={socket}
         isHost={isEffectiveHost}
         roomId={roomId}
+        onBeforeLeaveNavigate={roomModalsBack.skipNextClose}
       />
 
       <SubtitleSettingsModal

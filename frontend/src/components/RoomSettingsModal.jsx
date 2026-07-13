@@ -57,6 +57,7 @@ export default function RoomSettingsModal({
   socket,
   isHost,
   roomId,
+  onBeforeLeaveNavigate,
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -189,6 +190,7 @@ export default function RoomSettingsModal({
     } catch(e) {}
     toast.success('Room removed from your view');
     setShowDeleteConfirm(false);
+    onBeforeLeaveNavigate && onBeforeLeaveNavigate();
     onClose();
     navigate('/');
   };

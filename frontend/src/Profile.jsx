@@ -117,6 +117,20 @@ const Profile = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [userNotFound, setUserNotFound] = useState(false);
 
+  // viewingUsername changes via client-side navigation (search results, chat
+  // avatars, etc.) without remounting this component, so state from the
+  // previous profile — most importantly a stale userNotFound=true — must be
+  // reset here or every subsequent profile visit in the session keeps
+  // showing "user not found" even for real users.
+  useEffect(() => {
+    setUserNotFound(false);
+    if (!viewingUsername) { setOtherProfile(null); return; }
+    try {
+      const cached = localStorage.getItem(`profile_cache_${viewingUsername.toLowerCase()}`);
+      setOtherProfile(cached ? JSON.parse(cached) : null);
+    } catch { setOtherProfile(null); }
+  }, [viewingUsername]);
+
   // Delete account state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteChecked, setDeleteChecked] = useState(false);

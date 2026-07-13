@@ -18,6 +18,13 @@ import { useEffect, useRef } from 'react';
  * @param {(newLevel:number)=>void} onPop - called with the new (lower)
  *   level when the user swipes/back-navigates; the caller should update
  *   its own state to match (e.g. close the modal, or go back one view).
+ * @returns {{ skipNextClose: () => void }} call skipNextClose()
+ *   synchronously right before closing AND navigating to a different route
+ *   in the same click handler (e.g. a mobile-menu link). Without it, this
+ *   hook's own history.go() cleanup races with the router's pushState and
+ *   can undo the navigation. The pushed entry is left inert in the shared
+ *   history stack instead of being consumed — harmless, just costs one
+ *   extra no-op swipe if the user ever backs all the way through it.
  */
 const sharedStack = [];
 let suppressCount = 0;
@@ -40,6 +47,7 @@ export function useBackIntercept(level, onPop) {
   const currentLevelRef = useRef(0);
   const onPopRef = useRef(onPop);
   onPopRef.current = onPop;
+  const skipConsumeRef = useRef(false);
 
   useEffect(() => {
     ensureListener();
@@ -59,14 +67,23 @@ export function useBackIntercept(level, onPop) {
       }
       currentLevelRef.current = level;
     } else if (level < currentLevelRef.current) {
-      // Closed via an in-app control (X button, back arrow) rather than a
-      // swipe/back gesture — consume the now-unused history entries so a
-      // future swipe doesn't land on a stale level.
       const diff = currentLevelRef.current - level;
-      for (let i = 0; i < diff; i++) sharedStack.pop();
-      currentLevelRef.current = level;
-      suppressCount += 1; // history.go coalesces into a single popstate
-      window.history.go(-diff);
+      if (skipConsumeRef.current) {
+        // A real route navigation is happening in this same tick — leave
+        // the pushed entries in place (both in the browser's real history
+        // and in sharedStack) rather than calling history.go(), which
+        // would race the router's own pushState and undo the navigation.
+        skipConsumeRef.current = false;
+        currentLevelRef.current = level;
+      } else {
+        // Closed via an in-app control (X button, back arrow) rather than a
+        // swipe/back gesture — consume the now-unused history entries so a
+        // future swipe doesn't land on a stale level.
+        for (let i = 0; i < diff; i++) sharedStack.pop();
+        currentLevelRef.current = level;
+        suppressCount += 1; // history.go coalesces into a single popstate
+        window.history.go(-diff);
+      }
     }
   }, [level]);
 
@@ -79,4 +96,6 @@ export function useBackIntercept(level, onPop) {
       window.history.go(-diff);
     }
   }, []);
+
+  return { skipNextClose: () => { skipConsumeRef.current = true; } };
 }

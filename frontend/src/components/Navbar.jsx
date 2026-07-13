@@ -103,7 +103,15 @@ const Navbar = () => {
   }, [showMobileMenu]);
 
   // Mobile/iPad swipe-back should close the mobile menu drawer instead of navigating away.
-  useBackIntercept(showMobileMenu ? 1 : 0, (newLevel) => { if (newLevel === 0) setShowMobileMenu(false); });
+  const mobileMenuBack = useBackIntercept(showMobileMenu ? 1 : 0, (newLevel) => { if (newLevel === 0) setShowMobileMenu(false); });
+  // Nav links close the drawer AND change route in the same click — tell the
+  // hook to leave its history entry alone so it doesn't fight the router's
+  // own navigation (see useBackIntercept's skipNextClose doc).
+  const navigateAndCloseMenu = useCallback((path) => {
+    mobileMenuBack.skipNextClose();
+    navigate(path);
+    setShowMobileMenu(false);
+  }, [mobileMenuBack, navigate]);
 
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
@@ -377,7 +385,7 @@ const Navbar = () => {
           /* Mobile / Tablet Layout */
           <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
             {/* Left: Logo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigateAndCloseMenu('/')}>
               <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
               <h1 className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</h1>
             </div>
@@ -902,19 +910,19 @@ const Navbar = () => {
 
             {/* Drawer Nav Links */}
             <div style={{ padding: '8px', flex: 1 }}>
-              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/'); setShowMobileMenu(false); }}>
+              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/')}>
                 <Home size={16} />
                 {t('home', 'Home')}
               </button>
-              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/features'); setShowMobileMenu(false); }}>
+              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/features')}>
                 <Sparkles size={16} />
                 {t('features', 'Features')}
               </button>
-              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/how-it-works'); setShowMobileMenu(false); }}>
+              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/how-it-works')}>
                 <HelpCircle size={16} />
                 {t('howItWorks', 'Guide')}
               </button>
-              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/public'); setShowMobileMenu(false); }}>
+              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/public')}>
                 <Compass size={16} />
                 {t('explore', 'Explore')}
               </button>
@@ -923,12 +931,12 @@ const Navbar = () => {
 
               {(isLoggedIn || isGuest) && (
                 <>
-                  <button className={`nav-link-btn${location.pathname === '/profile' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/profile'); setShowMobileMenu(false); }}>
+                  <button className={`nav-link-btn${location.pathname === '/profile' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/profile')}>
                     <User size={16} />
                     {t('profile', 'Profile')} {loggedInUsername ? `(${loggedInUsername})` : ''}
                   </button>
 
-                  <button className={`nav-link-btn${location.pathname === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/app-settings'); setShowMobileMenu(false); }}>
+                  <button className={`nav-link-btn${location.pathname === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/app-settings')}>
                     <Settings size={16} />
                     {t('app', 'App Settings')}
                   </button>
@@ -939,7 +947,7 @@ const Navbar = () => {
                   </button>
 
                   {isAdminRole && (
-                    <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/admin'); setShowMobileMenu(false); }}>
+                    <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/admin')}>
                       <Sparkles size={16} color="#a855f7" />
                       {t('adminDashboard', 'Admin Dashboard')}
                     </button>
@@ -951,7 +959,7 @@ const Navbar = () => {
                         <User size={16} />
                         {t('logIn', 'Sign In')}
                       </button>
-                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
                         <Sparkles size={16} />
                         {t('signUp', 'Sign Up')}
                       </button>
@@ -967,12 +975,12 @@ const Navbar = () => {
 
               {!isLoggedIn && !isGuest && (
                 <>
-                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { navigate('/login'); setShowMobileMenu(false); }}>
+                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/login')}>
                     <User size={16} />
                     {t('logIn', 'Sign In')}
                   </button>
 
-                  <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => { navigate('/signup'); setShowMobileMenu(false); }}>
+                  <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
                     <Sparkles size={16} />
                     {t('signUp', 'Sign Up')}
                   </button>
