@@ -1007,9 +1007,13 @@ export default function RoomChatPanel({ p }) {
   const prevGroupMsgCount = React.useRef(p.groupMessages.length);
   const prevFirstGroupMsgId = React.useRef(null);
   const groupScrollAnchorRef = React.useRef(null);
-  
+  const prevGroupChatTabRef = React.useRef(p.chatTab);
+
   React.useLayoutEffect(() => {
     const container = groupScrollContainerRef.current;
+    const justSwitchedIntoView = prevGroupChatTabRef.current !== 'group' && p.chatTab === 'group';
+    prevGroupChatTabRef.current = p.chatTab;
+
     if (!container || p.chatTab !== 'group') {
       if (p.chatTab === 'group') {
         prevGroupMsgCount.current = p.groupMessages.length;
@@ -1020,7 +1024,7 @@ export default function RoomChatPanel({ p }) {
 
     const firstMsgId = p.groupMessages.length > 0 ? p.groupMessages[0].id || p.groupMessages[0].tempId : null;
     const isPrepend = firstMsgId !== prevFirstGroupMsgId.current && prevFirstGroupMsgId.current !== null && p.groupMessages.length > prevGroupMsgCount.current;
-    
+
     if (isPrepend && groupScrollAnchorRef.current) {
       const { prevScrollHeight, prevScrollTop } = groupScrollAnchorRef.current;
       container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
@@ -1034,11 +1038,15 @@ export default function RoomChatPanel({ p }) {
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
         }
-      } else {
+      } else if (justSwitchedIntoView) {
+        // Only jump to the bottom when this chat is first opened/switched
+        // into. Same message count with no tab change means something like
+        // a reaction was toggled on an existing message — don't yank the
+        // user's scroll position for that.
         container.scrollTop = container.scrollHeight;
       }
     }
-    
+
     prevGroupMsgCount.current = p.groupMessages.length;
     prevFirstGroupMsgId.current = firstMsgId;
   }, [p.groupMessages, p.chatTab]);
@@ -1048,9 +1056,14 @@ export default function RoomChatPanel({ p }) {
   const prevFirstDmMsgId = React.useRef(null);
   const prevDmTarget = React.useRef(p.dmTarget);
   const dmScrollAnchorRef = React.useRef(null);
+  const prevDmChatTabRef = React.useRef(p.chatTab);
 
   React.useLayoutEffect(() => {
     const container = dmScrollContainerRef.current;
+    const targetChanged = p.dmTarget !== prevDmTarget.current;
+    const justSwitchedIntoView = targetChanged || (prevDmChatTabRef.current !== 'dm' && p.chatTab === 'dm');
+    prevDmChatTabRef.current = p.chatTab;
+
     if (!container || p.chatTab !== 'dm') {
       if (p.chatTab === 'dm') {
         prevDmMsgCount.current = dmMessages.length;
@@ -1061,7 +1074,6 @@ export default function RoomChatPanel({ p }) {
     }
 
     const firstMsgId = dmMessages.length > 0 ? dmMessages[0].id || dmMessages[0].tempId : null;
-    const targetChanged = p.dmTarget !== prevDmTarget.current;
     const isPrepend = !targetChanged && firstMsgId !== prevFirstDmMsgId.current && prevFirstDmMsgId.current !== null && dmMessages.length > prevDmMsgCount.current;
 
     if (isPrepend && dmScrollAnchorRef.current) {
@@ -1077,7 +1089,10 @@ export default function RoomChatPanel({ p }) {
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
         }
-      } else {
+      } else if (justSwitchedIntoView) {
+        // Only jump to the bottom when this DM is first opened/switched
+        // into. Same message count with no target/tab change means
+        // something like a reaction was toggled — don't yank scroll for that.
         container.scrollTop = container.scrollHeight;
       }
     }

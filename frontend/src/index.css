@@ -590,6 +590,14 @@ html[data-theme='light'] .btn-secondary:hover {
   .login-back-btn {
     display: none !important;
   }
+  /* Room Members dropdown: keep it scrollable but hide the visible scrollbar */
+  .custom-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes blobFloat {

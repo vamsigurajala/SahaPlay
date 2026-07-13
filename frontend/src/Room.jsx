@@ -1046,6 +1046,7 @@ const Room = () => {
   const [showUserPanel, setShowUserPanel] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const userPanelRef = useRef(null);
+  const mobUserPanelTriggerRef = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(null);
   const [kickedReason, setKickedReason] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -2071,7 +2072,8 @@ const Room = () => {
         setShowNotifications(false);
         // Only close showRecentChats if click is outside widget
       }
-      if (showUserPanel && userPanelRef.current && !userPanelRef.current.contains(e.target)) {
+      const inMobUserPanelTrigger = mobUserPanelTriggerRef.current && mobUserPanelTriggerRef.current.contains(e.target);
+      if (showUserPanel && userPanelRef.current && !userPanelRef.current.contains(e.target) && !inMobUserPanelTrigger) {
         setShowUserPanel(false);
       }
       if (showSettings && settingsRef.current && !settingsRef.current.contains(e.target)) {
@@ -7629,7 +7631,7 @@ const Room = () => {
 
         {/* Mobile center: room avatar + name + members pill (Part 1) */}
         {isMobile && (
-          <div className="room-mob-center" onClick={() => { setShowUserPanel(v => !v); setShowSettings(false); setShowRecentChats(false); }}>
+          <div ref={mobUserPanelTriggerRef} className="room-mob-center" onClick={() => { setShowUserPanel(v => !v); setShowSettings(false); setShowRecentChats(false); }}>
             {room?.thumbnailPath ? (
               <img src={getRoomThumbnailUrl(room.thumbnailPath)} className="room-mob-avatar" alt="" />
             ) : (

@@ -3010,7 +3010,7 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
     if (myBlock.rows.length > 0) return res.json({ isBlockedByMe: true, username });
     if (theirBlock.rows.length > 0) return res.status(404).json({ error: 'User not found' });
     
-    const user = await queryGet('SELECT username, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE username = ?', [username]);
+    const user = await queryGet('SELECT username, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const isSelf = viewerUsername.toLowerCase() === (user.username || '').toLowerCase();
