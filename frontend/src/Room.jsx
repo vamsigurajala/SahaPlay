@@ -666,6 +666,8 @@ const isGameOrActivity = (url) => {
   return false;
 };
 
+const isCallActivity = (url) => url === 'activity://videocall' || url === 'activity://voicecall';
+
 const isMediaGame = (url) => {
   if (!url) return false;
   const matched = OPTIONS.find(opt => {
@@ -1603,7 +1605,11 @@ const Room = () => {
         if (screen?.orientation?.unlock) screen.orientation.unlock();
       } else {
         setIsMobileFsMode(true);
-        if (screen?.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+        // Calls stay portrait (WhatsApp-style) — only real video/game
+        // playback rotates into landscape on mobile fullscreen.
+        if (screen?.orientation?.lock) {
+          screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
+        }
       }
       return;
     }
@@ -1771,6 +1777,22 @@ const Room = () => {
   const [dmHistoryLoading, setDmHistoryLoading] = useState(false);
   const [hasMoreGroupHistory, setHasMoreGroupHistory] = useState(true);
   const [hasMoreDmHistory, setHasMoreDmHistory] = useState({}); // keyed by partnerUsername.toLowerCase()
+  // Tracks whether the initial history fetch has completed at least once since
+  // this component mounted (fresh on every mount, e.g. after navigating away to
+  // a profile page and back). Used to distinguish "still loading" from "genuinely
+  // empty" so the empty-state text doesn't flash before real history arrives.
+  const [groupHistoryReady, setGroupHistoryReady] = useState(false);
+  const [dmHistoryReady, setDmHistoryReady] = useState(false);
+
+  // Safety net: if the server never responds (dropped connection, etc.) don't
+  // leave the chat panel spinning forever — fall back to the real empty state.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setGroupHistoryReady(true);
+      setDmHistoryReady(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [roomId]);
 
   const paginationStateRef = useRef({
     group: {
@@ -3130,6 +3152,8 @@ const Room = () => {
         sock.emit('chat:mark_read', { chatId: roomId, timestamp: Date.now(), isDm: false });
       } catch (err) {
         console.error('[chat_history] HTTP fetch failed:', err);
+      } finally {
+        setGroupHistoryReady(true);
       }
     };
 
@@ -3157,7 +3181,7 @@ const Room = () => {
         console.groupEnd();
         // ─────────────────────────────────────────────────────────────────────
 
-        if (!Array.isArray(socketMsgs) || socketMsgs.length === 0) return;
+        if (!Array.isArray(socketMsgs) || socketMsgs.length === 0) { setGroupHistoryReady(true); return; }
         const processedMsgs = await Promise.all(socketMsgs.map(async (msg) => {
           const isMine = msg.isMe !== undefined ? msg.isMe
             : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
@@ -3252,6 +3276,7 @@ const Room = () => {
 
         setGroupMessages(resolvedMsgs);
         groupMessagesRef.current = resolvedMsgs;
+        setGroupHistoryReady(true);
       }
     });
 
@@ -4138,6 +4163,7 @@ const Room = () => {
         }
         return merged;
       });
+      setDmHistoryReady(true);
     });
 
     sock.on('media_stopped', () => {
@@ -6760,6 +6786,15 @@ const Room = () => {
     }
   });
 
+  // Mobile/iPad swipe-back while in the CSS-driven mobile fullscreen (games,
+  // activities, calls) should exit fullscreen instead of navigating away.
+  const mobileFsBack = useBackIntercept(isMobile && isMobileFsMode ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) {
+      setIsMobileFsMode(false);
+      if (screen?.orientation?.unlock) screen.orientation.unlock();
+    }
+  });
+
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
 
@@ -8282,7 +8317,7 @@ const Room = () => {
 
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}`}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isFullscreen && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -8318,7 +8353,7 @@ const Room = () => {
 
           <div
             ref={playerWrapRef}
-            className={`player-wrap${isMobile && isMobileFsMode ? ' player-mob-fs' : ''}`}
+            className={`player-wrap${isMobile && isMobileFsMode ? (isCallActivity(mediaUrl) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => { setShowControls(false); }}
@@ -10787,6 +10822,7 @@ const Room = () => {
                     socket,
                     reactionPreviews, setReactionPreviews,
                     groupHistoryLoading, dmHistoryLoading,
+                    groupHistoryReady, dmHistoryReady,
                     hasMoreGroupHistory, hasMoreDmHistory,
                     loadMoreGroupHistory, loadMoreDmHistory
                   }} />
@@ -11058,6 +11094,7 @@ const Room = () => {
                 socket,
                 reactionPreviews, setReactionPreviews,
                 groupHistoryLoading, dmHistoryLoading,
+                groupHistoryReady, dmHistoryReady,
                 hasMoreGroupHistory, hasMoreDmHistory,
                 loadMoreGroupHistory, loadMoreDmHistory
               }} />

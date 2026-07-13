@@ -1049,6 +1049,11 @@ export default function RoomChatPanel({ p }) {
       groupScrollAnchorRef.current = null;
     } else if (!isPrepend) {
       const isNewMsg = p.groupMessages.length > prevGroupMsgCount.current && prevGroupMsgCount.current > 0;
+      // First-ever population of this list since mount (e.g. history just
+      // arrived after a fresh socket join/rejoin) — treat it the same as
+      // "just switched into view" so we land on the latest message instead
+      // of sitting at the top.
+      const isInitialLoad = prevGroupMsgCount.current === 0 && p.groupMessages.length > 0;
       if (isNewMsg) {
         const lastMsg = p.groupMessages[p.groupMessages.length - 1];
         const isMe = lastMsg && (lastMsg.isMe || lastMsg.username?.toLowerCase() === myUser || lastMsg.senderName?.toLowerCase() === myUser);
@@ -1056,7 +1061,7 @@ export default function RoomChatPanel({ p }) {
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
         }
-      } else if (justSwitchedIntoView) {
+      } else if (justSwitchedIntoView || isInitialLoad) {
         // Only jump to the bottom when this chat is first opened/switched
         // into. Same message count with no tab change means something like
         // a reaction was toggled on an existing message — don't yank the
@@ -1100,6 +1105,10 @@ export default function RoomChatPanel({ p }) {
       dmScrollAnchorRef.current = null;
     } else if (!isPrepend) {
       const isNewMsg = !targetChanged && dmMessages.length > prevDmMsgCount.current && prevDmMsgCount.current > 0;
+      // First-ever population of this thread since mount (e.g. chat_history_dm
+      // just arrived after a fresh socket join/rejoin) — land on the latest
+      // message instead of sitting at the top.
+      const isInitialLoad = prevDmMsgCount.current === 0 && dmMessages.length > 0;
       if (isNewMsg) {
         const lastMsg = dmMessages[dmMessages.length - 1];
         const isMe = lastMsg && (lastMsg.isMe || lastMsg.username?.toLowerCase() === myUser || lastMsg.senderName?.toLowerCase() === myUser);
@@ -1107,7 +1116,7 @@ export default function RoomChatPanel({ p }) {
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
         }
-      } else if (justSwitchedIntoView) {
+      } else if (justSwitchedIntoView || isInitialLoad) {
         // Only jump to the bottom when this DM is first opened/switched
         // into. Same message count with no target/tab change means
         // something like a reaction was toggled — don't yank scroll for that.
@@ -2191,7 +2200,13 @@ export default function RoomChatPanel({ p }) {
                 <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
               </div>
             )}
-            {p.groupMessages.length===0 && <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>}
+            {p.groupMessages.length===0 && (
+              p.groupHistoryReady ? (
+                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>
+              ) : (
+                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} /></div>
+              )
+            )}
             {(() => {
               const effectiveGroupSeenMap = getEffectiveSeenBy(p.groupMessages, p.username);
               const lastGroupMsg = p.groupMessages[p.groupMessages.length - 1];
@@ -2756,9 +2771,13 @@ export default function RoomChatPanel({ p }) {
                     </div>
                   )}
                   {(p.dmThreads[p.dmTarget?.toLowerCase()]||[]).length===0 && (
-                    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:6}}>
-                      <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
-                    </div>
+                    p.dmHistoryReady ? (
+                      <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:6}}>
+                        <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
+                      </div>
+                    ) : (
+                      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} /></div>
+                    )
                   )}
                   {(() => {
                     const dmMessages = p.dmThreads[p.dmTarget?.toLowerCase()] || [];

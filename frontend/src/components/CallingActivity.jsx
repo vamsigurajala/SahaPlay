@@ -297,7 +297,7 @@ export default function CallingActivity({
           <div style={{ textAlign: 'center', marginTop: 20 }}>
             <h3 className="stay-white" style={{ margin: '0 0 6px 0', fontSize: 18, fontWeight: 800, color: '#fff' }}>Ready to join?</h3>
             <p className="stay-white" style={{ margin: '0 0 20px 0', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>This connection is secure and encrypted end-to-end.</p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', maxWidth: '92vw' }}>
               <button onClick={handleJoin} className="join-call-btn stay-white">
                 Join {mode === 'video' ? 'Video' : 'Voice'} Call
               </button>
@@ -444,17 +444,20 @@ export default function CallingActivity({
 
         .call-lobby {
           flex: 1;
+          min-height: 0;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
           padding: 20px;
+          overflow-y: auto;
         }
 
         .lobby-preview-wrapper {
           position: relative;
-          width: 320px;
-          height: 200px;
+          width: min(320px, 88vw);
+          height: min(200px, 30vh, 34dvh);
+          min-height: 110px;
           border-radius: 16px;
           display: flex;
           align-items: center;
@@ -733,6 +736,7 @@ export default function CallingActivity({
           background: rgba(15, 23, 42, 0.95);
           box-shadow: 0 10px 30px rgba(0,0,0,0.5);
           border: 1px solid rgba(255,255,255,0.08);
+          max-width: calc(100vw - 24px);
         }
 
         .dock-btn {

@@ -621,6 +621,14 @@ html[data-theme='light'] .btn-secondary:hover {
   .react-btn-container {
     display: none !important;
   }
+  /* Game/Activity top-left name+dropdown: on desktop this fades out after a
+     few seconds of inactivity (hover-driven), but there's no hover on
+     touch devices — it must stay put so the Stop/Exit dropdown is always
+     reachable while playing. */
+  .sp-game-header-overlay {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 }
 
 
@@ -1343,6 +1351,23 @@ html[data-theme='light'] .mobile-nav-divider {
   box-shadow: none !important;
 }
 
+/* Calls (video/voice) stay upright in mobile fullscreen — WhatsApp-style
+   portrait, not the landscape rotate trick used for video/game playback. */
+.player-mob-fs-portrait {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  transform: none !important;
+  z-index: 999999 !important;
+  background: #000 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
 /* Part 1 — Mobile center: avatar + room name + members pill */
 .room-mob-center {
   display: none; /* hidden on desktop */
@@ -1566,6 +1591,15 @@ html[data-theme='light'] .mobile-nav-divider {
   .mob-media-active #room-chat-panel {
     border-radius: 0 !important;
     border-top: none !important;
+  }
+  /* Calls need much more room than the regular 230px video mini-player —
+     the lobby (avatar + title + subtitle + Join/Exit buttons) doesn't fit
+     in 230px and was getting clipped. Give it most of the screen, like a
+     real call UI, while still leaving chat reachable below. */
+  .mob-call-active .room-player-col {
+    height: 62vh !important;
+    min-height: 340px !important;
+    max-height: 62vh !important;
   }
   /* Part 5 — Media selector modal: mobile resizes */
   .media-selector-modal-inner {
