@@ -7491,6 +7491,7 @@ const Room = () => {
       onMouseMove={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
       style={{
         position: 'relative', display: 'flex', height: '100dvh', flexDirection: 'column',
+        paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
         backgroundColor: 'var(--room-main-bg)',
         backgroundImage: ROOM_THEMES.find(t => t.id === roomTheme)?.backgroundCss || 'none',
         backgroundSize: 'cover',
@@ -8414,7 +8415,7 @@ const Room = () => {
                   }}
                 >
                   <Gamepad2 size={14} color="#818cf8" />
-                  <span className="stay-white">{getActiveMediaName(mediaUrl)}</span>
+                  {!isMobile && <span className="stay-white">{getActiveMediaName(mediaUrl)}</span>}
                   <ChevronDown size={14} color="#ffffff" style={{ transform: showActivityMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </button>
 
