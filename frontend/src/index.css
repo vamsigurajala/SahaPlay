@@ -1281,6 +1281,11 @@ html[data-theme='light'] .mobile-nav-divider {
   #room-chat-panel {
     flex-shrink: 1 !important;
     min-height: 0 !important;
+    /* Fill screen edge-to-edge — remove all corner radii on mobile */
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
   }
 
   /* Hide paintbrush / room-theme button on the video player */

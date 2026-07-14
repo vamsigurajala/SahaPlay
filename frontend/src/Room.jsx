@@ -7490,7 +7490,7 @@ const Room = () => {
       className={isTvMode ? "tv-mode" : ""}
       onMouseMove={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
       style={{
-        position: 'relative', display: 'flex', height: '100vh', flexDirection: 'column',
+        position: 'relative', display: 'flex', height: '100dvh', flexDirection: 'column',
         backgroundColor: 'var(--room-main-bg)',
         backgroundImage: ROOM_THEMES.find(t => t.id === roomTheme)?.backgroundCss || 'none',
         backgroundSize: 'cover',

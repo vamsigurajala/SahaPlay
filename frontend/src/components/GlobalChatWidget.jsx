@@ -4531,6 +4531,7 @@ const GlobalChatWidget = forwardRef(({
                   const partner = activeChat.partner.toLowerCase();
                   const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
                   if (!isBlocked) {
+                    onClose && onClose();
                     navigate(`/profile/${activeChat.partner}`);
                   }
                 }
@@ -5673,6 +5674,7 @@ const GlobalChatWidget = forwardRef(({
                                onClick={(e) => {
                                  e.stopPropagation();
                                  if (!isBlocked && sNameOriginal && sNameOriginal !== '?') {
+                                   onClose && onClose();
                                    navigate(`/profile/${sNameOriginal}`);
                                  }
                                }}
@@ -5690,7 +5692,7 @@ const GlobalChatWidget = forwardRef(({
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
+                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { onClose && onClose(); navigate(`/profile/${sName}`); }
                               }}
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
