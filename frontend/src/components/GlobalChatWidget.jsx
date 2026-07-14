@@ -1214,6 +1214,8 @@ const GlobalChatWidget = forwardRef(({
   // latest key pair — without this, handlers capture keyPair=null and silently fail to decrypt.
   const keyPairRef = useRef(null);
   useEffect(() => { keyPairRef.current = keyPair; }, [keyPair]);
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
   // Tracks partners whose chat was cleared — persisted in localStorage so they survive page refresh
   const clearedPartnersRef = useRef((() => {
     try { return JSON.parse(localStorage.getItem('chat_cleared_partners') || '{}'); } catch { return {}; }
@@ -2310,7 +2312,7 @@ const GlobalChatWidget = forwardRef(({
       } catch {}
       
       const partnerLower = (partner || '').toLowerCase();
-      const isViewingThis = currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
+      const isViewingThis = isOpenRef.current && currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
 
       // Compute a short preview text
       const _mt0 = msg.mediaType;
@@ -2538,7 +2540,7 @@ const GlobalChatWidget = forwardRef(({
       setConversations(prev => {
         const conversations = Array.isArray(prev) ? prev : [];
         const exists = conversations.find(c => c.partner === partner || c.id === partner);
-        const isViewingThis = currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
+        const isViewingThis = isOpenRef.current && currentView === 'chat' && ((currentChat?.partner || '').toLowerCase() === partnerLower || (currentChat?.id || '').toLowerCase() === partnerLower);
 
         let updatedList;
         if (exists) {

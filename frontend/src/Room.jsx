@@ -1009,6 +1009,10 @@ const Room = () => {
   );
   // Right-panel tab: 'chat' | 'cameras' — only used when managed layout is active
   const [rightPanelTab, setRightPanelTab] = useState('chat');
+  const rightPanelTabRef = useRef(rightPanelTab);
+  useEffect(() => {
+    rightPanelTabRef.current = rightPanelTab;
+  }, [rightPanelTab]);
   // Camera panel display preferences — all local, never sent to server
   const [cameraLayoutMode, setCameraLayoutMode] = useState(
     () => localStorage.getItem('sahaplay_camera_layout_mode') || 'list'
@@ -3545,7 +3549,8 @@ const Room = () => {
         if (m.some(u => u.toLowerCase() === roomId.toLowerCase())) isMutedRoom = true;
       } catch {}
 
-      if (chatTabRef.current !== 'group' && !isMine && !isMutedRoom) {
+      const isViewingGroupChat = (isMobile || rightPanelTabRef.current === 'chat') && chatTabRef.current === 'group';
+      if (!isViewingGroupChat && !isMine && !isMutedRoom) {
         setGroupUnread(p => {
           const newVal = p + 1;
           // Persist so badge survives room remounts
@@ -4045,7 +4050,8 @@ const Room = () => {
       });
 
       const otherNameLower = otherName.toLowerCase();
-      if (chatTabRef.current !== 'dm' || (dmTargetRef.current && dmTargetRef.current.toLowerCase() !== otherNameLower)) {
+      const isViewingThisDm = (isMobile || rightPanelTabRef.current === 'chat') && chatTabRef.current === 'dm' && dmTargetRef.current && dmTargetRef.current.toLowerCase() === otherNameLower;
+      if (!isViewingThisDm) {
         if (!isMine) {
           const storedCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
           const currentCount = Math.max(storedCounts[otherNameLower] || 0, dmUnreadRef.current[otherNameLower] || 0);
@@ -10538,8 +10544,8 @@ const Room = () => {
                 onMarkRead={handleMarkRead}
                 onMarkAllRead={handleMarkAllRead}
                 onNewMessage={handleNewMessage}
-                activeRoomTab={chatTab}
-                activeRoomPartner={chatTab === 'dm' ? dmTarget : roomId}
+                activeRoomTab={(isMobile || rightPanelTab === 'chat') ? chatTab : null}
+                activeRoomPartner={(isMobile || rightPanelTab === 'chat') ? (chatTab === 'dm' ? dmTarget : roomId) : null}
                 transparentMode={isFullscreen}
                 roomPermissions={room?.permissions}
                 isRoomHost={isEffectiveHost}

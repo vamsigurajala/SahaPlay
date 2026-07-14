@@ -23,7 +23,7 @@ const Navbar = () => {
   const loggedInUsername = rawUsername && rawUsername.toLowerCase().startsWith('guest_')
     ? rawUsername.slice(6)
     : rawUsername;
-  const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
+  const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && localStorage.getItem('watch_is_guest') !== 'true';
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
   const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
@@ -844,7 +844,7 @@ const Navbar = () => {
                               {t('app', 'App')}
                             </button>
                             <div className="profile-divider" style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
-                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); clearUserSession(); navigate('/login'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
@@ -959,7 +959,7 @@ const Navbar = () => {
 
                   {isGuest ? (
                     <>
-                      <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowMobileMenu(false); handleLogout(); }}>
+                      <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { clearUserSession(); navigateAndCloseMenu('/login'); }}>
                         <User size={16} />
                         {t('logIn', 'Sign In')}
                       </button>
