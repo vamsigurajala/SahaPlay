@@ -563,7 +563,7 @@ const typingCss = `
       right: 0 !important;
       bottom: 0 !important;
       width: 100% !important;
-      height: 100% !important;
+      height: 100dvh !important;
       max-width: 100% !important;
       border-radius: 0 !important;
     }
@@ -1433,7 +1433,7 @@ const GlobalChatWidget = forwardRef(({
   // instead of leaving the page: closed -> list -> chat. Without this, a
   // swipe-left gesture falls through to the browser's real back navigation
   // and exits the whole site.
-  useBackIntercept(!isOpen ? 0 : (view === 'chat' ? 2 : 1), (newLevel) => {
+  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(!isOpen ? 0 : (view === 'chat' ? 2 : 1), (newLevel) => {
     if (newLevel === 0) {
       onClose && onClose();
     } else if (newLevel === 1) {
@@ -4508,7 +4508,8 @@ const GlobalChatWidget = forwardRef(({
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between', 
-          padding: '16px 20px', 
+          padding: '16px 20px',
+          paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
           background: transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)',
           borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)' 
         }}>
@@ -4531,6 +4532,7 @@ const GlobalChatWidget = forwardRef(({
                   const partner = activeChat.partner.toLowerCase();
                   const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
                   if (!isBlocked) {
+                    gcwSkipNextClose();
                     onClose && onClose();
                     navigate(`/profile/${activeChat.partner}`);
                   }
@@ -5674,6 +5676,7 @@ const GlobalChatWidget = forwardRef(({
                                onClick={(e) => {
                                  e.stopPropagation();
                                  if (!isBlocked && sNameOriginal && sNameOriginal !== '?') {
+                                   gcwSkipNextClose();
                                    onClose && onClose();
                                    navigate(`/profile/${sNameOriginal}`);
                                  }
@@ -5692,7 +5695,7 @@ const GlobalChatWidget = forwardRef(({
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { onClose && onClose(); navigate(`/profile/${sName}`); }
+                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { gcwSkipNextClose(); onClose && onClose(); navigate(`/profile/${sName}`); }
                               }}
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}

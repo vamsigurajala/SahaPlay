@@ -1277,6 +1277,14 @@ html[data-theme='light'] .mobile-nav-divider {
     position: static !important;
   }
 
+  /* Strip card styling from all inner wrappers inside the right column on mobile so
+     there are no visible gaps / rounded corners against the room background */
+  .room-right-column > div {
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
   /* Chat panel: allow flex shrinking so the compose/input area stays visible */
   #room-chat-panel {
     flex-shrink: 1 !important;
