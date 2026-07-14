@@ -245,9 +245,12 @@ const Navbar = () => {
 
     if (!isMuted) {
       try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
-        audio.volume = 0.5;
-        audio.play().catch(()=>{});
+        const soundMutedGlobal = localStorage.getItem(`mute_notif_sounds_${myUsername}`) === 'true';
+        if (!soundMutedGlobal) {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(()=>{});
+        }
       } catch(e){}
     }
 

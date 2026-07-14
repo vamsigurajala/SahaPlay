@@ -1071,6 +1071,31 @@ const Room = () => {
   const [kickedReason, setKickedReason] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPersonalDeleteConfirm, setShowPersonalDeleteConfirm] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [muteRoomJoinLeave, setMuteRoomJoinLeave] = useState(() => {
+    try {
+      const myUsername = localStorage.getItem('watch_username') || 'guest';
+      return localStorage.getItem(`mute_join_leave_${roomId}_${myUsername}`) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [muteAllNotifSounds, setMuteAllNotifSounds] = useState(() => {
+    try {
+      const myUsername = localStorage.getItem('watch_username') || 'guest';
+      return localStorage.getItem(`mute_notif_sounds_${myUsername}`) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const muteRoomJoinLeaveRef = useRef(muteRoomJoinLeave);
+  useEffect(() => {
+    muteRoomJoinLeaveRef.current = muteRoomJoinLeave;
+  }, [muteRoomJoinLeave]);
+  const muteAllNotifSoundsRef = useRef(muteAllNotifSounds);
+  useEffect(() => {
+    muteAllNotifSoundsRef.current = muteAllNotifSounds;
+  }, [muteAllNotifSounds]);
   const [modMenuTarget, setModMenuTarget] = useState(null);
   const [modMenuPos, setModMenuPos] = useState({ top: 0, left: 0 });
   const [showHeaderModMenu, setShowHeaderModMenu] = useState(false);
@@ -2257,9 +2282,12 @@ const Room = () => {
     } catch {}
     if (!isMuted) {
       try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
-        audio.volume = 0.5;
-        audio.play().catch(()=>{});
+        const soundMutedGlobal = localStorage.getItem(`mute_notif_sounds_${myUsername}`) === 'true';
+        if (!soundMutedGlobal) {
+          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(()=>{});
+        }
       } catch(e){}
     }
 
@@ -3402,12 +3430,12 @@ const Room = () => {
         const full = getAvatarUrl(avatarPath);
         setKnownAvatars(prev => ({ ...prev, [uname]: full }));
       }
-      if (notifSettingsRef.current.app && notifSettingsRef.current.join && uname !== usernameRef.current) {
+      if (notifSettingsRef.current.app && notifSettingsRef.current.join && uname !== usernameRef.current && !muteRoomJoinLeaveRef.current) {
         toast.success(`${uname} joined`);
       }
     });
     sock.on('user_left', ({ username: uname }) => {
-      if (notifSettingsRef.current.app && notifSettingsRef.current.leave && uname !== usernameRef.current) {
+      if (notifSettingsRef.current.app && notifSettingsRef.current.leave && uname !== usernameRef.current && !muteRoomJoinLeaveRef.current) {
         toast(`${uname} left`, { icon: '👋' });
       }
     });
@@ -6764,7 +6792,8 @@ const Room = () => {
   const anyRoomModalOpen = showMediaSelector || showYtBrowser || showTwitchBrowser || showVimeoBrowser
     || roomSettingsModalOpen || showShareModal || showCustomizeModal || showSubtitleSettingsModal
     || !!showGuidedShare || !!banConfirmTarget || renameModalOpen || clearChatModalOpen
-    || showCastDiscovery || !!reportMsgTarget || showMobileMenu || showPersonalDeleteConfirm;
+    || showCastDiscovery || !!reportMsgTarget || showMobileMenu || showPersonalDeleteConfirm
+    || showNotificationSettings;
   const roomModalsBack = useBackIntercept(anyRoomModalOpen ? 1 : 0, (newLevel) => {
     if (newLevel === 0) {
       setShowMediaSelector(false);
@@ -6783,6 +6812,7 @@ const Room = () => {
       setReportMsgTarget(null);
       setShowMobileMenu(false);
       setShowPersonalDeleteConfirm(false);
+      setShowNotificationSettings(false);
     }
   });
 
@@ -8184,6 +8214,9 @@ const Room = () => {
                     <Trash2 size={16} color={isLight ? '#ef4444' : '#f87171'} /> {t('deleteRoom', 'Delete Room')}
                   </button>
                 )}
+                <button className="settings-menu-btn" onClick={() => { setShowNotificationSettings(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Bell size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('notificationSettings', 'Notifications')}
+                </button>
                 <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                 <button className="settings-menu-btn-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <LogOut size={16} color={isLight ? '#ef4444' : '#f87171'} /> {t('leaveRoom', 'Leave Room')}
@@ -11188,6 +11221,9 @@ const Room = () => {
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleFullscreen(); }}>
               <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
             </button>
+            <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowNotificationSettings(true); }}>
+              <Bell size={20} /> <span>{t('notificationSettings', 'Notifications')}</span>
+            </button>
             <div className="mob-sheet-divider" />
             <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { roomModalsBack.skipNextClose(); socket?.emit('leave_room', { roomId }); setShowMobileMenu(false); navigate('/'); }}>
               <LogOut size={20} /> <span>{t('leaveRoom', 'Leave Room')}</span>
@@ -11268,6 +11304,129 @@ const Room = () => {
                   {t('deleteRoomButton', 'Delete Room')}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Settings Modal */}
+      {showNotificationSettings && (
+        <div className="room-modals-overlay" style={{ position: 'fixed', inset: 0, zIndex: 99999, background: isLight ? 'rgba(30,30,50,0.35)' : 'rgba(0,0,0,0.82)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="admin-modal-card" style={{ position: 'relative', background: isLight ? '#ffffff' : '#141414', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', borderRadius: 24, width: '100%', maxWidth: 400, padding: '24px 28px', boxShadow: isLight ? '0 20px 60px rgba(0,0,0,0.12)' : '0 25px 50px rgba(0,0,0,0.6)' }}>
+            <button
+              onClick={() => setShowNotificationSettings(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 10, color: isLight ? '#6b7280' : '#888', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, transition: 'all 0.2s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#e5e7eb' : 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = isLight ? '#374151' : '#ccc'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = isLight ? '#6b7280' : '#888'; }}
+            >
+              <X size={15} />
+            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+                  <Bell size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 900, color: isLight ? '#111' : '#fff', margin: 0 }}>
+                    {t('notificationSettings', 'Notification Settings')}
+                  </h3>
+                  <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', margin: 0 }}>
+                    Customize notifications for your account
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Toggle 1: Join/Leave for this room */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#1e293b' : '#eee' }}>
+                      {t('muteJoinLeaveThisRoom', 'Mute Join/Leave Alerts')}
+                    </div>
+                    <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', marginTop: 2, lineHeight: 1.4 }}>
+                      {t('muteJoinLeaveThisRoomDesc', 'Do not show toast notifications when users join or leave this room.')}
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: 'pointer', flexShrink: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={muteRoomJoinLeave}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setMuteRoomJoinLeave(val);
+                        const myUsername = localStorage.getItem('watch_username') || 'guest';
+                        localStorage.setItem(`mute_join_leave_${roomId}_${myUsername}`, String(val));
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                    />
+                    <span style={{
+                      position: 'absolute', inset: 0,
+                      backgroundColor: muteRoomJoinLeave ? '#6366f1' : (isLight ? '#cbd5e1' : '#334155'),
+                      borderRadius: 24, transition: 'background-color 0.2s',
+                      boxShadow: isLight ? 'inset 0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }} />
+                    <span style={{
+                      position: 'absolute', height: 18, width: 18, left: muteRoomJoinLeave ? 22 : 4,
+                      top: 3, backgroundColor: 'white', borderRadius: '50%', transition: 'left 0.2s',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </label>
+                </div>
+
+                {/* Toggle 2: Mute all notification sounds */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#1e293b' : '#eee' }}>
+                      {t('muteNotificationSoundAll', 'Mute Notification Sounds')}
+                    </div>
+                    <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', marginTop: 2, lineHeight: 1.4 }}>
+                      {t('muteNotificationSoundAllDesc', 'Turn off sound alerts when receiving messages across all chats.')}
+                    </div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: 'pointer', flexShrink: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={muteAllNotifSounds}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setMuteAllNotifSounds(val);
+                        const myUsername = localStorage.getItem('watch_username') || 'guest';
+                        localStorage.setItem(`mute_notif_sounds_${myUsername}`, String(val));
+                      }}
+                      style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }}
+                    />
+                    <span style={{
+                      position: 'absolute', inset: 0,
+                      backgroundColor: muteAllNotifSounds ? '#6366f1' : (isLight ? '#cbd5e1' : '#334155'),
+                      borderRadius: 24, transition: 'background-color 0.2s',
+                      boxShadow: isLight ? 'inset 0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                    }} />
+                    <span style={{
+                      position: 'absolute', height: 18, width: 18, left: muteAllNotifSounds ? 22 : 4,
+                      top: 3, backgroundColor: 'white', borderRadius: '50%', transition: 'left 0.2s',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }} />
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)' }} />
+
+              <button
+                onClick={() => setShowNotificationSettings(false)}
+                className="stay-white"
+                style={{
+                  width: '100%', padding: '12px 16px', background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+                  border: 'none', color: '#fff', borderRadius: 14, fontSize: 14, fontWeight: 800,
+                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99,102,241,0.3)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.2)'; }}
+              >
+                {t('done', 'Done')}
+              </button>
             </div>
           </div>
         </div>
