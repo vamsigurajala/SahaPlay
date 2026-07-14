@@ -7490,8 +7490,12 @@ const Room = () => {
       className={isTvMode ? "tv-mode" : ""}
       onMouseMove={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
       style={{
-        position: 'relative', display: 'flex', height: '100dvh', flexDirection: 'column',
-        paddingTop: isMobile ? 'env(safe-area-inset-top, 0px)' : 0,
+        position: isMobile ? 'fixed' : 'relative',
+        ...(isMobile
+          ? { top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }
+          : { height: '100dvh' }
+        ),
+        display: 'flex', flexDirection: 'column',
         backgroundColor: 'var(--room-main-bg)',
         backgroundImage: ROOM_THEMES.find(t => t.id === roomTheme)?.backgroundCss || 'none',
         backgroundSize: 'cover',
