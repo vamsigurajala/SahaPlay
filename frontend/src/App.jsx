@@ -744,6 +744,18 @@ function App() {
       html[data-theme='light'] .msg-bubble .media-expiry-warn { color: #d97706 !important; }
       html[data-theme='light'] .msg-bubble .media-expiry-ok { color: #666666 !important; }
 
+      /* Voice note text overrides inside message bubbles in light mode */
+      html[data-theme='light'] .msg-bubble .rcp-vn-time,
+      html[data-theme='light'] .msg-bubble .rcp-vn-time * {
+        color: rgba(0,0,0,0.6) !important;
+        -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+      }
+      html[data-theme='light'] .msg-bubble .rcp-vn-expiry,
+      html[data-theme='light'] .msg-bubble .rcp-vn-expiry * {
+        color: rgba(0,0,0,0.6) !important;
+        -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+      }
+
       /* Restore colors for action icons inside dropdowns with better contrast */
       html[data-theme='light'] .nav-dropdown [style*="color: #6366f1"],
       html[data-theme='light'] .nav-dropdown [style*="color:#6366f1"] { color: #4f46e5 !important; stroke: #4f46e5 !important; }

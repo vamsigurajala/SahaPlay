@@ -596,6 +596,18 @@ const typingCss = `
     -webkit-text-fill-color: #ffffff !important;
   }
 
+  /* Voice note text overrides inside message bubbles in light mode */
+  html[data-theme='light'] .msg-bubble .rcp-vn-time,
+  html[data-theme='light'] .msg-bubble .rcp-vn-time * {
+    color: rgba(0,0,0,0.6) !important;
+    -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+  }
+  html[data-theme='light'] .msg-bubble .rcp-vn-expiry,
+  html[data-theme='light'] .msg-bubble .rcp-vn-expiry * {
+    color: rgba(0,0,0,0.6) !important;
+    -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+  }
+
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
   /* Applied via .gcw-force-dark on the panel root when transparentMode=true */
   html[data-theme='light'] .chat-widget-main-panel.gcw-force-dark {
@@ -6212,7 +6224,7 @@ const GlobalChatWidget = forwardRef(({
                         />
 
                         {!inputValue && !isUploading && (
-                          <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 2 }}>
                             <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
                               <SmilePlus size={20} />
                             </button>

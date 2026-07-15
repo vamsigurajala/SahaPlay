@@ -2633,7 +2633,7 @@ export default function RoomChatPanel({ p }) {
                       />
                       
                       {(!p.groupChatInput && !isUploading) && (
-                        <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
+                        <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
                           <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                             <SmilePlus size={18}/>
                           </button>
@@ -3229,7 +3229,7 @@ export default function RoomChatPanel({ p }) {
                           />
                           
                           {(!p.dmChatInput && !isUploading) && (
-                            <div style={{ position: 'absolute', right: 6, display: 'flex', alignItems: 'center', gap: 0 }}>
+                            <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
                               <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <SmilePlus size={18}/>
                               </button>
