@@ -11197,6 +11197,34 @@ const Room = () => {
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleCast(); }}>
               <Cast size={20} /> <span>{t('castScreen', 'Cast Screen')}</span>
             </button>
+            {(hasStartedCamOnce || Object.keys(remoteStreams).length > 0) && (
+              <button
+                className="mob-sheet-item"
+                onClick={() => {
+                  const next = !areCamerasHidden;
+                  setAreCamerasHidden(next);
+                  localStorage.setItem('sahaplay_hide_camera_tiles', String(next));
+                  if (!next && shouldUseManagedCameraLayout) setRightPanelTab('cameras');
+                  setShowMobileMenu(false);
+                }}
+              >
+                {areCamerasHidden ? <Eye size={20} /> : <EyeOff size={20} />}
+                <span>{areCamerasHidden ? t('showCameras', 'Show Cameras') : t('hideCameras', 'Hide Cameras')}</span>
+              </button>
+            )}
+            {hiddenCams.size > 0 && (
+              <button
+                className="mob-sheet-item"
+                onClick={() => {
+                  setHiddenCams(new Set());
+                  toast.success('All videos restored', { icon: '👁️' });
+                  setShowMobileMenu(false);
+                }}
+              >
+                <Video size={20} />
+                <span>{t('unhideVideosOption', 'Unhide Videos')} ({hiddenCams.size})</span>
+              </button>
+            )}
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowShareModal(true); }}>
               <Share2 size={20} /> <span>{t('invite', 'Invite')}</span>
             </button>
