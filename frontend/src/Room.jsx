@@ -285,7 +285,7 @@ const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '�
 // Managed Panel Mode activates when active camera users > this value.
 // Set to 2 for testing (3 or more cameras → managed panel).
 // Change to 10 for production.
-const CAMERA_MANAGED_LAYOUT_THRESHOLD = 10;
+const CAMERA_MANAGED_LAYOUT_THRESHOLD = 3;
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
