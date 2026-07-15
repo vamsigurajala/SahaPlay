@@ -107,7 +107,13 @@ export default function TvPairing() {
       localStorage.setItem('watch_username', 'Smart TV');
     }
 
-    const sock = io(SOCKET_URL, { transports: ['websocket'], reconnectionAttempts: 10 });
+    const sock = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      timeout: 10000
+    });
     sockRef.current = sock;
 
     sock.on('connect', () => {

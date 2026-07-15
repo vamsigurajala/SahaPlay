@@ -2055,7 +2055,7 @@ const GlobalChatWidget = forwardRef(({
   // Connect socket for live updates (reactions + new messages)
   useEffect(() => {
     if (!token || socketRef.current || !isReady) return;
-    const sock = io(API, { auth: { token }, transports: ['websocket'] });
+    const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
 
     sock.on('connect', () => {

@@ -283,9 +283,7 @@ const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '�
 
 // ─── Camera Layout Threshold ──────────────────────────────────────────────────
 // Managed Panel Mode activates when active camera users > this value.
-// Set to 2 for testing (3 or more cameras → managed panel).
-// Change to 10 for production.
-const CAMERA_MANAGED_LAYOUT_THRESHOLD = 3;
+const CAMERA_MANAGED_LAYOUT_THRESHOLD = 8;
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
@@ -296,6 +294,7 @@ function formatUsername(name) {
   return name;
 }
 function getInitials(name) { return (name || '?').slice(0, 2).toUpperCase(); }
+
 function getAvatarColor(name) {
   const colors = ['#6366f1', '#a855f7', '#ec4899', '#ef4444', '#f97316', '#10b981', '#3b82f6', '#06b6d4'];
   let h = 0; for (let c of (name || '')) h = c.charCodeAt(0) + ((h << 5) - h);
