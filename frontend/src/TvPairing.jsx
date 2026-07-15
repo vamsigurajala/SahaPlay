@@ -161,10 +161,30 @@ export default function TvPairing() {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state]);
+
+  // Socket lifecycle is independent of `state` — this must only tear the
+  // socket down when the component actually unmounts. Previously this
+  // cleanup lived in the [state]-keyed effect above, so it re-ran on every
+  // state transition (including the very tick startPairing() creates the
+  // socket and calls setState('connecting')), disconnecting the brand-new
+  // socket before it ever finished connecting.
+  useEffect(() => {
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       sockRef.current?.disconnect();
     };
+  }, []);
+
+  // Safety net: if we're stuck on 'connecting' for too long (no
+  // tv_code_generated or connect_error arrived), fail loudly instead of
+  // spinning forever so regressions of this kind are obvious.
+  useEffect(() => {
+    if (state !== 'connecting') return;
+    const timer = setTimeout(() => {
+      setState(prev => (prev === 'connecting' ? 'error' : prev));
+    }, 9000);
+    return () => clearTimeout(timer);
   }, [state]);
 
   // Countdown timer
