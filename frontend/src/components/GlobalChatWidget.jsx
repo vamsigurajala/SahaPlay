@@ -1560,6 +1560,7 @@ const GlobalChatWidget = forwardRef(({
   }, []);
   const messagesEndRef = useRef(null);
   const prevMsgCountRef = useRef(0);
+  const isFirstRenderGlobalChat = useRef(true);
   const inputRef = useRef(null);
   useAutoResizeTextarea(inputRef, inputValue);
   const socketRef = useRef(null);
@@ -1598,6 +1599,10 @@ const GlobalChatWidget = forwardRef(({
   // Keep refs in sync with state (for use inside socket closures)
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
   useEffect(() => { viewRef.current = view; }, [view]);
+  const activeRoomTabRef = useRef(activeRoomTab);
+  const activeRoomPartnerRef = useRef(activeRoomPartner);
+  useEffect(() => { activeRoomTabRef.current = activeRoomTab; }, [activeRoomTab]);
+  useEffect(() => { activeRoomPartnerRef.current = activeRoomPartner; }, [activeRoomPartner]);
 
   useLayoutEffect(() => {
     if (scrollAnchorRef.current && scrollContainerRef.current) {
@@ -2494,11 +2499,11 @@ const GlobalChatWidget = forwardRef(({
 
           // 2. Check if user is looking at this chat in the specialized Room panel
           const lowerPartner = partner.toLowerCase();
-          const lowerActivePartner = (activeRoomPartner || '').toLowerCase();
+          const lowerActivePartner = (activeRoomPartnerRef.current || '').toLowerCase();
           if (isGroup) {
-             if (activeRoomTab === 'group' && lowerPartner === lowerActivePartner) skipToast = true;
+             if (activeRoomTabRef.current === 'group' && lowerPartner === lowerActivePartner) skipToast = true;
           } else {
-             if (activeRoomTab === 'dm' && lowerPartner === lowerActivePartner) skipToast = true;
+             if (activeRoomTabRef.current === 'dm' && lowerPartner === lowerActivePartner) skipToast = true;
           }
 
           if (!skipToast) {
@@ -3058,11 +3063,25 @@ const GlobalChatWidget = forwardRef(({
   }, [token, myUsername]);
 
   useLayoutEffect(() => {
-    if (messages.length > prevMsgCountRef.current && messagesEndRef.current) {
+    const isChatView = view === 'chat' && activeChat;
+    const shouldScroll = (messages.length > prevMsgCountRef.current) || (isChatView && isFirstRenderGlobalChat.current);
+    if (isChatView) {
+      isFirstRenderGlobalChat.current = false;
+    } else {
+      isFirstRenderGlobalChat.current = true;
+    }
+
+    if (shouldScroll && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 50);
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 150);
     }
     prevMsgCountRef.current = messages.length;
-  }, [messages]);
+  }, [messages, view, activeChat]);
 
   // Autofocus input when opening a chat or replying
   useEffect(() => {

@@ -8221,7 +8221,7 @@ const Room = () => {
                   </button>
                 )}
                 <button className="settings-menu-btn" onClick={() => { setShowNotificationSettings(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Bell size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('notificationSettings', 'Notifications')}
+                  <Bell size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('notifications', 'Notifications')}
                 </button>
                 <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                 <button className="settings-menu-btn-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -11228,7 +11228,7 @@ const Room = () => {
               <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
             </button>
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowNotificationSettings(true); }}>
-              <Bell size={20} /> <span>{t('notificationSettings', 'Notifications')}</span>
+              <Bell size={20} /> <span>{t('notifications', 'Notifications')}</span>
             </button>
             <div className="mob-sheet-divider" />
             <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { roomModalsBack.skipNextClose(); socket?.emit('leave_room', { roomId }); setShowMobileMenu(false); navigate('/'); }}>
@@ -11337,7 +11337,7 @@ const Room = () => {
                     {t('notificationSettings', 'Notification Settings')}
                   </h3>
                   <p style={{ fontSize: 12, color: isLight ? '#64748b' : '#94a3b8', margin: 0 }}>
-                    Customize notifications for your account
+                    {t('customizeNotifications', 'Customize notifications for your account')}
                   </p>
                 </div>
               </div>
@@ -11349,10 +11349,10 @@ const Room = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#1e293b' : '#eee' }}>
-                      {t('muteJoinLeaveThisRoom', 'Mute Join/Leave Alerts')}
+                      {t('muteJoinLeaveAlerts', 'Mute Join/Leave Alerts')}
                     </div>
                     <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', marginTop: 2, lineHeight: 1.4 }}>
-                      {t('muteJoinLeaveThisRoomDesc', 'Do not show toast notifications when users join or leave this room.')}
+                      {t('muteJoinLeaveAlertsDesc', 'Do not show toast notifications when users join or leave this room.')}
                     </div>
                   </div>
                   <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: 'pointer', flexShrink: 0 }}>
@@ -11385,10 +11385,10 @@ const Room = () => {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: isLight ? '#1e293b' : '#eee' }}>
-                      {t('muteNotificationSoundAll', 'Mute Notification Sounds')}
+                      {t('muteNotificationSounds', 'Mute Notification Sounds')}
                     </div>
                     <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', marginTop: 2, lineHeight: 1.4 }}>
-                      {t('muteNotificationSoundAllDesc', 'Turn off sound alerts when receiving messages across all chats.')}
+                      {t('muteNotificationSoundsDesc', 'Turn off sound alerts when receiving messages across all chats.')}
                     </div>
                   </div>
                   <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: 'pointer', flexShrink: 0 }}>

@@ -1026,6 +1026,7 @@ export default function RoomChatPanel({ p }) {
   const prevFirstGroupMsgId = React.useRef(null);
   const groupScrollAnchorRef = React.useRef(null);
   const prevGroupChatTabRef = React.useRef(p.chatTab);
+  const isFirstRenderGroup = React.useRef(true);
 
   React.useLayoutEffect(() => {
     const container = groupScrollContainerRef.current;
@@ -1043,16 +1044,17 @@ export default function RoomChatPanel({ p }) {
     const firstMsgId = p.groupMessages.length > 0 ? p.groupMessages[0].id || p.groupMessages[0].tempId : null;
     const isPrepend = firstMsgId !== prevFirstGroupMsgId.current && prevFirstGroupMsgId.current !== null && p.groupMessages.length > prevGroupMsgCount.current;
 
-    if (isPrepend && groupScrollAnchorRef.current) {
+    if (isFirstRenderGroup.current && p.groupMessages.length > 0) {
+      isFirstRenderGroup.current = false;
+      container.scrollTop = container.scrollHeight;
+      setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+      setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
+    } else if (isPrepend && groupScrollAnchorRef.current) {
       const { prevScrollHeight, prevScrollTop } = groupScrollAnchorRef.current;
       container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
       groupScrollAnchorRef.current = null;
     } else if (!isPrepend) {
       const isNewMsg = p.groupMessages.length > prevGroupMsgCount.current && prevGroupMsgCount.current > 0;
-      // First-ever population of this list since mount (e.g. history just
-      // arrived after a fresh socket join/rejoin) — treat it the same as
-      // "just switched into view" so we land on the latest message instead
-      // of sitting at the top.
       const isInitialLoad = prevGroupMsgCount.current === 0 && p.groupMessages.length > 0;
       if (isNewMsg) {
         const lastMsg = p.groupMessages[p.groupMessages.length - 1];
@@ -1060,13 +1062,13 @@ export default function RoomChatPanel({ p }) {
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 350;
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
+          setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+          setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
         }
       } else if (justSwitchedIntoView || isInitialLoad) {
-        // Only jump to the bottom when this chat is first opened/switched
-        // into. Same message count with no tab change means something like
-        // a reaction was toggled on an existing message — don't yank the
-        // user's scroll position for that.
         container.scrollTop = container.scrollHeight;
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
       }
     }
 
@@ -1080,6 +1082,7 @@ export default function RoomChatPanel({ p }) {
   const prevDmTarget = React.useRef(p.dmTarget);
   const dmScrollAnchorRef = React.useRef(null);
   const prevDmChatTabRef = React.useRef(p.chatTab);
+  const isFirstRenderDm = React.useRef(true);
 
   React.useLayoutEffect(() => {
     const container = dmScrollContainerRef.current;
@@ -1099,15 +1102,17 @@ export default function RoomChatPanel({ p }) {
     const firstMsgId = dmMessages.length > 0 ? dmMessages[0].id || dmMessages[0].tempId : null;
     const isPrepend = !targetChanged && firstMsgId !== prevFirstDmMsgId.current && prevFirstDmMsgId.current !== null && dmMessages.length > prevDmMsgCount.current;
 
-    if (isPrepend && dmScrollAnchorRef.current) {
+    if (isFirstRenderDm.current && dmMessages.length > 0) {
+      isFirstRenderDm.current = false;
+      container.scrollTop = container.scrollHeight;
+      setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+      setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
+    } else if (isPrepend && dmScrollAnchorRef.current) {
       const { prevScrollHeight, prevScrollTop } = dmScrollAnchorRef.current;
       container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop;
       dmScrollAnchorRef.current = null;
     } else if (!isPrepend) {
       const isNewMsg = !targetChanged && dmMessages.length > prevDmMsgCount.current && prevDmMsgCount.current > 0;
-      // First-ever population of this thread since mount (e.g. chat_history_dm
-      // just arrived after a fresh socket join/rejoin) — land on the latest
-      // message instead of sitting at the top.
       const isInitialLoad = prevDmMsgCount.current === 0 && dmMessages.length > 0;
       if (isNewMsg) {
         const lastMsg = dmMessages[dmMessages.length - 1];
@@ -1115,12 +1120,13 @@ export default function RoomChatPanel({ p }) {
         const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 350;
         if (isMe || isNearBottom) {
           container.scrollTop = container.scrollHeight;
+          setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+          setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
         }
       } else if (justSwitchedIntoView || isInitialLoad) {
-        // Only jump to the bottom when this DM is first opened/switched
-        // into. Same message count with no target/tab change means
-        // something like a reaction was toggled — don't yank scroll for that.
         container.scrollTop = container.scrollHeight;
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 150);
       }
     }
 
