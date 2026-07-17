@@ -943,6 +943,19 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
   );
 };
 
+// Phone-width breakpoint, but keyed off the SMALLER of the two viewport dimensions
+// instead of just innerWidth. A phone's width alone crosses 640 the moment it's
+// physically rotated to real landscape (e.g. 390x844 portrait -> 844x390 landscape),
+// which was silently flipping every mobile-only control off mid-session on rotation.
+// The smaller dimension stays under 640 in either orientation for an actual phone,
+// while tablets/desktops (where the smaller dimension is already well above 640)
+// are unaffected — this only fixes the rotation flip, it doesn't change who counts
+// as "mobile" for general room layout.
+function detectIsMobile() {
+  if (typeof window === 'undefined') return false;
+  return Math.min(window.innerWidth, window.innerHeight) < 640;
+}
+
 const QUALITY_PRESETS = {
   '240p':  { label: '240p',       filter: 'blur(1.5px) brightness(0.85) saturate(0.6) contrast(0.9)',  description: 'Low quality' },
   '360p':  { label: '360p',       filter: 'blur(0.8px) brightness(0.9) saturate(0.75) contrast(0.95)', description: 'Standard quality' },
@@ -1255,6 +1268,10 @@ const Room = () => {
   const videoFileInputRef = useRef(null); // persistent file input outside any modal
   const [isUploading, setIsUploading] = useState(false);
   const [streamPending, setStreamPending] = useState(null); // { streamKey, filename } while host uploads
+  // Set by the (host-inclusive) stream_ready listener the moment the server has enough
+  // of the upload on disk for progressive playback — lets the host's own resync effect
+  // fire within seconds instead of waiting for the entire upload to finish.
+  const [earlyStreamReadyKey, setEarlyStreamReadyKey] = useState(null);
   const { uploadState, uploadFile, cancelUpload } = useVideoUpload({ socket, roomId, serverUrl: SOCKET_SERVER_URL });
   const [hasMounted, setHasMounted] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1481,7 +1498,26 @@ const Room = () => {
     return () => clearTimeout(timer)
   }, [mediaUrl]);
 
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 640);
+  const [isMobile, setIsMobile] = useState(detectIsMobile);
+  // Touch-primary detection (phone or tablet, any width) — `isMobile` above stays a
+  // phone-width breakpoint for general room layout (nav/chat/etc, unchanged), but the
+  // video player's touch-specific controls (gesture overlay, portal dropdowns, mobile
+  // fullscreen rotate-trick, subtitle panel) should also apply on iPad, which never
+  // qualifies as "mobile" by width alone. `pointer: coarse` is stable across rotation
+  // and identifies the primary input device rather than guessing from screen size.
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () => typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsCoarsePointer(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', update); else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', update); else mq.removeListener(update);
+    };
+  }, []);
+  const isTouchPlayer = isMobile || isCoarsePointer;
   const [useCustomTwitchControls, setUseCustomTwitchControls] = useState(true);
   const [twitchReloadKey, setTwitchReloadKey] = useState(0);
   const lastTwitchReloadTimeRef = useRef(0);
@@ -1628,7 +1664,7 @@ const Room = () => {
   }
 
   const handleFullscreen = () => {
-    if (isMobile) {
+    if (isTouchPlayer) {
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
@@ -2463,6 +2499,12 @@ const Room = () => {
   const qualityBtnRef = useRef(null);
   const qualityDropdownPortalRef = useRef(null);
   const [qualityDropdownPos, setQualityDropdownPos] = useState(null);
+  // Same portal treatment for the CC/subtitles dropdown — it was still using the old
+  // clipped-anchor positioning, which made it unreachable (or appear to just not open)
+  // inside the mobile-fullscreen rotate-trick container.
+  const subtitleBtnRef = useRef(null);
+  const subtitleDropdownPortalRef = useRef(null);
+  const [subtitleDropdownPos, setSubtitleDropdownPos] = useState(null);
 
   const userCount = userList.length;
 
@@ -4246,6 +4288,7 @@ const Room = () => {
     sock.on('stream_ready', (data) => {
       if (!data?.streamKey) return;
       setStreamPending(null);
+      setEarlyStreamReadyKey(data.streamKey);
 
       // If we are playing locally via blob URL, do not overwrite it
       if (mediaUrlRef.current?.startsWith('blob:')) {
@@ -4888,13 +4931,30 @@ const Room = () => {
   useEffect(() => {
     if (!showSubtitleMenu) return;
     const close = e => {
-      if (subtitleMenuRef.current && !subtitleMenuRef.current.contains(e.target)) {
+      const insideTrigger = subtitleMenuRef.current && subtitleMenuRef.current.contains(e.target);
+      const insidePortal = subtitleDropdownPortalRef.current && subtitleDropdownPortalRef.current.contains(e.target);
+      if (!insideTrigger && !insidePortal) {
         setShowSubtitleMenu(false);
       }
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [showSubtitleMenu]);
+
+  // Mobile subtitle dropdown position — same anchoring approach as the quality
+  // dropdown: flush against the trigger button via top/bottom, no hardcoded height.
+  useEffect(() => {
+    if (!showSubtitleMenu || !isTouchPlayer || !subtitleBtnRef.current) return;
+    const rect = subtitleBtnRef.current.getBoundingClientRect();
+    const menuWidth = 220;
+    let left = rect.right - menuWidth;
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+    const spaceAbove = rect.top;
+    const openAbove = spaceAbove > 260;
+    setSubtitleDropdownPos(openAbove
+      ? { left, bottom: window.innerHeight - rect.top + 8, top: null }
+      : { left, top: rect.bottom + 8, bottom: null });
+  }, [showSubtitleMenu, isTouchPlayer]);
 
   // Close globe popup when clicking outside
   useEffect(() => {
@@ -4927,7 +4987,7 @@ const Room = () => {
   // hardcoded menu height) so the dropdown always sits flush against the button
   // regardless of how many quality rows it ends up rendering — no gap, no guessing.
   useEffect(() => {
-    if (!showQualityMenu || !isMobile || !qualityBtnRef.current) return;
+    if (!showQualityMenu || !isTouchPlayer || !qualityBtnRef.current) return;
     const rect = qualityBtnRef.current.getBoundingClientRect();
     const menuWidth = 132;
     let left = rect.right - menuWidth;
@@ -4937,7 +4997,7 @@ const Room = () => {
     setQualityDropdownPos(openAbove
       ? { left, bottom: window.innerHeight - rect.top + 8, top: null }
       : { left, top: rect.bottom + 8, bottom: null });
-  }, [showQualityMenu, isMobile]);
+  }, [showQualityMenu, isTouchPlayer]);
 
   // Reset iframe block state when URL changes so fresh load starts unblocked
   useEffect(() => {
@@ -5055,20 +5115,20 @@ const Room = () => {
     }
   }, [room, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── When enough chunks are buffered, host emits change_media so the room + server are synced ──
+  // ── As soon as the server has enough of the upload for progressive playback
+  // (stream_ready, not 100% complete — see backend's readyThreshold), the host kicks
+  // viewers from their initial "loaded but paused" state into actually playing, synced
+  // to the host's current position. This used to wait for the ENTIRE upload to finish,
+  // so a friend on a slow connection watching a multi-minute video would see it load
+  // but never actually start until the whole file was up. ──
   const streamCanPlayFiredRef = useRef(false);
   useEffect(() => {
-    console.log('[STREAM canPlay effect]', { canPlay: uploadState.canPlay, streamKey: uploadState.streamKey, isEffectiveHost, hasFired: streamCanPlayFiredRef.current });
-    if (!uploadState.canPlay || !uploadState.streamKey || !socket || !isEffectiveHost) return;
+    if (!earlyStreamReadyKey || earlyStreamReadyKey !== uploadState.streamKey || !socket || !isEffectiveHost) return;
     if (streamCanPlayFiredRef.current) return;
     streamCanPlayFiredRef.current = true;
-    const streamUrl = `${SOCKET_SERVER_URL}/api/stream/${uploadState.streamKey}/video`;
-    console.log('[STREAM] Upload complete, emitting streamUrl:', streamUrl);
 
-    // Emit change_media to update database and broadcast streamUrl to viewers
-    socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: streamUrl });
-
-    // Host keeps watching the local blob URL. Seek/play viewers 1.5s later.
+    // Host keeps watching the local blob URL. Seek/play viewers ~1.5s later so their
+    // player has had a moment to load the stream URL's metadata first.
     const currentPos = localVideoRef.current?.currentTime || 0;
     setTimeout(() => {
       if (socket) {
@@ -5078,12 +5138,27 @@ const Room = () => {
         socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
       }
     }, 1500);
-  }, [uploadState.canPlay, uploadState.streamKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [earlyStreamReadyKey, uploadState.streamKey, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset the fired-ref when a new upload starts
+  // ── Once the upload is fully done, just persist the final URL server-side (for
+  // anyone who joins/reconnects afterward) via stream_finalize — NOT change_media,
+  // which would reset isPlaying/currentTime/subtitles and yank already-playing
+  // viewers back to paused/position-0 for no reason, since they're already correctly
+  // synced via the early resync above. ──
+  const streamFinalizedRef = useRef(false);
+  useEffect(() => {
+    if (!uploadState.canPlay || !uploadState.streamKey || !socket || !isEffectiveHost) return;
+    if (streamFinalizedRef.current) return;
+    streamFinalizedRef.current = true;
+    const streamUrl = `${SOCKET_SERVER_URL}/api/stream/${uploadState.streamKey}/video`;
+    socket.emit('stream_finalize', { roomId: (roomId || '').toLowerCase(), mediaUrl: streamUrl });
+  }, [uploadState.canPlay, uploadState.streamKey, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset the fired-refs when a new upload starts
   useEffect(() => {
     if (uploadState.isUploading && !uploadState.canPlay) {
       streamCanPlayFiredRef.current = false;
+      streamFinalizedRef.current = false;
     }
   }, [uploadState.isUploading, uploadState.canPlay]);
 
@@ -6086,9 +6161,13 @@ const Room = () => {
 
   // ─── Responsive breakpoint tracker ──────────────────────────────────────
   useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth < 640);
+    const update = () => setIsMobile(detectIsMobile());
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+    };
   }, []);
 
   // ─── Hyperbeam SDK initialization ────────────────────────────────────────
@@ -6913,14 +6992,57 @@ const Room = () => {
     }
   });
 
+  // Web-view keyboard shortcuts: Space toggles play/pause, ←/→ seek ±10s.
+  // Mobile has its own tap-gesture layer for this, so skip there. Bails out
+  // whenever focus is on a text field (chat box etc.) or any modal/dropdown
+  // is open, so it never hijacks Space-to-click-a-button or typing " " in chat.
+  useEffect(() => {
+    if (isTouchPlayer || isTvMode || !hasMounted || !mediaUrl) return;
+    if (isScreensharing || isViewer) return;
+    if (isGameOrActivity(mediaUrl) || isWebIframe(mediaUrl) || isEmbedPlatform(mediaUrl)) return;
+
+    const handleKeyDown = (e) => {
+      if (anyRoomModalOpen || showQualityMenu || showSubtitleMenu) return;
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+      if (!hasPlayerPrivileges) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'ArrowRight' && duration > 0) {
+        e.preventDefault();
+        skipForward10();
+      } else if (e.code === 'ArrowLeft' && duration > 0) {
+        e.preventDefault();
+        skipBack10();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isTouchPlayer, isTvMode, hasMounted, mediaUrl, isScreensharing, isViewer, hasPlayerPrivileges, duration, isPlaying, anyRoomModalOpen, showQualityMenu, showSubtitleMenu]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Mobile/iPad swipe-back while in the CSS-driven mobile fullscreen (games,
   // activities, calls) should exit fullscreen instead of navigating away.
-  const mobileFsBack = useBackIntercept(isMobile && isMobileFsMode ? 1 : 0, (newLevel) => {
+  const mobileFsBack = useBackIntercept(isTouchPlayer && isMobileFsMode ? 1 : 0, (newLevel) => {
     if (newLevel === 0) {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
     }
   });
+
+  // Belt-and-suspenders for the mobile/iPad fullscreen edge-gap fix — see the
+  // sp-mobile-fs-active CSS rule in index.css.
+  useEffect(() => {
+    const active = isTouchPlayer && isMobileFsMode;
+    document.documentElement.classList.toggle('sp-mobile-fs-active', active);
+    document.body.classList.toggle('sp-mobile-fs-active', active);
+    return () => {
+      document.documentElement.classList.remove('sp-mobile-fs-active');
+      document.body.classList.remove('sp-mobile-fs-active');
+    };
+  }, [isTouchPlayer, isMobileFsMode]);
 
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
@@ -8435,6 +8557,7 @@ const Room = () => {
         onClose={() => setShowSubtitleSettingsModal(false)}
         settings={subtitleSettings}
         onChange={setSubtitleSettings}
+        isMobile={isTouchPlayer}
       />
 
       <CustomizeRoomModal
@@ -8488,7 +8611,7 @@ const Room = () => {
 
           <div
             ref={playerWrapRef}
-            className={`player-wrap${isMobile && isMobileFsMode ? (isCallActivity(mediaUrl) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
+            className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isCallActivity(mediaUrl) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => {
@@ -8496,7 +8619,7 @@ const Room = () => {
               // real hover to sustain), which was instantly killing the 3s auto-hide timer
               // resetControlsTimer had just armed — controls would flash and vanish right
               // away. Only real mouse-leaving-the-player should force an immediate hide.
-              if (!isMobile) setShowControls(false);
+              if (!isTouchPlayer) setShowControls(false);
             }}
             onTouchStart={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             style={{
@@ -9958,7 +10081,7 @@ const Room = () => {
                 Only for media we actually own custom controls for (uploaded/direct video
                 files and local streams) — never over an embedded/iframe/Twitch/Vimeo
                 player, which has its own native touch controls underneath. ── */}
-            {isMobile && !isTvMode && hasMounted && mediaUrl && !(isScreensharing || isViewer) &&
+            {isTouchPlayer && !isTvMode && hasMounted && mediaUrl && !(isScreensharing || isViewer) &&
               !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && !isEmbedPlatform(mediaUrl) &&
               !isTwitch && !isVimeo && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}>
@@ -10133,7 +10256,7 @@ const Room = () => {
                     {/* Skip -10s and +10s (Only for videos with valid seekable duration).
                         Hidden on mobile — replaced by double-tap left/right on the video
                         itself (see the tap-gesture layer above), like a normal mobile player. */}
-                    {!isMobile && duration > 0 && hasPlayerPrivileges && (
+                    {!isTouchPlayer && duration > 0 && hasPlayerPrivileges && (
                       <>
                         <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
                           <RotateCcw size={18} />
@@ -10365,6 +10488,7 @@ const Room = () => {
                   {(hasPlayerPrivileges || subtitlesUrl) && (
                     <div ref={subtitleMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <button
+                        ref={subtitleBtnRef}
                         className="player-ctrl-btn"
                         onClick={() => setShowSubtitleMenu(v => !v)}
                         title="Subtitles"
@@ -10385,7 +10509,7 @@ const Room = () => {
                       >
                         CC
                       </button>
-                      {showSubtitleMenu && (
+                      {showSubtitleMenu && !isTouchPlayer && (
                         <div className="player-subtitle-menu" style={{
                           position: 'absolute',
                           bottom: 'calc(100% + 10px)',
@@ -10478,9 +10602,95 @@ const Room = () => {
                           )}
                         </div>
                       )}
+                      {/* Mobile dropdown — portaled to document.body for the same reason as the
+                          quality dropdown: the mobile-fullscreen rotate-trick container's
+                          overflow:hidden was clipping this anchored-absolute menu, which made
+                          "Upload Subtitles" effectively unreachable in landscape fullscreen. */}
+                      {showSubtitleMenu && isTouchPlayer && subtitleDropdownPos && createPortal(
+                        <div
+                          ref={subtitleDropdownPortalRef}
+                          style={{
+                            position: 'fixed', left: subtitleDropdownPos.left,
+                            ...(subtitleDropdownPos.top != null ? { top: subtitleDropdownPos.top } : { bottom: subtitleDropdownPos.bottom }),
+                            width: 220,
+                            background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
+                            border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
+                            borderRadius: 12, padding: 5, zIndex: 1000000,
+                            boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
+                            backdropFilter: 'blur(16px)',
+                          }}
+                        >
+                          {isWebIframe(mediaUrl) && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
+                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
+                            </div>
+                          )}
+                          {isEmbedPlatform(mediaUrl) && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
+                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
+                            </div>
+                          )}
+                          {!isEmbedPlatform(mediaUrl) && (
+                            <>
+                              {subtitlesUrl && (
+                                <button
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    width: '100%', padding: '9px 12px',
+                                    background: 'none', border: 'none',
+                                    color: subtitlesVisible ? '#c084fc' : (isLight ? '#374151' : '#9ca3af'),
+                                    fontSize: 13, cursor: 'pointer', borderRadius: 8,
+                                    textAlign: 'left', fontFamily: 'inherit',
+                                  }}
+                                  onClick={() => { setSubtitlesVisible(v => !v); setShowSubtitleMenu(false); }}
+                                >
+                                  <div style={{
+                                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                    background: subtitlesVisible ? '#c084fc' : 'transparent',
+                                    border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
+                                  }} />
+                                  {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
+                                </button>
+                              )}
+                              {hasPlayerPrivileges && (
+                                <button
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    width: '100%', padding: '9px 12px',
+                                    background: 'none', border: 'none',
+                                    color: isLight ? '#374151' : '#d1d5db', fontSize: 13, cursor: 'pointer',
+                                    borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
+                                  }}
+                                  onClick={() => { subtitleInputRef.current?.click(); setShowSubtitleMenu(false); }}
+                                >
+                                  <Upload size={14} style={{ flexShrink: 0 }} />
+                                  {subtitlesUrl ? 'Change Subtitles' : 'Upload Subtitles'}
+                                </button>
+                              )}
+                              <div style={{ height: 1, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
+                              <button
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 10,
+                                  width: '100%', padding: '9px 12px',
+                                  background: 'none', border: 'none',
+                                  color: isLight ? '#374151' : '#d1d5db', fontSize: 13, cursor: 'pointer',
+                                  borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
+                                }}
+                                onClick={() => { setShowSubtitleSettingsModal(true); setShowSubtitleMenu(false); }}
+                              >
+                                <Settings size={14} style={{ flexShrink: 0 }} />
+                                Subtitle Settings
+                              </button>
+                            </>
+                          )}
+                        </div>,
+                        document.body
+                      )}
                     </div>
                   )}
- 
+
                   {/* Quality Selector */}
                   <div ref={qualityMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <button
@@ -10488,7 +10698,7 @@ const Room = () => {
                       className="player-ctrl-btn"
                       onClick={() => setShowQualityMenu(v => !v)}
                       title="Visual quality"
-                      style={isMobile ? {
+                      style={isTouchPlayer ? {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
                         border: showQualityMenu ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(99,102,241,0.35)',
@@ -10503,10 +10713,10 @@ const Room = () => {
                         letterSpacing: '0.3px', minWidth: 42, justifyContent: 'center',
                       }}
                     >
-                      {isMobile ? <Sparkles size={16} /> : (QUALITY_PRESETS[videoQuality]?.label || videoQuality)}
+                      {isTouchPlayer ? <Sparkles size={16} /> : (QUALITY_PRESETS[videoQuality]?.label || videoQuality)}
                     </button>
                     {/* Desktop/tablet dropdown — unchanged, anchored to the button itself */}
-                    {showQualityMenu && !isMobile && (
+                    {showQualityMenu && !isTouchPlayer && (
                       <div style={{
                         position: 'absolute', bottom: 'calc(100% + 10px)', right: 0,
                         background: 'rgba(12,12,22,0.97)',
@@ -10562,7 +10772,7 @@ const Room = () => {
                       (see the positioning effect above) and themed for light/dark since it's
                       portaled outside the always-dark player chrome. Rendered as a single-column
                       list — like every other player's quality menu — rather than a boxy grid. */}
-                  {showQualityMenu && isMobile && qualityDropdownPos && createPortal(
+                  {showQualityMenu && isTouchPlayer && qualityDropdownPos && createPortal(
                     <div
                       ref={qualityDropdownPortalRef}
                       style={{
@@ -10571,7 +10781,7 @@ const Room = () => {
                         width: 132,
                         background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
                         border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
-                        borderRadius: 12, padding: 6, zIndex: 999999,
+                        borderRadius: 12, padding: 6, zIndex: 1000000,
                         boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
                         backdropFilter: 'blur(16px)',
                       }}
@@ -10597,7 +10807,7 @@ const Room = () => {
 
                   {/* Fullscreen */}
                   <button className="player-ctrl-btn" onClick={handleFullscreen} title={isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}>
-                    {isMobile && isMobileFsMode ? <Minimize size={18} /> : <Maximize size={18} />}
+                    {isTouchPlayer && isMobileFsMode ? <Minimize size={18} /> : <Maximize size={18} />}
                   </button>
 
                 </div>
@@ -10609,7 +10819,7 @@ const Room = () => {
             {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
               <button
                 onClick={() => setHideCustomControls(false)}
-                style={isMobile ? {
+                style={isTouchPlayer ? {
                   position: 'absolute',
                   top: '14px',
                   left: '50%',
@@ -10653,7 +10863,7 @@ const Room = () => {
                 title="Restore SahaPlay Controls"
               >
                 <ChevronUp size={16} color="#fff" />
-                {!isMobile && <span className="stay-white">Show SahaPlay Controls</span>}
+                {!isTouchPlayer && <span className="stay-white">Show SahaPlay Controls</span>}
               </button>
             )}
             

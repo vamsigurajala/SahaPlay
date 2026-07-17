@@ -1347,13 +1347,20 @@ html[data-theme='light'] .mobile-nav-divider {
    MOBILE ROOM REDESIGN (< 640px) — Parts 1-8
 ══════════════════════════════════════════ */
 
-/* Mobile landscape fullscreen: CSS rotate trick (portrait left=100vw anchor, rotate 90° CW) */
+/* Mobile landscape fullscreen: CSS rotate trick (portrait left=100vw anchor, rotate 90° CW).
+   Static vw/vh can mismatch the actual visible viewport on mobile browsers (address bar
+   show/hide, safe-area insets on notched/rounded-corner screens), leaving a sliver of the
+   page background visible at the screen edges. dvw/dvh track the real visible viewport;
+   declared after the vw/vh fallback so unsupporting browsers just keep the first value. */
 .player-mob-fs {
   position: fixed !important;
   top: 0 !important;
   left: 100vw !important;
+  left: 100dvw !important;
   width: 100vh !important;
+  width: 100dvh !important;
   height: 100vw !important;
+  height: 100dvw !important;
   transform-origin: top left !important;
   transform: rotate(90deg) !important;
   z-index: 999999 !important;
@@ -1371,7 +1378,9 @@ html[data-theme='light'] .mobile-nav-divider {
   top: 0 !important;
   left: 0 !important;
   width: 100vw !important;
+  width: 100dvw !important;
   height: 100vh !important;
+  height: 100dvh !important;
   transform: none !important;
   z-index: 999999 !important;
   background: #000 !important;
@@ -1379,6 +1388,14 @@ html[data-theme='light'] .mobile-nav-divider {
   overflow: hidden !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* Safety net: while mobile/iPad fullscreen (rotate-trick) is active, force the page
+   background to black too. Even with dvw/dvh, sub-pixel rounding or a mid-transition
+   browser-chrome resize can leave a hairline gap at the edge — better it reads as part
+   of the black letterbox than as the page's (often white, in light theme) background. */
+html.sp-mobile-fs-active, body.sp-mobile-fs-active {
+  background: #000 !important;
 }
 
 /* Part 1 — Mobile center: avatar + room name + members pill */

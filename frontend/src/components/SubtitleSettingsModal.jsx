@@ -43,7 +43,7 @@ const DEFAULT_SETTINGS = {
   position: 'bottom',
 };
 
-export default function SubtitleSettingsModal({ open, onClose, settings, onChange }) {
+export default function SubtitleSettingsModal({ open, onClose, settings, onChange, isMobile }) {
   const [isLight, setIsLight] = useState(
     document.documentElement.getAttribute('data-theme') === 'light'
   );
@@ -76,15 +76,27 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
     <div
       className="subtitle-modal-overlay"
       style={{
-        position: 'fixed', inset: 0, zIndex: 20000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'fixed', inset: 0, zIndex: 1000050,
+        display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: isMobile ? 'flex-end' : 'center',
         background: isLight ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
         backdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
         WebkitBackdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
       }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{
+      <div style={isMobile ? {
+        background: isLight ? '#ffffff' : '#0d0d1a',
+        borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '16px 0 0 16px',
+        padding: '20px 18px',
+        width: 'min(86vw, 340px)',
+        height: '100%',
+        maxHeight: '100%',
+        overflowY: 'auto',
+        boxShadow: isLight ? '-4px 0 24px rgba(0,0,0,0.12)' : '-4px 0 32px rgba(0,0,0,0.5)',
+        color: isLight ? '#111827' : '#e5e7eb',
+        fontFamily: 'Outfit, sans-serif',
+      } : {
         background: isLight ? '#ffffff' : '#0d0d1a',
         border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
         borderRadius: 16,

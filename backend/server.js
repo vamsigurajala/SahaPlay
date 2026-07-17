@@ -7429,6 +7429,24 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Fired once a video upload finishes in the background, purely so the room's
+  // persisted currentMedia points at the real stream URL for anyone who joins or
+  // reconnects afterward. Viewers already already watching are synced to this same
+  // URL much earlier via stream_ready (progressive playback starts once an initial
+  // chunk buffer is on disk, not at 100%) — deliberately does NOT touch
+  // isPlaying/currentTime/subtitles or broadcast anything, unlike change_media,
+  // so it can't yank already-playing viewers back to paused/position-0 just because
+  // the upload happened to finish while they were watching.
+  socket.on('stream_finalize', ({ roomId: rawRoomId, mediaUrl }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !mediaUrl || !rooms.has(roomId)) return;
+      rooms.get(roomId).currentMedia = mediaUrl;
+    } catch (err) {
+      console.error('[SOCKET] stream_finalize error:', err.message, 'user:', socket.username);
+    }
+  });
+
   socket.on('ui_sync', ({ roomId: rawRoomId, data }) => {
     try {
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
