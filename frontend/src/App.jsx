@@ -38,14 +38,26 @@ class ErrorBoundary extends React.Component {
     console.error('[ERROR BOUNDARY]', error, info.componentStack);
 
     // Lazy-loaded route chunks are hashed per-deploy. If a tab has been open
-    // across a new deploy, its in-memory route table still points at chunk
-    // filenames that no longer exist on the server, so the dynamic import
-    // 404s and fails this MIME/type check instead of throwing a normal
-    // network error. Auto-reload once to pick up the current index.html
-    // (and therefore current chunk hashes) instead of leaving the user
-    // stuck on a manual "Refresh" button. Guarded by sessionStorage so a
-    // genuinely broken chunk doesn't reload-loop forever.
-    const isChunkLoadError = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(error?.message || '');
+    // across a new deploy (very common here — this repo ships several times a
+    // day), its in-memory route table still points at chunk filenames that no
+    // longer exist on the server, so the dynamic import 404s and throws instead
+    // of a normal network error. This is what was showing up as "Login
+    // sometimes fails with Something went wrong, works after a refresh" —
+    // clicking Login (or navigating post-login into Home/Room) is exactly when
+    // a stale tab first tries to lazy-load a chunk that no longer exists.
+    // Auto-reload once to pick up the current index.html (and therefore
+    // current chunk hashes) instead of leaving the user stuck on a manual
+    // "Refresh" button. Guarded by sessionStorage so a genuinely broken chunk
+    // doesn't reload-loop forever; the guard is cleared on next successful
+    // mount (see the effect in App()) so a later deploy can still recover.
+    //
+    // The message wording for "a dynamic import failed" differs across
+    // browsers/build tools, and previously only the Chrome/Firefox/Safari-JS
+    // phrasings were matched — Vite's separate CSS-chunk-preload failure
+    // message wasn't, so on some browsers this recovery path silently never
+    // fired and the user was stuck manually refreshing (sometimes more than
+    // once) until a request happened to land after they'd refreshed enough.
+    const isChunkLoadError = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Failed to load module script|Unable to preload CSS|dynamically imported module/i.test(error?.message || '');
     if (isChunkLoadError) {
       const guardKey = 'watch_chunk_reload_attempted';
       if (!sessionStorage.getItem(guardKey)) {
@@ -237,11 +249,24 @@ if (roomMatch) {
 function App() {
   const { i18n } = useTranslation();
 
-  // A successful mount means the current chunk hashes loaded fine — clear the
-  // ErrorBoundary's one-shot auto-reload guard so a future genuine chunk load
-  // failure (e.g. after the next deploy) can still trigger one auto-reload.
+  // Clear the ErrorBoundary's one-shot auto-reload guard once the app has been
+  // running stably for a few seconds, so a future genuine chunk load failure
+  // (e.g. after the next deploy) can still trigger one auto-reload.
+  //
+  // This must NOT clear immediately on mount: App() mounts synchronously well
+  // before a lazy route's async import() has resolved or rejected, including
+  // on the reloaded page right after an auto-reload. Clearing unconditionally
+  // here raced the guard — if the same chunk failure re-threw moments after
+  // the reload (e.g. a genuinely broken/missing asset, not just a stale tab),
+  // the guard had already been wiped, so componentDidCatch reloaded again,
+  // and again, in a real infinite reload loop instead of stopping at one
+  // attempt like the guard is supposed to guarantee. Delaying the clear gives
+  // a persistently-broken chunk time to re-throw while the guard is still set.
   useEffect(() => {
-    sessionStorage.removeItem('watch_chunk_reload_attempted');
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('watch_chunk_reload_attempted');
+    }, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
