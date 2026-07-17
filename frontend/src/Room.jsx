@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
@@ -33,7 +34,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -1693,6 +1694,13 @@ const Room = () => {
   const [playerMuted, setPlayerMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
+  // Mobile tap-gesture layer: double-tap left/right thirds of the video to seek ±10s
+  // (with a transient ripple), single tap to toggle the control bar, center tap to
+  // play/pause — mirrors standard mobile video player conventions (YouTube/Netflix).
+  const [seekFeedback, setSeekFeedback] = useState(null); // { dir: 'back'|'forward', key } | null
+  const seekFeedbackTimerRef = useRef(null);
+  const tapTimerRef = useRef(null);
+  const lastTapRef = useRef({ zone: null, time: 0 });
   const playerWrapRef = useRef(null);
   // Responsive breakpoints
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -2446,6 +2454,13 @@ const Room = () => {
   const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('preferred_quality') || '720p');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityMenuRef = useRef(null);
+  // Mobile quality dropdown is portaled to document.body (see render below) so it
+  // can't get clipped by the mobile-fullscreen rotate-trick container's overflow:hidden,
+  // or pushed off the actual viewport — qualityDropdownPortalRef lets the click-outside
+  // handler recognize clicks landing in the portaled content as "inside" too.
+  const qualityBtnRef = useRef(null);
+  const qualityDropdownPortalRef = useRef(null);
+  const [qualityDropdownPos, setQualityDropdownPos] = useState(null);
 
   const userCount = userList.length;
 
@@ -4894,13 +4909,30 @@ const Room = () => {
   useEffect(() => {
     if (!showQualityMenu) return;
     const close = e => {
-      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target)) {
+      const insideTrigger = qualityMenuRef.current && qualityMenuRef.current.contains(e.target);
+      const insidePortal = qualityDropdownPortalRef.current && qualityDropdownPortalRef.current.contains(e.target);
+      if (!insideTrigger && !insidePortal) {
         setShowQualityMenu(false);
       }
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [showQualityMenu]);
+
+  // Mobile quality dropdown position — computed from the trigger button's actual
+  // on-screen rect (post any CSS transform, e.g. the mobile-fullscreen rotate-trick)
+  // and clamped to the viewport so it can never render off-screen.
+  useEffect(() => {
+    if (!showQualityMenu || !isMobile || !qualityBtnRef.current) return;
+    const rect = qualityBtnRef.current.getBoundingClientRect();
+    const menuWidth = 176;
+    const menuHeight = 210;
+    let left = rect.right - menuWidth;
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+    let top = rect.top - menuHeight - 10;
+    if (top < 8) top = Math.min(rect.bottom + 10, window.innerHeight - menuHeight - 8);
+    setQualityDropdownPos({ left, top });
+  }, [showQualityMenu, isMobile]);
 
   // Reset iframe block state when URL changes so fresh load starts unblocked
   useEffect(() => {
@@ -6416,6 +6448,53 @@ const Room = () => {
   };
 
   const toggleMutePlayer = () => setPlayerMuted(m => !m);
+
+  // Mobile tap-gesture handler for the video surface: left/right thirds double-tap to
+  // seek ±10s (single tap there toggles the control bar), center third single-tap
+  // toggles play/pause. Zone-scoped double-tap detection (not a single global one) so a
+  // left-then-right double tap doesn't misfire as a seek.
+  const DOUBLE_TAP_MS = 300;
+  const handlePlayerZoneTap = (zone) => {
+    if (zone === 'center') {
+      if (hasPlayerPrivileges) togglePlayPause();
+      resetControlsTimer();
+      return;
+    }
+
+    const now = Date.now();
+    const isDoubleTap = lastTapRef.current.zone === zone && (now - lastTapRef.current.time) < DOUBLE_TAP_MS;
+    lastTapRef.current = { zone, time: now };
+
+    if (isDoubleTap) {
+      clearTimeout(tapTimerRef.current);
+      if (hasPlayerPrivileges && duration > 0) {
+        if (zone === 'left') skipBack10(); else skipForward10();
+        clearTimeout(seekFeedbackTimerRef.current);
+        setSeekFeedback({ dir: zone === 'left' ? 'back' : 'forward', key: now });
+        seekFeedbackTimerRef.current = setTimeout(() => setSeekFeedback(null), 650);
+      }
+      return;
+    }
+
+    // Not (yet) a double-tap — wait out the window in case a second tap follows,
+    // then treat it as a plain single tap that toggles the control bar.
+    clearTimeout(tapTimerRef.current);
+    tapTimerRef.current = setTimeout(() => {
+      if (showControls) {
+        clearTimeout(controlsTimerRef.current);
+        setShowControls(false);
+      } else {
+        resetControlsTimer();
+      }
+    }, DOUBLE_TAP_MS);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(tapTimerRef.current);
+      clearTimeout(seekFeedbackTimerRef.current);
+    };
+  }, []);
 
 
 
@@ -8399,7 +8478,13 @@ const Room = () => {
             className={`player-wrap${isMobile && isMobileFsMode ? (isCallActivity(mediaUrl) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
-            onMouseLeave={() => { setShowControls(false); }}
+            onMouseLeave={() => {
+              // Touch devices synthesize a mouseleave shortly after every tap (there's no
+              // real hover to sustain), which was instantly killing the 3s auto-hide timer
+              // resetControlsTimer had just armed — controls would flash and vanish right
+              // away. Only real mouse-leaving-the-player should force an immediate hide.
+              if (!isMobile) setShowControls(false);
+            }}
             onTouchStart={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             style={{
               flex: 1,
@@ -9855,6 +9940,39 @@ const Room = () => {
               </div>
             )}
 
+            {/* ── Mobile tap-gesture layer — left/right thirds double-tap to seek ±10s,
+                single tap toggles the control bar, center third single-tap play/pauses.
+                Only for media we actually own custom controls for (uploaded/direct video
+                files and local streams) — never over an embedded/iframe/Twitch/Vimeo
+                player, which has its own native touch controls underneath. ── */}
+            {isMobile && !isTvMode && hasMounted && mediaUrl && !(isScreensharing || isViewer) &&
+              !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && !isEmbedPlatform(mediaUrl) &&
+              !isTwitch && !isVimeo && (
+              <div style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}>
+                <div style={{ flex: 1 }} onClick={() => handlePlayerZoneTap('left')} />
+                <div style={{ flex: 1.2 }} onClick={() => handlePlayerZoneTap('center')} />
+                <div style={{ flex: 1 }} onClick={() => handlePlayerZoneTap('right')} />
+                {seekFeedback && (
+                  <div
+                    key={seekFeedback.key}
+                    style={{
+                      position: 'absolute', top: '50%',
+                      [seekFeedback.dir === 'back' ? 'left' : 'right']: '12%',
+                      transform: 'translateY(-50%)',
+                      width: 60, height: 60, borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', pointerEvents: 'none',
+                      animation: 'sp-seek-pulse 0.6s ease-out',
+                    }}
+                  >
+                    {seekFeedback.dir === 'back' ? <RotateCcw size={20} /> : <RotateCw size={20} />}
+                    <span style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>10s</span>
+                  </div>
+                )}
+                <style>{`@keyframes sp-seek-pulse { 0% { opacity: 0; transform: translateY(-50%) scale(0.8); } 25% { opacity: 1; transform: translateY(-50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-50%) scale(1); } }`}</style>
+              </div>
+            )}
 
             {/* Persistent file input — lives outside the modal so it survives modal unmount */}
             <input
@@ -9983,8 +10101,10 @@ const Room = () => {
                       </button>
                     )}
 
-                    {/* Skip -10s and +10s (Only for videos with valid seekable duration) */}
-                    {duration > 0 && hasPlayerPrivileges && (
+                    {/* Skip -10s and +10s (Only for videos with valid seekable duration).
+                        Hidden on mobile — replaced by double-tap left/right on the video
+                        itself (see the tap-gesture layer above), like a normal mobile player. */}
+                    {!isMobile && duration > 0 && hasPlayerPrivileges && (
                       <>
                         <button className="player-ctrl-btn" onClick={skipBack10} title="Backward 10s">
                           <RotateCcw size={18} />
@@ -10335,10 +10455,16 @@ const Room = () => {
                   {/* Quality Selector */}
                   <div ref={qualityMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <button
+                      ref={qualityBtnRef}
                       className="player-ctrl-btn"
                       onClick={() => setShowQualityMenu(v => !v)}
                       title="Visual quality"
-                      style={{
+                      style={isMobile ? {
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
+                        border: showQualityMenu ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(99,102,241,0.35)',
+                        padding: 7, borderRadius: 8, color: '#a5b4fc', transition: 'all 0.2s',
+                      } : {
                         fontSize: '11px', fontWeight: 700,
                         display: 'flex', alignItems: 'center', gap: 4,
                         background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
@@ -10348,9 +10474,10 @@ const Room = () => {
                         letterSpacing: '0.3px', minWidth: 42, justifyContent: 'center',
                       }}
                     >
-                      {QUALITY_PRESETS[videoQuality]?.label || videoQuality}
+                      {isMobile ? <Sparkles size={16} /> : (QUALITY_PRESETS[videoQuality]?.label || videoQuality)}
                     </button>
-                    {showQualityMenu && (
+                    {/* Desktop/tablet dropdown — unchanged, anchored to the button itself */}
+                    {showQualityMenu && !isMobile && (
                       <div style={{
                         position: 'absolute', bottom: 'calc(100% + 10px)', right: 0,
                         background: 'rgba(12,12,22,0.97)',
@@ -10398,6 +10525,44 @@ const Room = () => {
                     )}
                   </div>
 
+                  {/* Mobile dropdown — portaled to document.body, positioned from the trigger
+                      button's real on-screen rect and clamped to the viewport. Needed because
+                      the mobile-fullscreen "rotate trick" container clips/overflow:hidden's
+                      anything popped up from an anchored-absolute position, which was pushing
+                      this dropdown off-screen. Numbers only (no "p"/description text) so it
+                      fits comfortably on any phone width. */}
+                  {showQualityMenu && isMobile && qualityDropdownPos && createPortal(
+                    <div
+                      ref={qualityDropdownPortalRef}
+                      style={{
+                        position: 'fixed', left: qualityDropdownPos.left, top: qualityDropdownPos.top,
+                        width: 176, background: 'rgba(12,12,22,0.97)',
+                        border: '1px solid rgba(255,255,255,0.11)', borderRadius: 12,
+                        padding: 8, zIndex: 999999, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+                        backdropFilter: 'blur(16px)',
+                      }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                        {Object.entries(QUALITY_PRESETS).map(([key]) => (
+                          <button
+                            key={key}
+                            onClick={() => { setVideoQuality(key); localStorage.setItem('preferred_quality', key); setShowQualityMenu(false); }}
+                            style={{
+                              padding: '10px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                              background: videoQuality === key ? 'rgba(99,102,241,0.28)' : 'rgba(255,255,255,0.05)',
+                              color: videoQuality === key ? '#a5b4fc' : '#d1d5db',
+                              fontSize: 12, fontWeight: videoQuality === key ? 700 : 500,
+                              textAlign: 'center', fontFamily: 'inherit',
+                            }}
+                          >
+                            {key.replace(/p$/, '')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>,
+                    document.body
+                  )}
+
                   {/* Fullscreen */}
                   <button className="player-ctrl-btn" onClick={handleFullscreen} title={isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}>
                     {isMobile && isMobileFsMode ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -10412,7 +10577,21 @@ const Room = () => {
             {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
               <button
                 onClick={() => setHideCustomControls(false)}
-                style={{
+                style={isMobile ? {
+                  position: 'absolute',
+                  top: '14px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 35,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(168, 85, 247, 0.9))',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(8px)',
+                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  pointerEvents: 'auto'
+                } : {
                   position: 'absolute',
                   top: '16px',
                   left: '50%',
@@ -10442,7 +10621,7 @@ const Room = () => {
                 title="Restore SahaPlay Controls"
               >
                 <ChevronUp size={16} color="#fff" />
-                <span className="stay-white">Show SahaPlay Controls</span>
+                {!isMobile && <span className="stay-white">Show SahaPlay Controls</span>}
               </button>
             )}
             
