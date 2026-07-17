@@ -1699,6 +1699,8 @@ const Room = () => {
   // play/pause — mirrors standard mobile video player conventions (YouTube/Netflix).
   const [seekFeedback, setSeekFeedback] = useState(null); // { dir: 'back'|'forward', key } | null
   const seekFeedbackTimerRef = useRef(null);
+  const [centerFeedback, setCenterFeedback] = useState(null); // { type: 'play'|'pause', key } | null
+  const centerFeedbackTimerRef = useRef(null);
   const tapTimerRef = useRef(null);
   const lastTapRef = useRef({ zone: null, time: 0 });
   const playerWrapRef = useRef(null);
@@ -4920,18 +4922,21 @@ const Room = () => {
   }, [showQualityMenu]);
 
   // Mobile quality dropdown position — computed from the trigger button's actual
-  // on-screen rect (post any CSS transform, e.g. the mobile-fullscreen rotate-trick)
-  // and clamped to the viewport so it can never render off-screen.
+  // on-screen rect (post any CSS transform, e.g. the mobile-fullscreen rotate-trick).
+  // Anchored via `bottom`/`top` relative to the button itself (rather than a
+  // hardcoded menu height) so the dropdown always sits flush against the button
+  // regardless of how many quality rows it ends up rendering — no gap, no guessing.
   useEffect(() => {
     if (!showQualityMenu || !isMobile || !qualityBtnRef.current) return;
     const rect = qualityBtnRef.current.getBoundingClientRect();
-    const menuWidth = 176;
-    const menuHeight = 210;
+    const menuWidth = 132;
     let left = rect.right - menuWidth;
     left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
-    let top = rect.top - menuHeight - 10;
-    if (top < 8) top = Math.min(rect.bottom + 10, window.innerHeight - menuHeight - 8);
-    setQualityDropdownPos({ left, top });
+    const spaceAbove = rect.top;
+    const openAbove = spaceAbove > 260;
+    setQualityDropdownPos(openAbove
+      ? { left, bottom: window.innerHeight - rect.top + 8, top: null }
+      : { left, top: rect.bottom + 8, bottom: null });
   }, [showQualityMenu, isMobile]);
 
   // Reset iframe block state when URL changes so fresh load starts unblocked
@@ -6456,7 +6461,14 @@ const Room = () => {
   const DOUBLE_TAP_MS = 300;
   const handlePlayerZoneTap = (zone) => {
     if (zone === 'center') {
-      if (hasPlayerPrivileges) togglePlayPause();
+      if (hasPlayerPrivileges) {
+        togglePlayPause();
+        clearTimeout(centerFeedbackTimerRef.current);
+        // isPlaying is still the pre-toggle value here (closure), so its opposite
+        // is the state the video is transitioning into — show that icon.
+        setCenterFeedback({ type: isPlaying ? 'pause' : 'play', key: Date.now() });
+        centerFeedbackTimerRef.current = setTimeout(() => setCenterFeedback(null), 550);
+      }
       resetControlsTimer();
       return;
     }
@@ -6493,6 +6505,7 @@ const Room = () => {
     return () => {
       clearTimeout(tapTimerRef.current);
       clearTimeout(seekFeedbackTimerRef.current);
+      clearTimeout(centerFeedbackTimerRef.current);
     };
   }, []);
 
@@ -9957,20 +9970,36 @@ const Room = () => {
                     key={seekFeedback.key}
                     style={{
                       position: 'absolute', top: '50%',
-                      [seekFeedback.dir === 'back' ? 'left' : 'right']: '12%',
+                      [seekFeedback.dir === 'back' ? 'left' : 'right']: '16%',
                       transform: 'translateY(-50%)',
-                      width: 60, height: 60, borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', pointerEvents: 'none',
+                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.5))',
                       animation: 'sp-seek-pulse 0.6s ease-out',
                     }}
                   >
-                    {seekFeedback.dir === 'back' ? <RotateCcw size={20} /> : <RotateCw size={20} />}
-                    <span style={{ fontSize: 10, fontWeight: 700, marginTop: 2 }}>10s</span>
+                    {seekFeedback.dir === 'back' ? <RotateCcw size={36} color="#fff" /> : <RotateCw size={36} color="#fff" />}
                   </div>
                 )}
-                <style>{`@keyframes sp-seek-pulse { 0% { opacity: 0; transform: translateY(-50%) scale(0.8); } 25% { opacity: 1; transform: translateY(-50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-50%) scale(1); } }`}</style>
+                {centerFeedback && (
+                  <div
+                    key={centerFeedback.key}
+                    style={{
+                      position: 'absolute', top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', pointerEvents: 'none',
+                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.5))',
+                      animation: 'sp-center-pulse 0.55s ease-out',
+                    }}
+                  >
+                    {centerFeedback.type === 'play' ? <Play size={40} color="#fff" fill="#fff" /> : <Pause size={40} color="#fff" fill="#fff" />}
+                  </div>
+                )}
+                <style>{`
+                  @keyframes sp-seek-pulse { 0% { opacity: 0; transform: translateY(-50%) scale(0.8); } 25% { opacity: 1; transform: translateY(-50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-50%) scale(1); } }
+                  @keyframes sp-center-pulse { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
+                `}</style>
               </div>
             )}
 
@@ -10529,36 +10558,39 @@ const Room = () => {
                       button's real on-screen rect and clamped to the viewport. Needed because
                       the mobile-fullscreen "rotate trick" container clips/overflow:hidden's
                       anything popped up from an anchored-absolute position, which was pushing
-                      this dropdown off-screen. Numbers only (no "p"/description text) so it
-                      fits comfortably on any phone width. */}
+                      this dropdown off-screen. Anchored via top/bottom flush against the button
+                      (see the positioning effect above) and themed for light/dark since it's
+                      portaled outside the always-dark player chrome. Rendered as a single-column
+                      list — like every other player's quality menu — rather than a boxy grid. */}
                   {showQualityMenu && isMobile && qualityDropdownPos && createPortal(
                     <div
                       ref={qualityDropdownPortalRef}
                       style={{
-                        position: 'fixed', left: qualityDropdownPos.left, top: qualityDropdownPos.top,
-                        width: 176, background: 'rgba(12,12,22,0.97)',
-                        border: '1px solid rgba(255,255,255,0.11)', borderRadius: 12,
-                        padding: 8, zIndex: 999999, boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
+                        position: 'fixed', left: qualityDropdownPos.left,
+                        ...(qualityDropdownPos.top != null ? { top: qualityDropdownPos.top } : { bottom: qualityDropdownPos.bottom }),
+                        width: 132,
+                        background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
+                        border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
+                        borderRadius: 12, padding: 6, zIndex: 999999,
+                        boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
                         backdropFilter: 'blur(16px)',
                       }}
                     >
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                        {Object.entries(QUALITY_PRESETS).map(([key]) => (
-                          <button
-                            key={key}
-                            onClick={() => { setVideoQuality(key); localStorage.setItem('preferred_quality', key); setShowQualityMenu(false); }}
-                            style={{
-                              padding: '10px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                              background: videoQuality === key ? 'rgba(99,102,241,0.28)' : 'rgba(255,255,255,0.05)',
-                              color: videoQuality === key ? '#a5b4fc' : '#d1d5db',
-                              fontSize: 12, fontWeight: videoQuality === key ? 700 : 500,
-                              textAlign: 'center', fontFamily: 'inherit',
-                            }}
-                          >
-                            {key.replace(/p$/, '')}
-                          </button>
-                        ))}
-                      </div>
+                      {Object.entries(QUALITY_PRESETS).map(([key]) => (
+                        <button
+                          key={key}
+                          onClick={() => { setVideoQuality(key); localStorage.setItem('preferred_quality', key); setShowQualityMenu(false); }}
+                          style={{
+                            display: 'block', width: '100%', padding: '9px 10px',
+                            borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left',
+                            background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'transparent',
+                            color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
+                            fontSize: 13, fontWeight: videoQuality === key ? 700 : 500, fontFamily: 'inherit',
+                          }}
+                        >
+                          {key.replace(/p$/, '')}
+                        </button>
+                      ))}
                     </div>,
                     document.body
                   )}

@@ -5433,6 +5433,7 @@ app.post('/api/stream/init', authenticateToken, (req, res) => {
       totalSize: Number(totalSize),
       totalChunks: Number(totalChunks),
       chunksReceived: 0,
+      readyEmitted: false,
       createdAt: Date.now()
     });
 
@@ -5460,7 +5461,6 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
 
     stream.chunksReceived += 1;
     const newCount = stream.chunksReceived;
-    const isReady = newCount >= stream.totalChunks;
     const progress = Math.round((newCount / stream.totalChunks) * 100);
 
     const room = rooms.get(stream.roomId);
@@ -5468,8 +5468,15 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
       room.streamPending.progress = progress;
     }
 
-    // Only emit stream_ready when the upload is 100% complete
-    if (isReady) {
+    // Emit stream_ready as soon as a small initial buffer is on disk, not once the
+    // whole upload finishes — the GET endpoint below already serves whatever chunks
+    // have arrived (with correct partial Content-Range), so viewers can start
+    // progressive playback while the rest of the file keeps uploading in the
+    // background. Without this, everyone but the uploader waited for 100% of a
+    // multi-minute upload before their player got a URL at all.
+    const readyThreshold = Math.min(stream.totalChunks, Math.max(3, Math.ceil(stream.totalChunks * 0.08)));
+    if (!stream.readyEmitted && newCount >= readyThreshold) {
+      stream.readyEmitted = true;
       if (room) {
         room.streamPending = null;
       }
