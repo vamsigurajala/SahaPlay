@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
+import { signInWithApple } from './lib/appleAuth';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { useCrypto } from './contexts/CryptoContext';
 import {
@@ -100,6 +101,68 @@ const Signup = () => {
     }
   };
 
+  // Shared by Google and Apple sign-in — both return the same { token, username,
+  // needsKeySetup, rawPrivateKeyB64 } shape from the backend, they only differ in which
+  // no-password key-wrapping endpoint to call on first login.
+  const completeOAuthSignup = async (data, setupKeysPath, oauthLabel) => {
+    // Clear any previous user's session data to prevent cross-account leakage
+    try {
+      const { clearUserSession } = await import('./lib/authUtils.js');
+      clearUserSession();
+    } catch (e) {}
+    localStorage.setItem('watch_token', data.token);
+    localStorage.setItem('watch_username', data.username);
+
+    if (data.needsKeySetup) {
+      // First login (or a legacy account missing keys): generate an E2EE key pair.
+      // OAuth users have no password, so it's wrapped server-side instead (see
+      // setupKeysPath) rather than with a client-derived password key.
+      try {
+        const chars = 'abcdefghijklmnopqrstuvwxyz';
+        let phraseStr = '';
+        const randBytes = crypto.getRandomValues(new Uint8Array(24));
+        for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+        const phrase = phraseStr.toUpperCase();
+
+        const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+        const secretKey = new Uint8Array(hashBuf);
+        const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+        const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+
+        await fetch(`${API}${setupKeysPath}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+          body: JSON.stringify({
+            publicKey: encodeBase64(keyPair.publicKey),
+            rawPrivateKey: encodeBase64(keyPair.secretKey),
+            recoveryKeyHash
+          })
+        });
+
+        await setKeyPair(keyPair);
+        window.dispatchEvent(new Event('login_success'));
+        setRecoveryPhrase(phrase);
+        setShowRecoveryModal(true);
+      } catch (keyErr) {
+        console.error(`[Signup] ${oauthLabel} key setup failed:`, keyErr);
+        window.dispatchEvent(new Event('login_success'));
+        navigate('/');
+      }
+    } else {
+      if (data.rawPrivateKeyB64) {
+        try {
+          const secretKey = decodeBase64(data.rawPrivateKeyB64);
+          const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+          await setKeyPair(keyPair);
+        } catch (restoreErr) {
+          console.warn(`[Signup] Failed to restore ${oauthLabel} E2EE key:`, restoreErr);
+        }
+      }
+      window.dispatchEvent(new Event('login_success'));
+      navigate('/');
+    }
+  };
+
   const handleGoogleSuccess = async (credentialResponse) => {
     setGlobalError('');
     setIsSubmitting(true);
@@ -111,67 +174,43 @@ const Signup = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        // Clear any previous user's session data to prevent cross-account leakage
-        try {
-            const { clearUserSession } = await import('./lib/authUtils.js');
-            clearUserSession();
-        } catch(e) {}
-        localStorage.setItem('watch_token', data.token);
-        localStorage.setItem('watch_username', data.username);
-
-        if (data.needsKeySetup) {
-          // First Google login (or a legacy Google account missing keys): generate an E2EE
-          // key pair. Google users have no password, so it's wrapped server-side instead
-          // (see /api/auth/setup-google-keys) rather than with a client-derived password key.
-          try {
-            const chars = 'abcdefghijklmnopqrstuvwxyz';
-            let phraseStr = '';
-            const randBytes = crypto.getRandomValues(new Uint8Array(24));
-            for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
-            const phrase = phraseStr.toUpperCase();
-
-            const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
-            const secretKey = new Uint8Array(hashBuf);
-            const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-            const recoveryKeyHash = await hashRecoveryPhrase(phrase);
-
-            await fetch(`${API}/api/auth/setup-google-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-              body: JSON.stringify({
-                publicKey: encodeBase64(keyPair.publicKey),
-                rawPrivateKey: encodeBase64(keyPair.secretKey),
-                recoveryKeyHash
-              })
-            });
-
-            await setKeyPair(keyPair);
-            window.dispatchEvent(new Event('login_success'));
-            setRecoveryPhrase(phrase);
-            setShowRecoveryModal(true);
-          } catch (keyErr) {
-            console.error('[Signup] Google key setup failed:', keyErr);
-            window.dispatchEvent(new Event('login_success'));
-            navigate('/');
-          }
-        } else {
-          if (data.rawPrivateKeyB64) {
-            try {
-              const secretKey = decodeBase64(data.rawPrivateKeyB64);
-              const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-              await setKeyPair(keyPair);
-            } catch (restoreErr) {
-              console.warn('[Signup] Failed to restore Google E2EE key:', restoreErr);
-            }
-          }
-          window.dispatchEvent(new Event('login_success'));
-          navigate('/');
-        }
+        await completeOAuthSignup(data, '/api/auth/setup-google-keys', 'Google');
       } else {
         setGlobalError(data.error || t('googleSignupFailed', 'Google Signup failed'));
       }
     } catch {
       setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAppleClick = async () => {
+    setGlobalError('');
+    setIsSubmitting(true);
+    try {
+      const authData = await signInWithApple();
+      const response = await fetch(`${API}/api/auth/apple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_token: authData.authorization?.id_token,
+          user: authData.user || null,
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        await completeOAuthSignup(data, '/api/auth/setup-apple-keys', 'Apple');
+      } else {
+        setGlobalError(data.error || t('appleSignupFailed', 'Apple Signup failed'));
+      }
+    } catch (err) {
+      if (err?.error === 'popup_closed_by_user') {
+        // User cancelled the popup — not an error worth surfacing
+      } else {
+        console.error('[Signup] Apple Sign-In error:', err);
+        setGlobalError(t('networkErrorApple', 'Network error during Apple Auth'));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -562,8 +601,7 @@ const Signup = () => {
               <button
                 type="button"
                 className="social-btn apple-btn"
-                onClick={() => setGlobalError(t('appleNotConfigured', 'Apple Sign-In is not yet configured'))}
-                title={t('appleNotConfigured', 'Apple Sign-In is not yet configured')}
+                onClick={handleAppleClick}
                 style={{ width: '50px', height: '50px' }}
               >
                 <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">

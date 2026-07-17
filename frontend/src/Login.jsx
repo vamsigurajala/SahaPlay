@@ -3,6 +3,7 @@ import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
+import { signInWithApple } from './lib/appleAuth';
 import { ArrowLeft, Mail, Lock, LogIn, Eye, EyeOff, User, Shield, Ban } from 'lucide-react';
 import { useCrypto } from './contexts/CryptoContext';
 import { decryptPrivateKey, generateKeyPair, hashRecoveryPhrase } from './lib/crypto.js';
@@ -164,6 +165,80 @@ const Login = () => {
     }
   };
 
+  // Shared by Google and Apple sign-in — both return the same { token, username, role,
+  // needsKeySetup, rawPrivateKeyB64 } shape from the backend, they only differ in which
+  // no-password key-wrapping endpoint to call on first login.
+  const completeOAuthLogin = async (data, setupKeysPath, oauthLabel) => {
+    clearUserSession();
+    localStorage.setItem('watch_token', data.token);
+    localStorage.setItem('watch_username', data.username);
+    localStorage.setItem('watch_role', data.role || 'user');
+
+    if (data.needsKeySetup) {
+      // First login (or a legacy account missing keys): generate an E2EE key pair.
+      // OAuth users have no password, so it's wrapped server-side instead (see
+      // setupKeysPath) rather than with a client-derived password key.
+      try {
+        const chars = 'abcdefghijklmnopqrstuvwxyz';
+        let phraseStr = '';
+        const randBytes = crypto.getRandomValues(new Uint8Array(24));
+        for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+        const phrase = phraseStr.toUpperCase();
+
+        const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+        const secretKey = new Uint8Array(hashBuf);
+        const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+        const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+
+        await fetch(`${API}${setupKeysPath}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+          body: JSON.stringify({
+            publicKey: encodeBase64(keyPair.publicKey),
+            rawPrivateKey: encodeBase64(keyPair.secretKey),
+            recoveryKeyHash
+          })
+        });
+
+        await setKeyPair(keyPair);
+        window.dispatchEvent(new Event('login_success'));
+        setPostRecoveryNav(safeNext || '/');
+        setRecoveryPhrase(phrase);
+        setShowRecoveryModal(true);
+      } catch (keyErr) {
+        console.error(`[Login] ${oauthLabel} key setup failed:`, keyErr);
+        window.dispatchEvent(new Event('login_success'));
+        navigate(safeNext || '/');
+      }
+    } else {
+      if (data.rawPrivateKeyB64) {
+        try {
+          const secretKey = decodeBase64(data.rawPrivateKeyB64);
+          const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+          await setKeyPair(keyPair);
+        } catch (restoreErr) {
+          console.warn(`[Login] Failed to restore ${oauthLabel} E2EE key:`, restoreErr);
+        }
+      }
+      window.dispatchEvent(new Event('login_success'));
+      navigate(safeNext || '/');
+    }
+  };
+
+  const handleOAuthFailure = (data, fallbackMsg) => {
+    const code   = data.code;
+    const reason = data.reason || 'Policy violation';
+    if (code === 'ACCOUNT_BANNED_TEMP') {
+      setBannedInfo({ type: 'temp', reason, bannedUntil: data.bannedUntil });
+    } else if (code === 'ACCOUNT_BANNED_PERMANENT') {
+      setBannedInfo({ type: 'permanent', reason });
+    } else if (code === 'ACCOUNT_TERMINATED') {
+      setBannedInfo({ type: 'terminated', reason });
+    } else {
+      setGlobalError(data.error || fallbackMsg);
+    }
+  };
+
   const handleGoogleSuccess = async (credentialResponse) => {
     setGlobalError('');
     setIsSubmitting(true);
@@ -175,75 +250,43 @@ const Login = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        clearUserSession();
-        localStorage.setItem('watch_token', data.token);
-        localStorage.setItem('watch_username', data.username);
-        localStorage.setItem('watch_role', data.role || 'user');
-
-        if (data.needsKeySetup) {
-          // First Google login (or a legacy Google account missing keys): generate an E2EE
-          // key pair. Google users have no password, so it's wrapped server-side instead
-          // (see /api/auth/setup-google-keys) rather than with a client-derived password key.
-          try {
-            const chars = 'abcdefghijklmnopqrstuvwxyz';
-            let phraseStr = '';
-            const randBytes = crypto.getRandomValues(new Uint8Array(24));
-            for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
-            const phrase = phraseStr.toUpperCase();
-
-            const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
-            const secretKey = new Uint8Array(hashBuf);
-            const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-            const recoveryKeyHash = await hashRecoveryPhrase(phrase);
-
-            await fetch(`${API}/api/auth/setup-google-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-              body: JSON.stringify({
-                publicKey: encodeBase64(keyPair.publicKey),
-                rawPrivateKey: encodeBase64(keyPair.secretKey),
-                recoveryKeyHash
-              })
-            });
-
-            await setKeyPair(keyPair);
-            window.dispatchEvent(new Event('login_success'));
-            setPostRecoveryNav(safeNext || '/');
-            setRecoveryPhrase(phrase);
-            setShowRecoveryModal(true);
-          } catch (keyErr) {
-            console.error('[Login] Google key setup failed:', keyErr);
-            window.dispatchEvent(new Event('login_success'));
-            navigate(safeNext || '/');
-          }
-        } else {
-          if (data.rawPrivateKeyB64) {
-            try {
-              const secretKey = decodeBase64(data.rawPrivateKeyB64);
-              const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-              await setKeyPair(keyPair);
-            } catch (restoreErr) {
-              console.warn('[Login] Failed to restore Google E2EE key:', restoreErr);
-            }
-          }
-          window.dispatchEvent(new Event('login_success'));
-          navigate(safeNext || '/');
-        }
+        await completeOAuthLogin(data, '/api/auth/setup-google-keys', 'Google');
       } else {
-        const code   = data.code;
-        const reason = data.reason || 'Policy violation';
-        if (code === 'ACCOUNT_BANNED_TEMP') {
-          setBannedInfo({ type: 'temp', reason, bannedUntil: data.bannedUntil });
-        } else if (code === 'ACCOUNT_BANNED_PERMANENT') {
-          setBannedInfo({ type: 'permanent', reason });
-        } else if (code === 'ACCOUNT_TERMINATED') {
-          setBannedInfo({ type: 'terminated', reason });
-        } else {
-          setGlobalError(data.error || t('googleLoginFailed', 'Google Login failed'));
-        }
+        handleOAuthFailure(data, t('googleLoginFailed', 'Google Login failed'));
       }
     } catch (err) {
       setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAppleClick = async () => {
+    setGlobalError('');
+    setIsSubmitting(true);
+    try {
+      const authData = await signInWithApple();
+      const response = await fetch(`${API}/api/auth/apple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id_token: authData.authorization?.id_token,
+          user: authData.user || null,
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        await completeOAuthLogin(data, '/api/auth/setup-apple-keys', 'Apple');
+      } else {
+        handleOAuthFailure(data, t('appleLoginFailed', 'Apple Login failed'));
+      }
+    } catch (err) {
+      if (err?.error === 'popup_closed_by_user') {
+        // User cancelled the popup — not an error worth surfacing
+      } else {
+        console.error('[Login] Apple Sign-In error:', err);
+        setGlobalError(t('networkErrorApple', 'Network error during Apple Auth'));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -686,7 +729,7 @@ const Login = () => {
               </div>
             </div>
 
-            <button type="button" className="social-btn apple-btn" onClick={() => setGlobalError(t('appleNotConfigured', 'Apple Login is not yet configured'))}>
+            <button type="button" className="social-btn apple-btn" onClick={handleAppleClick}>
               <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
               </svg>

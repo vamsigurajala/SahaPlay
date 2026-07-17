@@ -23,6 +23,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
+const appleSignin = require('apple-signin-auth');
 const emailTranslations = require('./email-translations');
 const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
 
@@ -277,6 +278,15 @@ if (!process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID === 'YOUR_GOOG
   console.warn('[WARN] GOOGLE_CLIENT_ID not set or is placeholder — Google Sign-In will not work');
 }
 
+// Apple's Services ID — the audience Apple's identity token is issued for. Only
+// identity-token verification is needed for sign-in, so no Team ID/Key ID/.p8
+// private key is required here (those are only needed for server-to-server token
+// exchange/revocation, which this app doesn't do).
+const APPLE_CLIENT_ID = process.env.APPLE_CLIENT_ID || 'YOUR_APPLE_SERVICES_ID_HERE';
+if (!process.env.APPLE_CLIENT_ID || process.env.APPLE_CLIENT_ID === 'YOUR_APPLE_SERVICES_ID_HERE') {
+  console.warn('[WARN] APPLE_CLIENT_ID not set or is placeholder — Apple Sign-In will not work');
+}
+
 
 // Initialize DB
 const { Pool } = require('pg');
@@ -375,6 +385,40 @@ function decryptGoogleWrappedKey(blob, googleSub) {
     return decrypted; // base64 raw NaCl secret key
   } catch (e) {
     console.error('[decryptGoogleWrappedKey] Error:', e.message);
+    return null;
+  }
+}
+
+// ─── Apple OAuth private-key wrapping ────────────────────────────────────────
+// Same rationale and scheme as the Google wrapping above, keyed off Apple's stable
+// "sub" ID instead. Uses a distinct 'akv1:' prefix so it can never be confused with
+// password-wrapped, Google-wrapped ('gkv1:'), or 'encv1:' chat-text ciphertext blobs.
+function deriveAppleWrapKey(appleSub) {
+  return crypto.createHash('sha256').update(`${CHAT_ENCRYPTION_SECRET}:${appleSub}`).digest();
+}
+
+function encryptRawKeyForApple(rawKeyBase64, appleSub) {
+  const key = deriveAppleWrapKey(appleSub);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(rawKeyBase64, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  return 'akv1:' + iv.toString('hex') + ':' + encrypted;
+}
+
+function decryptAppleWrappedKey(blob, appleSub) {
+  if (!blob || typeof blob !== 'string' || !blob.startsWith('akv1:')) return null;
+  try {
+    const parts = blob.split(':');
+    if (parts.length < 3) return null;
+    const key = deriveAppleWrapKey(appleSub);
+    const iv = Buffer.from(parts[1], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(parts[2], 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted; // base64 raw NaCl secret key
+  } catch (e) {
+    console.error('[decryptAppleWrappedKey] Error:', e.message);
     return null;
   }
 }
@@ -597,7 +641,8 @@ app.use(helmet({
         "'unsafe-inline'",
         "'unsafe-eval'",
         'https://accounts.google.com',
-        'https://apis.google.com'
+        'https://apis.google.com',
+        'https://appleid.cdn-apple.com'
       ],
       styleSrc: [
         "'self'",
@@ -625,6 +670,7 @@ app.use(helmet({
         'ws:',
         'https://*.supabase.co',
         'https://accounts.google.com',
+        'https://appleid.apple.com',
         'https://ip-api.com'
       ],
       mediaSrc: [
@@ -635,6 +681,7 @@ app.use(helmet({
       frameSrc: [
         "'self'",
         'https://accounts.google.com',
+        'https://appleid.apple.com',
         'https://*.hyperbeam.com',
         'https://www.youtube.com',
         'https://player.twitch.tv'
@@ -954,6 +1001,7 @@ const checkUsernameLimiter = rateLimit({  // A8-F9
 app.use('/api/login', loginLimiter);
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/google', loginLimiter);      // A7-F1
+app.use('/api/auth/apple', loginLimiter);
 app.use('/api/signup', loginLimiter);
 app.use('/api/register', loginLimiter);
 app.use('/api/forgot-password', loginLimiter);
@@ -1064,6 +1112,10 @@ const migrationsReady = (async () => {
   // users have no password to derive a client-side wrapping key from.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] google_sub:', e.message);
+  });
+  // apple_sub: Apple's stable per-account subject ID, same purpose as google_sub above.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] apple_sub:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -2025,9 +2077,9 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid credentials', needsVerification: true });
     }
     
-    // If the user originated from Google, they might not have a password
+    // If the user originated from Google or Apple, they might not have a password
     if (!user.password && password) {
-       return res.status(400).json({ error: 'Please sign in with Google' });
+       return res.status(400).json({ error: 'Please sign in with Google or Apple' });
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
@@ -2245,6 +2297,181 @@ app.post('/api/auth/google', async (req, res) => {
   } catch (error) {
     console.error('Google Auth Error:', error);
     res.status(401).json({ error: 'Invalid Google token' });
+  }
+});
+
+app.post('/api/auth/apple', async (req, res) => {
+  const { id_token, user: rawUser } = req.body;
+  if (!id_token) {
+    return res.status(400).json({ error: 'Apple credential is required' });
+  }
+
+  try {
+    const payload = await appleSignin.verifyIdToken(id_token, {
+      audience: APPLE_CLIENT_ID,
+      ignoreExpiration: false,
+    });
+
+    const { email, sub: appleSub } = payload;
+
+    // Apple only includes the user's name in a separate `user` field, and only on the
+    // very first authorization ever — every later sign-in omits it entirely.
+    let fullName = null;
+    if (rawUser) {
+      try {
+        const parsed = typeof rawUser === 'string' ? JSON.parse(rawUser) : rawUser;
+        if (parsed?.name) fullName = [parsed.name.firstName, parsed.name.lastName].filter(Boolean).join(' ');
+      } catch { /* malformed user payload — fall back to email-derived name below */ }
+    }
+
+    // Check if user exists
+    const existingUser = await pool.query(
+      `SELECT id, username, email, role, "isVerified", terminated, is_permanently_banned, banned_until, ban_reason,
+              apple_sub, "publicKey", "encryptedPrivateKey"
+       FROM users WHERE email = $1`,
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      const user = existingUser.rows[0];
+      if (user.isVerified === 0) {
+        return res.status(403).json({ error: 'Account not verified. Please check your email to verify your account.' });
+      }
+
+      // ─── Ban / termination enforcement ───
+      if (user.terminated) {
+        return res.status(403).json({
+          error: `Your account has been permanently terminated by an admin.\nReason: ${user.ban_reason || 'Policy violation'}\nYou can no longer use this account.`,
+          code: 'ACCOUNT_TERMINATED',
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+      if (user.is_permanently_banned) {
+        return res.status(403).json({
+          error: `Your account has been permanently banned by an admin.\nReason: ${user.ban_reason || 'Policy violation'}`,
+          code: 'ACCOUNT_BANNED_PERMANENT',
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+      if (user.banned_until && new Date(user.banned_until) > new Date()) {
+        const expiry = new Date(user.banned_until).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
+        return res.status(403).json({
+          error: `Your account has been banned until ${expiry}.\nReason: ${user.ban_reason || 'Policy violation'}`,
+          code: 'ACCOUNT_BANNED_TEMP',
+          bannedUntil: user.banned_until,
+          reason: user.ban_reason || 'Policy violation',
+        });
+      }
+
+      // ─── Track last login ───
+      pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]).catch(() => {});
+
+      // Backfill apple_sub for accounts created before this column existed
+      const effectiveAppleSub = user.apple_sub || appleSub;
+      if (!user.apple_sub && appleSub) {
+        pool.query('UPDATE users SET apple_sub = $1 WHERE id = $2', [appleSub, user.id]).catch(() => {});
+      }
+
+      const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+
+      // ─── E2EE key restoration ───
+      // Apple users have no password, so their encryptedPrivateKey (if any) is wrapped
+      // server-side (see encryptRawKeyForApple) instead of client-side. Decrypt it here
+      // so the client can restore the same key pair without ever needing a password.
+      let rawPrivateKeyB64 = null;
+      if (user.encryptedPrivateKey) {
+        rawPrivateKeyB64 = decryptAppleWrappedKey(user.encryptedPrivateKey, effectiveAppleSub);
+      }
+      const needsKeySetup = !user.encryptedPrivateKey || !rawPrivateKeyB64;
+
+      return res.json({
+        message: 'Login successful',
+        token,
+        username: user.username,
+        role: user.role || 'user',
+        publicKey: user.publicKey || null,
+        rawPrivateKeyB64,
+        needsKeySetup,
+      });
+    } else {
+      // User does not exist, create them
+      const baseUsername = (fullName || 'user').replace(/\s+/g, '').toLowerCase();
+      const randSuffix = Math.floor(Math.random() * 10000);
+      const finalUsername = `${baseUsername}${randSuffix}`;
+
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+
+      const insertResult = await pool.query(
+        'INSERT INTO users (username, email, password, "isVerified", "verificationToken", apple_sub) VALUES ($1, $2, NULL, 0, $3, $4) RETURNING id',
+        [finalUsername, email, verificationToken, appleSub]
+      );
+
+      const newId = insertResult.rows[0]?.id;
+      // Setup token for keys
+      const token = jwt.sign({ id: newId, username: finalUsername }, JWT_SECRET, { expiresIn: '10m' });
+
+      // Send verification email to new Apple user
+      const verifyLink = `${PRIMARY_FRONTEND_URL}/verify?token=${verificationToken}`;
+      const verifyHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#f4f4f7">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#6366f1,#a855f7);padding:36px 48px">
+    <table cellpadding="0" cellspacing="0"><tr>
+      <td style="padding-right:14px;vertical-align:middle">
+        <table cellpadding="0" cellspacing="0" width="48" height="48" style="width:48px;height:48px;background:rgba(255,255,255,0.18);border-radius:12px;border-collapse:collapse">
+          <tr>
+            <td align="center" valign="middle" style="padding:0;text-align:center;vertical-align:middle">
+              <img src="cid:sahaplay-logo" alt="SahaPlay" width="36" height="36" style="width:36px;height:36px;display:block;margin:0 auto;border:none" />
+            </td>
+          </tr>
+        </table>
+      </td>
+      <td style="vertical-align:middle">
+        <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px">SahaPlay</div>
+        <div style="color:rgba(255,255,255,0.8);font-size:13px;margin-top:2px">Email Verification</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <!-- Body -->
+  <tr><td style="padding:40px 48px">
+    <h1 style="margin:0 0 16px;color:#111827;font-size:22px;font-weight:700">Welcome, ${finalUsername}!</h1>
+    <p style="margin:0 0 28px;color:#374151;font-size:15px;line-height:1.75">
+      Thank you for signing up for SahaPlay. Please verify your email address to activate your account and start watching with friends.
+    </p>
+    <div style="text-align:center;margin-bottom:32px">
+      <a href="${verifyLink}" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 12px rgba(99,102,241,0.2)">Verify Email Address</a>
+    </div>
+    <!-- Divider -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="border-top:1px solid #e5e7eb"></td></tr></table>
+    <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6">
+      If you did not create this account, you can safely ignore this email.
+    </p>
+  </td></tr>
+  <!-- Footer -->
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:24px 48px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay &nbsp;&middot;&nbsp; All rights reserved</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+
+      sendEmail({
+        to: email,
+        subject: 'Verify your SahaPlay account',
+        text: `Hi ${finalUsername},\n\nPlease verify your email by clicking: ${verifyLink}\n\nThe SahaPlay Team`,
+        html: verifyHtml,
+        replyTo: EMAILS.contact,
+      });
+
+      return res.json({ message: 'Signup successful', token, username: finalUsername, needsKeySetup: true });
+    }
+
+  } catch (error) {
+    console.error('Apple Auth Error:', error);
+    res.status(401).json({ error: 'Invalid Apple token' });
   }
 });
 
@@ -2473,6 +2700,37 @@ app.post('/api/auth/setup-google-keys', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('[setup-google-keys] DB error:', err);
+    res.status(500).json({ error: 'Failed to store keys' });
+  }
+});
+
+/**
+ * POST /api/auth/setup-apple-keys
+ * Same as /api/auth/setup-google-keys above, but for Apple OAuth accounts —
+ * wraps the raw private key with a key derived from the account's Apple sub ID.
+ * Restricted to accounts that actually have an apple_sub on file.
+ */
+app.post('/api/auth/setup-apple-keys', authenticateToken, async (req, res) => {
+  const { publicKey, rawPrivateKey, recoveryKeyHash } = req.body;
+  if (!publicKey || !rawPrivateKey) {
+    return res.status(400).json({ error: 'publicKey and rawPrivateKey are required' });
+  }
+
+  try {
+    const result = await pool.query('SELECT apple_sub FROM users WHERE id = $1', [req.user.id]);
+    const appleSub = result.rows[0]?.apple_sub;
+    if (!appleSub) {
+      return res.status(400).json({ error: 'This endpoint is only available to Apple OAuth accounts' });
+    }
+
+    const encryptedPrivateKey = encryptRawKeyForApple(rawPrivateKey, appleSub);
+    await pool.query(
+      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
+      [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[setup-apple-keys] DB error:', err);
     res.status(500).json({ error: 'Failed to store keys' });
   }
 });
@@ -4379,7 +4637,7 @@ app.post('/api/profile/change-password', authenticateToken, async (req, res) => 
   db.get('SELECT id, password FROM users WHERE id = ?', [req.user.id], async (err, user) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    if (!user.password) return res.status(400).json({ error: 'Account uses Google sign-in, password cannot be changed here' });
+    if (!user.password) return res.status(400).json({ error: 'Account uses Google/Apple sign-in, password cannot be changed here' });
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) return res.status(400).json({ error: 'Current password is incorrect' });
     const hashed = await bcrypt.hash(newPassword, 10);

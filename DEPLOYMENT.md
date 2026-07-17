@@ -92,6 +92,24 @@ In Google Cloud Console → APIs & Services → Credentials → your OAuth clien
 - Authorized JavaScript origins: add https://sahaplay.com
 - Authorized redirect URIs: add https://sahaplay.com
 
+### Step 5b: Apple Sign-In production setup
+
+Requires an Apple Developer Program membership ($99/yr).
+
+1. developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → "+"
+   → App IDs → create/reuse one with "Sign in with Apple" capability enabled.
+2. Identifiers → "+" → Services IDs → create one (this is your APPLE_CLIENT_ID,
+   e.g. `com.sahaplay.signin`). Enable "Sign in with Apple" on it, then configure:
+   - Domains and Subdomains: sahaplay.com
+   - Return URLs: https://sahaplay.com/login
+3. Apple verifies domain ownership via a file it gives you — download it and place
+   it at `frontend/public/.well-known/apple-developer-domain-association.txt` so it's
+   served at https://sahaplay.com/.well-known/apple-developer-domain-association.txt.
+4. Set APPLE_CLIENT_ID (Render) and VITE_APPLE_CLIENT_ID (Vercel) to the Services ID.
+
+No Team ID / Key ID / .p8 private key needed — the backend only verifies the
+identity token's signature/audience, it doesn't do server-to-server token exchange.
+
 ### Step 6: Set up UptimeRobot (free)
 
 Go to uptimerobot.com → Add Monitor:
