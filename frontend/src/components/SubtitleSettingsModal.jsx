@@ -334,20 +334,21 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
 
   if (isRotatedFs) {
     // The mobile-fullscreen "rotate trick" (.player-mob-fs in Room.jsx) rotates the
-    // whole video 90deg to fake landscape on a still-portrait phone. A plain fixed
-    // right-side panel would render upright in the real (portrait) screen frame,
-    // which looks sideways to a user who's physically turned their phone to match
-    // the (now correctly-oriented-to-them) rotated video — matches the same rotated
-    // overlay wrapper Room.jsx uses for the quality/subtitle dropdowns in this mode.
-    // Local-frame reasoning: local top edge (y=0) maps to the screen's RIGHT edge,
-    // so anchoring top:0/left:0/width:100% with a capped height pins the panel to
-    // the screen's right edge, growing leftward, full "screen height". This cap is
-    // the LOCAL height axis, which maps to the GLOBAL (real, never-rotated) width
-    // axis — i.e. window.innerWidth is its hard ceiling, same as the fullscreen
-    // video's own on-screen width. So this fraction is literally how much of the
-    // video's width gets covered; keep it small so it reads as a slim side panel
-    // with most of the video still visible, not a near-fullscreen takeover.
-    const capPx = Math.min(window.innerWidth * 0.4, 210);
+    // whole video 90deg so it fakes landscape on a still-portrait-locked phone; the
+    // user then physically turns the phone to match. That physical turn is the part
+    // that matters here: a rect pinned to the LOCAL top edge (pre-rotation frame)
+    // lands on the real DOM's right edge, but the real DOM frame is fixed to the
+    // device body — after the user's physical turn, that real-right edge is what
+    // they now perceive as the TOP of their view, not the right. (This checks out
+    // against the player controls bar, which sits at LOCAL bottom and is correctly
+    // perceived at the bottom post-rotation, confirming the mapping direction.) So
+    // a panel meant to look like a right-side drawer must anchor to the LOCAL RIGHT
+    // edge instead — same wrapper the quality/subtitle dropdowns already use, just
+    // pinned to the opposite local edge. Local width (not height) is the capped
+    // axis now, and it maps to the real DOM's height (window.innerHeight) — the
+    // phone's long dimension, which becomes the perceived screen WIDTH once
+    // rotated — so that's the ceiling this fraction is measured against.
+    const capPx = Math.min(window.innerHeight * 0.38, 300);
     return (
       <div
         className="sp-mobfs-overlay-wrap"
@@ -355,12 +356,12 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
         onClick={e => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div
-          className="sp-hidden-scroll"
+          className="sp-hidden-scroll sp-panel-slide-in"
           style={{
             ...panelBase,
-            position: 'absolute', top: 0, left: 0, width: '100%', height: capPx,
-            borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
-            boxShadow: isLight ? '0 4px 24px rgba(0,0,0,0.12)' : '0 4px 32px rgba(0,0,0,0.5)',
+            position: 'absolute', top: 0, right: 0, width: capPx, height: '100%',
+            borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+            boxShadow: isLight ? '-4px 0 24px rgba(0,0,0,0.12)' : '-4px 0 32px rgba(0,0,0,0.5)',
           }}
         >
           {content}

@@ -1409,6 +1409,23 @@ html[data-theme='light'] .mobile-nav-divider {
   height: 0 !important;
 }
 
+/* Smooth entrance for the mobile-fullscreen subtitle-settings drawer — slides in
+   along the local x-axis, which maps to the real screen's perceived horizontal
+   axis post-rotation, so it reads as a normal left/right panel slide-in. */
+.sp-panel-slide-in {
+  animation: sp-panel-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes sp-panel-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 /* Calls (video/voice) stay upright in mobile fullscreen — WhatsApp-style
    portrait, not the landscape rotate trick used for video/game playback. */
 .player-mob-fs-portrait {
