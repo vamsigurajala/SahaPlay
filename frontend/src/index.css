@@ -1460,6 +1460,19 @@ html[data-theme='light'].sp-mobile-fs-active body {
   background: #000 !important;
 }
 
+/* The actual gap wasn't a hairline rounding issue at all — .room-main-layout and
+   .room-player-col (the fixed player's own grandparent/parent) keep their normal
+   12px padding/gap in mobile-fullscreen, since that spacing is only zeroed for
+   isTvMode. The rotated player breaks out of flow (position:fixed) to cover the
+   real viewport, but its old flex slot stays behind at full padding, showing
+   whatever's behind it — a visible 12px rounded-looking gap, not a sub-pixel one. */
+body.sp-mobile-fs-active .room-main-layout,
+body.sp-mobile-fs-active .room-player-col {
+  padding: 0 !important;
+  gap: 0 !important;
+  background: #000 !important;
+}
+
 /* Part 1 — Mobile center: avatar + room name + members pill */
 .room-mob-center {
   display: none; /* hidden on desktop */

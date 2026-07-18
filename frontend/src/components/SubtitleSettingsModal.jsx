@@ -118,16 +118,18 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
           </button>
         </div>
 
-        {/* Live Preview */}
+        {/* Live Preview — kept small in mobile-fullscreen, where the whole panel
+            itself is only a narrow side drawer and a full-size preview would
+            crowd out the actual settings below it. */}
         <div style={{
           background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.04)',
           border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)',
           borderRadius: 10,
-          padding: '14px 16px 18px',
-          marginBottom: 20,
+          padding: isRotatedFs ? '8px 10px 10px' : '14px 16px 18px',
+          marginBottom: isRotatedFs ? 12 : 20,
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: isRotatedFs ? 5 : 8,
         }}>
           <span style={{ fontSize: 11, color: '#6b7280', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 600 }}>
             Preview
@@ -138,16 +140,16 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            minHeight: 48,
+            minHeight: isRotatedFs ? 30 : 48,
             background: 'rgba(0,0,0,0.3)',
             borderRadius: 6,
-            padding: '8px',
+            padding: isRotatedFs ? '5px' : '8px',
           }}>
             <div style={{
               background: previewBg,
               padding: previewBg === 'transparent' ? '0 8px' : '4px 14px',
               borderRadius: 4,
-              fontSize: previewFontSize,
+              fontSize: isRotatedFs ? Math.round(previewFontSize * 0.7) : previewFontSize,
               color: previewColor,
               fontFamily: '"Inter", system-ui, sans-serif',
               fontWeight: 500,
@@ -165,22 +167,36 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Subtitle Delay */}
-          <SettingRow
-            label="Subtitle Delay"
-            hint={`${s.delay >= 0 ? '+' : ''}${s.delay.toFixed(1)}s`}
-            isLight={isLight}
-          >
-            <input
-              type="range" min={-10} max={10} step={0.1} value={s.delay}
-              onChange={e => onChange({ ...s, delay: parseFloat(e.target.value) })}
-              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer', touchAction: 'none' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-              <span>-10s (earlier)</span>
-              <span>+10s (later)</span>
+          {/* Subtitle Delay — mobile drags fought the panel's own scroll gesture
+              (a horizontal-looking drag is a vertical touch move once rotated),
+              so mobile gets a stepper instead of a draggable bar. */}
+          {isMobile ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: isLight ? '#111827' : '#d1d5db' }}>Subtitle Delay</span>
+              <Stepper
+                value={`${s.delay >= 0 ? '+' : ''}${s.delay.toFixed(1)}s`}
+                isLight={isLight}
+                onDecrement={() => onChange({ ...s, delay: Math.round(Math.max(-10, s.delay - 0.5) * 10) / 10 })}
+                onIncrement={() => onChange({ ...s, delay: Math.round(Math.min(10, s.delay + 0.5) * 10) / 10 })}
+              />
             </div>
-          </SettingRow>
+          ) : (
+            <SettingRow
+              label="Subtitle Delay"
+              hint={`${s.delay >= 0 ? '+' : ''}${s.delay.toFixed(1)}s`}
+              isLight={isLight}
+            >
+              <input
+                type="range" min={-10} max={10} step={0.1} value={s.delay}
+                onChange={e => onChange({ ...s, delay: parseFloat(e.target.value) })}
+                style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                <span>-10s (earlier)</span>
+                <span>+10s (later)</span>
+              </div>
+            </SettingRow>
+          )}
 
           {/* Subtitle Speed */}
           <SettingRow label="Subtitle Speed" isLight={isLight}>
@@ -259,22 +275,34 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             </div>
           </SettingRow>
 
-          {/* Opacity */}
-          <SettingRow
-            label="Opacity"
-            hint={`${Math.round(s.opacity * 100)}%`}
-            isLight={isLight}
-          >
-            <input
-              type="range" min={0.1} max={1} step={0.05} value={s.opacity}
-              onChange={e => onChange({ ...s, opacity: parseFloat(e.target.value) })}
-              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer', touchAction: 'none' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
-              <span>10%</span>
-              <span>100%</span>
+          {/* Opacity — same stepper treatment as Subtitle Delay on mobile */}
+          {isMobile ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: isLight ? '#111827' : '#d1d5db' }}>Opacity</span>
+              <Stepper
+                value={`${Math.round(s.opacity * 100)}%`}
+                isLight={isLight}
+                onDecrement={() => onChange({ ...s, opacity: Math.round(Math.max(0.1, s.opacity - 0.1) * 100) / 100 })}
+                onIncrement={() => onChange({ ...s, opacity: Math.round(Math.min(1, s.opacity + 0.1) * 100) / 100 })}
+              />
             </div>
-          </SettingRow>
+          ) : (
+            <SettingRow
+              label="Opacity"
+              hint={`${Math.round(s.opacity * 100)}%`}
+              isLight={isLight}
+            >
+              <input
+                type="range" min={0.1} max={1} step={0.05} value={s.opacity}
+                onChange={e => onChange({ ...s, opacity: parseFloat(e.target.value) })}
+                style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                <span>10%</span>
+                <span>100%</span>
+              </div>
+            </SettingRow>
+          )}
 
           {/* Position */}
           <SettingRow label="Position" isLight={isLight}>
@@ -412,6 +440,23 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
       }}>
         {content}
       </div>
+    </div>
+  );
+}
+
+function Stepper({ value, onDecrement, onIncrement, isLight }) {
+  const btnStyle = {
+    width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.08)',
+    border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.12)',
+    color: isLight ? '#374151' : '#e5e7eb',
+    fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', padding: 0, lineHeight: 1, flexShrink: 0,
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={onDecrement} style={btnStyle}>−</button>
+      <span style={{ fontSize: 13, fontWeight: 700, color: '#8b5cf6', minWidth: 44, textAlign: 'center' }}>{value}</span>
+      <button type="button" onClick={onIncrement} style={btnStyle}>+</button>
     </div>
   );
 }
