@@ -341,9 +341,14 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
     // overlay wrapper Room.jsx uses for the quality/subtitle dropdowns in this mode.
     // Local-frame reasoning: local top edge (y=0) maps to the screen's RIGHT edge,
     // so anchoring top:0/left:0/width:100% with a capped height pins the panel to
-    // the screen's right edge, growing leftward, full "screen height" — the same
-    // visual result as the portrait drawer, just expressed in local coordinates.
-    const capPx = Math.min(window.innerWidth * 0.86, 340);
+    // the screen's right edge, growing leftward, full "screen height". Note this
+    // cap directly determines what fraction of the screen's actual (never-changing)
+    // physical width gets covered — since the fullscreen video fills that whole
+    // width, the portrait drawer's 86% cap (fine there, since the video is small
+    // and mostly untouched by it) would swallow nearly the entire video here. Kept
+    // noticeably narrower so it reads as an actual side panel, not a near-fullscreen
+    // takeover.
+    const capPx = Math.min(window.innerWidth * 0.6, 300);
     return (
       <div
         className="sp-mobfs-overlay-wrap"

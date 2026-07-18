@@ -1282,6 +1282,13 @@ const Room = () => {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationTime, setPreparationTime] = useState(25); // Increased for 4K stability
   const [prepProgress, setPrepProgress] = useState(0);
+  // True while a locally-streamed (progressive upload) video has stalled mid-playback
+  // waiting for more bytes to arrive — distinct from isPreparing, which only covers
+  // the *initial* load and is force-disabled for local streams (effectiveIsPreparing).
+  // Without this, a viewer catching up to the still-uploading edge of the file just
+  // sees the video silently freeze with zero feedback, indistinguishable from broken.
+  const [isStreamBuffering, setIsStreamBuffering] = useState(false);
+  useEffect(() => { setIsStreamBuffering(false); }, [mediaUrl]);
   const [bufferedSeconds, setBufferedSeconds] = useState(0);
   const lastPrepUrl = useRef('');
 
@@ -9516,6 +9523,7 @@ const Room = () => {
                               onCanPlay={() => {
                                 console.log('[VIDEO] onCanPlay fired')
                                 setIsPreparing(false)
+                                setIsStreamBuffering(false)
                               }}
                               onLoadStart={() => console.log('[VIDEO] onLoadStart')}
                               onLoadedMetadata={(e) => {
@@ -9534,8 +9542,9 @@ const Room = () => {
                                   e.target.error?.message
                                 )
                               }}
-                              onStalled={() => console.log('[VIDEO] onStalled')}
-                              onWaiting={() => console.log('[VIDEO] onWaiting')}
+                              onStalled={() => setIsStreamBuffering(true)}
+                              onWaiting={() => setIsStreamBuffering(true)}
+                              onPlaying={() => setIsStreamBuffering(false)}
                             />
                             {/* Custom subtitle overlay */}
                             {activeCue && subtitlesVisible && (() => {
@@ -9921,7 +9930,31 @@ const Room = () => {
                           `}</style>
                         </div>
                       )}
-                      
+
+                      {/* --- Mid-playback buffering indicator for locally-streamed (progressive
+                          upload) video. isPreparing only covers the initial load and is disabled
+                          for local streams, so without this a viewer catching up to the still-
+                          uploading edge of the file saw the video silently freeze — this makes
+                          clear it's still loading rather than looking broken. --- */}
+                      {isStreamBuffering && isLocalStream && !effectiveIsPreparing && (
+                        <div style={{
+                          position: 'absolute', inset: 0, zIndex: 1150,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: 12, pointerEvents: 'none',
+                          background: 'rgba(0,0,0,0.35)',
+                        }}>
+                          <div style={{
+                            width: 40, height: 40, borderRadius: '50%',
+                            border: '3px solid rgba(255,255,255,0.25)', borderTopColor: '#a855f7',
+                            animation: 'sp-buffer-spin 0.8s linear infinite',
+                          }} />
+                          <span className="stay-white" style={{ color: '#fff', fontSize: 13, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+                            {uploadState.isUploading ? 'Buffering — still uploading…' : 'Buffering…'}
+                          </span>
+                          <style>{`@keyframes sp-buffer-spin { to { transform: rotate(360deg); } }`}</style>
+                        </div>
+                      )}
+
                       {/* --- Platform UI Layer (Twitch/Vimeo) --- */}
                       {(mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || mediaUrl.includes('twitch.tv') || mediaUrl.includes('vimeo.com')) && (
                         <>
