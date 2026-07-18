@@ -4941,19 +4941,23 @@ const Room = () => {
     return () => document.removeEventListener('mousedown', close);
   }, [showSubtitleMenu]);
 
-  // Mobile subtitle dropdown position — same anchoring approach as the quality
-  // dropdown: flush against the trigger button via top/bottom, no hardcoded height.
+  // Mobile subtitle dropdown position — clamped to the PLAYER's own bounding rect
+  // (not just the viewport), and always opening upward from the button, so the menu
+  // always renders overlaid on the video itself. It used to sometimes flip to
+  // "below the button" when there wasn't much room above, which for a small inline
+  // player (video docked above the chat list, not fullscreen) meant the dropdown
+  // landed outside the video entirely, over the chat below it. maxHeight + scroll
+  // guarantees it never has to spill past the player's own top edge to fit.
   useEffect(() => {
-    if (!showSubtitleMenu || !isTouchPlayer || !subtitleBtnRef.current) return;
-    const rect = subtitleBtnRef.current.getBoundingClientRect();
+    if (!showSubtitleMenu || !isTouchPlayer || !subtitleBtnRef.current || !playerWrapRef.current) return;
+    const btnRect = subtitleBtnRef.current.getBoundingClientRect();
+    const playerRect = playerWrapRef.current.getBoundingClientRect();
     const menuWidth = 220;
-    let left = rect.right - menuWidth;
-    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
-    const spaceAbove = rect.top;
-    const openAbove = spaceAbove > 260;
-    setSubtitleDropdownPos(openAbove
-      ? { left, bottom: window.innerHeight - rect.top + 8, top: null }
-      : { left, top: rect.bottom + 8, bottom: null });
+    let left = btnRect.right - menuWidth;
+    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.right - menuWidth - 8));
+    const bottom = window.innerHeight - btnRect.top + 8;
+    const maxHeight = Math.max(120, btnRect.top - playerRect.top - 16);
+    setSubtitleDropdownPos({ left, bottom, maxHeight });
   }, [showSubtitleMenu, isTouchPlayer]);
 
   // Close globe popup when clicking outside
@@ -4981,22 +4985,22 @@ const Room = () => {
     return () => document.removeEventListener('mousedown', close);
   }, [showQualityMenu]);
 
-  // Mobile quality dropdown position — computed from the trigger button's actual
-  // on-screen rect (post any CSS transform, e.g. the mobile-fullscreen rotate-trick).
-  // Anchored via `bottom`/`top` relative to the button itself (rather than a
-  // hardcoded menu height) so the dropdown always sits flush against the button
-  // regardless of how many quality rows it ends up rendering — no gap, no guessing.
+  // Mobile quality dropdown position — clamped to the PLAYER's own bounding rect
+  // (post any CSS transform, e.g. the mobile-fullscreen rotate-trick), not just the
+  // viewport, and always opening upward from the button, so it always renders
+  // overlaid on the video itself instead of sometimes flipping below the button —
+  // which, for a small inline player, landed the menu outside the video entirely.
+  // maxHeight + scroll guarantees it never needs to spill past the player's top edge.
   useEffect(() => {
-    if (!showQualityMenu || !isTouchPlayer || !qualityBtnRef.current) return;
-    const rect = qualityBtnRef.current.getBoundingClientRect();
+    if (!showQualityMenu || !isTouchPlayer || !qualityBtnRef.current || !playerWrapRef.current) return;
+    const btnRect = qualityBtnRef.current.getBoundingClientRect();
+    const playerRect = playerWrapRef.current.getBoundingClientRect();
     const menuWidth = 132;
-    let left = rect.right - menuWidth;
-    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
-    const spaceAbove = rect.top;
-    const openAbove = spaceAbove > 260;
-    setQualityDropdownPos(openAbove
-      ? { left, bottom: window.innerHeight - rect.top + 8, top: null }
-      : { left, top: rect.bottom + 8, bottom: null });
+    let left = btnRect.right - menuWidth;
+    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.right - menuWidth - 8));
+    const bottom = window.innerHeight - btnRect.top + 8;
+    const maxHeight = Math.max(120, btnRect.top - playerRect.top - 16);
+    setQualityDropdownPos({ left, bottom, maxHeight });
   }, [showQualityMenu, isTouchPlayer]);
 
   // Reset iframe block state when URL changes so fresh load starts unblocked
@@ -10610,9 +10614,8 @@ const Room = () => {
                         <div
                           ref={subtitleDropdownPortalRef}
                           style={{
-                            position: 'fixed', left: subtitleDropdownPos.left,
-                            ...(subtitleDropdownPos.top != null ? { top: subtitleDropdownPos.top } : { bottom: subtitleDropdownPos.bottom }),
-                            width: 220,
+                            position: 'fixed', left: subtitleDropdownPos.left, bottom: subtitleDropdownPos.bottom,
+                            width: 220, maxHeight: subtitleDropdownPos.maxHeight, overflowY: 'auto',
                             background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
                             border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
                             borderRadius: 12, padding: 5, zIndex: 1000000,
@@ -10776,9 +10779,8 @@ const Room = () => {
                     <div
                       ref={qualityDropdownPortalRef}
                       style={{
-                        position: 'fixed', left: qualityDropdownPos.left,
-                        ...(qualityDropdownPos.top != null ? { top: qualityDropdownPos.top } : { bottom: qualityDropdownPos.bottom }),
-                        width: 132,
+                        position: 'fixed', left: qualityDropdownPos.left, bottom: qualityDropdownPos.bottom,
+                        width: 132, maxHeight: qualityDropdownPos.maxHeight, overflowY: 'auto',
                         background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
                         border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
                         borderRadius: 12, padding: 6, zIndex: 1000000,

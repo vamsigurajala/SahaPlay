@@ -75,9 +75,16 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
   return (
     <div
       className="subtitle-modal-overlay"
-      style={{
+      style={isMobile ? {
+        // No dimming/blur on mobile — this sits above the fullscreen video, and the
+        // user wants the video still clearly visible beside the settings panel
+        // rather than darkened everywhere behind it.
         position: 'fixed', inset: 0, zIndex: 1000050,
-        display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: isMobile ? 'flex-end' : 'center',
+        display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
+        background: 'transparent',
+      } : {
+        position: 'fixed', inset: 0, zIndex: 1000050,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: isLight ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
         backdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
         WebkitBackdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
@@ -93,6 +100,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
         height: '100%',
         maxHeight: '100%',
         overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
         boxShadow: isLight ? '-4px 0 24px rgba(0,0,0,0.12)' : '-4px 0 32px rgba(0,0,0,0.5)',
         color: isLight ? '#111827' : '#e5e7eb',
         fontFamily: 'Outfit, sans-serif',
