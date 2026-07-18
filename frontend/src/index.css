@@ -1371,6 +1371,41 @@ html[data-theme='light'] .mobile-nav-divider {
   box-shadow: none !important;
 }
 
+/* Positioning shell for portaled overlays (quality/subtitle dropdowns, subtitle
+   settings panel) while .player-mob-fs is active — same box + transform as the
+   video itself, so anything positioned inside it (in its own local/pre-rotation
+   coordinate space) rotates along with the video instead of staying upright in
+   the real screen frame, which looked sideways to a user viewing the rotated video. */
+.sp-mobfs-overlay-wrap {
+  position: fixed;
+  top: 0;
+  left: 100vw;
+  left: 100dvw;
+  width: 100vh;
+  width: 100dvh;
+  height: 100vw;
+  height: 100dvw;
+  transform-origin: top left;
+  transform: rotate(90deg);
+  pointer-events: none;
+}
+.sp-mobfs-overlay-wrap > * {
+  pointer-events: auto;
+}
+
+/* Hide scrollbars on portaled overlay lists (quality dropdown, subtitle settings
+   panel) while keeping them scrollable — a visible scrollbar there reads as a
+   layout glitch rather than an intentional scroll affordance. */
+.sp-hidden-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sp-hidden-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Calls (video/voice) stay upright in mobile fullscreen — WhatsApp-style
    portrait, not the landscape rotate trick used for video/game playback. */
 .player-mob-fs-portrait {

@@ -956,6 +956,27 @@ function detectIsMobile() {
   return Math.min(window.innerWidth, window.innerHeight) < 640;
 }
 
+// The mobile-fullscreen "rotate trick" (.player-mob-fs) rotates the whole player
+// 90deg clockwise around a pivot at (window.innerWidth, 0) to fake a landscape view
+// on a phone that's still logically portrait. getBoundingClientRect() on anything
+// inside it already returns the POST-rotation visual rect, which is why the tap
+// zones/portals elsewhere in this file "just work" off real rects. But an overlay
+// that's portaled to document.body and positioned with plain fixed left/top does NOT
+// get that rotation — it renders upright in the real (portrait) screen frame, which
+// looks sideways to a user who's physically turned their phone to watch the (now
+// correctly-oriented-to-them) rotated video. To make an overlay rotate WITH the video,
+// render it inside a wrapper that replicates the same box + transform, and position
+// content within that wrapper using the button's rect converted into the wrapper's
+// own pre-rotation ("local") coordinate space — this inverts the rotation mapping.
+function toRotatedLocalRect(globalRect, viewportWidth) {
+  return {
+    left: globalRect.top,
+    top: viewportWidth - globalRect.left - globalRect.width,
+    width: globalRect.height,
+    height: globalRect.width,
+  };
+}
+
 const QUALITY_PRESETS = {
   '240p':  { label: '240p',       filter: 'blur(1.5px) brightness(0.85) saturate(0.6) contrast(0.9)',  description: 'Low quality' },
   '360p':  { label: '360p',       filter: 'blur(0.8px) brightness(0.9) saturate(0.75) contrast(0.95)', description: 'Standard quality' },
@@ -1610,6 +1631,10 @@ const Room = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [isMobileFsMode, setIsMobileFsMode] = useState(false);
+  // True only for the actual rotated (.player-mob-fs) case — calls use
+  // .player-mob-fs-portrait instead, which stays upright, so nothing needs the
+  // rotated-overlay treatment there.
+  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl);
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
@@ -4950,15 +4975,20 @@ const Room = () => {
   // guarantees it never has to spill past the player's own top edge to fit.
   useEffect(() => {
     if (!showSubtitleMenu || !isTouchPlayer || !subtitleBtnRef.current || !playerWrapRef.current) return;
-    const btnRect = subtitleBtnRef.current.getBoundingClientRect();
-    const playerRect = playerWrapRef.current.getBoundingClientRect();
+    let btnRect = subtitleBtnRef.current.getBoundingClientRect();
+    let playerRect = playerWrapRef.current.getBoundingClientRect();
+    const frameHeight = isRotatedFs ? window.innerWidth : window.innerHeight;
+    if (isRotatedFs) {
+      btnRect = toRotatedLocalRect(btnRect, window.innerWidth);
+      playerRect = toRotatedLocalRect(playerRect, window.innerWidth);
+    }
     const menuWidth = 220;
-    let left = btnRect.right - menuWidth;
-    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.right - menuWidth - 8));
-    const bottom = window.innerHeight - btnRect.top + 8;
+    let left = btnRect.left + btnRect.width - menuWidth;
+    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.left + playerRect.width - menuWidth - 8));
+    const bottom = frameHeight - btnRect.top + 8;
     const maxHeight = Math.max(120, btnRect.top - playerRect.top - 16);
     setSubtitleDropdownPos({ left, bottom, maxHeight });
-  }, [showSubtitleMenu, isTouchPlayer]);
+  }, [showSubtitleMenu, isTouchPlayer, isRotatedFs]);
 
   // Close globe popup when clicking outside
   useEffect(() => {
@@ -4993,15 +5023,20 @@ const Room = () => {
   // maxHeight + scroll guarantees it never needs to spill past the player's top edge.
   useEffect(() => {
     if (!showQualityMenu || !isTouchPlayer || !qualityBtnRef.current || !playerWrapRef.current) return;
-    const btnRect = qualityBtnRef.current.getBoundingClientRect();
-    const playerRect = playerWrapRef.current.getBoundingClientRect();
+    let btnRect = qualityBtnRef.current.getBoundingClientRect();
+    let playerRect = playerWrapRef.current.getBoundingClientRect();
+    const frameHeight = isRotatedFs ? window.innerWidth : window.innerHeight;
+    if (isRotatedFs) {
+      btnRect = toRotatedLocalRect(btnRect, window.innerWidth);
+      playerRect = toRotatedLocalRect(playerRect, window.innerWidth);
+    }
     const menuWidth = 132;
-    let left = btnRect.right - menuWidth;
-    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.right - menuWidth - 8));
-    const bottom = window.innerHeight - btnRect.top + 8;
+    let left = btnRect.left + btnRect.width - menuWidth;
+    left = Math.max(playerRect.left + 8, Math.min(left, playerRect.left + playerRect.width - menuWidth - 8));
+    const bottom = frameHeight - btnRect.top + 8;
     const maxHeight = Math.max(120, btnRect.top - playerRect.top - 16);
     setQualityDropdownPos({ left, bottom, maxHeight });
-  }, [showQualityMenu, isTouchPlayer]);
+  }, [showQualityMenu, isTouchPlayer, isRotatedFs]);
 
   // Reset iframe block state when URL changes so fresh load starts unblocked
   useEffect(() => {
@@ -8562,6 +8597,7 @@ const Room = () => {
         settings={subtitleSettings}
         onChange={setSubtitleSettings}
         isMobile={isTouchPlayer}
+        isRotatedFs={isRotatedFs}
       />
 
       <CustomizeRoomModal
@@ -10609,55 +10645,62 @@ const Room = () => {
                       {/* Mobile dropdown — portaled to document.body for the same reason as the
                           quality dropdown: the mobile-fullscreen rotate-trick container's
                           overflow:hidden was clipping this anchored-absolute menu, which made
-                          "Upload Subtitles" effectively unreachable in landscape fullscreen. */}
-                      {showSubtitleMenu && isTouchPlayer && subtitleDropdownPos && createPortal(
-                        <div
-                          ref={subtitleDropdownPortalRef}
-                          style={{
-                            position: 'fixed', left: subtitleDropdownPos.left, bottom: subtitleDropdownPos.bottom,
-                            width: 220, maxHeight: subtitleDropdownPos.maxHeight, overflowY: 'auto',
-                            background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
-                            border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
-                            borderRadius: 12, padding: 5, zIndex: 1000000,
-                            boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
-                            backdropFilter: 'blur(16px)',
-                          }}
-                        >
-                          {isWebIframe(mediaUrl) && (
-                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
-                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
-                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
-                            </div>
-                          )}
-                          {isEmbedPlatform(mediaUrl) && (
-                            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
-                              <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
-                              <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
-                            </div>
-                          )}
-                          {!isEmbedPlatform(mediaUrl) && (
-                            <>
-                              {subtitlesUrl && (
-                                <button
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: 10,
-                                    width: '100%', padding: '9px 12px',
-                                    background: 'none', border: 'none',
-                                    color: subtitlesVisible ? '#c084fc' : (isLight ? '#374151' : '#9ca3af'),
-                                    fontSize: 13, cursor: 'pointer', borderRadius: 8,
-                                    textAlign: 'left', fontFamily: 'inherit',
-                                  }}
-                                  onClick={() => { setSubtitlesVisible(v => !v); setShowSubtitleMenu(false); }}
-                                >
-                                  <div style={{
-                                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                                    background: subtitlesVisible ? '#c084fc' : 'transparent',
-                                    border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
-                                  }} />
-                                  {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
-                                </button>
-                              )}
-                              {hasPlayerPrivileges && (
+                          "Upload Subtitles" effectively unreachable in landscape fullscreen. While
+                          the rotate trick is active it's additionally nested in the same rotated
+                          wrapper as the quality dropdown, for the same reason (see comment there). */}
+                      {showSubtitleMenu && isTouchPlayer && subtitleDropdownPos && (() => {
+                        const content = (
+                          <>
+                            {isWebIframe(mediaUrl) && (
+                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                                <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
+                                <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
+                              </div>
+                            )}
+                            {isEmbedPlatform(mediaUrl) && (
+                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                                <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
+                                <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
+                              </div>
+                            )}
+                            {!isEmbedPlatform(mediaUrl) && (
+                              <>
+                                {subtitlesUrl && (
+                                  <button
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 10,
+                                      width: '100%', padding: '9px 12px',
+                                      background: 'none', border: 'none',
+                                      color: subtitlesVisible ? '#c084fc' : (isLight ? '#374151' : '#9ca3af'),
+                                      fontSize: 13, cursor: 'pointer', borderRadius: 8,
+                                      textAlign: 'left', fontFamily: 'inherit',
+                                    }}
+                                    onClick={() => { setSubtitlesVisible(v => !v); setShowSubtitleMenu(false); }}
+                                  >
+                                    <div style={{
+                                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                                      background: subtitlesVisible ? '#c084fc' : 'transparent',
+                                      border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
+                                    }} />
+                                    {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
+                                  </button>
+                                )}
+                                {hasPlayerPrivileges && (
+                                  <button
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 10,
+                                      width: '100%', padding: '9px 12px',
+                                      background: 'none', border: 'none',
+                                      color: isLight ? '#374151' : '#d1d5db', fontSize: 13, cursor: 'pointer',
+                                      borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
+                                    }}
+                                    onClick={() => { subtitleInputRef.current?.click(); setShowSubtitleMenu(false); }}
+                                  >
+                                    <Upload size={14} style={{ flexShrink: 0 }} />
+                                    {subtitlesUrl ? 'Change Subtitles' : 'Upload Subtitles'}
+                                  </button>
+                                )}
+                                <div style={{ height: 1, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
                                 <button
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: 10,
@@ -10666,31 +10709,46 @@ const Room = () => {
                                     color: isLight ? '#374151' : '#d1d5db', fontSize: 13, cursor: 'pointer',
                                     borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
                                   }}
-                                  onClick={() => { subtitleInputRef.current?.click(); setShowSubtitleMenu(false); }}
+                                  onClick={() => { setShowSubtitleSettingsModal(true); setShowSubtitleMenu(false); }}
                                 >
-                                  <Upload size={14} style={{ flexShrink: 0 }} />
-                                  {subtitlesUrl ? 'Change Subtitles' : 'Upload Subtitles'}
+                                  <Settings size={14} style={{ flexShrink: 0 }} />
+                                  Subtitle Settings
                                 </button>
-                              )}
-                              <div style={{ height: 1, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.07)', margin: '4px 6px' }} />
-                              <button
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 10,
-                                  width: '100%', padding: '9px 12px',
-                                  background: 'none', border: 'none',
-                                  color: isLight ? '#374151' : '#d1d5db', fontSize: 13, cursor: 'pointer',
-                                  borderRadius: 8, textAlign: 'left', fontFamily: 'inherit',
-                                }}
-                                onClick={() => { setShowSubtitleSettingsModal(true); setShowSubtitleMenu(false); }}
+                              </>
+                            )}
+                          </>
+                        );
+                        const boxBase = {
+                          width: 220, maxHeight: subtitleDropdownPos.maxHeight, overflowY: 'auto',
+                          background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
+                          border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
+                          borderRadius: 12, padding: 5,
+                          boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
+                          backdropFilter: 'blur(16px)',
+                        };
+                        return createPortal(
+                          isRotatedFs ? (
+                            <div className="sp-mobfs-overlay-wrap" style={{ zIndex: 1000000 }}>
+                              <div
+                                ref={subtitleDropdownPortalRef}
+                                className="sp-hidden-scroll"
+                                style={{ position: 'absolute', left: subtitleDropdownPos.left, bottom: subtitleDropdownPos.bottom, ...boxBase }}
                               >
-                                <Settings size={14} style={{ flexShrink: 0 }} />
-                                Subtitle Settings
-                              </button>
-                            </>
-                          )}
-                        </div>,
-                        document.body
-                      )}
+                                {content}
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              ref={subtitleDropdownPortalRef}
+                              className="sp-hidden-scroll"
+                              style={{ position: 'fixed', left: subtitleDropdownPos.left, bottom: subtitleDropdownPos.bottom, zIndex: 1000000, ...boxBase }}
+                            >
+                              {content}
+                            </div>
+                          ),
+                          document.body
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -10768,16 +10826,52 @@ const Room = () => {
                   </div>
 
                   {/* Mobile dropdown — portaled to document.body, positioned from the trigger
-                      button's real on-screen rect and clamped to the viewport. Needed because
-                      the mobile-fullscreen "rotate trick" container clips/overflow:hidden's
-                      anything popped up from an anchored-absolute position, which was pushing
-                      this dropdown off-screen. Anchored via top/bottom flush against the button
-                      (see the positioning effect above) and themed for light/dark since it's
-                      portaled outside the always-dark player chrome. Rendered as a single-column
-                      list — like every other player's quality menu — rather than a boxy grid. */}
+                      button's real on-screen rect and clamped to the player's bounds. Needed
+                      because the mobile-fullscreen "rotate trick" container clips/overflow:hidden's
+                      anything popped up from an anchored-absolute position. While the rotate trick
+                      is active (isRotatedFs), it's additionally nested in a wrapper that replicates
+                      the same rotation so the menu turns WITH the video instead of staying upright
+                      in the real (portrait) screen frame — which looked sideways/horizontal to a
+                      user who'd physically turned their phone to match the (now-rotated) video.
+                      Themed for light/dark since it's portaled outside the always-dark player
+                      chrome, and rendered as a single-column list rather than a boxy grid. */}
                   {showQualityMenu && isTouchPlayer && qualityDropdownPos && createPortal(
+                    isRotatedFs ? (
+                      <div className="sp-mobfs-overlay-wrap" style={{ zIndex: 1000000 }}>
+                        <div
+                          ref={qualityDropdownPortalRef}
+                          className="sp-hidden-scroll"
+                          style={{
+                            position: 'absolute', left: qualityDropdownPos.left, bottom: qualityDropdownPos.bottom,
+                            width: 132, maxHeight: qualityDropdownPos.maxHeight, overflowY: 'auto',
+                            background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
+                            border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
+                            borderRadius: 12, padding: 6,
+                            boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.18)' : '0 8px 32px rgba(0,0,0,0.55)',
+                            backdropFilter: 'blur(16px)',
+                          }}
+                        >
+                          {Object.entries(QUALITY_PRESETS).map(([key]) => (
+                            <button
+                              key={key}
+                              onClick={() => { setVideoQuality(key); localStorage.setItem('preferred_quality', key); setShowQualityMenu(false); }}
+                              style={{
+                                display: 'block', width: '100%', padding: '9px 10px',
+                                borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left',
+                                background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'transparent',
+                                color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
+                                fontSize: 13, fontWeight: videoQuality === key ? 700 : 500, fontFamily: 'inherit',
+                              }}
+                            >
+                              {key.replace(/p$/, '')}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
                     <div
                       ref={qualityDropdownPortalRef}
+                      className="sp-hidden-scroll"
                       style={{
                         position: 'fixed', left: qualityDropdownPos.left, bottom: qualityDropdownPos.bottom,
                         width: 132, maxHeight: qualityDropdownPos.maxHeight, overflowY: 'auto',
@@ -10803,7 +10897,8 @@ const Room = () => {
                           {key.replace(/p$/, '')}
                         </button>
                       ))}
-                    </div>,
+                    </div>
+                    ),
                     document.body
                   )}
 

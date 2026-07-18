@@ -43,7 +43,7 @@ const DEFAULT_SETTINGS = {
   position: 'bottom',
 };
 
-export default function SubtitleSettingsModal({ open, onClose, settings, onChange, isMobile }) {
+export default function SubtitleSettingsModal({ open, onClose, settings, onChange, isMobile, isRotatedFs }) {
   const [isLight, setIsLight] = useState(
     document.documentElement.getAttribute('data-theme') === 'light'
   );
@@ -72,51 +72,20 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
       ? (isLight ? '#e5e7eb' : 'rgba(255,255,255,0.12)')
       : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.08)');
 
-  return (
-    <div
-      className="subtitle-modal-overlay"
-      style={isMobile ? {
-        // No dimming/blur on mobile — this sits above the fullscreen video, and the
-        // user wants the video still clearly visible beside the settings panel
-        // rather than darkened everywhere behind it.
-        position: 'fixed', inset: 0, zIndex: 1000050,
-        display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
-        background: 'transparent',
-      } : {
-        position: 'fixed', inset: 0, zIndex: 1000050,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: isLight ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
-        backdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
-        WebkitBackdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div style={isMobile ? {
-        background: isLight ? '#ffffff' : '#0d0d1a',
-        borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px 0 0 16px',
-        padding: '20px 18px',
-        width: 'min(86vw, 340px)',
-        height: '100%',
-        maxHeight: '100%',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        boxShadow: isLight ? '-4px 0 24px rgba(0,0,0,0.12)' : '-4px 0 32px rgba(0,0,0,0.5)',
-        color: isLight ? '#111827' : '#e5e7eb',
-        fontFamily: 'Outfit, sans-serif',
-      } : {
-        background: isLight ? '#ffffff' : '#0d0d1a',
-        border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 16,
-        padding: '24px',
-        width: 420,
-        maxWidth: '96vw',
-        maxHeight: '92vh',
-        overflowY: 'auto',
-        boxShadow: isLight ? '0 4px 24px rgba(0,0,0,0.10)' : 'none',
-        color: isLight ? '#111827' : '#e5e7eb',
-        fontFamily: 'Outfit, sans-serif',
-      }}>
+  // Shared drawer-panel look (mobile portrait AND rotated-fullscreen both use this —
+  // only how the panel is positioned/wrapped differs between the two).
+  const panelBase = {
+    background: isLight ? '#ffffff' : '#0d0d1a',
+    padding: '20px 18px',
+    overflowY: 'auto',
+    scrollbarWidth: 'none',
+    WebkitOverflowScrolling: 'touch',
+    color: isLight ? '#111827' : '#e5e7eb',
+    fontFamily: 'Outfit, sans-serif',
+  };
+
+  const content = (
+    <>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: isLight ? '#111827' : '#f9fafb', letterSpacing: '-0.2px' }}>
@@ -360,6 +329,83 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             Done
           </button>
         </div>
+    </>
+  );
+
+  if (isRotatedFs) {
+    // The mobile-fullscreen "rotate trick" (.player-mob-fs in Room.jsx) rotates the
+    // whole video 90deg to fake landscape on a still-portrait phone. A plain fixed
+    // right-side panel would render upright in the real (portrait) screen frame,
+    // which looks sideways to a user who's physically turned their phone to match
+    // the (now correctly-oriented-to-them) rotated video — matches the same rotated
+    // overlay wrapper Room.jsx uses for the quality/subtitle dropdowns in this mode.
+    // Local-frame reasoning: local top edge (y=0) maps to the screen's RIGHT edge,
+    // so anchoring top:0/left:0/width:100% with a capped height pins the panel to
+    // the screen's right edge, growing leftward, full "screen height" — the same
+    // visual result as the portrait drawer, just expressed in local coordinates.
+    const capPx = Math.min(window.innerWidth * 0.86, 340);
+    return (
+      <div
+        className="sp-mobfs-overlay-wrap"
+        style={{ zIndex: 1000050, pointerEvents: 'auto' }}
+        onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        <div
+          className="sp-hidden-scroll"
+          style={{
+            ...panelBase,
+            position: 'absolute', top: 0, left: 0, width: '100%', height: capPx,
+            borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+            boxShadow: isLight ? '0 4px 24px rgba(0,0,0,0.12)' : '0 4px 32px rgba(0,0,0,0.5)',
+          }}
+        >
+          {content}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="subtitle-modal-overlay"
+      style={isMobile ? {
+        // No dimming/blur on mobile — this sits above the fullscreen video, and the
+        // user wants the video still clearly visible beside the settings panel
+        // rather than darkened everywhere behind it.
+        position: 'fixed', inset: 0, zIndex: 1000050,
+        display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
+        background: 'transparent',
+      } : {
+        position: 'fixed', inset: 0, zIndex: 1000050,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: isLight ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
+        backdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
+        WebkitBackdropFilter: isLight ? 'blur(4px)' : 'blur(8px)',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className={isMobile ? 'sp-hidden-scroll' : ''} style={isMobile ? {
+        ...panelBase,
+        borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '16px 0 0 16px',
+        width: 'min(86vw, 340px)',
+        height: '100%',
+        maxHeight: '100%',
+        boxShadow: isLight ? '-4px 0 24px rgba(0,0,0,0.12)' : '-4px 0 32px rgba(0,0,0,0.5)',
+      } : {
+        background: isLight ? '#ffffff' : '#0d0d1a',
+        border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 16,
+        padding: '24px',
+        width: 420,
+        maxWidth: '96vw',
+        maxHeight: '92vh',
+        overflowY: 'auto',
+        boxShadow: isLight ? '0 4px 24px rgba(0,0,0,0.10)' : 'none',
+        color: isLight ? '#111827' : '#e5e7eb',
+        fontFamily: 'Outfit, sans-serif',
+      }}>
+        {content}
       </div>
     </div>
   );
