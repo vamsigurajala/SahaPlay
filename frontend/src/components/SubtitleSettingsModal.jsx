@@ -174,7 +174,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             <input
               type="range" min={-10} max={10} step={0.1} value={s.delay}
               onChange={e => onChange({ ...s, delay: parseFloat(e.target.value) })}
-              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer', touchAction: 'none' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
               <span>-10s (earlier)</span>
@@ -268,7 +268,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             <input
               type="range" min={0.1} max={1} step={0.05} value={s.opacity}
               onChange={e => onChange({ ...s, opacity: parseFloat(e.target.value) })}
-              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+              style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer', touchAction: 'none' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
               <span>10%</span>

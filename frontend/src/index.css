@@ -1448,8 +1448,15 @@ html[data-theme='light'] .mobile-nav-divider {
 /* Safety net: while mobile/iPad fullscreen (rotate-trick) is active, force the page
    background to black too. Even with dvw/dvh, sub-pixel rounding or a mid-transition
    browser-chrome resize can leave a hairline gap at the edge — better it reads as part
-   of the black letterbox than as the page's (often white, in light theme) background. */
-html.sp-mobile-fs-active, body.sp-mobile-fs-active {
+   of the black letterbox than as the page's (often white, in light theme) background.
+   Needs to out-specificity html[data-theme='light'] body (below, 2 elements + 1
+   attribute) — plain html.sp-mobile-fs-active/body.sp-mobile-fs-active alone (1
+   element + 1 class each) lost to it in light theme, which is exactly why the white
+   background was still visible at the fullscreen edges there. */
+html.sp-mobile-fs-active,
+body.sp-mobile-fs-active,
+html.sp-mobile-fs-active body,
+html[data-theme='light'].sp-mobile-fs-active body {
   background: #000 !important;
 }
 
