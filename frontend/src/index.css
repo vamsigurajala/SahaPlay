@@ -1397,13 +1397,16 @@ html[data-theme='light'] .mobile-nav-divider {
    panel) while keeping them scrollable — a visible scrollbar there reads as a
    layout glitch rather than an intentional scroll affordance. */
 .sp-hidden-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow: -moz-scrollbars-none !important;
 }
-.sp-hidden-scroll::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
+.sp-hidden-scroll::-webkit-scrollbar,
+.sp-hidden-scroll::-webkit-scrollbar-track,
+.sp-hidden-scroll::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Calls (video/voice) stay upright in mobile fullscreen — WhatsApp-style

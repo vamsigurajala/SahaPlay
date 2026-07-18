@@ -5519,16 +5519,20 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
     // Calculate bytes actually available on disk right now
-    let availableBytes = 0;
-    for (let i = 0; i < stream.chunksReceived; i++) {
-      const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
-      try {
-        const stats = await fs.promises.stat(chunkPath);
-        availableBytes += stats.size;
-      } catch (e) {
-        // Chunk not yet fully written or missing
+    const computeAvailableBytes = async () => {
+      let bytes = 0;
+      for (let i = 0; i < stream.chunksReceived; i++) {
+        const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+        try {
+          const stats = await fs.promises.stat(chunkPath);
+          bytes += stats.size;
+        } catch (e) {
+          // Chunk not yet fully written or missing
+        }
       }
-    }
+      return bytes;
+    };
+    let availableBytes = await computeAvailableBytes();
 
     res.setHeader('Content-Type', stream.mimetype);
     res.setHeader('Accept-Ranges', 'bytes');
@@ -5541,8 +5545,23 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
 
+      // A viewer's playback can legitimately catch up to the still-uploading edge
+      // of the file while the host's upload is in progress. Responding 416 here
+      // tells the browser's media stack "these bytes will never exist," which
+      // permanently kills that byte range instead of it being retried once the
+      // upload catches up — that's what made playback look stuck rather than
+      // just buffering. Hold the response open and poll for new chunks instead,
+      // so a slow/still-uploading host just looks like a slow network to the
+      // video element, which it recovers from natively once data arrives.
+      const waitDeadline = Date.now() + 15000;
+      while (start >= availableBytes && stream.chunksReceived < stream.totalChunks && Date.now() < waitDeadline) {
+        await new Promise(r => setTimeout(r, 300));
+        availableBytes = await computeAvailableBytes();
+      }
+
       if (start >= availableBytes) {
-        // Browser is requesting bytes not yet uploaded
+        // Either the upload has genuinely finished (past EOF) or we've waited as
+        // long as we reasonably can — nothing left to do but report it.
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }

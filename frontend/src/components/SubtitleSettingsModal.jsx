@@ -184,7 +184,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
 
           {/* Subtitle Speed */}
           <SettingRow label="Subtitle Speed" isLight={isLight}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {SPEEDS.map(sp => (
                 <Chip key={sp.value} active={s.speed === sp.value} isLight={isLight}
                   onClick={() => onChange({ ...s, speed: sp.value })}>
@@ -196,7 +196,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
 
           {/* Font Size */}
           <SettingRow label="Font Size" isLight={isLight}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {FONT_SIZES.map(f => (
                 <Chip key={f.value} active={s.fontSize === f.value} isLight={isLight}
                   onClick={() => onChange({ ...s, fontSize: f.value })}>
@@ -278,7 +278,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
 
           {/* Position */}
           <SettingRow label="Position" isLight={isLight}>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {POSITIONS.map(p => (
                 <Chip key={p.value} active={s.position === p.value} isLight={isLight}
                   onClick={() => onChange({ ...s, position: p.value })}>
@@ -341,14 +341,13 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
     // overlay wrapper Room.jsx uses for the quality/subtitle dropdowns in this mode.
     // Local-frame reasoning: local top edge (y=0) maps to the screen's RIGHT edge,
     // so anchoring top:0/left:0/width:100% with a capped height pins the panel to
-    // the screen's right edge, growing leftward, full "screen height". Note this
-    // cap directly determines what fraction of the screen's actual (never-changing)
-    // physical width gets covered — since the fullscreen video fills that whole
-    // width, the portrait drawer's 86% cap (fine there, since the video is small
-    // and mostly untouched by it) would swallow nearly the entire video here. Kept
-    // noticeably narrower so it reads as an actual side panel, not a near-fullscreen
-    // takeover.
-    const capPx = Math.min(window.innerWidth * 0.6, 300);
+    // the screen's right edge, growing leftward, full "screen height". This cap is
+    // the LOCAL height axis, which maps to the GLOBAL (real, never-rotated) width
+    // axis — i.e. window.innerWidth is its hard ceiling, same as the fullscreen
+    // video's own on-screen width. So this fraction is literally how much of the
+    // video's width gets covered; keep it small so it reads as a slim side panel
+    // with most of the video still visible, not a near-fullscreen takeover.
+    const capPx = Math.min(window.innerWidth * 0.4, 210);
     return (
       <div
         className="sp-mobfs-overlay-wrap"
