@@ -11751,7 +11751,7 @@ const Room = () => {
           <div className="mob-bottom-sheet">
             <div className="mob-sheet-handle" />
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleCast(); }}>
-              <Cast size={20} className="stay-white" /> <span className="stay-white">{t('castScreen', 'Cast Screen')}</span>
+              <Cast size={20} /> <span>{t('castScreen', 'Cast Screen')}</span>
             </button>
             {(hasStartedCamOnce || Object.keys(remoteStreams).length > 0) && (
               <button
