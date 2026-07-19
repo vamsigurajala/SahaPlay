@@ -1545,7 +1545,12 @@ const Room = () => {
       if (mq.removeEventListener) mq.removeEventListener('change', update); else mq.removeListener(update);
     };
   }, []);
-  const isTouchPlayer = isMobile || isCoarsePointer;
+  // A Smart TV browser can report pointer:coarse (no real pointing device) just
+  // like a phone would, which would otherwise route it through the mobile-only
+  // fullscreen rotate-trick (.player-mob-fs) meant for a portrait-locked phone
+  // screen — on an actually-landscape TV that showed the video rotated 90deg
+  // ("tilted right", rendering portrait). TV must never take that path.
+  const isTouchPlayer = !isTvMode && (isMobile || isCoarsePointer);
   const [useCustomTwitchControls, setUseCustomTwitchControls] = useState(true);
   const [twitchReloadKey, setTwitchReloadKey] = useState(0);
   const lastTwitchReloadTimeRef = useRef(0);
@@ -7797,7 +7802,6 @@ const Room = () => {
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
         fontFamily: "'Outfit',sans-serif", color: 'var(--text-primary)',
-        pointerEvents: isTvMode ? 'none' : 'auto'
       }}>
       <Toaster
         position="top-center"
@@ -11106,8 +11110,10 @@ const Room = () => {
           
         </div>
         
-        {/* — Right Column — */}
-        {!isTvMode && (
+        {/* — Right Column — was fully hidden for TV, stripping chat/camera tiles/game
+            state from the TV's screen entirely; now shown there too so the TV reflects
+            what's actually happening in the room, not just the raw video. */}
+        {(
         <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
           {/* Mobile: Browse Media button pinned above chat when no media playing */}
           {isMobile && !mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
@@ -11646,7 +11652,7 @@ const Room = () => {
             </div>
           ) : (
             /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
-            !isTvMode && (
+            (
               <RoomChatPanel p={{
                 chatTab, setChatTab, chatTabRef,
                 groupMessages, groupUnread, setGroupUnread,
@@ -11745,7 +11751,7 @@ const Room = () => {
           <div className="mob-bottom-sheet">
             <div className="mob-sheet-handle" />
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleCast(); }}>
-              <Cast size={20} /> <span>{t('castScreen', 'Cast Screen')}</span>
+              <Cast size={20} className="stay-white" /> <span className="stay-white">{t('castScreen', 'Cast Screen')}</span>
             </button>
             {(hasStartedCamOnce || Object.keys(remoteStreams).length > 0) && (
               <button
