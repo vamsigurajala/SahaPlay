@@ -35,9 +35,23 @@ window.fetch = async (...args) => {
     // Ignore /api/chat-lock/ and TV guest sessions
     if (!url.includes('/api/chat-lock/') && token !== 'tv_guest_token' && localStorage.getItem('watch_is_guest') !== 'true') {
       if (token) {
-        clearUserSession();
-
-        window.location.href = '/login';
+        // A single 401 can be a transient hiccup rather than a genuinely
+        // invalid/expired token — most visibly right after a fresh login,
+        // when prefetchAll() fires several parallel authenticated requests
+        // against a backend that (on Render's free tier) can still be mid
+        // cold-start, spuriously 401ing before its auth middleware/DB pool
+        // is fully warm. That was evicting a user's brand-new, perfectly
+        // valid session and bouncing them straight back to /login. Re-verify
+        // with one retry after a short delay before treating it as real —
+        // an actually-expired token will still 401 on retry, so this only
+        // adds a grace window rather than weakening real auth enforcement.
+        await new Promise(r => setTimeout(r, 1500));
+        if (localStorage.getItem('watch_token') !== token) return response; // already handled by a concurrent 401
+        const retryResponse = await originalFetch(...args);
+        if (retryResponse.status === 401) {
+          clearUserSession();
+          window.location.href = '/login';
+        }
       }
     }
   }

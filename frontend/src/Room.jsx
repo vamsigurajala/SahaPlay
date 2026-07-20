@@ -9613,7 +9613,13 @@ const Room = () => {
                             ref={playerRef}
                             url={mediaUrl}
                             width="100%" height="100%"
-                            controls={(mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || (!mediaUrl.includes('vimeo.com') && isEmbedPlatform(mediaUrl))}
+                            // Was true for YouTube/SoundCloud, rendering the platform's own native
+                            // control bar simultaneously with our custom one below (offset up 46px
+                            // to avoid fully overlapping it) — a confusing dual-UI that's also why
+                            // the custom bar looked "off" position. Our own bar already covers
+                            // play/pause/seek/CC/quality/fullscreen, so it's the sole control
+                            // surface everywhere now, same as the Vimeo-with-custom-controls case.
+                            controls={mediaUrl.includes('vimeo.com') && !useCustomVimeoControls}
                             playing={isPreparing || (isPlaying && !isPreparing)}
                             volume={isPreparing ? 0 : playerVolume}
                             muted={isPreparing || playerMuted}
@@ -10262,13 +10268,22 @@ const Room = () => {
                 /* Existing video player control bar */
                 <div className="gcw-force-dark" style={{
                   display: hideCustomControls ? 'none' : 'block',
-                  position: 'absolute', bottom: isEmbedPlatform(mediaUrl) ? 46 : 0, left: 0, right: 0,
+                  // Used to sit 46px above the bottom edge for embed platforms to dodge YouTube's
+                  // own native control bar rendering underneath it — now that our bar is the sole
+                  // control surface there too (no native controls left to dodge), it sits flush
+                  // like every other platform.
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
                   zIndex: 25,
                   background: isEmbedPlatform(mediaUrl) ? 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
                   padding: '24px 14px 10px',
-                  // Always visible for URL-based media: embed iframes (YouTube) and web iframes both
-                  // capture hover so showControls never fires. Local streams use hover-reveal.
-                  opacity: isLocalStream ? (showControls ? 1 : 0) : 1,
+                  // Always visible on desktop for URL-based media: embed iframes (YouTube) and web
+                  // iframes both capture mouse hover, so showControls would never fire again once
+                  // the cursor entered the iframe, leaving no way to bring hidden controls back.
+                  // That problem is mouse-hover-specific — touch has no such "stuck" risk, since
+                  // showControls is driven by discrete tap events (resetControlsTimer), not a
+                  // continuous hover state — so touch players get the same tap-to-show/auto-hide
+                  // behavior local streams already have, regardless of media type.
+                  opacity: (isLocalStream || isTouchPlayer) ? (showControls ? 1 : 0) : 1,
                   transition: 'opacity 0.3s ease',
                   pointerEvents: 'none',
                   borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
@@ -10301,8 +10316,10 @@ const Room = () => {
                       />
                     </div>
                   )}
-                  {/* Controls row — always interactive for URL-based media (iframes capture hover) */}
-                  <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isLocalStream ? (showControls ? 'auto' : 'none') : 'auto') }}>
+                  {/* Controls row — auto-hide follows the same isLocalStream||isTouchPlayer rule as
+                      the wrapping bar's opacity above; always interactive on desktop for iframe
+                      media, where hover can't reliably re-trigger it once hidden. */}
+                  <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: ((isLocalStream || isTouchPlayer) ? (showControls ? 'auto' : 'none') : 'auto') }}>
 
                     {/* 1. Load Media — opens App Directory without stopping current playback */}
                     {hasPlayerPrivileges && (

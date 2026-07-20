@@ -299,7 +299,7 @@ export default function RoomModals({
               <button
                 onClick={handleLinkTv}
                 disabled={isLinking || tvPairingCode.trim().length !== 6}
-                className="rm-link-btn"
+                className="rm-link-btn stay-white"
                 style={{
                   width: '100%',
                   background: 'linear-gradient(135deg, #6366f1, #a855f7)',

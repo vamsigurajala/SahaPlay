@@ -18,6 +18,7 @@ const Login = () => {
   const [errors, setErrors]             = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSlowLogin, setIsSlowLogin]   = useState(false);
   const [globalError, setGlobalError]   = useState('');
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendStatus, setResendStatus] = useState('');
@@ -73,12 +74,23 @@ const Login = () => {
     setGlobalError('');
     if (!validateForm()) return;
     setIsSubmitting(true);
+    setIsSlowLogin(false);
+
+    // The backend (Render free tier) spins down when idle and can take
+    // 30-60s to cold-start on the first request — without this, that just
+    // looked like an indefinite silent hang. Surface a "waking up" message
+    // once it's clearly not a normal fast response, and give up with a
+    // clear error rather than hanging forever if it never comes back.
+    const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 45000);
 
     try {
       const response = await fetch(`${API}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        signal: controller.signal
       });
       const data = await response.json();
 
@@ -159,9 +171,16 @@ const Login = () => {
       // ─────────────────────────────────────────────────────────────────────
 
     } catch (err) {
-      setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
+      if (err.name === 'AbortError') {
+        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
+      } else {
+        setGlobalError(t('networkErrorLater', 'Network error. Please try again later.'));
+      }
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(abortTimer);
       setIsSubmitting(false);
+      setIsSlowLogin(false);
     }
   };
 
@@ -706,6 +725,11 @@ const Login = () => {
             <button type="submit" disabled={isSubmitting} className="login-submit-btn">
               <LogIn size={20} /> <span>{isSubmitting ? t('loggingIn', 'Logging in...') : t('logIn', 'Log In')}</span>
             </button>
+            {isSubmitting && isSlowLogin && (
+              <p style={{ margin: '-8px 0 0', fontSize: 12.5, color: '#a0aab2', textAlign: 'center', lineHeight: 1.5 }}>
+                {t('serverWakingUp', "Still working — the server may be waking up from idle, this can take up to a minute.")}
+              </p>
+            )}
           </form>
 
           <div style={{ margin: '28px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>

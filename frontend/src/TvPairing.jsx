@@ -238,7 +238,13 @@ export default function TvPairing() {
         }
       `}</style>
 
-      <div style={{
+      {/* gcw-force-dark: this page is always dark-themed regardless of the site's
+          light/dark setting (it's a standalone TV kiosk display, not theme-aware) —
+          without it, the app-wide light-mode "force dark text" system (App.jsx)
+          was matching every hardcoded white/light inline color here (including
+          the Start Pairing button) and overriding it to near-black, unreadable
+          against this page's own always-dark background. */}
+      <div className="gcw-force-dark" style={{
         width: '100vw', height: '100vh',
         background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.15) 0%, #060714 60%)',
         display: 'flex', flexDirection: 'column',
