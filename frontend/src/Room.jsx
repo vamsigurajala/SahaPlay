@@ -9447,9 +9447,22 @@ const Room = () => {
                   </div>
                 ) : (
                   <>
-                    {/* Click-to-toggle only for non-embed (direct video) */}
-                    {!isEmbedPlatform(mediaUrl) && (
-                      <div onClick={togglePlayPause} style={{ position: 'absolute', inset: 0, zIndex: 1, cursor: 'pointer' }} />
+                    {/* Click/hover-to-toggle overlay — sits above the iframe so mouse/touch
+                        events actually reach us instead of being swallowed by it (a genuine
+                        cross-origin iframe never bubbles input to the parent page). Used to be
+                        skipped for embed platforms (YouTube/SoundCloud) since their native
+                        controls handled this directly; now that our own bar is the sole control
+                        surface there too, this is what makes click-to-play/pause and mouse-move-
+                        resets-the-auto-hide-timer work for them at all. Skipped only when the
+                        user explicitly asked for native controls (hideCustomControls), so clicks
+                        reach the native UI as expected in that mode. */}
+                    {!hideCustomControls && (
+                      <div
+                        onClick={togglePlayPause}
+                        onMouseMove={resetControlsTimer}
+                        onTouchStart={resetControlsTimer}
+                        style={{ position: 'absolute', inset: 0, zIndex: 1, cursor: 'pointer' }}
+                      />
                     )}
                     <div 
                       style={{ 
@@ -9618,8 +9631,11 @@ const Room = () => {
                             // to avoid fully overlapping it) — a confusing dual-UI that's also why
                             // the custom bar looked "off" position. Our own bar already covers
                             // play/pause/seek/CC/quality/fullscreen, so it's the sole control
-                            // surface everywhere now, same as the Vimeo-with-custom-controls case.
-                            controls={mediaUrl.includes('vimeo.com') && !useCustomVimeoControls}
+                            // surface everywhere now, same as the Vimeo-with-custom-controls case —
+                            // except when the user explicitly asked for native controls via
+                            // "Use Native Player" (hideCustomControls), which needs somewhere to
+                            // fall back to now that it's not already showing underneath.
+                            controls={(mediaUrl.includes('vimeo.com') && !useCustomVimeoControls) || hideCustomControls}
                             playing={isPreparing || (isPlaying && !isPreparing)}
                             volume={isPreparing ? 0 : playerVolume}
                             muted={isPreparing || playerMuted}
@@ -10161,11 +10177,14 @@ const Room = () => {
 
             {/* ── Mobile tap-gesture layer — left/right thirds double-tap to seek ±10s,
                 single tap toggles the control bar, center third single-tap play/pauses.
-                Only for media we actually own custom controls for (uploaded/direct video
-                files and local streams) — never over an embedded/iframe/Twitch/Vimeo
-                player, which has its own native touch controls underneath. ── */}
+                For media we own custom controls for: uploaded/direct video files and local
+                streams always, plus embed platforms (YouTube/SoundCloud) now that our bar
+                is their sole control surface too — unless the user explicitly switched to
+                native controls (hideCustomControls), where taps should reach that UI
+                directly instead. Never over a web iframe (real interactive page) or
+                Twitch/Vimeo, which use their own separate iframe components. ── */}
             {isTouchPlayer && !isTvMode && hasMounted && mediaUrl && !(isScreensharing || isViewer) &&
-              !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && !isEmbedPlatform(mediaUrl) &&
+              !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && (!isEmbedPlatform(mediaUrl) || !hideCustomControls) &&
               !isTwitch && !isVimeo && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}>
                 <div style={{ flex: 1 }} onClick={() => handlePlayerZoneTap('left')} />
@@ -10276,14 +10295,14 @@ const Room = () => {
                   zIndex: 25,
                   background: isEmbedPlatform(mediaUrl) ? 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)' : 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
                   padding: '24px 14px 10px',
-                  // Always visible on desktop for URL-based media: embed iframes (YouTube) and web
-                  // iframes both capture mouse hover, so showControls would never fire again once
-                  // the cursor entered the iframe, leaving no way to bring hidden controls back.
-                  // That problem is mouse-hover-specific — touch has no such "stuck" risk, since
-                  // showControls is driven by discrete tap events (resetControlsTimer), not a
-                  // continuous hover state — so touch players get the same tap-to-show/auto-hide
-                  // behavior local streams already have, regardless of media type.
-                  opacity: (isLocalStream || isTouchPlayer) ? (showControls ? 1 : 0) : 1,
+                  // Always visible for web iframes (real interactive pages/games) — those get no
+                  // click/hover-catching overlay of ours (input must reach the iframe directly),
+                  // so we have no reliable way to detect mouse movement over them and would risk
+                  // controls getting stuck hidden with nothing to bring them back. Every other
+                  // media type (local streams, and embed platforms like YouTube now that our own
+                  // overlay/tap-gesture layer catches their clicks/movement instead of the iframe)
+                  // follows the normal show-then-auto-hide-after-inactivity behavior.
+                  opacity: isWebIframe(mediaUrl) ? 1 : (showControls ? 1 : 0),
                   transition: 'opacity 0.3s ease',
                   pointerEvents: 'none',
                   borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
@@ -10316,10 +10335,9 @@ const Room = () => {
                       />
                     </div>
                   )}
-                  {/* Controls row — auto-hide follows the same isLocalStream||isTouchPlayer rule as
-                      the wrapping bar's opacity above; always interactive on desktop for iframe
-                      media, where hover can't reliably re-trigger it once hidden. */}
-                  <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: ((isLocalStream || isTouchPlayer) ? (showControls ? 'auto' : 'none') : 'auto') }}>
+                  {/* Controls row — follows the same isWebIframe exception as the wrapping bar's
+                      opacity above. */}
+                  <div className="player-controls-row" style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: (isWebIframe(mediaUrl) ? 'auto' : (showControls ? 'auto' : 'none')) }}>
 
                     {/* 1. Load Media — opens App Directory without stopping current playback */}
                     {hasPlayerPrivileges && (
@@ -10388,7 +10406,20 @@ const Room = () => {
                     )}
                     <div style={{ flex: 1 }} />
 
-                    {/* Fallback to Native controls button */}
+                    {/* Fallback to Native controls — compact icon-only on touch, since
+                        .player-native-btn's full text-pill version is hidden by CSS there
+                        (too wide for the row); same setHideCustomControls(true) action,
+                        the top-center "restore" button (below) already handles switching
+                        back and already has its own compact touch styling. */}
+                    {isTouchPlayer && (
+                      <button
+                        className="player-ctrl-btn"
+                        onClick={() => setHideCustomControls(true)}
+                        title="Use native player controls"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    )}
                     <button
                       className="player-native-btn"
                       onClick={() => setHideCustomControls(true)}
@@ -10834,17 +10865,17 @@ const Room = () => {
                     {showQualityMenu && !isTouchPlayer && (
                       <div style={{
                         position: 'absolute', bottom: 'calc(100% + 10px)', right: 0,
-                        background: 'rgba(12,12,22,0.97)',
-                        border: '1px solid rgba(255,255,255,0.11)',
+                        background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(12,12,22,0.97)',
+                        border: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.11)',
                         borderRadius: 12, padding: '5px', minWidth: 185, zIndex: 9999,
-                        boxShadow: '0 -8px 32px rgba(0,0,0,0.55)',
+                        boxShadow: isLight ? '0 -8px 28px rgba(0,0,0,0.18)' : '0 -8px 32px rgba(0,0,0,0.55)',
                         backdropFilter: 'blur(16px)',
                       }}>
                         <div style={{
                           padding: '8px 12px 6px', color: '#64748b',
                           fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
                           textTransform: 'uppercase',
-                          borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 3,
+                          borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', marginBottom: 3,
                         }}>
                           Visual quality enhancement
                         </div>
@@ -10857,17 +10888,17 @@ const Room = () => {
                               width: '100%', padding: '9px 12px',
                               background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'none',
                               border: 'none',
-                              color: videoQuality === key ? '#a5b4fc' : '#d1d5db',
+                              color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
                               fontSize: 13, cursor: 'pointer', borderRadius: 8,
                               textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.15s',
                             }}
-                            onMouseEnter={e => { if (videoQuality !== key) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                            onMouseEnter={e => { if (videoQuality !== key) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'; }}
                             onMouseLeave={e => { if (videoQuality !== key) e.currentTarget.style.background = 'none'; }}
                           >
                             <div style={{
                               width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                              background: videoQuality === key ? '#a5b4fc' : 'transparent',
-                              border: videoQuality === key ? 'none' : '1.5px solid #6b7280',
+                              background: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : 'transparent',
+                              border: videoQuality === key ? 'none' : (isLight ? '1.5px solid #9ca3af' : '1.5px solid #6b7280'),
                             }} />
                             <div style={{ flex: 1 }}>
                               <div style={{ fontWeight: videoQuality === key ? 700 : 500 }}>{preset.label}</div>
