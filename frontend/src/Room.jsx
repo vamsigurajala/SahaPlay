@@ -1268,6 +1268,14 @@ const Room = () => {
   const [failedPlaybackUrl, setFailedPlaybackUrl] = useState('');
   const [hyperbeamSession, setHyperbeamSession] = useState(null);
   const [hbNavStatus, setHbNavStatus] = useState(null); // null | 'navigating' | 'failed'
+  // On mobile, a placeholder-app Virtual Browser (Netflix/Prime/Instagram/etc.) starts in a
+  // full vertical (portrait) view with no chat/room chrome so the user can sign in cleanly —
+  // vbHandoffDone flips true once they tap "Done — Watch with Chat", returning to the normal
+  // room layout. Resets automatically whenever a new session starts.
+  const [vbHandoffDone, setVbHandoffDone] = useState(false);
+  useEffect(() => {
+    setVbHandoffDone(false);
+  }, [hyperbeamSession?.session_id]);
   const hyperbeamContainerRef = useRef(null);
   const hyperbeamInstanceRef = useRef(null);
   const hyperbeamTargetUrlRef = useRef(null);
@@ -7784,6 +7792,10 @@ const Room = () => {
 
   const activeMediaItem = OPTIONS.find(o => o.url === mediaUrl || (o.url && mediaUrl && (mediaUrl.includes(o.url) || o.url.includes(mediaUrl))));
   const isVirtualBrowserActivity = activeMediaItem?.type === 'virtual_browser' || isLaunchingVirtualBrowser;
+  // Mobile-only: a placeholder app (Netflix/Prime/Instagram/etc.) launched via the in-app
+  // Virtual Browser stays in the full vertical login-only view (no chat/room chrome) until
+  // the user taps "Done — Watch with Chat".
+  const showVbLoginFullscreen = isMobile && !!hyperbeamSession && activeMediaItem?.type === 'placeholder' && !vbHandoffDone;
 
   // ─── RENDER ───
 
@@ -9391,7 +9403,10 @@ const Room = () => {
                         Only a thin exit bar appears on hover at the top — invisible otherwise. */}
                     {hyperbeamSession && (
                       <div
-                        style={{
+                        style={showVbLoginFullscreen ? {
+                          position: 'fixed', inset: 0, zIndex: 999999,
+                          background: '#000', borderRadius: 0, overflow: 'hidden'
+                        } : {
                           position: 'absolute', inset: 0, zIndex: 50,
                           borderRadius: 16, overflow: 'hidden'
                         }}
@@ -9400,8 +9415,26 @@ const Room = () => {
                           ref={hyperbeamContainerRef}
                           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
                         />
+                        {/* Full vertical login-only view (mobile placeholder apps): no chat/room
+                            chrome is visible underneath since this covers the whole viewport.
+                            Tapping through hands control back to the normal room layout. */}
+                        {showVbLoginFullscreen && (
+                          <button
+                            onClick={() => setVbHandoffDone(true)}
+                            style={{
+                              position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+                              zIndex: 70, background: 'rgba(99,102,241,0.95)', border: 'none',
+                              borderRadius: 30, padding: '13px 24px', fontSize: 14, fontWeight: 800,
+                              color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+                              boxShadow: '0 8px 30px rgba(99,102,241,0.5)'
+                            }}
+                          >
+                            <MessageCircle size={18} />
+                            Done — Watch with Chat
+                          </button>
+                        )}
                         {/* Hover-revealed thin exit bar — hidden when game/activity overlay is active */}
-                        {isEffectiveHost && !isGameOrActivity(mediaUrl) && (
+                        {isEffectiveHost && !isGameOrActivity(mediaUrl) && !showVbLoginFullscreen && (
                           <div
                             className="hb-exit-bar"
                             style={{
