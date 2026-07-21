@@ -410,7 +410,13 @@ export default function MediaSelectorModal({
     } else if (app.type === 'direct') {
       setShowUrlInput(true);
     } else if (app.type === 'placeholder') {
-      if (onSelectPlaceholder) {
+      if (isMobile) {
+        // Mobile: skip the popup-window + screenshare guided flow entirely.
+        // Log in and browse inside our own in-app Virtual Browser (Hyperbeam)
+        // instead — same mechanism already used for sites like Tubi that
+        // block iframe embedding, so login/playback never leaves the app.
+        setWarningApp(app);
+      } else if (onSelectPlaceholder) {
         onSelectPlaceholder(app);
       } else {
         window.open(app.url, '_blank');
