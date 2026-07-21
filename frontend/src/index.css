@@ -1672,9 +1672,14 @@ body.sp-mobile-fs-active .room-player-col {
   }
   .mob-media-active .room-player-col {
     flex: none !important;
-    height: 230px !important;
-    min-height: 230px !important;
-    max-height: 230px !important;
+    /* Hyperbeam's resize() throws RangeError below 256px per side — our own
+       syncResize() guard skips the call entirely under that floor, so a
+       230px-tall box meant the Virtual Browser video was never actually told
+       to fit this container and rendered partially/mismatched. 260px keeps a
+       small margin above the 256px floor. */
+    height: 260px !important;
+    min-height: 260px !important;
+    max-height: 260px !important;
   }
   .mob-media-active .room-right-column {
     display: flex !important;
@@ -1698,9 +1703,9 @@ body.sp-mobile-fs-active .room-player-col {
     border-radius: 0 !important;
     border-top: none !important;
   }
-  /* Calls need much more room than the regular 230px video mini-player —
+  /* Calls need much more room than the regular 260px video mini-player —
      the lobby (avatar + title + subtitle + Join/Exit buttons) doesn't fit
-     in 230px and was getting clipped. Give it most of the screen, like a
+     in 260px and was getting clipped. Give it most of the screen, like a
      real call UI, while still leaving chat reachable below. */
   .mob-call-active .room-player-col {
     height: 62vh !important;
