@@ -6188,6 +6188,7 @@ const Room = () => {
       setHyperbeamSession({ session_id: data.session_id, embed_url: data.embed_url });
       setHbSessionId(data.session_id);
       setLoadFailed(false);
+      setIsLaunchingVirtualBrowser(false);
       clearTimeout(loadTimeoutRef.current);
       socket.emit('hyperbeam_opened', {
         roomId: rid,
@@ -6248,6 +6249,8 @@ const Room = () => {
     let cancelled = false;
     let ro = null;
     let roDebounce = null;
+    let watchdogTimer = null;
+    let hasAttemptedRecovery = false;
 
     // Resize the virtual browser to match the container exactly.
     // Session runs at Hyperbeam's default 1280×720 — this account's plan doesn't
@@ -6273,8 +6276,38 @@ const Room = () => {
         const sdkOptions = {
           onConnectionStateChange: ({ state }) => {
             console.log('[HYPERBEAM] connectionState:', state);
-            if (!cancelled) setHbNavStatus(state === 'playing' ? null : 'connecting');
+            if (cancelled) return;
+            if (state === 'playing') {
+              setHbNavStatus(null);
+              clearTimeout(watchdogTimer);
+              hasAttemptedRecovery = false; // a later disconnect deserves its own recovery attempt
+            } else {
+              setHbNavStatus('connecting');
+              armWatchdog();
+            }
           },
+        };
+        // If the connection ever gets stuck outside 'playing' for this long (e.g. a
+        // WebRTC renegotiation triggered by navigating inside the remote page — like
+        // clicking "Sign In" — that never completes), destroy and reconnect once
+        // rather than leaving the viewer staring at a spinner forever. The remote
+        // session/VM itself is untouched — this only re-establishes our end's stream.
+        const armWatchdog = () => {
+          clearTimeout(watchdogTimer);
+          watchdogTimer = setTimeout(async () => {
+            if (cancelled || hasAttemptedRecovery || !hyperbeamContainerRef.current) return;
+            hasAttemptedRecovery = true;
+            console.warn('[HYPERBEAM] Stuck outside "playing" for 15s — attempting one automatic reconnect');
+            try {
+              if (hb) hb.destroy();
+              hb = await Hyperbeam(hyperbeamContainerRef.current, embedUrl, sdkOptions);
+              if (cancelled) { hb.destroy(); return; }
+              hyperbeamInstanceRef.current = hb;
+              syncResize(hyperbeamContainerRef.current, hb);
+            } catch (err) {
+              console.error('[HYPERBEAM] Automatic reconnect failed:', err);
+            }
+          }, 15000);
         };
         if (hbAdminTokenRef.current) {
           sdkOptions.adminToken = hbAdminTokenRef.current;
@@ -6321,6 +6354,7 @@ const Room = () => {
     return () => {
       cancelled = true;
       clearTimeout(roDebounce);
+      clearTimeout(watchdogTimer);
       if (ro) ro.disconnect();
       hyperbeamTargetUrlRef.current = null;
       hbAdminTokenRef.current = null;
@@ -8705,7 +8739,7 @@ const Room = () => {
             style={{
               flex: 1,
               background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',
-              borderRadius: (isFullscreen || isTvMode) ? 0 : 16,
+              borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 16,
               border: (isLight && !isFullscreen && !isTvMode) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
               overflow: 'hidden', 
@@ -9173,7 +9207,7 @@ const Room = () => {
             ) : hasMounted && mediaUrl ? (
               <>
                 {mediaUrl === 'lobby://crazygames' ? (
-                  <div style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: isMobile ? 0 : 16, overflow: 'hidden' }}>
                     <CrazyGamesLobby
                       onSelectGame={async (gameUrl) => {
                         if (hasPlayerPrivileges) {
@@ -9216,7 +9250,7 @@ const Room = () => {
                   />
                 ) : isWebIframe(mediaUrl) ? (
                   <div
-                    style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: 16, overflow: 'hidden' }}
+                    style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: isMobile ? 0 : 16, overflow: 'hidden' }}
                     onMouseMove={resetControlsTimer}
                     onMouseEnter={resetControlsTimer}
                     onTouchStart={resetControlsTimer}
@@ -9420,7 +9454,7 @@ const Room = () => {
                       <div
                         style={{
                           position: 'absolute', inset: 0, zIndex: 50,
-                          borderRadius: 16, overflow: 'hidden'
+                          borderRadius: isMobile ? 0 : 16, overflow: 'hidden'
                         }}
                       >
                         <div
