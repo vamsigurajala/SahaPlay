@@ -25,6 +25,7 @@ const Signup = () => {
   const [showPassword, setShowPassword]     = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting]     = useState(false);
+  const [isSlowLogin, setIsSlowLogin]       = useState(false);
   const [globalError, setGlobalError]       = useState('');
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
@@ -166,11 +167,22 @@ const Signup = () => {
   const handleGoogleSuccess = async (credentialResponse) => {
     setGlobalError('');
     setIsSubmitting(true);
+    setIsSlowLogin(false);
+
+    // Render free tier spins down when idle and can take 30-60s to cold-start
+    // on the first request — without this, the first Google sign-in after any
+    // idle period silently hangs/fails with a generic error, while a retry a
+    // few seconds later (backend now warm) succeeds instantly.
+    const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 45000);
+
     try {
       const response = await fetch(`${API}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential })
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+        signal: controller.signal
       });
       const data = await response.json();
       if (response.ok) {
@@ -178,25 +190,40 @@ const Signup = () => {
       } else {
         setGlobalError(data.error || t('googleSignupFailed', 'Google Signup failed'));
       }
-    } catch {
-      setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
+      } else {
+        setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+      }
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(abortTimer);
       setIsSubmitting(false);
+      setIsSlowLogin(false);
     }
   };
 
   const handleAppleClick = async () => {
     setGlobalError('');
     setIsSubmitting(true);
+    setIsSlowLogin(false);
+    let slowTimer, abortTimer;
     try {
       const authData = await signInWithApple();
+
+      slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
+      const controller = new AbortController();
+      abortTimer = setTimeout(() => controller.abort(), 45000);
+
       const response = await fetch(`${API}/api/auth/apple`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id_token: authData.authorization?.id_token,
           user: authData.user || null,
-        })
+        }),
+        signal: controller.signal
       });
       const data = await response.json();
       if (response.ok) {
@@ -207,12 +234,17 @@ const Signup = () => {
     } catch (err) {
       if (err?.error === 'popup_closed_by_user') {
         // User cancelled the popup — not an error worth surfacing
+      } else if (err.name === 'AbortError') {
+        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
       } else {
         console.error('[Signup] Apple Sign-In error:', err);
         setGlobalError(t('networkErrorApple', 'Network error during Apple Auth'));
       }
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(abortTimer);
       setIsSubmitting(false);
+      setIsSlowLogin(false);
     }
   };
 
@@ -569,6 +601,11 @@ const Signup = () => {
                   ? <><div className="su-spinner" /><span>{t('creatingAccount', 'Creating account...')}</span></>
                   : <><UserPlus size={18} /><span>{t('signUp', 'Sign Up')}</span></>}
               </button>
+              {isSubmitting && isSlowLogin && (
+                <p style={{ margin: '-8px 0 0', fontSize: 12.5, color: '#a0aab2', textAlign: 'center', lineHeight: 1.5 }}>
+                  {t('serverWakingUp', "Still working — the server may be waking up from idle, this can take up to a minute.")}
+                </p>
+              )}
             </form>
 
             <div style={{ margin: '28px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>

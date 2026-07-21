@@ -261,11 +261,22 @@ const Login = () => {
   const handleGoogleSuccess = async (credentialResponse) => {
     setGlobalError('');
     setIsSubmitting(true);
+    setIsSlowLogin(false);
+
+    // Same Render cold-start protection as handleLogin — without it, the first
+    // Google sign-in after the backend has been idle can silently hang or fail
+    // with a generic network error, while a retry a few seconds later (backend
+    // now warm) succeeds instantly, looking like "first try doesn't work".
+    const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 45000);
+
     try {
       const response = await fetch(`${API}/api/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential })
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+        signal: controller.signal
       });
       const data = await response.json();
       if (response.ok) {
@@ -274,24 +285,41 @@ const Login = () => {
         handleOAuthFailure(data, t('googleLoginFailed', 'Google Login failed'));
       }
     } catch (err) {
-      setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+      if (err.name === 'AbortError') {
+        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
+      } else {
+        setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
+      }
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(abortTimer);
       setIsSubmitting(false);
+      setIsSlowLogin(false);
     }
   };
 
   const handleAppleClick = async () => {
     setGlobalError('');
     setIsSubmitting(true);
+    setIsSlowLogin(false);
+    let slowTimer, abortTimer;
     try {
       const authData = await signInWithApple();
+
+      // Same Render cold-start protection as handleLogin/handleGoogleSuccess —
+      // only guards the fetch to our own backend, not the Apple popup step.
+      slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
+      const controller = new AbortController();
+      abortTimer = setTimeout(() => controller.abort(), 45000);
+
       const response = await fetch(`${API}/api/auth/apple`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id_token: authData.authorization?.id_token,
           user: authData.user || null,
-        })
+        }),
+        signal: controller.signal
       });
       const data = await response.json();
       if (response.ok) {
@@ -302,12 +330,17 @@ const Login = () => {
     } catch (err) {
       if (err?.error === 'popup_closed_by_user') {
         // User cancelled the popup — not an error worth surfacing
+      } else if (err.name === 'AbortError') {
+        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
       } else {
         console.error('[Login] Apple Sign-In error:', err);
         setGlobalError(t('networkErrorApple', 'Network error during Apple Auth'));
       }
     } finally {
+      clearTimeout(slowTimer);
+      clearTimeout(abortTimer);
       setIsSubmitting(false);
+      setIsSlowLogin(false);
     }
   };
 
