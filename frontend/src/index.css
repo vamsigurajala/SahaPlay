@@ -595,11 +595,12 @@ html[data-theme='light'] .btn-secondary:hover {
   }
 }
 
-/* Mobile & iPad view: Login/Signup back button removed entirely */
+/* Login/Signup back button removed entirely — all viewports, including web/laptop */
+.login-back-btn {
+  display: none !important;
+}
+
 @media (max-width: 1024px) {
-  .login-back-btn {
-    display: none !important;
-  }
   /* Room Members dropdown: keep it scrollable but hide the visible scrollbar */
   .custom-scrollbar {
     scrollbar-width: none;

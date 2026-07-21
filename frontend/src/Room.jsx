@@ -1242,6 +1242,12 @@ const Room = () => {
   }
   const [iframeLoading, setIframeLoading] = useState(false);
   const [isLaunchingVirtualBrowser, setIsLaunchingVirtualBrowser] = useState(false);
+  // Sticky (unlike isLaunchingVirtualBrowser, which is only true for the brief
+  // window while a session is being created) — stays true for the whole time
+  // a placeholder app (Netflix/Prime/etc.) is loaded via the Virtual Browser,
+  // so the plain-iframe fallback attempt and its "Page blocks embedding"
+  // overlay never render for it, even if hyperbeamSession is momentarily null.
+  const [isVirtualBrowserMedia, setIsVirtualBrowserMedia] = useState(false);
   const [iframeError, setIframeError] = useState(false); // true when iframe is blocked/X-Frame-Options denied
   const [iframeBlockSuspected, setIframeBlockSuspected] = useState(false); // true when page loaded but may be a block page (soft block)
   const [iframeHintExpanded, setIframeHintExpanded] = useState(true);
@@ -3166,6 +3172,8 @@ const Room = () => {
       if (state.roomName) setRoomName(state.roomName);
       if (state.currentMedia) {
         setMediaUrl(state.currentMedia);
+        const joinedItem = OPTIONS.find(o => o.url === state.currentMedia || (o.url && (state.currentMedia.includes(o.url) || o.url.includes(state.currentMedia))));
+        setIsVirtualBrowserMedia(joinedItem?.type === 'placeholder');
         // Set seek target SYNCHRONOUSLY so onLoadedMetadata can seek immediately
         // (the 500ms timeout below runs after onLoadedMetadata fires, so it was too late)
         if (state.currentTime > 0) prepTargetTimeRef.current = state.currentTime;
@@ -4353,6 +4361,14 @@ const Room = () => {
       });
       // PRIORITY RESET: When media changes, stop all interfering processes
       setMediaUrl(url);
+      // Viewers never call changeMedia() themselves — this is the only place they
+      // learn the room switched to a placeholder app (Netflix/Prime/etc.), so it's
+      // where their own isVirtualBrowserMedia stickiness has to be set too, or
+      // they'd independently hit the same blocked plain-iframe attempt the host's
+      // changeMedia() already avoids.
+      const changedItem = OPTIONS.find(o => o.url === url || (o.url && (url.includes(o.url) || o.url.includes(url))));
+      setIsVirtualBrowserMedia(changedItem?.type === 'placeholder');
+      if (changedItem?.type === 'placeholder') setIframeBlockSuspected(false);
       setIsPlaying(false);
       playerRef.current?.seekTo(0);
 
@@ -6371,9 +6387,18 @@ const Room = () => {
     // All game/site URLs now load as plain iframes; user must manually click "Cloud Browser" if needed.
     const isVirtual = launchType === 'virtual_browser';
     if (isVirtual) {
+      // Already showing this exact Virtual Browser target — don't tear an active,
+      // working session down and recreate it (that briefly nulls hyperbeamSession,
+      // which is exactly what let the plain-iframe fallback/"blocks embedding"
+      // overlay flash back up on re-clicks).
+      if ((hyperbeamSession || hbSessionId) && browserDisplayUrl === url) {
+        return;
+      }
       if (hyperbeamSession || hbSessionId) {
         await handleCloseCloudBrowser();
       }
+      setIsVirtualBrowserMedia(true);
+      setIframeBlockSuspected(false);
       setLoadFailed(false);
       setIframeError(false);
       setIframeLoading(true);
@@ -6395,6 +6420,8 @@ const Room = () => {
       }
       return;
     }
+
+    setIsVirtualBrowserMedia(false);
 
     if (url.includes('vimeo.com')) {
       const match = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(?:channels\/[^/]+\/|groups\/[^/]+\/videos\/)?(\d+)/i);
@@ -7783,7 +7810,7 @@ const Room = () => {
   };
 
   const activeMediaItem = OPTIONS.find(o => o.url === mediaUrl || (o.url && mediaUrl && (mediaUrl.includes(o.url) || o.url.includes(mediaUrl))));
-  const isVirtualBrowserActivity = activeMediaItem?.type === 'virtual_browser' || isLaunchingVirtualBrowser;
+  const isVirtualBrowserActivity = activeMediaItem?.type === 'virtual_browser' || isLaunchingVirtualBrowser || isVirtualBrowserMedia;
 
   // ─── RENDER ───
 
@@ -9250,7 +9277,7 @@ const Room = () => {
                           Appears as a small pill at the bottom of the iframe area when page is loaded.
                           User sees blocked content and can click to switch to Virtual Browser. */}
                       {/* ── Subtle "Page not loading?" settings panel ── */}
-                      {!iframeLoading && !hyperbeamSession && (iframeBlockSuspected || iframeError) && (
+                      {!iframeLoading && !hyperbeamSession && !isVirtualBrowserMedia && (iframeBlockSuspected || iframeError) && (
                         <div
                           className="iframe-settings-hint"
                           style={{
@@ -9343,7 +9370,7 @@ const Room = () => {
                     </div>
 
                     {/* ── Block Fallback Overlay ── */}
-                    {iframeBlockSuspected && !hyperbeamSession && (
+                    {iframeBlockSuspected && !hyperbeamSession && !isVirtualBrowserMedia && (
                       <div style={{
                         position: 'absolute', inset: 0, zIndex: 30,
                         background: 'linear-gradient(135deg, rgba(10,10,20,0.97), rgba(20,10,35,0.99))',
