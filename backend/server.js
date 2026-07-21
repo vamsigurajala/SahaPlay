@@ -703,7 +703,6 @@ const rooms = new Map();
 const deletingRooms = new Set(); // roomIds currently being deleted — blocks race-condition re-join
 
 // ─── Hyperbeam Cloud Browser sessions: roomId → { session_id, embed_url, createdAt } ───
-// Using Hyperbeam TEST key — switch to production key in .env once all 7 tests pass
 const activeHyperbeamSessions = new Map();
 
 // Audio Ducking: tracks which users are currently speaking per room
@@ -5230,7 +5229,6 @@ app.post('/api/browser/session/:id/navigate', authenticateToken, async (req, res
 // POST /api/hyperbeam/create-session
 // Creates a new Hyperbeam VM for a given room. Deduplicates per room (cost safety).
 app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) => {
-  // Using Hyperbeam TEST key — see HYPERBEAM_API_KEY in backend/.env
   const apiKey = process.env.HYPERBEAM_API_KEY;
   if (!apiKey) return res.status(503).json({ error: 'Cloud browser not configured on this server.' });
 
@@ -5281,8 +5279,11 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
         kiosk: !isGame,
         region: currentRegion,
         webgl: true,
-        ublock: true,
-        adblock: true
+        adblock: true,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        quality: { mode: isGame ? 'smooth' : 'sharp' }
       };
       
       console.log(`[HYPERBEAM] Attempting to create session in region: ${currentRegion}`);
