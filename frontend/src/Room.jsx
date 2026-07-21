@@ -6234,7 +6234,9 @@ const Room = () => {
     let roDebounce = null;
 
     // Resize the virtual browser to match the container exactly.
-    // SDK session is created at 1920×1080 so maxArea=2073600, enough for any typical player.
+    // Session runs at Hyperbeam's default 1280×720 — this account's plan doesn't
+    // allow requesting a custom width/height (err_api_restricted), so the SDK's
+    // resize() is what stretches/fits it to the actual player container.
     const syncResize = (el, inst) => {
       if (cancelled || !el || !inst) return;
       const w = Math.round(el.clientWidth);

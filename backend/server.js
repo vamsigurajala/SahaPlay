@@ -5280,8 +5280,6 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
         region: currentRegion,
         webgl: true,
         adblock: true,
-        width: 1920,
-        height: 1080,
         fps: 30,
         quality: { mode: isGame ? 'smooth' : 'sharp' }
       };
