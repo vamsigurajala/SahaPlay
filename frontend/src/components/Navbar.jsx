@@ -854,6 +854,15 @@ const Navbar = () => {
                               </div>
                               {t('app', 'App')}
                             </button>
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Download size={16} color="#38bdf8" />
+                              </div>
+                              {t('getDesktopApp', 'Get Desktop App')}
+                            </button>
                             <div className="profile-divider" style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); clearUserSession(); navigate('/login'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}

@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Monitor, Apple, Download } from 'lucide-react';
 
-// Updated once a build is published to GitHub Releases (see
-// .github/workflows/desktop-build.yml). Left blank until then, in which case
-// the Windows button is shown disabled rather than linking to nothing.
-const WINDOWS_INSTALLER_URL = '';
+// Published via .github/workflows/desktop-build.yml -> GitHub Releases.
+const WINDOWS_INSTALLER_URL = 'https://github.com/vamsigurajala/SahaPlay/releases/download/desktop-v0.1.0/SahaPlay_0.1.0_x64-setup.exe';
 
 const DownloadAppModal = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
@@ -77,13 +75,12 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
                 <Tag
                   key={key}
                   {...(!disabled ? { href, download: true } : {})}
-                  className="stay-white"
                   style={{
                     flex: 1,
                     padding: '20px 16px',
                     borderRadius: 16,
-                    border: isLight ? '1px solid rgba(226,232,240,0.9)' : '1px solid rgba(255,255,255,0.08)',
-                    backgroundColor: isLight ? 'rgba(248,250,252,0.6)' : 'rgba(255,255,255,0.03)',
+                    border: isLight ? '1.5px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+                    backgroundColor: isLight ? '#f8fafc' : 'rgba(255,255,255,0.03)',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -96,11 +93,11 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
                   onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.transform = 'translateY(-2px)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                  <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: isLight ? `${color}2a` : `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon size={22} color={color} />
                   </div>
                   <span style={{ fontSize: 15, fontWeight: 700, color: isLight ? '#0f172a' : '#ffffff' }}>{label}</span>
-                  <span style={{ fontSize: 12, color: isLight ? '#64748b' : '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: isLight ? '#475569' : '#9ca3af', display: 'flex', alignItems: 'center', gap: 4 }}>
                     {!disabled && <Download size={12} />}
                     {sub}
                   </span>
@@ -109,7 +106,7 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
             })}
           </div>
 
-          <p style={{ fontSize: 11.5, color: isLight ? '#94a3b8' : '#6b7280', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 11.5, color: isLight ? '#64748b' : '#6b7280', margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
             {t('downloadAppSmartScreenNote', "Windows may show an \"Unknown publisher\" warning on first launch — that's expected until the app is code-signed, not a sign of a problem.")}
           </p>
         </div>
