@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles } from 'lucide-react';
+import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
+import DownloadAppModal from './DownloadAppModal';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
@@ -57,6 +58,7 @@ const Navbar = () => {
   const [isMobileOrTablet, setIsMobileOrTablet] = useState(window.innerWidth < 1025);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -783,6 +785,15 @@ const Navbar = () => {
                             </div>
                             {t('contactSupport', 'Contact Support')}
                           </button>
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Download size={16} color="#38bdf8" />
+                            </div>
+                            {t('getDesktopApp', 'Get Desktop App')}
+                          </button>
                           {isAdminRole && (
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
@@ -950,6 +961,11 @@ const Navbar = () => {
                     {t('contactSupport', 'Contact Support')}
                   </button>
 
+                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}>
+                    <Download size={16} />
+                    {t('getDesktopApp', 'Get Desktop App')}
+                  </button>
+
                   {isAdminRole && (
                     <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/admin')}>
                       <Sparkles size={16} color="#a855f7" />
@@ -1021,6 +1037,7 @@ const Navbar = () => {
       )}
 
       <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
+      <DownloadAppModal isOpen={showDownloadAppModal} onClose={() => setShowDownloadAppModal(false)} />
     </>
   );
 };
