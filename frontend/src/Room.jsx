@@ -12098,6 +12098,7 @@ const Room = () => {
         handleFullscreen={handleFullscreen}
         playerRef={playerRef}
         videoRef={videoRef}
+        localVideoRef={localVideoRef}
         isScreensharing={isScreensharing}
         mediaUrl={mediaUrl}
       />

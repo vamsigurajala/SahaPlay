@@ -25,6 +25,7 @@ export default function RoomModals({
   username = '',
   playerRef,
   videoRef,
+  localVideoRef,
   isScreensharing,
   mediaUrl
 }) {
@@ -122,6 +123,9 @@ export default function RoomModals({
   // (iframe-embedded) and the Virtual Browser have no such element to hand off.
   const getCastableVideoElement = () => {
     if (isScreensharing && videoRef?.current) return videoRef.current;
+    // Uploaded/direct-file playback renders its own raw <video ref={localVideoRef}>,
+    // bypassing ReactPlayer entirely — check it before the playerRef path below.
+    if (localVideoRef?.current && localVideoRef.current.currentSrc) return localVideoRef.current;
     if (playerRef?.current) {
       try {
         const internal = playerRef.current.getInternalPlayer ? playerRef.current.getInternalPlayer() : null;
