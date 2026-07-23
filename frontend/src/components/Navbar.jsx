@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin } from 'lucide-react';
+import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { clearUserSession } from '../lib/authUtils.js';
@@ -601,8 +601,15 @@ const Navbar = () => {
             <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
               {isDesktopApp ? (
                 <>
-                  <button className={`nav-link-btn${location.pathname === '/pinned-rooms' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/pinned-rooms')}>{t('pinnedRooms', 'Pinned Rooms')}</button>
-                  <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('publicRooms', 'Public Rooms')}</button>
+                  <button className={`nav-icon-btn${location.pathname === '/' ? ' active' : ''}`} title={t('home', 'Home')} onClick={() => navigate('/')}>
+                    <Home size={18} />
+                  </button>
+                  <button className={`nav-icon-btn${location.pathname === '/pinned-rooms' ? ' active' : ''}`} title={t('pinnedRooms', 'Pinned Rooms')} onClick={() => navigate('/pinned-rooms')}>
+                    <Pin size={18} />
+                  </button>
+                  <button className={`nav-icon-btn${location.pathname === '/public' ? ' active' : ''}`} title={t('publicRooms', 'Public Rooms')} onClick={() => navigate('/public')}>
+                    <Globe size={18} />
+                  </button>
                 </>
               ) : (
                 <>
@@ -951,12 +958,16 @@ const Navbar = () => {
             <div style={{ padding: '8px', flex: 1 }}>
               {isDesktopApp ? (
                 <>
+                  <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/')}>
+                    <Home size={16} />
+                    {t('home', 'Home')}
+                  </button>
                   <button className={`nav-link-btn${location.pathname === '/pinned-rooms' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/pinned-rooms')}>
                     <Pin size={16} />
                     {t('pinnedRooms', 'Pinned Rooms')}
                   </button>
                   <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/public')}>
-                    <Compass size={16} />
+                    <Globe size={16} />
                     {t('publicRooms', 'Public Rooms')}
                   </button>
                 </>
