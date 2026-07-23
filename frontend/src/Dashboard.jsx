@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowRight } from 'lucide-react';
@@ -12,6 +12,16 @@ function getGreeting(t) {
   if (hour < 18) return t('goodAfternoon', 'Good afternoon');
   return t('goodEvening', 'Good evening');
 }
+
+// Purely decorative chat script for the preview panel — short, generic
+// reaction lines, not real conversation content or marketing copy.
+const PREVIEW_SCRIPT = [
+  { type: 'in', text: '🔥 this part is insane' },
+  { type: 'out', text: 'wait for it…' },
+  { type: 'in', text: '😂😂😂' },
+  { type: 'out', text: 'told you 👀' },
+  { type: 'in', text: '🙌 rewatching that' },
+];
 
 // Minimal, functional-first landing view for the Tauri desktop app. Pinned
 // Rooms and Public Rooms are their own pages now (linked from the desktop
@@ -27,6 +37,28 @@ const Dashboard = () => {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [previewMessages, setPreviewMessages] = useState([]);
+  const previewTimerRef = useRef(null);
+
+  // Cycles the decorative preview panel's chat bubbles in one at a time, then
+  // loops — purely visual, gives the impression of an active conversation
+  // instead of a static mockup.
+  useEffect(() => {
+    let idx = 0;
+    const tick = () => {
+      idx = (idx + 1) % (PREVIEW_SCRIPT.length + 1);
+      if (idx === 0) {
+        setPreviewMessages([]);
+        previewTimerRef.current = setTimeout(tick, 700);
+        return;
+      }
+      const msg = PREVIEW_SCRIPT[idx - 1];
+      setPreviewMessages(prev => [...prev, { ...msg, _k: `${idx}-${Date.now()}` }].slice(-3));
+      previewTimerRef.current = setTimeout(tick, 1800);
+    };
+    previewTimerRef.current = setTimeout(tick, 900);
+    return () => clearTimeout(previewTimerRef.current);
+  }, []);
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -64,6 +96,9 @@ const Dashboard = () => {
         }
         @keyframes dashLiveDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes dashTypingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-3px)} }
+        @keyframes dashMsgPop { from { opacity:0; transform:translateY(6px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes dashWaveBar { 0%,100% { transform:scaleY(0.35); } 50% { transform:scaleY(1); } }
+        @keyframes dashScrub { 0% { width:8%; } 100% { width:92%; } }
 
         .dash-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; }
         .dash-orb-1 { width:520px;height:520px; background:radial-gradient(circle,rgba(99,102,241,0.35),transparent 70%); top:-180px;left:-140px; animation:dashOrbFloat1 20s ease-in-out infinite; }
@@ -96,12 +131,19 @@ const Dashboard = () => {
         html[data-theme='light'] .dash-preview-card { background:#fff; border-color:rgba(99,102,241,0.15); box-shadow:0 0 0 1px rgba(99,102,241,0.08), 0 28px 60px -10px rgba(0,0,0,0.12); }
         .dash-preview-titlebar { height:36px; background:#12122a; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; padding:0 12px; }
         html[data-theme='light'] .dash-preview-titlebar { background:#f8fafc; border-bottom-color:rgba(0,0,0,0.06); }
-        .dash-preview-video { height:170px; position:relative; background:linear-gradient(135deg,#0c0c22 0%,#16103a 50%,#0c1830 100%); display:flex; align-items:center; justify-content:center; }
+        .dash-preview-video { height:170px; position:relative; background:linear-gradient(135deg,#0c0c22 0%,#16103a 50%,#0c1830 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; }
         html[data-theme='light'] .dash-preview-video { background:linear-gradient(135deg,#eef2ff 0%,#f5f3ff 100%); }
-        .dash-preview-chat { padding:10px 12px; display:flex; flex-direction:column; gap:7px; }
-        .dash-bubble-in { background:rgba(255,255,255,0.07); border-radius:10px 10px 10px 2px; padding:5px 9px; font-size:11px; color:rgba(255,255,255,0.7); }
+        .dash-wave-bars { display:flex; align-items:center; gap:4px; height:26px; position:relative; z-index:1; }
+        .dash-wave-bar { width:4px; height:100%; border-radius:3px; background:rgba(99,102,241,0.9); transform-origin:center; animation:dashWaveBar 0.9s ease-in-out infinite; }
+        html[data-theme='light'] .dash-wave-bar { background:#6366f1; }
+        .dash-scrub-track { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,0.08); }
+        html[data-theme='light'] .dash-scrub-track { background:rgba(0,0,0,0.08); }
+        .dash-scrub-fill { height:100%; background:linear-gradient(90deg,#6366f1,#a855f7); animation:dashScrub 9s linear infinite; }
+        .dash-preview-chat { padding:10px 12px; display:flex; flex-direction:column; gap:7px; min-height:98px; }
+        .dash-bubble-row { animation:dashMsgPop 0.35s ease-out; }
+        .dash-bubble-in { background:rgba(255,255,255,0.07); border-radius:10px 10px 10px 2px; padding:5px 9px; font-size:11px; color:rgba(255,255,255,0.7); display:inline-block; }
         html[data-theme='light'] .dash-bubble-in { background:rgba(0,0,0,0.06); color:#374151; }
-        .dash-bubble-out { background:linear-gradient(135deg,#6366f1,#7c3aed); border-radius:10px 10px 2px 10px; padding:5px 9px; font-size:11px; color:#fff; }
+        .dash-bubble-out { background:linear-gradient(135deg,#6366f1,#7c3aed); border-radius:10px 10px 2px 10px; padding:5px 9px; font-size:11px; color:#fff; display:inline-block; }
         .dash-typing-dot { width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.3); animation:dashTypingBounce 1.2s ease infinite; }
         html[data-theme='light'] .dash-typing-dot { background:rgba(0,0,0,0.25); }
 
@@ -162,18 +204,20 @@ const Dashboard = () => {
               </div>
               <div className="dash-preview-video">
                 <div style={{ position: 'absolute', width: 140, height: 140, background: 'radial-gradient(circle,rgba(99,102,241,0.22) 0%,transparent 70%)', borderRadius: '50%', filter: 'blur(18px)' }} />
-                <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(99,102,241,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 0 11px rgba(99,102,241,0.12), 0 0 36px rgba(99,102,241,0.4)', position: 'relative', zIndex: 1 }}>
-                  <Play fill="#fff" size={18} style={{ marginLeft: 2 }} />
+                <div className="dash-wave-bars">
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div key={i} className="dash-wave-bar" style={{ animationDelay: `${i * 0.12}s` }} />
+                  ))}
                 </div>
+                <div className="dash-scrub-track"><div className="dash-scrub-fill" /></div>
               </div>
               <div className="dash-preview-chat">
-                <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />
-                  <div className="dash-bubble-in">🔥🔥🔥</div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div className="dash-bubble-out">😂😂</div>
-                </div>
+                {previewMessages.map(msg => (
+                  <div key={msg._k} className="dash-bubble-row" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', justifyContent: msg.type === 'out' ? 'flex-end' : 'flex-start' }}>
+                    {msg.type === 'in' && <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />}
+                    <div className={msg.type === 'out' ? 'dash-bubble-out' : 'dash-bubble-in'}>{msg.text}</div>
+                  </div>
+                ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   {[0, 0.2, 0.4].map((d, i) => (<div key={i} className="dash-typing-dot" style={{ animationDelay: `${d}s` }} />))}
                 </div>
