@@ -2398,7 +2398,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined}}
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: 'background 0.15s ease'}}
                      onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
                      onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
                      onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>
@@ -3003,7 +3003,7 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined}}
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: 'background 0.15s ease'}}
                            onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
                            onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
                            onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>

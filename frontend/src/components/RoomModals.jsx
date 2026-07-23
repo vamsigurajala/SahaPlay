@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { X, Edit2, Trash2, Cast, Tv, Monitor, ChevronRight, Copy, Check, ExternalLink } from 'lucide-react';
+import { X, Edit2, Trash2, Cast, Tv, Monitor, ChevronRight, Copy, Check, ExternalLink, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API } from '../lib/api';
 
@@ -33,6 +33,7 @@ export default function RoomModals({
   const [isLinking, setIsLinking] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
   const [activeTab, setActiveTab] = useState('code'); // 'code' | 'users'
+  const [castConnecting, setCastConnecting] = useState(false);
 
   // Dynamic TV URL state — fallback to origin /tv
   const [tvUrl, setTvUrl] = useState(`${window.location.origin}/tv`);
@@ -111,6 +112,46 @@ export default function RoomModals({
     });
     toast.success(t('castingPushed', 'Casting pushed to {{targetName}}!', { targetName }), { icon: '📺' });
     setShowCastDiscovery(false);
+  };
+
+  // Real Google Chromecast support via the browser's built-in Remote Playback API
+  // (HTMLMediaElement.remote.prompt()) — Chrome/Edge use this to open their native
+  // Chromecast device picker and stream directly from the device to the TV, no
+  // Google Cast SDK / receiver app registration needed. Only works against an
+  // actual <video> element playing a directly reachable media URL — YouTube/Twitch
+  // (iframe-embedded) and the Virtual Browser have no such element to hand off.
+  const getCastableVideoElement = () => {
+    if (isScreensharing && videoRef?.current) return videoRef.current;
+    if (playerRef?.current) {
+      try {
+        const internal = playerRef.current.getInternalPlayer ? playerRef.current.getInternalPlayer() : null;
+        if (internal instanceof HTMLVideoElement) return internal;
+      } catch {}
+    }
+    if (videoRef?.current && videoRef.current.tagName === 'VIDEO' && videoRef.current.currentSrc) return videoRef.current;
+    return null;
+  };
+
+  const chromecastSupported = typeof window !== 'undefined' && 'RemotePlayback' in window;
+
+  const handleChromecast = async () => {
+    const videoEl = getCastableVideoElement();
+    if (!videoEl || !('remote' in videoEl)) {
+      toast.error(t('chromecastNoSource', 'Chromecast needs a direct video or screen share currently playing.'));
+      return;
+    }
+    try {
+      setCastConnecting(true);
+      await videoEl.remote.prompt();
+      toast.success(t('chromecastStarted', 'Casting to Chromecast!'), { icon: '📡' });
+      setShowCastDiscovery(false);
+    } catch (e) {
+      if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+        toast.error(t('chromecastFailed', 'Could not start Chromecast. Make sure a Chromecast device is on the same Wi-Fi network.'));
+      }
+    } finally {
+      setCastConnecting(false);
+    }
   };
 
   if (!renameModalOpen && !clearChatModalOpen && !showCastDiscovery) return null;
@@ -317,6 +358,40 @@ export default function RoomModals({
                 }}
               >
                 {isLinking ? 'Linking TV...' : 'Link TV Screen'}
+              </button>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ flex: 1, height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)' }} />
+                <span style={{ color: textSecondary, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('or', 'or')}</span>
+                <div style={{ flex: 1, height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)' }} />
+              </div>
+
+              {/* Google Chromecast */}
+              <button
+                onClick={handleChromecast}
+                disabled={castConnecting || !chromecastSupported}
+                title={!chromecastSupported ? t('chromecastUnsupported', 'Chromecast requires Google Chrome or Microsoft Edge.') : undefined}
+                className={`rm-link-btn${chromecastSupported ? ' stay-white' : ''}`}
+                style={{
+                  width: '100%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  background: !chromecastSupported ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg, #0ea5e9, #2563eb)',
+                  color: !chromecastSupported ? (isLight ? '#94a3b8' : '#666') : '#fff',
+                  border: 'none',
+                  borderRadius: 16,
+                  padding: '14px 24px',
+                  fontWeight: 800,
+                  fontSize: 15,
+                  cursor: (castConnecting || !chromecastSupported) ? 'not-allowed' : 'pointer',
+                  boxShadow: !chromecastSupported ? 'none' : '0 8px 24px rgba(37,99,235,0.25)',
+                  opacity: castConnecting ? 0.75 : 1,
+                  transition: 'all 0.2s',
+                  marginBottom: 24
+                }}
+              >
+                {castConnecting ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Cast size={18} />}
+                {castConnecting ? t('chromecastConnecting', 'Connecting…') : t('castChromecast', 'Cast with Google Chromecast')}
               </button>
 
               {/* Help & Testing Section */}
