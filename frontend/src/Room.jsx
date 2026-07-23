@@ -5386,6 +5386,85 @@ const Room = () => {
     }
   };
 
+  // Forward selected messages (RoomChatPanel's multi-select) to other chats.
+  // Lives here rather than in RoomChatPanel.jsx because it needs myKeyPair for
+  // DM re-encryption — RoomChatPanel has no direct access to the keypair,
+  // mirroring how editDmMessage/sendDmChat already own all E2EE calls.
+  // Always goes through REST (POST /api/chats/send), same as GlobalChatWidget's
+  // own forward implementation, since it's the only send path that doesn't
+  // require the destination room to already be joined.
+  const forwardMessages = async (msgs, destinations) => {
+    const token = localStorage.getItem('watch_token');
+    if (!token) return { failCount: msgs.length * destinations.length };
+    const sorted = [...msgs].sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+    let failCount = 0;
+    for (const dest of destinations) {
+      const destType = dest.type === 'room' ? 'room' : 'private';
+      const destPartner = dest.id || dest.partner;
+      let targetPubKey = null;
+      if (destType === 'private') {
+        try {
+          const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${destPartner}`);
+          if (pkRes.ok) { const d = await pkRes.json(); targetPubKey = d.publicKey || null; }
+        } catch {}
+      }
+      for (const msg of sorted) {
+        try {
+          const isMedia = !!msg.mediaType && !!msg.mediaUrl;
+          const body = {
+            type: destType,
+            partner: destType === 'room' ? destPartner.toLowerCase() : destPartner,
+            message: null,
+            mediaUrl: isMedia ? msg.mediaUrl : null,
+            mediaType: isMedia ? msg.mediaType : null,
+            mediaFileName: msg.mediaFileName || null,
+            mediaFileSize: msg.mediaFileSize || null,
+            mediaDuration: msg.mediaDuration || null,
+          };
+          const kp = myKeyPair.current;
+          if (isMedia) {
+            if (destType === 'private' && targetPubKey && kp) {
+              let mediaKeyB64 = null;
+              try {
+                if (msg.isMe && msg.senderMessage) {
+                  mediaKeyB64 = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+                } else if (!msg.isMe && msg.ephemeralPublicKey) {
+                  mediaKeyB64 = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+                }
+              } catch (e) { console.warn('[Forward] media key recovery failed', e); }
+              if (!mediaKeyB64) { failCount++; continue; }
+              const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(kp.publicKey));
+              body.message = enc.ciphertext;
+              body.senderMessage = enc.senderCiphertext;
+              body.nonce = enc.nonce;
+              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+            } else {
+              body.message = '';
+            }
+          } else {
+            const text = msg.decryptedText || msg.message || '';
+            if (destType === 'private' && targetPubKey && kp) {
+              const enc = encryptDM(text, targetPubKey, encodeBase64(kp.publicKey));
+              body.message = enc.ciphertext;
+              body.senderMessage = enc.senderCiphertext;
+              body.nonce = enc.nonce;
+              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+            } else {
+              body.message = text;
+            }
+          }
+          const resp = await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+          });
+          if (!resp.ok) failCount++;
+        } catch (e) { console.error('[Forward] send failed', e); failCount++; }
+      }
+    }
+    return { failCount };
+  };
+
   // Ã¢â€ â‚¬Ã¢â€ â‚¬ Send message Ã¢â€ â‚¬Ã¢â€ â‚¬
   // Ref holding the latest raw-send logic so the event listener always has fresh state.
   const sendRawGroupChatRef = useRef(null);
@@ -11700,6 +11779,7 @@ const Room = () => {
                     sendMediaGroupChat, sendMediaDmChat,
                     handleGroupReact, handleDmReact,
                     handleDeleteMessage,
+                    forwardMessages,
                     handleChatInputChange,
                     openDM, reportMsg,
                     setRenameInput, setRenameModalOpen,
@@ -11975,6 +12055,7 @@ const Room = () => {
                 sendMediaGroupChat, sendMediaDmChat,
                 handleGroupReact, handleDmReact,
                 handleDeleteMessage,
+                forwardMessages,
                 handleChatInputChange,
                 openDM, reportMsg,
                 setRenameInput, setRenameModalOpen,

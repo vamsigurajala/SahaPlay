@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward } from 'lucide-react';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
@@ -460,6 +460,9 @@ const typingCss = `
   /* ── Mobile/tablet: replace visible Reply/timestamp/Report with swipe + long-press gestures ── */
   @media (max-width: 1023.98px) {
     .msg-meta-row { display: none !important; }
+    /* "Select messages" is desktop-only there — touch users long-press a message
+       row's empty side area to enter select mode instead. */
+    .desktop-only-menu-item { display: none !important; }
   }
   .typing-dots { display: inline-flex; gap: 2px; align-items: center; margin-left: 4px; }
   .typing-dot { width: 4px; height: 4px; background: #6366f1; borderRadius: 50%; display: inline-block; animation: dot-wave 1.3s infinite ease-in-out; }
@@ -1540,6 +1543,35 @@ const GlobalChatWidget = forwardRef(({
       setShowVaultMenu(false);
     }
   }, [chatListLongPress.activeId]);
+
+  // ── Multi-select messages (bulk delete / forward) ──
+  // Desktop entry: "Select messages" in the chat's "⋮" menu. Touch entry: a
+  // THIRD independent useLongPress instance (same precedent as chatListLongPress
+  // above), attached to each message row's own background — not the bubble,
+  // which keeps its existing `longPress` (reactions/menu) behavior untouched.
+  const [msgSelectMode, setMsgSelectMode] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState(new Set());
+  const rowSelectLongPress = useLongPress();
+  useEffect(() => {
+    if (rowSelectLongPress.activeId) {
+      setMsgSelectMode(true);
+      setSelectedMsgIds(prev => new Set(prev).add(rowSelectLongPress.activeId));
+      rowSelectLongPress.close();
+    }
+  }, [rowSelectLongPress.activeId]);
+  const toggleMsgSelect = (rowKey) => {
+    setSelectedMsgIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
+      return next;
+    });
+  };
+  const exitMsgSelectMode = () => { setMsgSelectMode(false); setSelectedMsgIds(new Set()); };
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [forwardPickerOpen, setForwardPickerOpen] = useState(false);
+  const [selectedForwardChats, setSelectedForwardChats] = useState([]);
+  const [forwarding, setForwarding] = useState(false);
+  const MAX_FORWARD_CHATS = 5;
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   // 'up' = long-press menu opens above the touched row, 'down' = below —
@@ -3779,6 +3811,17 @@ const GlobalChatWidget = forwardRef(({
     setView('chat');
     setActiveRelation(null); // Reset
     setMessages([]); // Clear previous chat context immediately
+    // Set loading synchronously in the same batch as the clear above, so there is never
+    // a render where messages is empty AND loading is false (that gap is what briefly
+    // flashed "No messages yet" before the real history arrived) — fetchHistory's own
+    // setLoading(messages.length === 0) is a stale closure at the instant it fires and
+    // can't be trusted to catch this specific transition reliably.
+    // Guests skip this: their messages come from sessionStorage/window events (see the
+    // guest_room_messages_updated sync effect below), never through fetchHistory, so
+    // nothing would ever flip loading back to false for them.
+    if (localStorage.getItem('watch_is_guest') !== 'true') {
+      setLoading(true);
+    }
     paginationStateRef.current[chatKey] = {
       hasMore: true,
       isLoading: false
@@ -4464,6 +4507,113 @@ const GlobalChatWidget = forwardRef(({
     } catch(e) { console.error('delete error', e); }
   };
 
+  // Resolves the same rowKey used for checkbox selection (msg.tempId || msg.id || i)
+  // back to the actual message objects, for bulk delete/forward.
+  const getSelectedMessages = () => messages
+    .map((m, i) => ({ m, rowKey: m.tempId || m.id || i }))
+    .filter(({ rowKey }) => selectedMsgIds.has(rowKey))
+    .map(({ m }) => m);
+
+  const handleBulkDelete = async (mode) => {
+    const ids = getSelectedMessages().map(m => m.id || m.timestamp);
+    setBulkDeleteConfirm(false);
+    for (const id of ids) {
+      await handleDeleteMessage(id, mode);
+    }
+    exitMsgSelectMode();
+  };
+
+  // Recovers the raw AES media key (base64) for a media message so it can be
+  // re-wrapped for a NEW recipient when forwarding — mirrors the exact same
+  // sender-copy/recipient-copy decrypt branching already used to render this
+  // message the first time (see handleRemoteEdit above for the same pattern).
+  const recoverMediaKeyB64 = (msg) => {
+    if (!msg.nonce || !keyPair) return null;
+    try {
+      if (msg.isMe && msg.senderMessage) {
+        return decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+      }
+      if (!msg.isMe && msg.ephemeralPublicKey) {
+        return decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+      }
+    } catch (e) { console.warn('[Forward] media key recovery failed', e); }
+    return null;
+  };
+
+  // Forwarding always goes through the REST send endpoint (POST /api/chats/send)
+  // regardless of destination type — unlike the socket send paths, it doesn't
+  // require the destination room to be currently joined, which most forward
+  // destinations won't be.
+  const handleForwardSend = async () => {
+    if (selectedForwardChats.length === 0) return;
+    setForwarding(true);
+    const msgsToForward = getSelectedMessages().sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+    let failCount = 0;
+    for (const destKey of selectedForwardChats) {
+      const dest = conversations.find(c => (c.id || c.partner) === destKey);
+      if (!dest) continue;
+      const destType = dest.type === 'room' ? 'room' : 'private';
+      const destPartner = dest.id || dest.partner;
+      let targetPubKey = null;
+      if (destType === 'private') {
+        try {
+          const pkRes = await fetch(`${API}/api/auth/public-key/${destPartner}`);
+          if (pkRes.ok) { const d = await pkRes.json(); targetPubKey = d.publicKey || null; }
+        } catch {}
+      }
+      for (const msg of msgsToForward) {
+        try {
+          const isMedia = !!msg.mediaType && !!msg.mediaUrl;
+          const body = {
+            type: destType,
+            partner: destType === 'room' ? destPartner.toLowerCase() : destPartner,
+            message: null,
+            mediaUrl: isMedia ? msg.mediaUrl : null,
+            mediaType: isMedia ? msg.mediaType : null,
+            mediaFileName: msg.mediaFileName || null,
+            mediaFileSize: msg.mediaFileSize || null,
+            mediaDuration: msg.mediaDuration || null,
+          };
+          if (isMedia) {
+            if (destType === 'private' && targetPubKey && keyPair) {
+              const mediaKeyB64 = recoverMediaKeyB64(msg);
+              if (!mediaKeyB64) { failCount++; continue; }
+              const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(keyPair.publicKey));
+              body.message = enc.ciphertext;
+              body.senderMessage = enc.senderCiphertext;
+              body.nonce = enc.nonce;
+              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+            } else {
+              body.message = '';
+            }
+          } else {
+            const text = msg.decryptedText || msg.message || '';
+            if (destType === 'private' && targetPubKey && keyPair) {
+              const enc = encryptDM(text, targetPubKey, encodeBase64(keyPair.publicKey));
+              body.message = enc.ciphertext;
+              body.senderMessage = enc.senderCiphertext;
+              body.nonce = enc.nonce;
+              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+            } else {
+              body.message = text;
+            }
+          }
+          const resp = await fetch(`${API}/api/chats/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(body)
+          });
+          if (!resp.ok) failCount++;
+        } catch (e) { console.error('[Forward] send failed', e); failCount++; }
+      }
+    }
+    setForwarding(false);
+    setForwardPickerOpen(false);
+    exitMsgSelectMode();
+    if (failCount > 0) toast.error(`${failCount} message(s) could not be forwarded.`);
+    else toast.success('Forwarded');
+  };
+
   const buildMediaItems = (msgs) => msgs.map(m => {
     const mt = m.mediaType || '';
     if (!mt.startsWith('image/') && !mt.startsWith('video/')) return null;
@@ -4739,8 +4889,22 @@ const GlobalChatWidget = forwardRef(({
                     background: 'var(--dropdown-bg)', 
                     border: '1px solid var(--dropdown-border)', 
                     borderRadius: 10, padding: 4, zIndex: 100000, minWidth: 140, 
-                    boxShadow: 'var(--dropdown-shadow)' 
+                    boxShadow: 'var(--dropdown-shadow)'
                   }}>
+                      {/* Desktop-only entry point — hidden below the tablet/mobile breakpoint via
+                          the "desktop-only-menu-item" class (see the @media rule near
+                          .msg-meta-row); touch users instead long-press a message row's empty
+                          side area to enter select mode. */}
+                      <button onClick={() => {
+                        setMsgSelectMode(true);
+                        setSelectedMsgIds(new Set());
+                        setShowChatMenu(false);
+                      }} className="chat-menu-item menu-btn desktop-only-menu-item"
+                      onMouseEnter={() => setHoveredMenuBtn('selectMessages')}
+                      onMouseLeave={() => setHoveredMenuBtn(null)}
+                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='selectMessages' ? 'rgba(99,102,241,0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='selectMessages' ? '#4f46e5' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='selectMessages' ? '#4f46e5' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                        <SquareCheck size={14} color={hoveredMenuBtn==='selectMessages' ? '#4f46e5' : undefined}/> {t('selectMessages', 'Select messages')}
+                      </button>
                       {activeChat.type === 'private' && (
                         <>
                           <button onClick={() => {
@@ -4971,6 +5135,44 @@ const GlobalChatWidget = forwardRef(({
             </button>
           </div>
         </div>
+
+        {/* Message multi-select bar — overlays the normal header while active */}
+        {msgSelectMode && view === 'chat' && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20000,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 20px', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
+            background: transparentMode ? 'rgba(10,10,10,0.92)' : '#0a0a0a',
+            borderBottom: '1px solid rgba(255,255,255,0.06)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button onClick={exitMsgSelectMode} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}>
+                <X size={20} />
+              </button>
+              <span style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--header-text)' }}>
+                {selectedMsgIds.size} {t('selected', 'selected')}
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+              <button
+                onClick={() => { setSelectedForwardChats([]); setForwardPickerOpen(true); }}
+                disabled={selectedMsgIds.size === 0}
+                style={{ background: 'transparent', border: 'none', color: selectedMsgIds.size === 0 ? '#444' : 'var(--header-text)', cursor: selectedMsgIds.size === 0 ? 'default' : 'pointer', display: 'flex' }}
+                title="Forward"
+              >
+                <Forward size={20} />
+              </button>
+              <button
+                onClick={() => setBulkDeleteConfirm(true)}
+                disabled={selectedMsgIds.size === 0}
+                style={{ background: 'transparent', border: 'none', color: selectedMsgIds.size === 0 ? '#444' : '#ef4444', cursor: selectedMsgIds.size === 0 ? 'default' : 'pointer', display: 'flex' }}
+                title="Delete"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -5789,6 +5991,7 @@ const GlobalChatWidget = forwardRef(({
                   const canReport = activeChat?.type === 'room' && !isMe;
                   const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => setReplyToMsg(msg));
                   const longPressHandlers = longPress.getHandlers(rowKey);
+                  const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
                   const gestureHandlers = {
                     // Taps inside the open long-press menu bubble through to
                     // this wrapper's own touchstart (sibling under the same
@@ -5821,7 +6024,24 @@ const GlobalChatWidget = forwardRef(({
                     )}
                     <div
                          id={`gcw-msg-${msg.id || msg.tempId || i}`}
-                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined}}>
+                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined}}
+                         onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
+                         onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
+                         onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>
+                      {/* Multi-select overlay: covers the whole row so a tap anywhere toggles
+                          selection instead of reaching the reaction/menu buttons underneath —
+                          the checkbox itself sits in the row's own empty side (opposite the
+                          bubble), the same zone the long-press gesture above uses to enter this mode. */}
+                      {msgSelectMode && (
+                        <div
+                          onClick={(e) => { e.stopPropagation(); toggleMsgSelect(rowKey); }}
+                          style={{ position:'absolute', inset:0, zIndex:70, cursor:'pointer', display:'flex', alignItems:'center', justifyContent: isMe ? 'flex-start' : 'flex-end', padding: '0 6px' }}
+                        >
+                          {selectedMsgIds.has(rowKey)
+                            ? <SquareCheck size={20} color="#818cf8" fill="rgba(129,140,248,0.15)" />
+                            : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
+                        </div>
+                      )}
                       {msg.replyTo && (
                         <div onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
                           <span style={{color:isMe?'#6366f1':'#a855f7',fontWeight:600}}>{(() => {
@@ -6089,7 +6309,7 @@ const GlobalChatWidget = forwardRef(({
 
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
-                            <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
+                            <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatTime(msg.timestamp)}</span>
                             {isMe && <MessageTick msg={msg} username={myUsername} isLight={isLight} />}
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
@@ -6518,6 +6738,81 @@ const GlobalChatWidget = forwardRef(({
                   <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
                 </button>
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Bulk delete confirmation for multi-selected messages */}
+        {bulkDeleteConfirm && createPortal(
+          <div onMouseDown={e => e.stopPropagation()} className="chat-modal-overlay" style={{position:'fixed',inset:0,zIndex:999999,background: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0, 0, 0, 0.65)',backdropFilter:'blur(12px) saturate(180%)',WebkitBackdropFilter:'blur(12px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center', padding: 20}}>
+            <div className="chat-modal-box" style={{background: isLight ? '#fff' : 'rgba(20, 20, 25, 0.85)', backdropFilter: 'blur(10px)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',borderRadius:32,padding:32,width:'100%',maxWidth:380, boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.8)', animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'}}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(239, 68, 68, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash2 size={22} color="#ef4444" />
+                </div>
+                <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontSize: 24, fontWeight: 900 }}>Delete {selectedMsgIds.size} message{selectedMsgIds.size === 1 ? '' : 's'}?</h3>
+              </div>
+              {(() => {
+                const selected = getSelectedMessages();
+                const allMine = selected.length > 0 && selected.every(m => m.isMe || (m.senderName || m.username || '').toLowerCase() === myUsername?.toLowerCase());
+                return (
+                  <>
+                    <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:24,lineHeight:1.4}}>
+                      {allMine ? 'You can delete these just for you, or unsend them for everyone.' : 'This only removes them from your own view — you can only unsend your own messages.'}
+                    </p>
+                    <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                      {allMine && (
+                        <button onClick={() => handleBulkDelete('global')} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 20px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15}}>
+                          <span className="stay-white" style={{color: '#fff'}}>Unsend for everyone</span>
+                        </button>
+                      )}
+                      <button onClick={() => handleBulkDelete('local')} className="modal-btn-transition" style={{padding:'14px 20px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Delete for me</button>
+                      <button onClick={() => setBulkDeleteConfirm(false)} className="modal-btn-transition" style={{padding:'14px 20px',background:'transparent', border:'none', color: isLight ? '#64748b' : '#888',cursor:'pointer',fontWeight:700, borderRadius: 18, fontSize: 15}}>Cancel</button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Forward picker — pick up to 5 destination chats for the selected messages */}
+        {forwardPickerOpen && createPortal(
+          <div onMouseDown={e => e.stopPropagation()} className="chat-modal-overlay" style={{position:'fixed',inset:0,zIndex:999999,background: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0, 0, 0, 0.65)',backdropFilter:'blur(12px) saturate(180%)',WebkitBackdropFilter:'blur(12px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center', padding: 20}}>
+            <div className="chat-modal-box" style={{background: isLight ? '#fff' : 'rgba(20, 20, 25, 0.85)', backdropFilter: 'blur(10px)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',borderRadius:32,padding:28,width:'100%',maxWidth:400, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.8)', animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'}}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontSize: 20, fontWeight: 900 }}>{t('forwardTo', 'Forward to')}</h3>
+                <button onClick={() => setForwardPickerOpen(false)} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#888',cursor:'pointer',display:'flex'}}><X size={20}/></button>
+              </div>
+              <p style={{color: isLight ? '#64748b' : '#888', fontSize: 13, marginTop: 0, marginBottom: 12}}>Select up to {MAX_FORWARD_CHATS} chats ({selectedForwardChats.length}/{MAX_FORWARD_CHATS})</p>
+              <div style={{flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:4, marginBottom:20}}>
+                {(Array.isArray(conversations) ? conversations : []).map(c => {
+                  const key = c.id || c.partner;
+                  const checked = selectedForwardChats.includes(key);
+                  const disabled = !checked && selectedForwardChats.length >= MAX_FORWARD_CHATS;
+                  return (
+                    <div key={key} onClick={() => {
+                      if (disabled) return;
+                      setSelectedForwardChats(prev => checked ? prev.filter(k => k !== key) : [...prev, key]);
+                    }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, background: checked ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.15)') : 'transparent'}}>
+                      {checked ? <SquareCheck size={20} color="#818cf8" /> : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
+                      <div style={{width:34,height:34,borderRadius:'50%',background:'#6366f1',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
+                        {getAvatarUrl(c.partnerAvatar) ? <img src={getAvatarUrl(c.partnerAvatar)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (c.type === 'room' ? <Users size={16} color="#fff"/> : <User size={16} color="#fff"/>)}
+                      </div>
+                      <span style={{fontSize:14,color: isLight ? '#0f172a' : '#eee',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.displayName || c.partner || c.id}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleForwardSend}
+                disabled={selectedForwardChats.length === 0 || forwarding}
+                className="modal-btn-transition"
+                style={{padding:'14px 20px',background: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', borderRadius:18, color: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#94a3b8' : '#666') : '#fff', cursor: selectedForwardChats.length === 0 || forwarding ? 'default' : 'pointer', fontWeight:800, fontSize:15, display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+                {forwarding ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />} {forwarding ? 'Sending…' : `Send${selectedForwardChats.length ? ` (${selectedForwardChats.length})` : ''}`}
+              </button>
             </div>
           </div>,
           document.body
