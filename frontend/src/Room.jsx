@@ -10129,7 +10129,8 @@ const Room = () => {
                             backdropFilter: 'blur(16px)',
                             display: 'flex', flexDirection: 'column',
                             alignItems: 'center', justifyContent: 'center',
-                            borderRadius: 12, gap: 20
+                            borderRadius: 12, gap: 'clamp(10px, 3vh, 20px)',
+                            padding: '16px', boxSizing: 'border-box', overflowY: 'auto'
                           }}>
                             {isVirtualBrowserUrl(mediaUrl) ? (
                               <>
@@ -10207,6 +10208,7 @@ const Room = () => {
                                   <button
                                     id="open-cloud-browser-btn"
                                     onClick={handleOpenCloudBrowser}
+                                    className="stay-white"
                                     style={{
                                       background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
                                       border: 'none', borderRadius: 14,
@@ -10241,88 +10243,31 @@ const Room = () => {
                         )}
                       </div>
 
-                      {/* --- Smooth Streaming Preparation Overlay (Root of video container for full coverage) --- */}
+                      {/* --- Smooth Streaming Preparation Overlay (Root of video container for full coverage) ---
+                          Deliberately just the loading indicator — no heading/subtitle/cancel button — so it
+                          stays compact and never overflows short mobile viewports. */}
                       {effectiveIsPreparing && (
                         <div style={{
                           position: 'absolute', inset: 0, zIndex: 1200,
                           background: 'radial-gradient(circle at center, rgba(15, 10, 35, 0.98), rgba(5, 5, 15, 1))',
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                           backdropFilter: 'blur(12px)', transition: 'all 0.5s ease',
                           borderRadius: 12
                         }}>
-                          {/* Beautiful Heart Animation */}
-                          <div style={{ position: 'relative', width: 220, height: 220, marginBottom: 40 }}>
-                            {/* Center filled heart icon */}
-                            <div style={{
-                              width: '100%', height: '100%',
-                              background: 'linear-gradient(45deg, #a855f7, #ec4899)',
-                              maskImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'black\'%3E%3Cpath d=\'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z\'/%3E%3C/svg%3E")',
-                              maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center',
-                              WebkitMaskImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'black\'%3E%3Cpath d=\'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z\'/%3E%3C/svg%3E")',
-                              WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center',
-                              animation: 'prepPulse 2s infinite ease-in-out'
-                            }} />
-                            {/* Heart-shaped ripple/wave SVGs propagating outward */}
-                            <svg viewBox="0 0 220 220" style={{
-                              position: 'absolute', inset: 0, width: '100%', height: '100%',
-                              overflow: 'visible', pointerEvents: 'none'
-                            }}>
-                              {/* Wave 1 */}
-                              <path
-                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
-                                fill="none"
-                                stroke="rgba(168,85,247,0.55)"
-                                strokeWidth="2"
-                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '0s', transformOrigin: '110px 115px' }}
-                              />
-                              {/* Wave 2 */}
-                              <path
-                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
-                                fill="none"
-                                stroke="rgba(99,102,241,0.4)"
-                                strokeWidth="2"
-                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '1s', transformOrigin: '110px 115px' }}
-                              />
-                              {/* Wave 3 */}
-                              <path
-                                d="M110 185 C110 185 30 138 30 88 C30 60 50 44 70 44 C87 44 101 54 110 65 C119 54 133 44 150 44 C170 44 190 60 190 88 C190 138 110 185 110 185Z"
-                                fill="none"
-                                stroke="rgba(236,72,153,0.3)"
-                                strokeWidth="2"
-                                style={{ animation: 'heartWave 3s ease-out infinite', animationDelay: '2s', transformOrigin: '110px 115px' }}
-                              />
-                            </svg>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(4px, 1.5vh, 7px)', height: 'clamp(30px, 8vh, 50px)' }}>
+                            {[0, 1, 2, 3, 4].map(i => (
+                              <div key={i} style={{
+                                width: 'clamp(4px, 1.2vh, 7px)', borderRadius: 4,
+                                background: 'linear-gradient(180deg,#a855f7,#ec4899)',
+                                animation: 'prepWaveBar 1s ease-in-out infinite',
+                                animationDelay: `${i * 0.12}s`
+                              }} />
+                            ))}
                           </div>
-
-                          <div style={{ textAlign: 'center', maxWidth: 400 }}>
-                            <h2 style={{ color: '#fff', fontSize: 26, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>Replaying your video...</h2>
-                            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, marginBottom: 24 }}>Just need a few seconds — hang tight! 🎬</p>
-
-                            <button
-                              onClick={handleStopMedia}
-                              className="stay-white"
-                              style={{
-                                display: 'block', margin: '16px auto 0', padding: '10px 24px', borderRadius: 20,
-                                background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444',
-                                border: '1px solid rgba(239, 68, 68, 0.5)', cursor: 'pointer',
-                                fontWeight: 600, transition: 'all 0.2s'
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.4)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-                              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.transform = 'scale(1)'; }}
-                            >
-                              Cancel & Return
-                            </button>
-                          </div>
-                          
                           <style>{`
-                            @keyframes prepPulse {
-                              0%, 100% { transform: scale(1); opacity: 0.85; filter: drop-shadow(0 0 0px #a855f7); }
-                              50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 24px #ec4899) drop-shadow(0 0 8px #a855f7); }
-                            }
-                            @keyframes heartWave {
-                              0%   { transform: scale(0.5);  opacity: 0.9; }
-                              75%  { opacity: 0.2; }
-                              100% { transform: scale(2.5);  opacity: 0; }
+                            @keyframes prepWaveBar {
+                              0%, 100% { height: 30%; opacity: 0.6; }
+                              50% { height: 100%; opacity: 1; }
                             }
                           `}</style>
                         </div>
@@ -10369,6 +10314,7 @@ const Room = () => {
                               <button
                                 onClick={() => handleNavigateHome(mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') ? 'youtube' : (mediaUrl.includes('twitch.tv') ? 'twitch' : 'vimeo'))}
                                 title={`${mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') ? 'YouTube' : (mediaUrl.includes('twitch.tv') ? 'Twitch' : 'Vimeo')} Home`}
+                                className="stay-white"
                                 style={{
                                   pointerEvents: 'auto',
                                   width: 44, height: 44, borderRadius: '50%',

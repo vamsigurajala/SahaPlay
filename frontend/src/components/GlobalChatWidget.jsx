@@ -6105,7 +6105,7 @@ const GlobalChatWidget = forwardRef(({
                          onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                          onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                          onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
-                      <div style={{ position:'absolute', top:0, bottom:0, right: -(timestampPeek.PEEK_WIDTH), width: timestampPeek.PEEK_WIDTH - 8, display:'flex', alignItems:'center', fontSize:11, color: isLight ? '#64748b' : '#94a3b8', pointerEvents:'none', whiteSpace:'nowrap' }}>
+                      <div style={{ position:'absolute', top:0, bottom:0, right: -(timestampPeek.PEEK_WIDTH + 20), width: 60, overflow: 'hidden', display:'flex', alignItems:'center', fontSize:11, color: isLight ? '#64748b' : '#94a3b8', pointerEvents:'none', whiteSpace:'nowrap' }}>
                         {formatTime(msg.timestamp)}
                       </div>
                       {/* Multi-select overlay: covers the whole row so a tap anywhere toggles
