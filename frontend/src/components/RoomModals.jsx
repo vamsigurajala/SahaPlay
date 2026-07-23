@@ -132,7 +132,12 @@ export default function RoomModals({
     return null;
   };
 
-  const chromecastSupported = typeof window !== 'undefined' && 'RemotePlayback' in window;
+  // Embed platforms (YouTube/Twitch/Vimeo/SoundCloud) play inside a cross-origin
+  // iframe with no reachable <video> element, so Remote Playback API genuinely has
+  // nothing to cast — disable the button outright instead of letting the user hit
+  // a generic "no source" error after clicking.
+  const isEmbedPlatformUrl = !!(mediaUrl && /youtube\.com|youtu\.be|twitch\.tv|vimeo\.com|soundcloud\.com/i.test(mediaUrl));
+  const chromecastSupported = typeof window !== 'undefined' && 'RemotePlayback' in window && !isEmbedPlatformUrl;
 
   const handleChromecast = async () => {
     const videoEl = getCastableVideoElement();
@@ -371,7 +376,13 @@ export default function RoomModals({
               <button
                 onClick={handleChromecast}
                 disabled={castConnecting || !chromecastSupported}
-                title={!chromecastSupported ? t('chromecastUnsupported', 'Chromecast requires Google Chrome or Microsoft Edge.') : undefined}
+                title={
+                  isEmbedPlatformUrl
+                    ? t('chromecastNoEmbed', "Chromecast can't cast YouTube, Twitch, Vimeo or SoundCloud directly — it only works for screen share or an uploaded/direct video file.")
+                    : !chromecastSupported
+                      ? t('chromecastUnsupported', 'Chromecast requires Google Chrome or Microsoft Edge.')
+                      : undefined
+                }
                 className={`rm-link-btn${chromecastSupported ? ' stay-white' : ''}`}
                 style={{
                   width: '100%',

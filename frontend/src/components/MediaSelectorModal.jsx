@@ -552,7 +552,8 @@ export default function MediaSelectorModal({
                 }}
               />
             </div>
-            <button 
+            <button
+              className="stay-white"
               onClick={handleUrlSubmit}
               disabled={!customUrl.trim()}
               style={{
