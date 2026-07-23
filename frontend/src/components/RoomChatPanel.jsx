@@ -14,6 +14,7 @@ import {
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
+import { useTimestampPeek } from '../hooks/useTimestampPeek';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import crownImg from '../assets/crown.svg';
@@ -1201,6 +1202,10 @@ export default function RoomChatPanel({ p }) {
   const [msgSelectMode, setMsgSelectMode] = React.useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = React.useState(new Set());
   const rowSelectLongPress = useLongPress();
+  // Instagram-DM-style "swipe left to peek timestamps" — shares the same row
+  // background touch handlers as rowSelectLongPress above (both listen to the
+  // same events independently; dragging left auto-cancels the long-press).
+  const timestampPeek = useTimestampPeek();
   React.useEffect(() => {
     if (rowSelectLongPress.activeId) {
       setMsgSelectMode(true);
@@ -2333,7 +2338,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:12,display:'flex',flexDirection:'column',gap:10}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
@@ -2398,10 +2403,13 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: 'background 0.15s ease'}}
-                     onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
-                     onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
-                     onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                     onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
+                     onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
+                     onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
+                  <div style={{ position:'absolute', top:0, bottom:0, right: -(timestampPeek.PEEK_WIDTH), width: timestampPeek.PEEK_WIDTH - 8, display:'flex', alignItems:'center', fontSize:11, color: isLight ? '#64748b' : '#94a3b8', pointerEvents:'none', whiteSpace:'nowrap' }}>
+                    {formatTime(msg.timestamp)}
+                  </div>
                   {msgSelectMode && (
                     <div
                       onClick={(e) => { e.stopPropagation(); toggleMsgSelect(rowKey); }}
@@ -2495,20 +2503,31 @@ export default function RoomChatPanel({ p }) {
                           maxWidth:'100%',
                           wordBreak:'break-word',
                           transform: `translateX(${rowDragX}px)`,
-                          transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
+                          transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
+                          display: isMediaOnly ? 'block' : 'flex',
+                          flexWrap: 'wrap',
+                          alignItems: 'flex-end',
+                          columnGap: 6
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}>
-                          {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
-                            <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
-                          ) : msg.decryptedText !== null ? (
-                            <MessageText text={msg.decryptedText} isMe={isMe} />
-                          ) : (
-                            (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
-                              <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                          <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                            {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                              <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                            ) : msg.decryptedText !== null ? (
+                              <MessageText text={msg.decryptedText} isMe={isMe} />
                             ) : (
-                              !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
-                            )
+                              (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
+                                <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                              ) : (
+                                !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
+                              )
+                            )}
+                          </div>
+                          {!isMediaOnly && isMe && (
+                            <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingBottom: 1 }}>
+                              <MessageTick msg={msg} username={p.username} isLight={isLight} />
+                            </div>
                           )}
                           {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup)}
 
@@ -2643,7 +2662,7 @@ export default function RoomChatPanel({ p }) {
                         <span style={{flex:1}}></span>
                         {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                         <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
-                        {isMe && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
+                        {isMe && isMediaOnly && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
@@ -2938,7 +2957,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',padding:10,display:'flex',flexDirection:'column',gap:8}}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:10,display:'flex',flexDirection:'column',gap:8}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
@@ -3003,10 +3022,13 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: 'background 0.15s ease'}}
-                           onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
-                           onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
-                           onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                           onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
+                           onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
+                           onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
+                        <div style={{ position:'absolute', top:0, bottom:0, right: -(timestampPeek.PEEK_WIDTH), width: timestampPeek.PEEK_WIDTH - 8, display:'flex', alignItems:'center', fontSize:11, color: isLight ? '#64748b' : '#94a3b8', pointerEvents:'none', whiteSpace:'nowrap' }}>
+                          {formatTime(msg.timestamp)}
+                        </div>
                         {msgSelectMode && (
                           <div
                             onClick={(e) => { e.stopPropagation(); toggleMsgSelect(rowKey); }}
@@ -3066,20 +3088,31 @@ export default function RoomChatPanel({ p }) {
                                 maxWidth:'100%',
                                 wordBreak:'break-word',
                                 transform: `translateX(${rowDragX}px)`,
-                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
+                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
+                                display: isMediaOnly ? 'block' : 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'flex-end',
+                                columnGap: 6
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}>
-                                {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
-                                  <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
-                                ) : msg.decryptedText !== null ? (
-                                  <MessageText text={msg.decryptedText} isMe={isMe} />
-                                ) : (
-                                  (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
-                                    <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                                <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                                  {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                                    <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                  ) : msg.decryptedText !== null ? (
+                                    <MessageText text={msg.decryptedText} isMe={isMe} />
                                   ) : (
-                                    !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
-                                  )
+                                    (!msg.mediaType && (msg.nonce || msg.e2ee || (msg.message && looksLikeCiphertext(msg.message)))) ? (
+                                      <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                                    ) : (
+                                      !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
+                                    )
+                                  )}
+                                </div>
+                                {!isMediaOnly && isMe && (
+                                  <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingBottom: 1 }}>
+                                    <MessageTick msg={msg} username={p.username} isLight={isLight} />
+                                  </div>
                                 )}
                                 {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm)}
                                 
@@ -3211,7 +3244,7 @@ export default function RoomChatPanel({ p }) {
                               <span style={{flex:1}}></span>
                               {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                               <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
-                              {isMe && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
+                              {isMe && isMediaOnly && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                 <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                               )}

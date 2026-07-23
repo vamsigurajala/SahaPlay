@@ -18,6 +18,7 @@ import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
+import { useTimestampPeek } from '../hooks/useTimestampPeek';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
@@ -1552,6 +1553,8 @@ const GlobalChatWidget = forwardRef(({
   const [msgSelectMode, setMsgSelectMode] = useState(false);
   const [selectedMsgIds, setSelectedMsgIds] = useState(new Set());
   const rowSelectLongPress = useLongPress();
+  // Instagram-DM-style "swipe left to peek timestamps" — see useTimestampPeek.js.
+  const timestampPeek = useTimestampPeek();
   useEffect(() => {
     if (rowSelectLongPress.activeId) {
       setMsgSelectMode(true);
@@ -6015,7 +6018,7 @@ const GlobalChatWidget = forwardRef(({
                 }
               }}
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}
+              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}
             >
               {historyLoading && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -6082,10 +6085,13 @@ const GlobalChatWidget = forwardRef(({
                     )}
                     <div
                          id={`gcw-msg-${msg.id || msg.tempId || i}`}
-                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: (showLongPressMenu || activeMessageMenu === msg.id || msgSelectMode) ? 'relative' : undefined, zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: 'background 0.15s ease'}}
-                         onTouchStart={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchStart(e); }}
-                         onTouchMove={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchMove(e); }}
-                         onTouchEnd={(e) => { if (e.target === e.currentTarget) rowSelectHandlers.onTouchEnd(e); }}>
+                         style={{marginTop: i === 0 ? 'auto' : 0, display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                         onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
+                         onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
+                         onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
+                      <div style={{ position:'absolute', top:0, bottom:0, right: -(timestampPeek.PEEK_WIDTH), width: timestampPeek.PEEK_WIDTH - 8, display:'flex', alignItems:'center', fontSize:11, color: isLight ? '#64748b' : '#94a3b8', pointerEvents:'none', whiteSpace:'nowrap' }}>
+                        {formatTime(msg.timestamp)}
+                      </div>
                       {/* Multi-select overlay: covers the whole row so a tap anywhere toggles
                           selection instead of reaching the reaction/menu buttons underneath —
                           the checkbox itself sits in the row's own empty side (opposite the
@@ -6189,19 +6195,30 @@ const GlobalChatWidget = forwardRef(({
                                 maxWidth: '100%',
                                 wordBreak: 'break-word',
                                 transform: `translateX(${rowDragX}px)`,
-                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease')
+                                transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
+                                display: isMediaOnly ? 'block' : 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'flex-end',
+                                columnGap: 6
                               }}
                             >
-                              {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
-                                <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
-                              ) : msg.decryptedText !== null ? (
-                                <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
-                              ) : (
-                                (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (
-                                  <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                              <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                                {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
+                                  <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                ) : msg.decryptedText !== null ? (
+                                  <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
                                 ) : (
-                                  msg.message && !msg.mediaType && <MessageText text={msg.message} isMe={isMe} isLight={isLight} />
-                                )
+                                  (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (
+                                    <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
+                                  ) : (
+                                    msg.message && !msg.mediaType && <MessageText text={msg.message} isMe={isMe} isLight={isLight} />
+                                  )
+                                )}
+                              </div>
+                              {!isMediaOnly && isMe && (
+                                <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', marginLeft: 'auto', paddingBottom: 1 }}>
+                                  <MessageTick msg={msg} username={myUsername} isLight={isLight} />
+                                </div>
                               )}
                               {(() => {
                                 const msgKey = String(msg.id || msg.timestamp);
@@ -6368,7 +6385,7 @@ const GlobalChatWidget = forwardRef(({
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatTime(msg.timestamp)}</span>
-                            {isMe && <MessageTick msg={msg} username={myUsername} isLight={isLight} />}
+                            {isMe && isMediaOnly && <MessageTick msg={msg} username={myUsername} isLight={isLight} />}
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
                               <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
