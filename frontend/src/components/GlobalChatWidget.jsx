@@ -1066,6 +1066,23 @@ const getEffectiveSeenBy = (messages, username) => {
   return messageSeenByMap;
 };
 
+// WhatsApp-style tick status for a message *I* sent: 'read' (someone else's seenBy
+// entry exists — blue), 'delivered' (delivered_at was recorded — grey double-check),
+// or 'sent' (neither yet — single grey check). Mirrors RoomChatPanel.jsx's helper.
+const getTickStatus = (msg, username) => {
+  const seenByOthers = (msg.seenBy || []).some(r => r.username.toLowerCase() !== (username || '').toLowerCase());
+  if (seenByOthers) return 'read';
+  if (msg.deliveredAt) return 'delivered';
+  return 'sent';
+};
+
+const MessageTick = ({ msg, username, isLight }) => {
+  const status = getTickStatus(msg, username);
+  const greyColor = isLight ? 'rgba(0,0,0,0.4)' : '#8696a0';
+  if (status === 'read') return <CheckCheck size={13} color="#34b7f1" style={{ flexShrink: 0 }} />;
+  if (status === 'delivered') return <CheckCheck size={13} color={greyColor} style={{ flexShrink: 0 }} />;
+  return <Check size={13} color={greyColor} style={{ flexShrink: 0 }} />;
+};
 
 // â”€â”€ Media Lightbox â”€â”€
 function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
@@ -2253,7 +2270,11 @@ const GlobalChatWidget = forwardRef(({
     sock.on('chat:message_edited', handleRemoteEdit);
     sock.on('message:edited', handleRemoteEdit);
 
-
+    // Delivered-tick catch-up: a DM recipient who was offline at send time just
+    // reconnected — flip that message's tick from single to double-grey live.
+    sock.on('message:delivered', ({ messageId, deliveredAt }) => {
+      setMessages(prev => prev.map(m => (flexibleMatch(messageId, m) ? { ...m, deliveredAt } : m)));
+    });
 
     sock.on('chat:typing', (data) => {
       // Handle both formats: explicit isTyping flag or implicit start
@@ -6069,6 +6090,7 @@ const GlobalChatWidget = forwardRef(({
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
+                            {isMe && <MessageTick msg={msg} username={myUsername} isLight={isLight} />}
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
                               <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>

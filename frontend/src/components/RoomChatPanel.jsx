@@ -1018,6 +1018,24 @@ const getEffectiveSeenBy = (messages, username) => {
   return messageSeenByMap;
 };
 
+// WhatsApp-style tick status for a message *I* sent: 'read' (someone else's seenBy
+// entry exists — blue), 'delivered' (delivered_at was recorded — grey double-check),
+// or 'sent' (neither yet — single grey check).
+const getTickStatus = (msg, username) => {
+  const seenByOthers = (msg.seenBy || []).some(r => r.username.toLowerCase() !== (username || '').toLowerCase());
+  if (seenByOthers) return 'read';
+  if (msg.deliveredAt) return 'delivered';
+  return 'sent';
+};
+
+const MessageTick = ({ msg, username, isLight }) => {
+  const status = getTickStatus(msg, username);
+  const greyColor = isLight ? 'rgba(0,0,0,0.4)' : '#8696a0';
+  if (status === 'read') return <CheckCheck size={13} color="#34b7f1" style={{ flexShrink: 0 }} />;
+  if (status === 'delivered') return <CheckCheck size={13} color={greyColor} style={{ flexShrink: 0 }} />;
+  return <Check size={13} color={greyColor} style={{ flexShrink: 0 }} />;
+};
+
 export default function RoomChatPanel({ p }) {
   const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(p.messagesEndRef);
   
@@ -2499,6 +2517,7 @@ export default function RoomChatPanel({ p }) {
                         <span style={{flex:1}}></span>
                         {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                         <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
+                        {isMe && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
@@ -3049,6 +3068,7 @@ export default function RoomChatPanel({ p }) {
                               <span style={{flex:1}}></span>
                               {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                               <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
+                              {isMe && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                 <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                               )}

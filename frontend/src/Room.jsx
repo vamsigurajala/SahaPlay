@@ -4081,6 +4081,24 @@ const Room = () => {
       toast.error(error || 'Could not edit this message.');
     });
 
+    // Delivered-tick catch-up: a DM recipient who was offline at send time just
+    // reconnected — flip that message's tick from single to double-grey live.
+    sock.on('message:delivered', ({ messageId, deliveredAt }) => {
+      const idStr = String(messageId);
+      setGroupMessages(prev => {
+        const next = prev.map(m => (String(m.id) === idStr ? { ...m, deliveredAt } : m));
+        groupMessagesRef.current = next;
+        return next;
+      });
+      setDmThreads(prev => {
+        const next = { ...prev };
+        for (const user in next) {
+          next[user] = next[user].map(m => (String(m.id) === idStr ? { ...m, deliveredAt } : m));
+        }
+        return next;
+      });
+    });
+
     sock.on('private_message', msg => {
       const isMine = msg.isMe || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
       const otherName = isMine ? msg.targetName : msg.senderName;

@@ -738,6 +738,24 @@ function emitToUser(username, event, data) {
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
 
+// WhatsApp-style delivery ticks: a message is "delivered" the instant at least one
+// other participant was reachable. For a DM that's just "is the target online right
+// now" (connectedSockets). For a group, check the room's live socket set for anyone
+// other than the sender — no new infra needed, this is a point-in-time snapshot taken
+// right before the INSERT at every send path.
+function computeInitialDeliveredAt({ isDm, targetName, roomId, senderUsername }) {
+  if (isDm) {
+    return connectedSockets.has((targetName || '').toLowerCase()) ? Date.now() : null;
+  }
+  const sids = io.sockets.adapter.rooms.get(roomId);
+  if (!sids) return null;
+  for (const sid of sids) {
+    const s = io.sockets.sockets.get(sid);
+    if (s?.username && s.username.toLowerCase() !== (senderUsername || '').toLowerCase()) return Date.now();
+  }
+  return null;
+}
+
 function getRoomIdForChat(chatId, username, isDm) {
   return new Promise((resolve) => {
     if (!chatId) {
@@ -1084,6 +1102,12 @@ const migrationsReady = (async () => {
   });
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at BIGINT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] edited_at:', e.message);
+  });
+  // delivered_at: WhatsApp-style delivery ticks — epoch-ms recorded the moment at
+  // least one other participant (DM target, or any other room member) was reachable,
+  // either at send time or via the connect-time DM backfill. NULL = not yet delivered.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at BIGINT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] delivered_at:', e.message);
   });
   await pool.query(`
     CREATE TABLE IF NOT EXISTS message_seen (
@@ -3682,7 +3706,8 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
-          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
+          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null,
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         }));
       const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
       const seenMap = {};
@@ -3762,7 +3787,8 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           mediaExpiresAt: r.media_expires_at || null,
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
-          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null
+          replyTo: r.replyTo ? JSON.parse(r.replyTo) : null,
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         };
       });
       const msgIds = mapped.map(r => Number(r.id)).filter(Boolean);
@@ -3937,11 +3963,12 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       const dmUsers = [username, partner].sort();
       const roomId = 'dm-' + dmUsers.join('-');
+      const deliveredAt = computeInitialDeliveredAt({ isDm: true, targetName: partner, senderUsername: username });
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -3949,7 +3976,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          nonce || null, ephemeralPublicKey || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
-         mediaDuration ? Number(mediaDuration) : null]
+         mediaDuration ? Number(mediaDuration) : null,
+         deliveredAt]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -3979,7 +4007,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         tempId: tempId || null,
         nonce: nonce || null,
         ephemeralPublicKey: ephemeralPublicKey || null,
-        seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }]
+        seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }],
+        deliveredAt
       };
 
       emitToUser(partner, 'private_message', payload);
@@ -4021,10 +4050,11 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       // Store: ephemeralPublicKey column = JSON key-map {username: keyWrap, ...}
       // The sender's own publicKey is fetched from users table on history read
       const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
+      const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId: partner, senderUsername: username });
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
@@ -4032,7 +4062,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          ephemText || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
-         mediaDuration ? Number(mediaDuration) : null]
+         mediaDuration ? Number(mediaDuration) : null,
+         deliveredAt]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
@@ -4065,6 +4096,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         tempId: tempId || null,
         nonce: nonce || null,
         e2ee: e2eeBroadcast,
+        deliveredAt,
       };
 
       const ioRoom = rooms.get(partner);
@@ -5812,6 +5844,25 @@ io.on('connection', (socket) => {
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
 
+  // Delivered-tick catch-up: this user just came online — flip any of their pending
+  // DM messages (sent while they were offline) from single to double-grey tick, live,
+  // without them needing to open the chat first (that's what flips seenBy → blue).
+  // Scoped to DMs only — group chat self-heals via the "seen implies delivered" rule
+  // on the frontend, since enumerating a user's room memberships isn't cleanly
+  // available here.
+  if (socket.username) {
+    pool.query(
+      `UPDATE messages SET delivered_at = $1
+       WHERE delivered_at IS NULL AND type = 'private' AND LOWER("targetName") = LOWER($2)
+       RETURNING id, "senderName", timestamp`,
+      [Date.now(), socket.username]
+    ).then(result => {
+      result.rows.forEach(row => {
+        emitToUser(row.senderName, 'message:delivered', { messageId: String(row.id), deliveredAt: Date.now() });
+      });
+    }).catch(err => console.error('[connect] delivered backfill error:', err.message));
+  }
+
   socket.on('admin:join', () => {
     if (!socket.username) return;
     db.get('SELECT role FROM users WHERE username = ?', [socket.username], (err, row) => {
@@ -6179,7 +6230,8 @@ io.on('connection', (socket) => {
           mediaFileSize: r.media_file_size || null,
           mediaExpiresAt: r.media_expires_at || null,
           mediaDuration: r.media_duration || null,
-          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null
+          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         }));
         // Merge any in-memory messages not yet reflected in DB
         // (covers the window between push() and INSERT commit, or INSERT failures)
@@ -6266,7 +6318,8 @@ io.on('connection', (socket) => {
               mediaDuration: row.media_duration || null,
               reactions: (() => { try { return row.reactions ? JSON.parse(row.reactions) : {}; } catch { return {}; } })(),
               replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null,
-              seenBy: seenMap[row.id.toString()] || []
+              seenBy: seenMap[row.id.toString()] || [],
+              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
             });
           });
           targetSocket.emit('chat_history_dm', dmHistory);
@@ -6553,7 +6606,8 @@ io.on('connection', (socket) => {
             mediaDuration: row.media_duration || null,
             reactions: row.reactions ? JSON.parse(row.reactions) : {},
             replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
-            seenBy: seenMap[row.id.toString()] || []
+            seenBy: seenMap[row.id.toString()] || [],
+            deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
           };
         });
 
@@ -6666,7 +6720,8 @@ io.on('connection', (socket) => {
           mediaFileSize: r.media_file_size || null,
           mediaExpiresAt: r.media_expires_at || null,
           mediaDuration: r.media_duration || null,
-          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null
+          replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         }));
 
         socket.emit('chat_history_more', { roomId, messages: history, before });
@@ -6747,6 +6802,7 @@ io.on('connection', (socket) => {
     }
 
     const ts = Date.now();
+    const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId, senderUsername: username });
     const msg = {
       id: `${socket.id}-${ts}`,
       userId: socket.id,
@@ -6763,7 +6819,8 @@ io.on('connection', (socket) => {
       tempId: tempId || null,
       type: 'group',
       roomId: roomId,
-      e2ee: e2ee || null
+      e2ee: e2ee || null,
+      deliveredAt
     };
     room.groupMessages.push(msg);
     if (room.groupMessages.length > 200) room.groupMessages.shift();
@@ -6781,8 +6838,8 @@ io.on('connection', (socket) => {
       `INSERT INTO messages (
         "roomId", type, "senderId", "senderName", message, timestamp,
         "replyTo", "mediaUrl", "mediaType", nonce, "ephemeralPublicKey",
-        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key, delivered_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
       [
         roomId, 'group', socket.id, socket.username, safeMessage, msg.timestamp,
         safeReplyTo ? JSON.stringify(safeReplyTo) : null,
@@ -6790,7 +6847,8 @@ io.on('connection', (socket) => {
         mediaFileName || null, mediaFileSize || null,
         groupSocketExpiry ? groupSocketExpiry.toISOString() : null,
         mediaDuration ? Number(mediaDuration) : null,
-        senderPubKeyText
+        senderPubKeyText,
+        deliveredAt
       ]
     ).then(res => {
         const dbId = res.rows?.[0]?.id;
@@ -7419,11 +7477,13 @@ io.on('connection', (socket) => {
     };
     const users = [socket.username.toLowerCase(), targetName.toLowerCase()].sort();
     const dmRoomId = 'dm-' + users.join('-');
+    const deliveredAt = computeInitialDeliveredAt({ isDm: true, targetName, senderUsername: socket.username });
+    payload.deliveredAt = deliveredAt;
 
     const dmSocketExpiry = payload.mediaUrl ? computeMediaExpiry(payload.mediaType) : null;
     payload.mediaExpiresAt = dmSocketExpiry ? dmSocketExpiry.toISOString() : null;
-    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType, media_file_name, media_file_size, media_expires_at, media_duration) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, finalMessage, finalSenderMessage, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null, mediaFileName || null, mediaFileSize || null, dmSocketExpiry || null, mediaDuration ? Number(mediaDuration) : null], function(err) {
+    db.run(`INSERT INTO messages (roomId, type, senderId, senderName, targetId, targetName, message, senderMessage, nonce, ephemeralPublicKey, timestamp, replyTo, mediaUrl, mediaType, media_file_name, media_file_size, media_expires_at, media_duration, delivered_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+      [dmRoomId, 'private', socket.id, socket.username, 'dm', targetName, finalMessage, finalSenderMessage, nonce, ephemeralPublicKey || null, timestamp, replyTo ? JSON.stringify(replyTo) : null, mediaUrl || null, mediaType || null, mediaFileName || null, mediaFileSize || null, dmSocketExpiry || null, mediaDuration ? Number(mediaDuration) : null, deliveredAt], function(err) {
         if (err) { console.error('Error saving private message:', err); return; }
         const dbId = this.lastID;
         if (dbId) {
@@ -7525,9 +7585,10 @@ io.on('connection', (socket) => {
               mediaFileName: row.media_file_name || null, mediaFileSize: row.media_file_size || null,
               mediaExpiresAt: row.media_expires_at || null,
               mediaDuration: row.media_duration || null,
-              reactions: row.reactions ? JSON.parse(row.reactions) : {}, 
+              reactions: row.reactions ? JSON.parse(row.reactions) : {},
               replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
-              seenBy: seenMap[row.id.toString()] || []
+              seenBy: seenMap[row.id.toString()] || [],
+              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
             });
           });
         }
