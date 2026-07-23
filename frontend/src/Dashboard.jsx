@@ -1,88 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, Pin, Hash, Users } from 'lucide-react';
+import { Play, ArrowRight } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
-import { getRoomThumbnailUrl } from './utils/avatarUtils';
-import { API } from './lib/api';
 
-const getCategoryLabel = (id, t) => {
-  const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
-  const keyMap = { movies: 'catMovies', anime: 'catAnime', songs: 'catMusic', gaming: 'catGaming', sports: 'catSports', other: 'catOther' };
-  const defaultMap = { movies: 'Movies', anime: 'Anime', songs: 'Music', gaming: 'Gaming', sports: 'Sports', other: 'Other' };
-  return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
-};
-
-// Minimal, functional-first landing view for the Tauri desktop app — reuses the
-// same Create Room / Join Room / Pinned Rooms pieces as Home.jsx, but skips the
-// marketing hero copy, animated mockup, chat demo, platform showcase and FAQ
-// that make sense for a public website but not for an already-installed app.
+// Minimal, functional-first landing view for the Tauri desktop app. Pinned
+// Rooms and Public Rooms are their own pages now (linked from the desktop
+// Navbar) — this view is just the single focal action: start or join a room.
 const Dashboard = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [roomId, setRoomId] = useState('');
-  const token = localStorage.getItem('watch_token');
   const loggedInUsername = localStorage.getItem('watch_username');
+  const token = localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
-  const [pinnedRooms, setPinnedRooms] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const fetchRooms = useCallback(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      if (stored.length > 0) {
-        fetch(`${API}/api/rooms/info?ids=${stored.slice(0, 6).join(',')}`)
-          .then(r => r.json())
-          .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
-          .catch(() => { });
-      } else {
-        setPinnedRooms([]);
-      }
-    } catch (e) { }
-  }, []);
-
-  useEffect(() => {
-    fetchRooms();
-    window.addEventListener('focus', fetchRooms);
-    return () => window.removeEventListener('focus', fetchRooms);
-  }, [fetchRooms]);
-
-  useEffect(() => {
-    if (isGuest || !token || token === 'null' || token === 'undefined') return;
-    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (data.pinnedRooms) {
-          try {
-            const arr = JSON.parse(data.pinnedRooms);
-            localStorage.setItem('pinned_rooms', JSON.stringify(arr));
-            fetchRooms();
-          } catch (e) { }
-        }
-      })
-      .catch(() => { });
-  }, [token, isGuest, fetchRooms]);
-
-  const handleUnpin = async (e, id) => {
-    e.stopPropagation();
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      const updated = stored.filter(r => r !== id);
-      localStorage.setItem('pinned_rooms', JSON.stringify(updated));
-      if (token && !isGuest) {
-        await fetch(`${API}/api/profile/pinned-rooms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ pinnedRooms: updated }),
-        });
-      }
-      toast.success('Room unpinned');
-      fetchRooms();
-    } catch (err) { }
-  };
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -98,124 +33,89 @@ const Dashboard = () => {
     setShowCreateModal(true);
   };
 
+  const displayName = loggedInUsername && loggedInUsername.toLowerCase().startsWith('guest_')
+    ? loggedInUsername.slice(6)
+    : loggedInUsername;
+
   return (
-    <div className="page-enter" style={{ minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Toaster position="top-center" />
       <style>{`
+        @keyframes dashOrbFloat1 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          50%      { transform: translate(30px,-24px) scale(1.06); }
+        }
+        @keyframes dashOrbFloat2 {
+          0%,100% { transform: translate(0px,0px) scale(1); }
+          50%      { transform: translate(-28px,22px) scale(1.08); }
+        }
+        .dash-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; }
+        .dash-orb-1 { width:520px;height:520px; background:radial-gradient(circle,rgba(99,102,241,0.35),transparent 70%); top:-180px;left:-140px; animation:dashOrbFloat1 20s ease-in-out infinite; }
+        .dash-orb-2 { width:420px;height:420px; background:radial-gradient(circle,rgba(168,85,247,0.3),transparent 70%); bottom:-160px;right:-120px; animation:dashOrbFloat2 24s ease-in-out infinite; }
+        html[data-theme='light'] .dash-orb { opacity:0.12; }
+
+        .dash-badge { display:inline-flex;align-items:center;gap:8px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:999px;padding:6px 16px;margin-bottom:24px;font-size:13px;color:#818cf8;font-weight:600; }
+        html[data-theme='light'] .dash-badge { background:#fff;border-color:rgba(0,0,0,0.1);color:#4f46e5;box-shadow:0 4px 12px rgba(0,0,0,0.06);font-weight:700; }
+
         .dash-title { color:#fff; }
         html[data-theme='light'] .dash-title { color:#0f172a !important; }
-        .dash-join-form { display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden; }
-        .dash-join-btn { border:none;padding:16px 22px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.2s;background:rgba(99,102,241,0.2);color:#a5b4fc; }
-        .dash-join-btn:hover { background:rgba(99,102,241,0.35); }
-        html[data-theme='light'] .dash-join-form { background:#fff;border-color:rgba(0,0,0,0.1);box-shadow:0 2px 12px rgba(0,0,0,0.06); }
-        html[data-theme='light'] .dash-join-btn { background:#f1f5f9 !important;color:#4f46e5 !important; }
-        html[data-theme='light'] .dash-join-btn:hover { background:#e2e8f0 !important; }
-        .dash-join-input { background:transparent;border:none;outline:none;padding:16px 20px;font-size:15px;width:220px;color:#fff; }
+        .dash-sub { color:#94a3b8; }
+        html[data-theme='light'] .dash-sub { color:#475569 !important; }
+
+        .dash-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:24px; padding:36px; backdrop-filter:blur(20px); box-shadow:0 20px 60px rgba(0,0,0,0.35); }
+        html[data-theme='light'] .dash-card { background:#fff; border-color:rgba(0,0,0,0.06); box-shadow:0 20px 50px rgba(0,0,0,0.08); }
+
+        .dash-join-form { display:flex;align-items:center;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden; }
+        html[data-theme='light'] .dash-join-form { background:#f8fafc;border-color:rgba(0,0,0,0.08); }
+        .dash-join-input { flex:1;background:transparent;border:none;outline:none;padding:16px 20px;font-size:15px;color:#fff; }
         html[data-theme='light'] .dash-join-input { color:#111 !important; }
-        .dash-link-btn { background:none;border:none;color:#a855f7;cursor:pointer;font-weight:600;padding:0 4px;font-size:14px;text-decoration:none;transition:color 0.2s; }
-        .dash-link-btn:hover { text-decoration:underline; }
-        html[data-theme='light'] .dash-link-btn { color:#4f46e5 !important; }
+        .dash-join-btn { border:none;padding:16px 22px;font-weight:700;font-size:14px;cursor:pointer;transition:background 0.2s;background:rgba(99,102,241,0.18);color:#a5b4fc;display:flex;align-items:center;gap:6px; }
+        .dash-join-btn:hover { background:rgba(99,102,241,0.32); }
+        html[data-theme='light'] .dash-join-btn { background:#eef2ff !important;color:#4f46e5 !important; }
+        html[data-theme='light'] .dash-join-btn:hover { background:#e0e7ff !important; }
 
-        .section-heading { font-size:24px;font-weight:800;margin:0;color:#fff; }
-        html[data-theme='light'] .section-heading { color:#000 !important; }
-        .section-icon-badge { width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;color:#a0aab2; }
-        html[data-theme='light'] .section-icon-badge { background:#fff;border-color:rgba(0,0,0,0.1);color:#111;box-shadow:0 2px 8px rgba(0,0,0,0.05); }
-
-        .pinned-grid { display:grid;grid-template-columns:repeat(3, 1fr);gap:20px; }
-        .pinned-card { border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
-        .pinned-card:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.5);border-color:rgba(99,102,241,0.5); }
-        .img-layer { height:130px;position:relative;overflow:hidden; }
-        .pinned-img { width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease; }
-        .pinned-card:hover .pinned-img { transform:scale(1.08); }
-        .cat-badge { position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0.5px;z-index:10; }
-        html[data-theme='light'] .cat-badge { color:#ffffff !important; background:rgba(0,0,0,0.6) !important; }
-        .unpin-btn { position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);color:#fff;width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);z-index:10; }
-        .unpin-btn:hover { background:rgba(239,68,68,0.2);color:#ef4444;border-color:rgba(239,68,68,0.4);box-shadow:0 0 20px rgba(239,68,68,0.3);transform:scale(1.1); }
-        .unpin-btn .unpin-icon { transition:fill 0.3s ease;fill:none; }
-        .unpin-btn:hover .unpin-icon { fill:currentColor; }
-        .footer-layer { background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(168,85,247,0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
-        html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
-        html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
-        html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:#4f46e5 !important;color:#4f46e5 !important; }
-        .join-btn { background:linear-gradient(135deg,#6366f1,#a855f7);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
-        .pinned-card:hover .join-btn { transform:translateY(-2px); }
-        html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
-        html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(99,102,241,0.08);box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 16px -6px rgba(0, 0, 0, 0.03); }
-        html[data-theme='light'] .pinned-card:hover { border-color:#6366f1;box-shadow:0 20px 35px -5px rgba(99, 102, 241, 0.18), 0 10px 20px -10px rgba(0, 0, 0, 0.06); }
-
-        @media(max-width:640px){
-          .dash-header-row{ flex-direction:column !important;align-items:stretch !important;text-align:center !important; }
-          .dash-join-form{ flex-direction:column !important; border-radius:12px !important; }
-          .dash-join-input{ width:100% !important; padding:14px 16px !important; border-bottom:1px solid rgba(255,255,255,0.08); }
-          .dash-join-btn{ width:100% !important; padding:14px !important; justify-content:center !important; text-align:center; }
-          .pinned-grid{ grid-template-columns:repeat(2, 1fr) !important; gap:12px !important; }
+        @media (max-width: 560px) {
+          .dash-join-form { flex-direction:column;border-radius:12px; }
+          .dash-join-input { width:100%;padding:14px 16px; }
+          .dash-join-btn { width:100%;justify-content:center;padding:14px; }
         }
       `}</style>
 
-      <CreateRoomModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} loggedInUsername={loggedInUsername} />
       <Navbar />
 
-      <section style={{ padding: '48px 40px 40px' }}>
-        <div className="dash-header-row" style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-          <h1 className="dash-title" style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>
-            {t('welcomeBack', 'Welcome back{{name}}', { name: loggedInUsername ? `, ${loggedInUsername}` : '' })}
+      <div className="dash-orb dash-orb-1" />
+      <div className="dash-orb dash-orb-2" />
+
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative', zIndex: 1 }}>
+        <div style={{ width: '100%', maxWidth: 520, textAlign: 'center' }}>
+          <div className="dash-badge">
+            <Play size={13} fill="currentColor" /> {t('appName', 'SahaPlay')}
+          </div>
+          <h1 className="dash-title" style={{ fontSize: 'clamp(28px,4vw,38px)', fontWeight: 900, lineHeight: 1.15, margin: '0 0 12px', letterSpacing: '-1px' }}>
+            {t('welcomeBack', 'Welcome back{{name}}', { name: displayName ? `, ${displayName}` : '' })}
           </h1>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+          <p className="dash-sub" style={{ fontSize: 16, lineHeight: 1.6, margin: '0 0 32px' }}>
+            {t('dashSubtitle', 'Start a new watch party or jump into one with a Room ID.')}
+          </p>
+
+          <div className="dash-card">
             <button onClick={createRoom} className="create-room-hero-btn stay-white"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '14px 26px', fontSize: 15, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.45)'; }}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '17px 24px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', marginBottom: 16 }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(168,85,247,0.45)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
             >
-              <Play size={17} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
+              <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
             </button>
+
             <form onSubmit={handleJoin} className="dash-join-form">
               <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="dash-join-input" />
-              <button type="submit" className="dash-join-btn">{t('join', 'Join')}</button>
+              <button type="submit" className="dash-join-btn">{t('join', 'Join')} <ArrowRight size={14} /></button>
             </form>
           </div>
         </div>
-        <div style={{ maxWidth: 1100, margin: '16px auto 0', textAlign: 'center' }}>
-          <span className="dash-link-btn" style={{ cursor: 'pointer' }} onClick={() => navigate('/public')}>{t('browsePublicRooms', 'Browse public rooms')}</span>
-        </div>
-      </section>
+      </div>
 
-      {pinnedRooms && pinnedRooms.length > 0 && (
-        <section className="pinned-rooms-section" style={{ padding: '0 40px 60px' }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-              <div className="section-icon-badge"><Pin size={18} /></div>
-              <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
-            </div>
-            <div className="pinned-grid">
-              {pinnedRooms.slice(0, 6).map(room => (
-                <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
-                  <div className="img-layer">
-                    <img src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`} alt={t('roomCover', 'Room Cover')} className="pinned-img" />
-                    <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
-                    <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title="Unpin Room">
-                      <Pin className="unpin-icon" size={16} />
-                    </button>
-                  </div>
-                  <div className="footer-layer">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, letterSpacing: '0.5px', color: '#6b7280' }}>
-                        <Hash size={10} /> {room.id}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: 8, color: '#10b981', fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <Users size={12} /> {room.userCount}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{room.name}</h3>
-                      <button className="join-btn">{t('join', 'Join')}</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+      <CreateRoomModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} loggedInUsername={loggedInUsername} />
     </div>
   );
 };

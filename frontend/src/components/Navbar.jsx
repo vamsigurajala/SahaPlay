@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download } from 'lucide-react';
+import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
 import { clearUserSession } from '../lib/authUtils.js';
@@ -13,8 +13,10 @@ import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
+import { isTauriApp } from '../lib/platform';
 
 const Navbar = () => {
+  const isDesktopApp = isTauriApp();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -597,10 +599,19 @@ const Navbar = () => {
 
             {/* Center: Nav Links */}
             <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>{t('home', 'Home')}</button>
-              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
-              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
-              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
+              {isDesktopApp ? (
+                <>
+                  <button className={`nav-link-btn${location.pathname === '/pinned-rooms' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/pinned-rooms')}>{t('pinnedRooms', 'Pinned Rooms')}</button>
+                  <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('publicRooms', 'Public Rooms')}</button>
+                </>
+              ) : (
+                <>
+                  <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/')}>{t('home', 'Home')}</button>
+                  <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/features')}>{t('features', 'Features')}</button>
+                  <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/how-it-works')}>{t('howItWorks', 'Guide')}</button>
+                  <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ padding: '8px 16px' }} onClick={() => navigate('/public')}>{t('explore', 'Explore')}</button>
+                </>
+              )}
             </div>
 
             {/* Right: Actions */}
@@ -785,15 +796,17 @@ const Navbar = () => {
                             </div>
                             {t('contactSupport', 'Contact Support')}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Download size={16} color="#38bdf8" />
-                            </div>
-                            {t('getDesktopApp', 'Get Desktop App')}
-                          </button>
+                          {!isDesktopApp && (
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Download size={16} color="#38bdf8" />
+                              </div>
+                              {t('getDesktopApp', 'Get Desktop App')}
+                            </button>
+                          )}
                           {isAdminRole && (
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
@@ -854,15 +867,17 @@ const Navbar = () => {
                               </div>
                               {t('app', 'App')}
                             </button>
-                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >
-                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Download size={16} color="#38bdf8" />
-                              </div>
-                              {t('getDesktopApp', 'Get Desktop App')}
-                            </button>
+                            {!isDesktopApp && (
+                              <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(56,189,248,0.1)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                              >
+                                <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(56,189,248,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Download size={16} color="#38bdf8" />
+                                </div>
+                                {t('getDesktopApp', 'Get Desktop App')}
+                              </button>
+                            )}
                             <div className="profile-divider" style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); clearUserSession(); navigate('/login'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
@@ -934,22 +949,37 @@ const Navbar = () => {
 
             {/* Drawer Nav Links */}
             <div style={{ padding: '8px', flex: 1 }}>
-              <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/')}>
-                <Home size={16} />
-                {t('home', 'Home')}
-              </button>
-              <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/features')}>
-                <Sparkles size={16} />
-                {t('features', 'Features')}
-              </button>
-              <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/how-it-works')}>
-                <HelpCircle size={16} />
-                {t('howItWorks', 'Guide')}
-              </button>
-              <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/public')}>
-                <Compass size={16} />
-                {t('explore', 'Explore')}
-              </button>
+              {isDesktopApp ? (
+                <>
+                  <button className={`nav-link-btn${location.pathname === '/pinned-rooms' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/pinned-rooms')}>
+                    <Pin size={16} />
+                    {t('pinnedRooms', 'Pinned Rooms')}
+                  </button>
+                  <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/public')}>
+                    <Compass size={16} />
+                    {t('publicRooms', 'Public Rooms')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className={`nav-link-btn${location.pathname === '/' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/')}>
+                    <Home size={16} />
+                    {t('home', 'Home')}
+                  </button>
+                  <button className={`nav-link-btn${location.pathname === '/features' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/features')}>
+                    <Sparkles size={16} />
+                    {t('features', 'Features')}
+                  </button>
+                  <button className={`nav-link-btn${location.pathname === '/how-it-works' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/how-it-works')}>
+                    <HelpCircle size={16} />
+                    {t('howItWorks', 'Guide')}
+                  </button>
+                  <button className={`nav-link-btn${location.pathname === '/public' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/public')}>
+                    <Compass size={16} />
+                    {t('explore', 'Explore')}
+                  </button>
+                </>
+              )}
 
               <div style={{ height: '1px', background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)', margin: '6px 0' }} />
 
@@ -970,10 +1000,12 @@ const Navbar = () => {
                     {t('contactSupport', 'Contact Support')}
                   </button>
 
-                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}>
-                    <Download size={16} />
-                    {t('getDesktopApp', 'Get Desktop App')}
-                  </button>
+                  {!isDesktopApp && (
+                    <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}>
+                      <Download size={16} />
+                      {t('getDesktopApp', 'Get Desktop App')}
+                    </button>
+                  )}
 
                   {isAdminRole && (
                     <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/admin')}>

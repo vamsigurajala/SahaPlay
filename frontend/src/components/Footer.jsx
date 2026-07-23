@@ -4,11 +4,17 @@ import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import { FaWhatsapp, FaTelegramPlane } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
+import { isTauriApp } from '../lib/platform';
 
 const Footer = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const [hoveredSocial, setHoveredSocial] = useState(null);
+
+  // The desktop app has no use for the marketing/legal footer (Product links,
+  // social handles, language picker for a marketing site) — it's already an
+  // installed app, not a page someone's deciding whether to sign up from.
+  if (isTauriApp()) return null;
 
   const languageNames = {
     en: 'English (International)',

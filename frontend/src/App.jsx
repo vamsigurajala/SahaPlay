@@ -15,6 +15,7 @@ const Verify = lazy(() => import('./Verify'));
 const ForgotPassword = lazy(() => import('./ForgotPassword'));
 const ResetPassword = lazy(() => import('./ResetPassword'));
 const PublicRooms = lazy(() => import('./PublicRooms'));
+const PinnedRooms = lazy(() => import('./PinnedRooms'));
 const Profile = lazy(() => import('./Profile'));
 const AppSettings = lazy(() => import('./AppSettings'));
 const TvPairing = lazy(() => import('./TvPairing'));
@@ -1070,6 +1071,36 @@ function App() {
     return () => window.removeEventListener('theme_changed', applyTheme);
   }, [i18n]);
 
+  // ── Desktop (Tauri) chrome: hide scrollbars everywhere (scrolling itself is
+  // untouched — only the OS scrollbar indicator is hidden) so the app reads as
+  // a native window rather than a webpage. The extra [data-theme='light']-
+  // qualified selector exists purely to out-specificity the light-mode
+  // scrollbar reset above (`*:not(.admin-wrapper)... { scrollbar-width: auto }`)
+  // — without it, that rule would win in light mode and bring scrollbars back.
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    document.documentElement.setAttribute('data-desktop-app', 'true');
+    const styleEl = document.createElement('style');
+    styleEl.id = 'desktop-app-overrides';
+    styleEl.textContent = `
+      html[data-desktop-app='true'] {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      html[data-theme='light'][data-desktop-app='true'] *:not(.admin-wrapper):not(.admin-wrapper *) {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      html[data-theme='light'][data-desktop-app='true'] ::-webkit-scrollbar,
+      html[data-desktop-app='true']:not([data-theme='light']) ::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }, []);
+
 
   // Load Google Client ID from environment variables (.env file)
   const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID_HERE';
@@ -1098,6 +1129,7 @@ function App() {
             <Route path="/terms" element={<Terms />} />
             <Route path="/" element={<ProtectedRoute><RootRoute /></ProtectedRoute>} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
+            <Route path="/pinned-rooms" element={<ProtectedRoute><PinnedRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/app-settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
