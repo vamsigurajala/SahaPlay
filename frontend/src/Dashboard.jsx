@@ -99,6 +99,12 @@ const Dashboard = () => {
         @keyframes dashMsgPop { from { opacity:0; transform:translateY(6px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
         @keyframes dashWaveBar { 0%,100% { transform:scaleY(0.35); } 50% { transform:scaleY(1); } }
         @keyframes dashScrub { 0% { width:8%; } 100% { width:92%; } }
+        @keyframes dashSceneShift {
+          0%   { background: linear-gradient(135deg,#1e1b4b 0%,#4c1d95 100%); }
+          33%  { background: linear-gradient(135deg,#0c4a6e 0%,#1e3a8a 100%); }
+          66%  { background: linear-gradient(135deg,#3b0764 0%,#831843 100%); }
+          100% { background: linear-gradient(135deg,#1e1b4b 0%,#4c1d95 100%); }
+        }
 
         .dash-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; }
         .dash-orb-1 { width:520px;height:520px; background:radial-gradient(circle,rgba(99,102,241,0.35),transparent 70%); top:-180px;left:-140px; animation:dashOrbFloat1 20s ease-in-out infinite; }
@@ -131,8 +137,9 @@ const Dashboard = () => {
         html[data-theme='light'] .dash-preview-card { background:#fff; border-color:rgba(99,102,241,0.15); box-shadow:0 0 0 1px rgba(99,102,241,0.08), 0 28px 60px -10px rgba(0,0,0,0.12); }
         .dash-preview-titlebar { height:36px; background:#12122a; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; padding:0 12px; }
         html[data-theme='light'] .dash-preview-titlebar { background:#f8fafc; border-bottom-color:rgba(0,0,0,0.06); }
-        .dash-preview-video { height:170px; position:relative; background:linear-gradient(135deg,#0c0c22 0%,#16103a 50%,#0c1830 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; }
-        html[data-theme='light'] .dash-preview-video { background:linear-gradient(135deg,#eef2ff 0%,#f5f3ff 100%); }
+        .dash-preview-video { height:170px; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+        .dash-scene { position:absolute; inset:0; animation:dashSceneShift 10s ease-in-out infinite; }
+        html[data-theme='light'] .dash-scene { animation:none; background:linear-gradient(135deg,#eef2ff 0%,#f5f3ff 100%) !important; }
         .dash-wave-bars { display:flex; align-items:center; gap:4px; height:26px; position:relative; z-index:1; }
         .dash-wave-bar { width:4px; height:100%; border-radius:3px; background:rgba(99,102,241,0.9); transform-origin:center; animation:dashWaveBar 0.9s ease-in-out infinite; }
         html[data-theme='light'] .dash-wave-bar { background:#6366f1; }
@@ -203,6 +210,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="dash-preview-video">
+                <div className="dash-scene" />
                 <div style={{ position: 'absolute', width: 140, height: 140, background: 'radial-gradient(circle,rgba(99,102,241,0.22) 0%,transparent 70%)', borderRadius: '50%', filter: 'blur(18px)' }} />
                 <div className="dash-wave-bars">
                   {[0, 1, 2, 3, 4].map(i => (
@@ -215,7 +223,7 @@ const Dashboard = () => {
                 {previewMessages.map(msg => (
                   <div key={msg._k} className="dash-bubble-row" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', justifyContent: msg.type === 'out' ? 'flex-end' : 'flex-start' }}>
                     {msg.type === 'in' && <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />}
-                    <div className={msg.type === 'out' ? 'dash-bubble-out' : 'dash-bubble-in'}>{msg.text}</div>
+                    <div className={msg.type === 'out' ? 'dash-bubble-out stay-white' : 'dash-bubble-in'}>{msg.text}</div>
                   </div>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
