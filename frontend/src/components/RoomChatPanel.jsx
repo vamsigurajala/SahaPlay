@@ -179,7 +179,7 @@ function getFileIconBg(mimeType) {
   return '#6366f1';
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
@@ -235,6 +235,9 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
             <Download size={14} color={dlColor} />
           </button>
         )}
+        {tick && !isExpired && !isLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 2, flexShrink: 0 }}>{tick}</div>
+        )}
       </div>
     </div>
   );
@@ -243,7 +246,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 // One voice note plays at a time across the room chat panel
 const _vnReg_rcp = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -432,14 +435,17 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading }) {
         </button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
-        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
-        {expiresAt && (() => {
-          const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
-          if (daysLeft <= 0) return null;
-          const expTc = daysLeft <= 7 ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.55)');
-          const expTxt = daysLeft <= 7 ? `⚠️ ${daysLeft}d left` : `${daysLeft}d left`;
-          return <span className="rcp-vn-expiry" style={{ fontSize: 10, color: expTc, WebkitTextFillColor: expTc }}>{expTxt}</span>;
-        })()}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+          {expiresAt && (() => {
+            const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
+            if (daysLeft <= 0) return null;
+            const expTc = daysLeft <= 7 ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.55)');
+            const expTxt = daysLeft <= 7 ? `⚠️ ${daysLeft}d left` : `${daysLeft}d left`;
+            return <span className="rcp-vn-expiry" style={{ fontSize: 10, color: expTc, WebkitTextFillColor: expTc }}>{expTxt}</span>;
+          })()}
+        </div>
+        {tick && <div style={{ display: 'flex', alignItems: 'center', marginLeft: 6 }}>{tick}</div>}
       </div>
     </div>
   );
@@ -1033,9 +1039,15 @@ const getTickStatus = (msg, username) => {
   return 'sent';
 };
 
-const MessageTick = ({ msg, username, isLight }) => {
+// onLightSurface: true for contexts that are always a whitish surface regardless
+// of theme (e.g. FileCard, which is solid white in light mode and a translucent
+// white overlay in dark mode) — a white tick there would be unreadable, so those
+// use the theme-aware dark/grey tick instead. Everywhere else (text bubble, voice
+// note bubble, image/video overlay) is always a colored/dark surface, so those
+// default to a light tick regardless of theme.
+const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
   const status = getTickStatus(msg, username);
-  const greyColor = isLight ? 'rgba(0,0,0,0.4)' : '#8696a0';
+  const greyColor = onLightSurface ? (isLight ? 'rgba(0,0,0,0.4)' : '#8696a0') : 'rgba(255,255,255,0.85)';
   if (status === 'read') return <CheckCheck size={13} color="#34b7f1" style={{ flexShrink: 0 }} />;
   if (status === 'delivered') return <CheckCheck size={13} color={greyColor} style={{ flexShrink: 0 }} />;
   return <Check size={13} color={greyColor} style={{ flexShrink: 0 }} />;
@@ -1874,15 +1886,17 @@ export default function RoomChatPanel({ p }) {
     }
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
     const isAudio = type?.startsWith('audio/');
+    const tick = (isMe && msg) ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null;
+    const cardTick = (isMe && msg) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={tick} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} />;
 
     if (!url) {
       if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: '#6366f1', opacity: 0.6 }} /></div>;
@@ -1905,6 +1919,7 @@ export default function RoomChatPanel({ p }) {
               }}
             />
             {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+            {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
           </>
         ) : (
           <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1915,6 +1930,7 @@ export default function RoomChatPanel({ p }) {
               </div>
             </div>
             {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
+            {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
           </div>
         )}
       </div>
@@ -2529,7 +2545,7 @@ export default function RoomChatPanel({ p }) {
                               <MessageTick msg={msg} username={p.username} isLight={isLight} />
                             </div>
                           )}
-                          {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup)}
+                          {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg)}
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -2662,7 +2678,6 @@ export default function RoomChatPanel({ p }) {
                         <span style={{flex:1}}></span>
                         {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                         <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
-                        {isMe && isMediaOnly && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
@@ -3114,7 +3129,7 @@ export default function RoomChatPanel({ p }) {
                                     <MessageTick msg={msg} username={p.username} isLight={isLight} />
                                   </div>
                                 )}
-                                {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm)}
+                                {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg)}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -3244,7 +3259,6 @@ export default function RoomChatPanel({ p }) {
                               <span style={{flex:1}}></span>
                               {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                               <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
-                              {isMe && isMediaOnly && <MessageTick msg={msg} username={p.username} isLight={isLight} />}
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                 <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                               )}
