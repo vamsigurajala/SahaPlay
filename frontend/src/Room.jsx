@@ -5393,6 +5393,30 @@ const Room = () => {
   // Always goes through REST (POST /api/chats/send), same as GlobalChatWidget's
   // own forward implementation, since it's the only send path that doesn't
   // require the destination room to already be joined.
+  // Resolves the real plaintext for a message being forwarded. Never falls back to
+  // msg.message when the message is E2EE (has a nonce) — msg.message there is still
+  // ciphertext, and forwarding it as if it were plaintext would re-encrypt already-
+  // encrypted bytes, landing as garbled text on the destination side once the outer
+  // layer is (correctly) decrypted. If msg.decryptedText wasn't already cached, retry
+  // decryption live here using the same sender-copy/recipient branching used elsewhere,
+  // and only give up (treat as unforwardable) if that also fails.
+  const recoverDmText = (msg) => {
+    if (msg.decryptedText != null && msg.decryptedText !== '') return msg.decryptedText;
+    if (!msg.nonce) return msg.message || '';
+    const kp = myKeyPair.current;
+    if (!kp) return null;
+    try {
+      if (msg.isMe && msg.senderMessage) {
+        return decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+      }
+      const senderPK = msg.ephemeralPublicKey || msg.senderPublicKey;
+      if (!msg.isMe && senderPK) {
+        return decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(kp.secretKey));
+      }
+    } catch (e) { console.warn('[Forward] text recovery failed', e); }
+    return null;
+  };
+
   const forwardMessages = async (msgs, destinations) => {
     const token = localStorage.getItem('watch_token');
     if (!token) return { failCount: msgs.length * destinations.length };
@@ -5410,6 +5434,10 @@ const Room = () => {
       }
       for (const msg of sorted) {
         try {
+          // A message with mediaType but no live mediaUrl is expired media — msg.message
+          // there is still the wrapped media key, not text. Skip rather than let it fall
+          // into the text branch below and forward the raw key as visible text.
+          if (msg.mediaType && !msg.mediaUrl) { failCount++; continue; }
           const isMedia = !!msg.mediaType && !!msg.mediaUrl;
           const body = {
             type: destType,
@@ -5442,7 +5470,8 @@ const Room = () => {
               body.message = '';
             }
           } else {
-            const text = msg.decryptedText || msg.message || '';
+            const text = recoverDmText(msg);
+            if (text == null) { failCount++; continue; }
             if (destType === 'private' && targetPubKey && kp) {
               const enc = encryptDM(text, targetPubKey, encodeBase64(kp.publicKey));
               body.message = enc.ciphertext;

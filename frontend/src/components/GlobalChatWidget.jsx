@@ -4540,6 +4540,29 @@ const GlobalChatWidget = forwardRef(({
     return null;
   };
 
+  // Resolves the real plaintext for a message being forwarded. Never falls back to
+  // msg.message when the message is E2EE (has a nonce) — msg.message there is still
+  // ciphertext, and forwarding it as if it were plaintext would re-encrypt already-
+  // encrypted bytes, landing as garbled text on the destination side once the outer
+  // layer is (correctly) decrypted. If msg.decryptedText wasn't already cached, retry
+  // decryption live here with the same sender-copy/recipient branching used above,
+  // and only give up (treat as unforwardable) if that also fails.
+  const recoverDmText = (msg) => {
+    if (msg.decryptedText != null && msg.decryptedText !== '') return msg.decryptedText;
+    if (!msg.nonce) return msg.message || '';
+    if (!keyPair) return null;
+    try {
+      if (msg.isMe && msg.senderMessage) {
+        return decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+      }
+      const senderPK = msg.ephemeralPublicKey || msg.senderPublicKey;
+      if (!msg.isMe && senderPK) {
+        return decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(keyPair.secretKey));
+      }
+    } catch (e) { console.warn('[Forward] text recovery failed', e); }
+    return null;
+  };
+
   // Forwarding always goes through the REST send endpoint (POST /api/chats/send)
   // regardless of destination type — unlike the socket send paths, it doesn't
   // require the destination room to be currently joined, which most forward
@@ -4563,6 +4586,10 @@ const GlobalChatWidget = forwardRef(({
       }
       for (const msg of msgsToForward) {
         try {
+          // A message with mediaType but no live mediaUrl is expired media — msg.message
+          // there is still the wrapped media key, not text. Skip rather than let it fall
+          // into the text branch below and forward the raw key as visible text.
+          if (msg.mediaType && !msg.mediaUrl) { failCount++; continue; }
           const isMedia = !!msg.mediaType && !!msg.mediaUrl;
           const body = {
             type: destType,
@@ -4587,7 +4614,8 @@ const GlobalChatWidget = forwardRef(({
               body.message = '';
             }
           } else {
-            const text = msg.decryptedText || msg.message || '';
+            const text = recoverDmText(msg);
+            if (text == null) { failCount++; continue; }
             if (destType === 'private' && targetPubKey && keyPair) {
               const enc = encryptDM(text, targetPubKey, encodeBase64(keyPair.publicKey));
               body.message = enc.ciphertext;
