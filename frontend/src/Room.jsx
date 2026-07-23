@@ -1786,28 +1786,15 @@ const Room = () => {
   // Responsive breakpoints
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  const [showTopRestoreBtn, setShowTopRestoreBtn] = useState(false);
-  const topRestoreTimerRef = useRef(null);
-
-  const resetTopRestoreTimer = () => {
-    setShowTopRestoreBtn(true);
-    clearTimeout(topRestoreTimerRef.current);
-    topRestoreTimerRef.current = setTimeout(() => {
-      setShowTopRestoreBtn(false);
-    }, 1500);
-  };
-
   const resetControlsTimer = () => {
     setShowControls(true);
     clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
-    resetTopRestoreTimer();
   };
 
   useEffect(() => {
     return () => {
       clearTimeout(controlsTimerRef.current);
-      clearTimeout(topRestoreTimerRef.current);
     };
   }, []);
 
@@ -11314,8 +11301,12 @@ const Room = () => {
             )
           )}
 
-            {/* Floating Restore Controls Button — shown at top center when custom controls are hidden */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && showTopRestoreBtn && (
+            {/* Floating Restore Controls Button — shown at top center for as long as
+                custom controls are hidden (native player controls are active). Must stay
+                visible the whole time, not just briefly: once native mode is on, the
+                overlay that would normally re-arm a timer is gone (clicks need to reach
+                the iframe directly), so there'd otherwise be no way back to our own UI. */}
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && (
               <button
                 onClick={() => setHideCustomControls(false)}
                 style={isTouchPlayer ? {
