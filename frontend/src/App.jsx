@@ -5,7 +5,9 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
+import { isTauriApp } from './lib/platform';
 const Home = lazy(() => import('./Home'));
+const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
 const Login = lazy(() => import('./Login'));
 const Signup = lazy(() => import('./Signup'));
@@ -191,6 +193,17 @@ const ProtectedRoute = ({ children }) => {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   useInactivityLogout();
   return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
+};
+
+// Root route: web visitors always get Home (the marketing landing page) — unchanged.
+// The Tauri desktop app already has the user's attention (they installed it), so a
+// logged-in/guest session there skips straight to the functional Dashboard instead
+// of re-showing the marketing pitch they saw before installing.
+const RootRoute = () => {
+  const isAuthenticated = !!localStorage.getItem('watch_token');
+  const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+  if (isTauriApp() && (isAuthenticated || isGuest)) return <Dashboard />;
+  return <Home />;
 };
 
 // AdminRoute: checks role from the DB via /api/me on every render — never trusts localStorage
@@ -1083,7 +1096,7 @@ function App() {
             <Route path="/safety" element={<Safety />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/terms" element={<Terms />} />
-            <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><RootRoute /></ProtectedRoute>} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
