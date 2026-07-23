@@ -1237,6 +1237,12 @@ html[data-theme='light'] .mobile-nav-divider {
   overflow: hidden;
 }
 
+/* Mobile-only pinned "Browse Media & Apps" bar — hidden by default so it can never
+   appear alongside the desktop Quick Controls box (which has its own Cast to TV
+   button), regardless of what the JS isMobile flag thinks. Shown only under the
+   exact same max-width: 639px breakpoint that hides .room-quick-controls below. */
+.mobile-browse-media-btn { display: none !important; }
+
 /* Tablet: narrower sidebar */
 @media (min-width: 640px) and (max-width: 1023px) {
   .room-right-column {
@@ -1267,6 +1273,7 @@ html[data-theme='light'] .mobile-nav-divider {
 
   /* Quick controls hidden on all mobile (cam/mic in header, Browse Media button in chat col) */
   .room-quick-controls { display: none !important; }
+  .mobile-browse-media-btn { display: flex !important; }
 
   /* No media active: hide player col, right col fills full screen */
   .room-main-layout:not(.mob-media-active) .room-player-col { display: none !important; }

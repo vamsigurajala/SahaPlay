@@ -11379,9 +11379,15 @@ const Room = () => {
             what's actually happening in the room, not just the raw video. */}
         {(
         <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
-          {/* Mobile: Browse Media button pinned above chat when no media playing */}
-          {isMobile && !mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
-            <button onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
+          {/* Mobile: Browse Media button pinned above chat when no media playing.
+              Visibility is enforced purely by the .mobile-browse-media-btn CSS media
+              query (same max-width: 639px breakpoint that hides .room-quick-controls),
+              not by the isMobile JS flag — isMobile also factors in window height
+              (detectIsMobile), so a short-but-wide desktop browser window could flip
+              it true while the Quick Controls/Cast-to-TV box (width-gated only) stayed
+              visible too, showing both stacked/overlapping at once. */}
+          {!mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
+            <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
               <LayoutGrid size={18} color="#fff" />
               <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
             </button>

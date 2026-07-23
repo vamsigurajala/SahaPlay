@@ -466,24 +466,55 @@ const typingCss = `
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
   
-  /* ── Chat Menu Hover Effects ── */
-  .menu-btn { color: var(--menu-item-text); transition: color 0.2s ease, background 0.2s ease; }
-  .menu-btn svg { transition: color 0.2s ease; }
-  .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #ef4444 !important; }
-  .menu-btn-danger:hover svg { color: #ef4444 !important; }
+  /* ── Chat Menu Hover Effects — mirrors RoomChatPanel.jsx's dropdown exactly, so the
+     message context menu looks/behaves identically in both surfaces. ── */
+  .menu-btn { color: var(--menu-item-text); transition: all 0.2s ease; }
+  .menu-btn svg { transition: all 0.2s ease; }
+  .chat-widget-main-panel .menu-btn:hover {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #6366f1 !important;
+  }
+  .chat-widget-main-panel .menu-btn:hover svg { color: #6366f1 !important; }
+  html[data-theme='light'] .chat-widget-main-panel .menu-btn:hover {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #4f46e5 !important;
+  }
+  html[data-theme='light'] .chat-widget-main-panel .menu-btn:hover svg { color: #4f46e5 !important; }
+
+  .chat-widget-main-panel .menu-btn-danger { color: #ef4444 !important; }
+  .chat-widget-main-panel .menu-btn-danger svg { color: #ef4444 !important; }
+  /* NOTE: these two must carry the same ".chat-widget-main-panel" prefix as
+     ".menu-btn:hover" above (same specificity tier), declared AFTER it, so the
+     danger/del-me color wins the tie by source order instead of the generic
+     indigo hover color winning on raw specificity (that was the actual cause of
+     "Unsend/Delete for me turning blue on hover" — .menu-btn:hover's prefixed
+     selector was accidentally MORE specific than the unprefixed .menu-btn-danger:hover). */
+  .chat-widget-main-panel .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #ef4444 !important; }
+  .chat-widget-main-panel .menu-btn-danger:hover svg { color: #ef4444 !important; }
+
+  /* "Delete for me": keep the normal text color, only the hover background turns light red */
+  .chat-widget-main-panel .menu-btn-del-me { color: var(--menu-item-text) !important; }
+  .chat-widget-main-panel .menu-btn-del-me svg { color: var(--menu-item-text) !important; }
+  .chat-widget-main-panel .menu-btn-del-me:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: var(--menu-item-text) !important;
+  }
+  .chat-widget-main-panel .menu-btn-del-me:hover svg { color: var(--menu-item-text) !important; }
 
   /* ── Data-hovertype: guaranteed color change for both icon and text ── */
   [data-hovertype="danger"]:hover { color: #dc2626 !important; background: rgba(239, 68, 68, 0.12) !important; }
   [data-hovertype="danger"]:hover * { color: #dc2626 !important; }
   [data-hovertype="primary"]:hover { color: #4f46e5 !important; background: rgba(99, 102, 241, 0.1) !important; }
   [data-hovertype="primary"]:hover * { color: #4f46e5 !important; }
-  
+
   /* Modal Button Transitions */
   .modal-btn-transition { transition: transform 0.2s ease-in-out; }
   .modal-btn-transition:hover { transform: translateY(-2px); }
 
   html[data-theme='light'] .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #dc2626 !important; }
   html[data-theme='light'] .menu-btn-danger:hover svg { color: #dc2626 !important; }
+  html[data-theme='light'] .chat-widget-main-panel .menu-btn-danger:hover { background: rgba(239, 68, 68, 0.12) !important; color: #dc2626 !important; }
+  html[data-theme='light'] .chat-widget-main-panel .menu-btn-danger:hover svg { color: #dc2626 !important; }
   .menu-btn-primary:hover { background: rgba(99, 102, 241, 0.1) !important; color: #6366f1 !important; }
   .menu-btn-primary:hover svg { color: #6366f1 !important; }
   html[data-theme='light'] .menu-btn-primary:hover { background: rgba(99, 102, 241, 0.1) !important; color: #4f46e5 !important; }
@@ -570,6 +601,72 @@ const typingCss = `
   html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn svg *,
   html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg,
   html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg * {
+    color: var(--menu-item-text) !important;
+    -webkit-text-fill-color: var(--menu-item-text) !important;
+    stroke: var(--menu-item-text) !important;
+  }
+
+  /* Same context (own-message bubble, light mode) but for the hover state, and for the
+     danger (Unsend/Delete) and del-me (Delete for me) variants — mirrors
+     RoomChatPanel.jsx's dropdown line for line so both surfaces match exactly. */
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover {
+    background: rgba(99, 102, 241, 0.1) !important;
+    color: #4f46e5 !important;
+    -webkit-text-fill-color: #4f46e5 !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg,
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg *,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg * {
+    color: #4f46e5 !important;
+    -webkit-text-fill-color: #4f46e5 !important;
+    stroke: #4f46e5 !important;
+  }
+
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger svg,
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger svg *,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger svg,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger svg * {
+    color: #ef4444 !important;
+    -webkit-text-fill-color: #ef4444 !important;
+    stroke: #ef4444 !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.12) !important;
+    color: #dc2626 !important;
+    -webkit-text-fill-color: #dc2626 !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg,
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg *,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-danger:hover svg * {
+    color: #dc2626 !important;
+    -webkit-text-fill-color: #dc2626 !important;
+    stroke: #dc2626 !important;
+  }
+
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me {
+    color: var(--menu-item-text) !important;
+    -webkit-text-fill-color: var(--menu-item-text) !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: var(--menu-item-text) !important;
+    -webkit-text-fill-color: var(--menu-item-text) !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg,
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg *,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn-del-me:hover svg * {
     color: var(--menu-item-text) !important;
     -webkit-text-fill-color: var(--menu-item-text) !important;
     stroke: var(--menu-item-text) !important;
@@ -697,83 +794,6 @@ const typingCss = `
     stroke: #ef4444 !important;
   }
 
-  /* msg-menu-unsend = "Unsend" (sent) + "Delete" (received): always RED.
-     html[data-theme] prefix lifts specificity to (0,3,1) to beat the
-     html[data-theme='light'] .msg-bubble * white rule (0,2,1) from index.css. */
-  .chat-widget-main-panel .msg-menu-unsend {
-    color: #ef4444 !important;
-    -webkit-text-fill-color: #ef4444 !important;
-  }
-  .chat-widget-main-panel .msg-menu-unsend svg {
-    color: #ef4444 !important;
-    stroke: #ef4444 !important;
-  }
-  .chat-widget-main-panel .msg-menu-unsend:hover {
-    color: #ef4444 !important;
-    -webkit-text-fill-color: #ef4444 !important;
-    background: rgba(239, 68, 68, 0.1) !important;
-  }
-  .chat-widget-main-panel .msg-menu-unsend:hover svg {
-    color: #ef4444 !important;
-    stroke: #ef4444 !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend,
-  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend {
-    color: #ef4444 !important;
-    -webkit-text-fill-color: #ef4444 !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend svg,
-  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend svg {
-    color: #ef4444 !important;
-    stroke: #ef4444 !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend:hover,
-  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend:hover {
-    color: #ef4444 !important;
-    -webkit-text-fill-color: #ef4444 !important;
-    background: rgba(239, 68, 68, 0.1) !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-unsend:hover svg,
-  html[data-theme='dark'] .chat-widget-main-panel .msg-menu-unsend:hover svg {
-    color: #ef4444 !important;
-    stroke: #ef4444 !important;
-  }
-
-  /* msg-menu-delete = "Delete for me" (sent only): WHITE in dark mode, BLACK in light mode. */
-  .chat-widget-main-panel .msg-menu-delete {
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-  }
-  .chat-widget-main-panel .msg-menu-delete svg {
-    color: #ffffff !important;
-    stroke: #ffffff !important;
-  }
-  .chat-widget-main-panel .msg-menu-delete:hover {
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-    background: rgba(239, 68, 68, 0.1) !important;
-  }
-  .chat-widget-main-panel .msg-menu-delete:hover svg {
-    color: #ffffff !important;
-    stroke: #ffffff !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete {
-    color: #1e293b !important;
-    -webkit-text-fill-color: #1e293b !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete svg {
-    color: #1e293b !important;
-    stroke: #1e293b !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete:hover {
-    color: #1e293b !important;
-    -webkit-text-fill-color: #1e293b !important;
-    background: rgba(239, 68, 68, 0.1) !important;
-  }
-  html[data-theme='light'] .chat-widget-main-panel .msg-menu-delete:hover svg {
-    color: #1e293b !important;
-    stroke: #1e293b !important;
-  }
 `;
 
 // Avatar helpers
@@ -5927,27 +5947,27 @@ const GlobalChatWidget = forwardRef(({
                                       WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
                                     }} onClick={e => e.stopPropagation()}>
                                       {!!getMessageCopyText(msg) && (
-                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
-                                          <Copy size={12} color="currentColor"/> {t('copy', 'Copy')}
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                          <Copy size={12}/> {t('copy', 'Copy')}
                                         </button>
                                       )}
                                       {isMe ? (
                                         <>
                                           {isMessageEditable(msg) && (
-                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
-                                              <Edit2 size={12} color="currentColor"/> {t('editMessage', 'Edit Message')}
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                              <Edit2 size={12}/> {t('edit', 'Edit')}
                                             </button>
                                           )}
-                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
-                                            <Trash2 size={12} color="#ef4444"/> {t('unsend', 'Unsend')}
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                            <Trash2 size={12}/> {t('unsend', 'Unsend')}
                                           </button>
-                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-delete" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
-                                            <Trash2 size={12} color="currentColor"/> {t('deleteForMe', 'Delete for me')}
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-del-me" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                            <Trash2 size={12}/> {t('deleteForMe', 'Delete for me')}
                                           </button>
                                         </>
                                       ) : (
-                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
-                                          <Trash2 size={12} color="#ef4444"/> {t('delete', 'Delete')}
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                          <Trash2 size={12}/> {t('delete', 'Delete')}
                                         </button>
                                       )}
                                     </div>
@@ -6005,7 +6025,7 @@ const GlobalChatWidget = forwardRef(({
                                   <>
                                     {isMessageEditable(msg) && (
                                       <button onClick={() => { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
-                                        <Edit2 size={14}/> {t('editMessage', 'Edit Message')}
+                                        <Edit2 size={14}/> {t('edit', 'Edit')}
                                       </button>
                                     )}
                                     <button onClick={() => { handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -6047,7 +6067,7 @@ const GlobalChatWidget = forwardRef(({
                           )}
 
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
-                            {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.45)' : '#888',fontStyle:'italic'}}>{t('edited', 'Edited')}</span>}
+                            {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (

@@ -2393,7 +2393,7 @@ export default function RoomChatPanel({ p }) {
                                      <>
                                        {isMessageEditable(msg) && (
                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.setGroupReplyTo(null); p.setGroupEditingMessage(msg); p.setGroupChatInput(getMessageCopyText(msg)); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
-                                           <Edit2 size={16}/> {t('editMessage', 'Edit Message')}
+                                           <Edit2 size={16}/> {t('edit', 'Edit')}
                                          </button>
                                        )}
                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
@@ -2464,7 +2464,7 @@ export default function RoomChatPanel({ p }) {
                               <>
                                 {isMessageEditable(msg) && (
                                   <button onClick={() => { p.setGroupReplyTo(null); p.setGroupEditingMessage(msg); p.setGroupChatInput(getMessageCopyText(msg)); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
-                                    <Edit2 size={14}/> {t('editMessage', 'Edit Message')}
+                                    <Edit2 size={14}/> {t('edit', 'Edit')}
                                   </button>
                                 )}
                                 <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -2497,7 +2497,7 @@ export default function RoomChatPanel({ p }) {
                       <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                         {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                         <span style={{flex:1}}></span>
-                        {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.45)' : '#888',flexShrink:0,fontStyle:'italic'}}>{t('edited', 'Edited')}</span>}
+                        {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                         <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
@@ -2949,7 +2949,7 @@ export default function RoomChatPanel({ p }) {
                                           <>
                                             {isMessageEditable(msg) && (
                                               <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.setDmReplyTo(null); p.setDmEditingMessage(msg); p.setDmChatInput(getMessageCopyText(msg)); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn">
-                                                <Edit2 size={16}/> {t('editMessage', 'Edit Message')}
+                                                <Edit2 size={16}/> {t('edit', 'Edit')}
                                               </button>
                                             )}
                                             <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: '#ef4444', cursor:'pointer', padding:'10px 12px', fontSize:13, borderRadius:8, whiteSpace:'nowrap'}} className="chat-menu-item menu-btn menu-btn-danger">
@@ -3019,7 +3019,7 @@ export default function RoomChatPanel({ p }) {
                                       <>
                                         {isMessageEditable(msg) && (
                                           <button onClick={() => { p.setDmReplyTo(null); p.setDmEditingMessage(msg); p.setDmChatInput(getMessageCopyText(msg)); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
-                                            <Edit2 size={14}/> {t('editMessage', 'Edit Message')}
+                                            <Edit2 size={14}/> {t('edit', 'Edit')}
                                           </button>
                                         )}
                                         <button onClick={() => { p.handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
@@ -3047,7 +3047,7 @@ export default function RoomChatPanel({ p }) {
                             <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                               {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                               <span style={{flex:1}}></span>
-                              {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.45)' : '#888',flexShrink:0,fontStyle:'italic'}}>{t('edited', 'Edited')}</span>}
+                              {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
                               <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                 <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
