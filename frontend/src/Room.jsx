@@ -5453,19 +5453,48 @@ const Room = () => {
           if (isMedia) {
             if (destType === 'private' && targetPubKey && kp) {
               let mediaKeyB64 = null;
-              try {
-                if (msg.isMe && msg.senderMessage) {
-                  mediaKeyB64 = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
-                } else if (!msg.isMe && msg.ephemeralPublicKey) {
-                  mediaKeyB64 = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
-                }
-              } catch (e) { console.warn('[Forward] media key recovery failed', e); }
-              if (!mediaKeyB64) { failCount++; continue; }
-              const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(kp.publicKey));
-              body.message = enc.ciphertext;
-              body.senderMessage = enc.senderCiphertext;
-              body.nonce = enc.nonce;
-              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+              if (msg.nonce) {
+                // Source was already a DM (client-encrypted) — just recover the existing
+                // per-recipient key and re-wrap it for the new recipient, same file untouched.
+                try {
+                  if (msg.isMe && msg.senderMessage) {
+                    mediaKeyB64 = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+                  } else if (!msg.isMe && msg.ephemeralPublicKey) {
+                    mediaKeyB64 = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
+                  }
+                } catch (e) { console.warn('[Forward] media key recovery failed', e); }
+                if (!mediaKeyB64) { failCount++; continue; }
+              } else {
+                // Source was never client-encrypted (e.g. group chat media, stored plain) —
+                // there's no existing key to recover. Fetch the plain file, encrypt it fresh
+                // with a new random key, and re-upload so the DM destination gets a real
+                // E2EE copy instead of a plaintext file dressed up as encrypted.
+                try {
+                  const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
+                  const rawBlob = await fetch(resolvedUrl).then(r => r.blob());
+                  const enc = await encryptMedia(rawBlob);
+                  const fd = new FormData();
+                  fd.append('media', enc.encryptedBlob, msg.mediaFileName || 'file');
+                  const uploadResp = await fetch(`${SOCKET_SERVER_URL}/api/upload/chat`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: fd
+                  });
+                  if (uploadResp.ok) {
+                    const uploadData = await uploadResp.json();
+                    if (uploadData.url) {
+                      body.mediaUrl = uploadData.url;
+                      mediaKeyB64 = encodeBase64(enc.mediaKeyBytes);
+                    }
+                  }
+                } catch (e) { console.warn('[Forward] media re-encrypt failed', e); }
+                if (!mediaKeyB64) { failCount++; continue; }
+              }
+              const wrap = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(kp.publicKey));
+              body.message = wrap.ciphertext;
+              body.senderMessage = wrap.senderCiphertext;
+              body.nonce = wrap.nonce;
+              body.ephemeralPublicKey = wrap.ephemeralPublicKey;
             } else {
               body.message = '';
             }

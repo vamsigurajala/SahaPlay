@@ -3606,6 +3606,7 @@ export default function RoomChatPanel({ p }) {
             <button
               onClick={handleForwardSend}
               disabled={selectedForwardChats.length === 0 || forwarding}
+              className={selectedForwardChats.length > 0 && !forwarding ? 'stay-white' : ''}
               style={{padding:'14px 20px',background: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', borderRadius:14, color: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#94a3b8' : '#666') : '#fff', cursor: selectedForwardChats.length === 0 || forwarding ? 'default' : 'pointer', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
               {forwarding ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />} {forwarding ? 'Sending…' : `Send${selectedForwardChats.length ? ` (${selectedForwardChats.length})` : ''}`}
             </button>

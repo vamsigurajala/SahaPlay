@@ -4603,13 +4603,43 @@ const GlobalChatWidget = forwardRef(({
           };
           if (isMedia) {
             if (destType === 'private' && targetPubKey && keyPair) {
-              const mediaKeyB64 = recoverMediaKeyB64(msg);
-              if (!mediaKeyB64) { failCount++; continue; }
-              const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(keyPair.publicKey));
-              body.message = enc.ciphertext;
-              body.senderMessage = enc.senderCiphertext;
-              body.nonce = enc.nonce;
-              body.ephemeralPublicKey = enc.ephemeralPublicKey;
+              let mediaKeyB64 = null;
+              if (msg.nonce) {
+                // Source was already a DM (client-encrypted) — just recover the existing
+                // per-recipient key and re-wrap it for the new recipient, same file untouched.
+                mediaKeyB64 = recoverMediaKeyB64(msg);
+                if (!mediaKeyB64) { failCount++; continue; }
+              } else {
+                // Source was never client-encrypted (e.g. group chat media, stored plain) —
+                // there's no existing key to recover. Fetch the plain file, encrypt it fresh
+                // with a new random key, and re-upload so the DM destination gets a real
+                // E2EE copy instead of a plaintext file dressed up as encrypted.
+                try {
+                  const resolvedUrl = resolveMediaUrl(msg.mediaUrl, API);
+                  const rawBlob = await fetch(resolvedUrl).then(r => r.blob());
+                  const enc = await encryptMedia(rawBlob);
+                  const fd = new FormData();
+                  fd.append('media', enc.encryptedBlob, msg.mediaFileName || 'file');
+                  const uploadResp = await fetch(`${API}/api/upload/chat`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: fd
+                  });
+                  if (uploadResp.ok) {
+                    const uploadData = await uploadResp.json();
+                    if (uploadData.url) {
+                      body.mediaUrl = uploadData.url;
+                      mediaKeyB64 = encodeBase64(enc.mediaKeyBytes);
+                    }
+                  }
+                } catch (e) { console.warn('[Forward] media re-encrypt failed', e); }
+                if (!mediaKeyB64) { failCount++; continue; }
+              }
+              const wrap = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(keyPair.publicKey));
+              body.message = wrap.ciphertext;
+              body.senderMessage = wrap.senderCiphertext;
+              body.nonce = wrap.nonce;
+              body.ephemeralPublicKey = wrap.ephemeralPublicKey;
             } else {
               body.message = '';
             }
@@ -6837,7 +6867,7 @@ const GlobalChatWidget = forwardRef(({
               <button
                 onClick={handleForwardSend}
                 disabled={selectedForwardChats.length === 0 || forwarding}
-                className="modal-btn-transition"
+                className={`modal-btn-transition${selectedForwardChats.length > 0 && !forwarding ? ' stay-white' : ''}`}
                 style={{padding:'14px 20px',background: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', borderRadius:18, color: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#94a3b8' : '#666') : '#fff', cursor: selectedForwardChats.length === 0 || forwarding ? 'default' : 'pointer', fontWeight:800, fontSize:15, display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
                 {forwarding ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />} {forwarding ? 'Sending…' : `Send${selectedForwardChats.length ? ` (${selectedForwardChats.length})` : ''}`}
               </button>
