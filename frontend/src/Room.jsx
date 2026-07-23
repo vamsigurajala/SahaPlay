@@ -9811,10 +9811,13 @@ const Room = () => {
                         skipped for embed platforms (YouTube/SoundCloud) since their native
                         controls handled this directly; now that our own bar is the sole control
                         surface there too, this is what makes click-to-play/pause and mouse-move-
-                        resets-the-auto-hide-timer work for them at all. Skipped only when the
-                        user explicitly asked for native controls (hideCustomControls), so clicks
-                        reach the native UI as expected in that mode. */}
-                    {!hideCustomControls && (
+                        resets-the-auto-hide-timer work for them at all. Skipped when the user
+                        explicitly asked for native controls (hideCustomControls), and always
+                        skipped for Twitch/native-Vimeo — those render a real native iframe with
+                        no ReactPlayer ref behind it, so togglePlayPause() is a silent no-op there
+                        and this overlay would only swallow clicks meant for the platform's own
+                        play button underneath. */}
+                    {!hideCustomControls && !isTwitch && !(isVimeo && !useCustomVimeoControls) && (
                       <div
                         onClick={togglePlayPause}
                         onMouseMove={resetControlsTimer}
