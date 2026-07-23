@@ -1077,6 +1077,14 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_duration INTEGER`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] media_duration:', e.message);
   });
+  // edited / edited_at: Edit Message feature — edited is a simple flag (no history kept,
+  // matching WhatsApp), edited_at is the epoch-ms of the most recent edit.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] edited:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at BIGINT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] edited_at:', e.message);
+  });
   await pool.query(`
     CREATE TABLE IF NOT EXISTS message_seen (
       message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
@@ -4274,6 +4282,128 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
     console.error('Delete message error:', err);
     res.status(500).json({ error: 'Database error' });
   }
+});
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+// Shared, transactional Edit Message operation — used by both the socket path
+// (message:edit, used by Room.jsx) and the REST path (PUT below, used by
+// GlobalChatWidget.jsx), mirroring how Unsend/Delete-for-me already have two
+// parallel call sites converging on the same DB behavior. The 15-minute
+// window is enforced here (inside the transaction, against the row's own
+// stored timestamp) — this is the real security boundary, independent of
+// whatever the client's UI happens to show.
+async function applyMessageEdit({ messageId, fallbackTs, username, newMessage, newSenderMessage, nonce, ephemeralPublicKey }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let { rows } = await client.query(
+      'SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE id::text = $1 FOR UPDATE',
+      [String(messageId)]
+    );
+    if (rows.length === 0 && fallbackTs) {
+      ({ rows } = await client.query(
+        'SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE timestamp = $1 AND "senderName" = $2 FOR UPDATE',
+        [fallbackTs, username]
+      ));
+    }
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { error: 'not_found' };
+    }
+
+    const msg = rows[0];
+    if ((msg.senderName || '').toLowerCase() !== (username || '').toLowerCase()) {
+      await client.query('ROLLBACK');
+      return { error: 'forbidden' };
+    }
+    if (Date.now() - Number(msg.timestamp) > EDIT_WINDOW_MS) {
+      await client.query('ROLLBACK');
+      return { error: 'expired' };
+    }
+
+    const editedAt = Date.now();
+    await client.query(
+      'UPDATE messages SET message = $1, "senderMessage" = COALESCE($2, "senderMessage"), nonce = COALESCE($3, nonce), "ephemeralPublicKey" = COALESCE($4, "ephemeralPublicKey"), edited = TRUE, edited_at = $5 WHERE id = $6',
+      [newMessage, newSenderMessage || null, nonce || null, ephemeralPublicKey || null, editedAt, msg.id]
+    );
+    await client.query('COMMIT');
+
+    return {
+      success: true,
+      id: msg.id,
+      type: msg.type,
+      senderName: msg.senderName,
+      targetName: msg.targetName,
+      roomId: msg.roomId,
+      editedAt
+    };
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('[applyMessageEdit] error:', err);
+    return { error: 'server_error' };
+  } finally {
+    client.release();
+  }
+}
+
+function editErrorToStatus(error) {
+  if (error === 'not_found') return [404, 'Message not found'];
+  if (error === 'forbidden') return [403, 'You can only edit your own messages'];
+  if (error === 'expired') return [403, 'This message can no longer be edited (15 minute limit)'];
+  return [500, 'Database error'];
+}
+
+// PUT Edit Chat Message
+app.put('/api/chats/message/:id', authenticateToken, async (req, res) => {
+  const rawId = req.params.id;
+  const username = req.user.username;
+  const { message: newMessage, senderMessage: newSenderMessage, nonce, ephemeralPublicKey } = req.body || {};
+
+  if (!newMessage || typeof newMessage !== 'string' || !newMessage.trim()) {
+    return res.status(400).json({ error: 'Message text is required' });
+  }
+
+  const isIdNumeric = !isNaN(rawId) && !rawId.toString().includes('opt-') && !rawId.toString().includes('http-');
+  let fallbackTs = null;
+  if (!isIdNumeric) {
+    const tsMatch = rawId.toString().match(/\b(\d{13})\b/);
+    if (tsMatch) fallbackTs = tsMatch[1];
+  }
+
+  const result = await applyMessageEdit({ messageId: rawId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey });
+
+  if (result.error) {
+    const [status, message] = editErrorToStatus(result.error);
+    return res.status(status).json({ error: message });
+  }
+
+  const payload = {
+    messageId: String(result.id),
+    message: newMessage.trim(),
+    senderMessage: newSenderMessage || undefined,
+    nonce: nonce || undefined,
+    ephemeralPublicKey: ephemeralPublicKey || undefined,
+    edited: true,
+    editedAt: result.editedAt
+  };
+
+  if (result.type === 'private') {
+    emitToUser(result.senderName, 'chat:message_edited', payload);
+    if (result.targetName) emitToUser(result.targetName, 'chat:message_edited', payload);
+  } else {
+    payload.roomId = result.roomId;
+    io.in(result.roomId).emit('chat:message_edited', payload);
+    io.emit('chat:message_edited', payload);
+    const room = rooms.get(result.roomId);
+    if (room) {
+      const cached = room.groupMessages.find(m => String(m.id) === String(result.id) || String(m.dbId) === String(result.id));
+      if (cached) { cached.message = payload.message; cached.edited = true; cached.editedAt = result.editedAt; }
+    }
+  }
+
+  return res.json({ success: true, editedId: result.id, editedAt: result.editedAt });
 });
 
 // â"€â"€ BLOCKS endpoints â"€â"€
@@ -8318,6 +8448,43 @@ io.on('connection', (socket) => {
       }
     } catch (err) {
       console.error('[message:unsend] Error:', err);
+    }
+  });
+
+  // ─── Edit message (own message only, within EDIT_WINDOW_MS of sending) ───
+  socket.on('message:edit', async ({ messageId, timestamp: fallbackTs, newMessage, newSenderMessage, nonce, ephemeralPublicKey }) => {
+    const username = socket.username;
+    if (!username || !messageId || typeof newMessage !== 'string' || !newMessage.trim()) return;
+
+    const result = await applyMessageEdit({ messageId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey });
+
+    if (result.error) {
+      const [, message] = editErrorToStatus(result.error);
+      socket.emit('message:edit_failed', { messageId, error: message });
+      return;
+    }
+
+    const payload = {
+      messageId: String(result.id),
+      message: newMessage.trim(),
+      senderMessage: newSenderMessage || undefined,
+      nonce: nonce || undefined,
+      ephemeralPublicKey: ephemeralPublicKey || undefined,
+      edited: true,
+      editedAt: result.editedAt
+    };
+
+    if (result.type === 'private') {
+      emitToUser(result.senderName, 'message:edited', payload);
+      if (result.targetName) emitToUser(result.targetName, 'message:edited', payload);
+    } else {
+      io.in(result.roomId).emit('message:edited', payload);
+      emitToUser(result.senderName, 'message:edited', payload);
+      const room = rooms.get(result.roomId);
+      if (room) {
+        const cached = room.groupMessages.find(m => String(m.id) === String(result.id) || String(m.dbId) === String(result.id));
+        if (cached) { cached.message = payload.message; cached.edited = true; cached.editedAt = result.editedAt; }
+      }
     }
   });
 

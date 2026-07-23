@@ -1876,6 +1876,8 @@ const Room = () => {
   const [dmChatInput, setDmChatInput] = useState('');
   const [groupReplyTo, setGroupReplyTo] = useState(null);
   const [dmReplyTo, setDmReplyTo] = useState(null);
+  const [groupEditingMessage, setGroupEditingMessage] = useState(null);
+  const [dmEditingMessage, setDmEditingMessage] = useState(null);
   const [roomName, setRoomName] = useState('Room Chat');
   const [showGroupMenu, setShowGroupMenu] = useState(false);
   const [showDmMenu, setShowDmMenu] = useState(null);
@@ -4037,6 +4039,48 @@ const Room = () => {
       });
     });
 
+    // Edit broadcast from the server (own edit reconciliation, or the other
+    // participant editing their message live). Group messages are plaintext
+    // (nonce absent) so the new text is used directly; DM messages are E2EE
+    // and need re-decryption using whichever copy applies to this client —
+    // determined from the existing message's own isMe flag, not new payload
+    // fields, since the sender's own socket also receives this broadcast.
+    sock.on('message:edited', ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, editedAt }) => {
+      const idStr = String(messageId);
+      const decryptFor = (existing) => {
+        if (!nonce) return newMessage;
+        if (!myKeyPair.current) return existing.decryptedText;
+        try {
+          if (existing.isMe && senderMessage) {
+            return decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey)) ?? existing.decryptedText;
+          }
+          if (!existing.isMe && ephemeralPublicKey) {
+            return decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey)) ?? existing.decryptedText;
+          }
+        } catch (err) {
+          console.warn('[E2EE] message:edited decrypt failed:', err);
+        }
+        return existing.decryptedText;
+      };
+
+      setGroupMessages(prev => {
+        const next = prev.map(m => (String(m.id) === idStr ? { ...m, message: newMessage, decryptedText: decryptFor(m), edited: true, editedAt } : m));
+        groupMessagesRef.current = next;
+        return next;
+      });
+      setDmThreads(prev => {
+        const next = { ...prev };
+        for (const user in next) {
+          next[user] = next[user].map(m => (String(m.id) === idStr ? { ...m, message: newMessage, decryptedText: decryptFor(m), edited: true, editedAt } : m));
+        }
+        return next;
+      });
+    });
+
+    sock.on('message:edit_failed', ({ error }) => {
+      toast.error(error || 'Could not edit this message.');
+    });
+
     sock.on('private_message', msg => {
       const isMine = msg.isMe || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
       const otherName = isMine ? msg.targetName : msg.senderName;
@@ -5468,6 +5512,7 @@ const Room = () => {
   // Send message
   const sendGroupChat = (e) => {
     e.preventDefault();
+    if (groupEditingMessage) { editGroupMessage(); return; }
     if (!groupChatInput.trim() || !socket) return;
 
     const msgText = groupChatInput.trim();
@@ -5552,6 +5597,27 @@ const Room = () => {
     }
     clearTimeout(typingTimer.current);
   };
+
+  // Group chat is plaintext (no E2EE), so editing just resends the new text —
+  // unlike editDmMessage below, there's no re-encryption step needed.
+  const editGroupMessage = () => {
+    if (!groupChatInput.trim() || !socket || !groupEditingMessage) return;
+    const newText = groupChatInput.trim();
+    const target = groupEditingMessage;
+    const idStr = String(target.id);
+
+    setGroupMessages(prev => {
+      const next = prev.map(m => (String(m.id) === idStr ? { ...m, message: newText, decryptedText: newText, edited: true, editedAt: Date.now() } : m));
+      groupMessagesRef.current = next;
+      return next;
+    });
+
+    socket.emit('message:edit', { messageId: idStr, timestamp: target.timestamp ? String(target.timestamp) : undefined, newMessage: newText });
+
+    setGroupEditingMessage(null);
+    setGroupChatInput('');
+  };
+
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
     if (!socket) return;
     const ts = Date.now();
@@ -5658,6 +5724,7 @@ const Room = () => {
 
   const sendDmChat = async (e) => {
     e.preventDefault();
+    if (dmEditingMessage) { editDmMessage(); return; }
     if (!dmChatInput.trim() || !socket || !dmTarget) return;
 
     const token = localStorage.getItem('watch_token');
@@ -5857,6 +5924,92 @@ const Room = () => {
       });
     }
   };
+
+  // DM messages are E2EE, so editing must re-run the same encryption steps
+  // sendDmChat does above (same public-key lookup cascade), not just resend
+  // plaintext. Edit is delivered over the socket (message:edit), matching how
+  // handleDeleteMessage already works for both group and in-room DMs here —
+  // only the original send happens to go over REST.
+  const editDmMessage = async () => {
+    if (!dmChatInput.trim() || !socket || !dmTarget || !dmEditingMessage) return;
+    const newText = dmChatInput.trim();
+    const target = dmEditingMessage;
+    const idStr = String(target.id);
+
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please refresh.');
+      return;
+    }
+
+    const targetLower = dmTarget.toLowerCase();
+    let isEncrypted = false;
+    let messagePayload = '';
+    let senderMsgPayload = '';
+    let nonceVal = '';
+    let ephKeyVal = '';
+
+    try {
+      const cachedKey = dbPublicKeys.current[targetLower];
+      if (cachedKey && cachedKey.length === 32) {
+        const enc = encryptDM(newText, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+        messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+      }
+      if (!isEncrypted) {
+        const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
+        if (targetUser?.publicKey) {
+          const enc = encryptDM(newText, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
+          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+        }
+      }
+      if (!isEncrypted) {
+        const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
+        if (localPK) {
+          const enc = encryptDM(newText, localPK, encodeBase64(myKeyPair.current.publicKey));
+          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+        }
+      }
+      if (!isEncrypted) {
+        const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          if (pkData.publicKey) {
+            const enc = encryptDM(newText, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
+            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[E2EE] editDmMessage encryption error:', err);
+    }
+
+    if (!isEncrypted) {
+      toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
+      return;
+    }
+
+    setDmThreads(prev => {
+      const next = { ...prev };
+      const key = dmTarget.toLowerCase();
+      if (next[key]) {
+        next[key] = next[key].map(m => (String(m.id) === idStr ? { ...m, message: messagePayload, decryptedText: newText, edited: true, editedAt: Date.now() } : m));
+      }
+      return next;
+    });
+
+    socket.emit('message:edit', {
+      messageId: idStr,
+      timestamp: target.timestamp ? String(target.timestamp) : undefined,
+      newMessage: messagePayload,
+      newSenderMessage: senderMsgPayload,
+      nonce: nonceVal,
+      ephemeralPublicKey: ephKeyVal
+    });
+
+    setDmEditingMessage(null);
+    setDmChatInput('');
+  };
+
   const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
     if (!socket || !dmTarget) return;
 
@@ -11503,6 +11656,8 @@ const Room = () => {
                     dmChatInput, setDmChatInput, dmInputRef,
                     groupReplyTo, setGroupReplyTo,
                     dmReplyTo, setDmReplyTo,
+                    groupEditingMessage, setGroupEditingMessage,
+                    dmEditingMessage, setDmEditingMessage,
                     activeReactionMsg, setActiveReactionMsg,
                     showAllEmojis, setShowAllEmojis,
                     showGroupEmojiPicker, setShowGroupEmojiPicker,
@@ -11776,6 +11931,8 @@ const Room = () => {
                 dmChatInput, setDmChatInput, dmInputRef,
                 groupReplyTo, setGroupReplyTo,
                 dmReplyTo, setDmReplyTo,
+                groupEditingMessage, setGroupEditingMessage,
+                dmEditingMessage, setDmEditingMessage,
                 activeReactionMsg, setActiveReactionMsg,
                 showAllEmojis, setShowAllEmojis,
                 showGroupEmojiPicker, setShowGroupEmojiPicker,

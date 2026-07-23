@@ -42,6 +42,9 @@ const copyMessageText = async (msg) => {
   }
 };
 
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const isMessageEditable = (msg) => !!getMessageCopyText(msg) && (Date.now() - Number(msg.timestamp) <= EDIT_WINDOW_MS);
+
 const FILE_LIMITS = {
   'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
   'image/png':{ max:10*1024*1024, label:'10MB' }, 'image/gif':{ max:10*1024*1024, label:'10MB' },
@@ -551,6 +554,25 @@ const typingCss = `
     --input-bg: #f8fafc;
     --input-border: #e2e8f0;
     --input-text: #0f172a;
+  }
+
+  /* Own-message ("msg-sent stay-white") bubbles force color:#fff !important on all
+     descendants in light mode (to keep the purple gradient bubble readable) — the
+     Copy/Delete-for-me items in this dropdown got caught by that and rendered
+     invisible (white text/icon on the white dropdown popup). Same fix already
+     applied in RoomChatPanel.jsx's own dropdown. */
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn {
+    color: var(--menu-item-text) !important;
+    -webkit-text-fill-color: var(--menu-item-text) !important;
+  }
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn svg,
+  html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn svg *,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg,
+  html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn svg * {
+    color: var(--menu-item-text) !important;
+    -webkit-text-fill-color: var(--menu-item-text) !important;
+    stroke: var(--menu-item-text) !important;
   }
 
   /* Mobile & iPad view: the panel's fixed 380px width + right:20 anchor can push it
@@ -1462,6 +1484,7 @@ const GlobalChatWidget = forwardRef(({
   const [showAllEmojis, setShowAllEmojis] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
+  const [editingMsg, setEditingMsg] = useState(null);
   const [reportMsgTarget, setReportMsgTarget] = useState(null);
   // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
   // these aren't called per-message inside the .map() below.
@@ -2181,6 +2204,34 @@ const GlobalChatWidget = forwardRef(({
     sock.on('chat:message_deleted', handleRemoteDelete);
     sock.on('message:unsent', handleRemoteDelete);
     sock.on('message:removed-for-me', handleRemoteDelete);
+
+    // Edit broadcast — own edit reconciliation (this client's own PUT request
+    // already patched local state optimistically) or the other participant
+    // editing their message live. Group messages are plaintext (nonce absent);
+    // DM messages are E2EE and are re-decrypted using whichever copy applies,
+    // based on the existing message's own isMe flag rather than new payload
+    // fields, since the editor's own socket also receives this broadcast.
+    const handleRemoteEdit = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, editedAt }) => {
+      setMessages(prev => prev.map(m => {
+        if (!flexibleMatch(messageId, m)) return m;
+        let decryptedText = newMessage;
+        if (nonce && keyPair) {
+          try {
+            if (m.isMe && senderMessage) {
+              decryptedText = decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
+            } else if (!m.isMe && ephemeralPublicKey) {
+              decryptedText = decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
+            }
+          } catch (err) {
+            console.warn('[E2EE] chat:message_edited decrypt failed:', err);
+            decryptedText = m.decryptedText;
+          }
+        }
+        return { ...m, message: newMessage, decryptedText, edited: true, editedAt };
+      }));
+    };
+    sock.on('chat:message_edited', handleRemoteEdit);
+    sock.on('message:edited', handleRemoteEdit);
 
 
 
@@ -3808,6 +3859,7 @@ const GlobalChatWidget = forwardRef(({
 
   const handleSend = async (e) => {
     e.preventDefault();
+    if (editingMsg) { handleEditMessage(); return; }
     if (!inputValue.trim() || !activeChat) return;
 
     // ── Client-side room permission checks ──
@@ -3990,6 +4042,59 @@ const GlobalChatWidget = forwardRef(({
       toast.error('Failed to send message. Please try again.');
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setConversations(previousConversations);
+    }
+  };
+
+  // Room/group messages here are plaintext (mirroring the "room" branch above,
+  // which is itself dead-disabled E2EE), so only private DMs need to re-run
+  // encryption — same key-lookup approach handleSend uses above, just against
+  // the already-known partner rather than looking up recipients fresh.
+  const handleEditMessage = async () => {
+    if (!inputValue.trim() || !editingMsg || !activeChat) return;
+    const newText = inputValue.trim();
+    const target = editingMsg;
+    const idStr = String(target.id);
+
+    let messagePayload = newText;
+    let senderMessagePayload = undefined;
+    let nonceValue = undefined;
+    let ephemeralKey = undefined;
+
+    try {
+      if (activeChat.type === 'private' && keyPair) {
+        let targetPubKey = null;
+        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          if (pkData.publicKey) targetPubKey = pkData.publicKey;
+        }
+        if (!targetPubKey) {
+          toast.error('Could not find recipient encryption key.');
+          return;
+        }
+        const enc = encryptDM(newText, targetPubKey, encodeBase64(keyPair.publicKey));
+        messagePayload = enc.ciphertext;
+        senderMessagePayload = enc.senderCiphertext;
+        nonceValue = enc.nonce;
+        ephemeralKey = enc.ephemeralPublicKey;
+      }
+
+      setMessages(prev => prev.map(m => (String(m.id) === idStr ? { ...m, message: messagePayload, decryptedText: newText, edited: true, editedAt: Date.now() } : m)));
+      setEditingMsg(null);
+      setInputValue('');
+
+      const resp = await fetch(`${API}/api/chats/message/${target.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ message: messagePayload, senderMessage: senderMessagePayload, nonce: nonceValue, ephemeralPublicKey: ephemeralKey })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        toast.error(err.error || 'Could not edit message.');
+      }
+    } catch (e) {
+      console.error('[GlobalChatWidget] edit error', e);
+      toast.error('Could not edit message.');
     }
   };
 
@@ -5811,13 +5916,13 @@ const GlobalChatWidget = forwardRef(({
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
-                                    <div style={{
+                                    <div className="menu-dropdown" style={{
                                       position:'absolute',
                                       [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                       [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
                                       [isMe?'right':'left']:0,
                                       background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)',
-                                      borderRadius:12, padding:6, zIndex:100, 
+                                      borderRadius:12, padding:6, zIndex:100,
                                       boxShadow:'var(--dropdown-shadow)', minWidth: 145,
                                       WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
                                     }} onClick={e => e.stopPropagation()}>
@@ -5828,6 +5933,11 @@ const GlobalChatWidget = forwardRef(({
                                       )}
                                       {isMe ? (
                                         <>
+                                          {isMessageEditable(msg) && (
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
+                                              <Edit2 size={12} color="currentColor"/> {t('editMessage', 'Edit Message')}
+                                            </button>
+                                          )}
                                           <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn msg-menu-unsend" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', WebkitTextFillColor:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap', transition: 'background 0.2s'}}>
                                             <Trash2 size={12} color="#ef4444"/> {t('unsend', 'Unsend')}
                                           </button>
@@ -5893,6 +6003,11 @@ const GlobalChatWidget = forwardRef(({
                                 )}
                                 {isMe ? (
                                   <>
+                                    {isMessageEditable(msg) && (
+                                      <button onClick={() => { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                        <Edit2 size={14}/> {t('editMessage', 'Edit Message')}
+                                      </button>
+                                    )}
                                     <button onClick={() => { handleDeleteMessage(msg.id || msg.timestamp, 'global'); longPress.close(); }} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
                                       <Trash2 size={14}/> {t('unsend', 'Unsend')}
                                     </button>
@@ -5932,6 +6047,7 @@ const GlobalChatWidget = forwardRef(({
                           )}
 
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
+                            {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.45)' : '#888',fontStyle:'italic'}}>{t('edited', 'Edited')}</span>}
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatDistanceToNow(Number(msg.timestamp) || Date.now())} ago</span>
                             <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             {activeChat?.type === 'room' && !isMe && (
@@ -6088,7 +6204,13 @@ const GlobalChatWidget = forwardRef(({
                     <button onClick={()=>setReplyToMsg(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
                   </div>
                 )}
-                
+                {editingMsg && (
+                  <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(56,189,248,0.08)',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+                    <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
+                    <button onClick={()=>{ setEditingMsg(null); setInputValue(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
+                  </div>
+                )}
+
                 {showEmojiPicker && (
                   <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', left:12, marginBottom:10, zIndex:100, boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:10}} onMouseDown={(e) => e.stopPropagation()}>
                     <Picker data={data} onEmojiSelect={(e) => { setInputValue(prev => prev + e.native); }} theme={isLight ? 'light' : 'dark'} previewPosition="none" searchPosition="sticky" navPosition="bottom" />
