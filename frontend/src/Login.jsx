@@ -10,6 +10,7 @@ import { decryptPrivateKey, generateKeyPair, hashRecoveryPhrase } from './lib/cr
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
+import SeoHead from './components/SeoHead';
 import { API } from './lib/api';
 
 const Login = () => {
@@ -379,6 +380,7 @@ const Login = () => {
 
   return (
     <div className="login-layout">
+      <SeoHead path="/login" />
       <style>{`
         .login-layout {
           display: flex;

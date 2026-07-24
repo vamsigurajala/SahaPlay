@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 import { CheckCircle, Send, X, Upload, AlertCircle, ChevronDown, MessageCircle } from 'lucide-react';
 import { API } from './lib/api';
 
@@ -312,6 +313,7 @@ export default function Contact() {
   ══════════════════════════════════════════════════════ */
   return (
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
+      <SeoHead path="/contact" />
       <Navbar />
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>

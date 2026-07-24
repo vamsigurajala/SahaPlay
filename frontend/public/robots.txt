@@ -1,5 +1,18 @@
 User-agent: *
+Allow: /
 Disallow: /api/
 Disallow: /avatars/
 Disallow: /uploads/
-Allow: /
+Disallow: /room/
+Disallow: /admin
+Disallow: /profile
+Disallow: /app-settings
+Disallow: /settings
+Disallow: /public
+Disallow: /pinned-rooms
+Disallow: /verify
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /tv
+
+Sitemap: https://sahaplay.com/sitemap.xml

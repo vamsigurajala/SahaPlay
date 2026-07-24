@@ -6,6 +6,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 import { getRoomThumbnailUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 
@@ -217,6 +218,7 @@ const Home = () => {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh' }}>
+      <SeoHead path="/" />
       <Toaster position="top-center" />
       <style>{`
         /* ── Orb animations ── */

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 
 const SECTIONS = [
   { id: 'introduction',         num: 1,  titleKey: 'termsSec1Title',  defaultTitle: 'Introduction',                           Icon: FileText      },
@@ -172,6 +173,7 @@ export default function Terms() {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
+      <SeoHead path="/terms" />
       <Navbar />
       <div className="page-wrapper">
 

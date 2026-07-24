@@ -1,5 +1,14 @@
 {
   "rewrites": [
+    { "source": "/login", "destination": "/login/index.html" },
+    { "source": "/signup", "destination": "/signup/index.html" },
+    { "source": "/features", "destination": "/features/index.html" },
+    { "source": "/how-it-works", "destination": "/how-it-works/index.html" },
+    { "source": "/pricing", "destination": "/pricing/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/safety", "destination": "/safety/index.html" },
+    { "source": "/cookies", "destination": "/cookies/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

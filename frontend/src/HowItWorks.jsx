@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 import CreateRoomModal from './components/CreateRoomModal';
 
 const HowItWorks = () => {
@@ -241,6 +242,7 @@ const HowItWorks = () => {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }}>
+      <SeoHead path="/how-it-works" />
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

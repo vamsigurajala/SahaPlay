@@ -12,6 +12,7 @@ import { TbBrandAmazon, TbBrandDisney } from 'react-icons/tb';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 
 const Features = () => {
   const navigate = useNavigate();
@@ -101,6 +102,7 @@ const Features = () => {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh', backgroundColor: 'var(--bg-color)', color: 'var(--text-primary)' }}>
+      <SeoHead path="/features" />
       <CreateRoomModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useState, lazy, Suspense } from 'rea
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { HelmetProvider } from 'react-helmet-async';
 import * as Sentry from '@sentry/react';
 import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
@@ -195,14 +196,19 @@ const ProtectedRoute = ({ children }) => {
   return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
 };
 
-// Root route: web visitors always get Home (the marketing landing page) — unchanged.
-// The Tauri desktop app already has the user's attention (they installed it), so a
-// logged-in/guest session there skips straight to the functional Dashboard instead
-// of re-showing the marketing pitch they saw before installing.
+// Root route: web visitors always get Home (the marketing landing page), regardless of
+// auth state — this is the public SEO entry point and must not require a session (it
+// previously did, via an outer ProtectedRoute wrapper, which silently redirected every
+// anonymous visitor — and every crawler — straight to /login before Home ever rendered).
+// The Tauri desktop app is a different context: it already has the user's attention
+// (they installed it), so a logged-in/guest session there skips straight to the
+// functional Dashboard, while a logged-out Tauri session still needs its own auth gate
+// since there's no public marketing surface to show inside the installed app.
 const RootRoute = () => {
   const isAuthenticated = !!localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
-  if (isTauriApp() && (isAuthenticated || isGuest)) return <Dashboard />;
+  useInactivityLogout();
+  if (isTauriApp()) return (isAuthenticated || isGuest) ? <Dashboard /> : <Navigate to="/login" replace />;
   return <Home />;
 };
 
@@ -1106,6 +1112,7 @@ function App() {
 
   return (
     <ErrorBoundary>
+    <HelmetProvider>
     <CryptoProvider>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
@@ -1126,7 +1133,7 @@ function App() {
             <Route path="/safety" element={<Safety />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/terms" element={<Terms />} />
-            <Route path="/" element={<ProtectedRoute><RootRoute /></ProtectedRoute>} />
+            <Route path="/" element={<RootRoute />} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/pinned-rooms" element={<ProtectedRoute><PinnedRooms /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -1141,6 +1148,7 @@ function App() {
         </Router>
       </GoogleOAuthProvider>
     </CryptoProvider>
+    </HelmetProvider>
     </ErrorBoundary>
   );
 }

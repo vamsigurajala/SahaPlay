@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 
 export default function Cookies() {
   const { t } = useTranslation();
@@ -55,6 +56,7 @@ export default function Cookies() {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
+      <SeoHead path="/cookies" />
       <Navbar />
       <div className="page-wrapper">
 

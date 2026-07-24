@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 import { useTranslation } from 'react-i18next';
 import { useBackIntercept } from './hooks/useBackIntercept';
 
@@ -79,6 +80,7 @@ export default function Safety() {
 
   return (
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
+      <SeoHead path="/safety" />
       {showChatLockModal && (
         <ChatLockInfoModal
           isLight={isLight}

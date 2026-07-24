@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import SeoHead from './components/SeoHead';
 import { Mail, Check } from 'lucide-react';
 
 const Pricing = () => {
@@ -64,6 +65,7 @@ const Pricing = () => {
       display: 'flex',
       flexDirection: 'column',
     }}>
+      <SeoHead path="/pricing" />
       <Navbar />
 
       <main style={{

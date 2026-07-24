@@ -13,6 +13,7 @@ import {
 } from './lib/crypto.js';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
+import SeoHead from './components/SeoHead';
 import nacl from 'tweetnacl';
 import { API } from './lib/api';
 
@@ -260,6 +261,7 @@ const Signup = () => {
 
   return (
     <>
+      <SeoHead path="/signup" />
       {showRecoveryModal && (
         <RecoveryPhraseModal phrase={recoveryPhrase} onConfirmed={handlePhraseConfirmed} />
       )}
