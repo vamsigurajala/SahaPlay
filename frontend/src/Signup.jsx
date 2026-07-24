@@ -113,6 +113,10 @@ const Signup = () => {
     } catch (e) {}
     localStorage.setItem('watch_token', data.token);
     localStorage.setItem('watch_username', data.username);
+    // useInactivityLogout only mounts on protected routes, so watch_last_activity can
+    // be stale from a session that ended 20+ minutes ago — reset it here so the first
+    // protected-route mount after this login doesn't immediately force-logout.
+    localStorage.setItem('watch_last_activity', String(Date.now()));
 
     if (data.needsKeySetup) {
       // First login (or a legacy account missing keys): generate an E2EE key pair.

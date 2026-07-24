@@ -13,7 +13,8 @@ export const clearUserSession = () => {
         'wt_session_key',
         'wt_session_pw',
         'chat_lock_auto_minutes',
-        'chat_lock_auto_on_close'
+        'chat_lock_auto_on_close',
+        'watch_last_activity'
     ];
     
     const prefixesToRemove = [

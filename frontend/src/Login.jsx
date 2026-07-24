@@ -121,6 +121,13 @@ const Login = () => {
       localStorage.setItem('watch_token', data.token);
       localStorage.setItem('watch_username', data.username);
       localStorage.setItem('watch_role', data.role || 'user');
+      // useInactivityLogout only mounts on protected routes, so watch_last_activity
+      // never gets refreshed while sitting on this logged-out login page — it can be
+      // stale from a session that ended 20+ minutes ago. Without resetting it here,
+      // the very next route (ProtectedRoute mounting for the first time this session)
+      // runs its immediate-on-mount inactivity check against that stale value and
+      // force-logs-out right after a perfectly valid login, bouncing back to /login.
+      localStorage.setItem('watch_last_activity', String(Date.now()));
       window.dispatchEvent(new Event('login_success'));
       navigate(safeNext || '/');
 
@@ -192,6 +199,9 @@ const Login = () => {
     localStorage.setItem('watch_token', data.token);
     localStorage.setItem('watch_username', data.username);
     localStorage.setItem('watch_role', data.role || 'user');
+    // See handleLogin's comment above — resets the inactivity clock so the
+    // first protected-route mount after login doesn't see a stale timestamp.
+    localStorage.setItem('watch_last_activity', String(Date.now()));
 
     if (data.needsKeySetup) {
       // First login (or a legacy account missing keys): generate an E2EE key pair.
@@ -360,6 +370,7 @@ const Login = () => {
     clearUserSession();
     localStorage.setItem('watch_username', 'guest_' + guestName.trim());
     localStorage.setItem('watch_is_guest', 'true');
+    localStorage.setItem('watch_last_activity', String(Date.now()));
     navigate('/');
   };
 
