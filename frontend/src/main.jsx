@@ -7,6 +7,18 @@ import './i18n'
 import App from './App.jsx'
 import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
+import { API } from './lib/api.js';
+
+// Render's free tier spins the backend down when idle and takes ~30-60s to
+// cold-start on the first request. prefetchAll() below only pings the backend
+// for already-logged-in users, so a logged-out visitor landing on /login was
+// getting zero head start — the backend only started waking up the moment
+// they clicked "Log In", and the request could then get cut off by that
+// form's own abort timeout before the cold start finished, making the first
+// attempt fail and an immediate retry (backend now warm) succeed instantly.
+// Firing this unconditionally, as early as possible, gives every page load a
+// multi-second warm-up head start before any user-initiated request happens.
+fetch(`${API}/health`).catch(() => {});
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,

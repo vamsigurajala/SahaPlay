@@ -175,7 +175,7 @@ const Signup = () => {
     // few seconds later (backend now warm) succeeds instantly.
     const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
     const controller = new AbortController();
-    const abortTimer = setTimeout(() => controller.abort(), 45000);
+    const abortTimer = setTimeout(() => controller.abort(), 70000);
 
     try {
       const response = await fetch(`${API}/api/auth/google`, {
@@ -214,7 +214,7 @@ const Signup = () => {
 
       slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
       const controller = new AbortController();
-      abortTimer = setTimeout(() => controller.abort(), 45000);
+      abortTimer = setTimeout(() => controller.abort(), 70000);
 
       const response = await fetch(`${API}/api/auth/apple`, {
         method: 'POST',

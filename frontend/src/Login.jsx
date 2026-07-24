@@ -83,7 +83,7 @@ const Login = () => {
     // clear error rather than hanging forever if it never comes back.
     const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
     const controller = new AbortController();
-    const abortTimer = setTimeout(() => controller.abort(), 45000);
+    const abortTimer = setTimeout(() => controller.abort(), 70000);
 
     try {
       const response = await fetch(`${API}/api/login`, {
@@ -269,7 +269,7 @@ const Login = () => {
     // now warm) succeeds instantly, looking like "first try doesn't work".
     const slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
     const controller = new AbortController();
-    const abortTimer = setTimeout(() => controller.abort(), 45000);
+    const abortTimer = setTimeout(() => controller.abort(), 70000);
 
     try {
       const response = await fetch(`${API}/api/auth/google`, {
@@ -310,7 +310,7 @@ const Login = () => {
       // only guards the fetch to our own backend, not the Apple popup step.
       slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
       const controller = new AbortController();
-      abortTimer = setTimeout(() => controller.abort(), 45000);
+      abortTimer = setTimeout(() => controller.abort(), 70000);
 
       const response = await fetch(`${API}/api/auth/apple`, {
         method: 'POST',
