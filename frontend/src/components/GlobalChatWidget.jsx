@@ -441,6 +441,12 @@ import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decrypt
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 
+// Shown instead of raw content for group messages sent before client-side group E2EE
+// shipped (the old server-side-only encryption scheme, since retired — no dual-format
+// decrypt support). Media wasn't part of that old scheme (files were always stored
+// unencrypted), so it keeps rendering normally; only legacy text is replaced.
+const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Sent before encryption upgrade';
+
 const resolveMediaUrl = (url, baseUrl) => {
   if (!url) return '';
   // Clean up any double-prepended URLs (e.g. "http://localhost:3001https://...")
@@ -2487,6 +2493,11 @@ const GlobalChatWidget = forwardRef(({
       let decryptedMediaUrl = msg.mediaUrl;
       const activeKey = keyPairRef.current;
       const msgNonce = msg.nonce || (msg.e2ee && msg.e2ee.nonce);
+      if (isGroup && !msgNonce) {
+        // Legacy group message (predates client-side group E2EE) — see
+        // LEGACY_GROUP_TEXT_PLACEHOLDER definition for the full rationale.
+        decryptedMessage = msg.mediaUrl ? '' : LEGACY_GROUP_TEXT_PLACEHOLDER;
+      }
       if (msgNonce && activeKey) {
         try {
           if (isGroup) {
@@ -3373,7 +3384,10 @@ const GlobalChatWidget = forwardRef(({
               } catch(e) {}
               return { ...c, ...mediaMeta, decryptedText: null };
             }
-            return { ...c, ...mediaMeta };
+            // Legacy conversation preview (predates client-side group E2EE) — media
+            // still renders via mediaMeta; legacy text gets the placeholder instead.
+            if (Object.keys(mediaMeta).length > 0) return { ...c, ...mediaMeta };
+            return { ...c, message: LEGACY_GROUP_TEXT_PLACEHOLDER, decryptedText: LEGACY_GROUP_TEXT_PLACEHOLDER };
           }
           return c;
        });
@@ -3566,7 +3580,13 @@ const GlobalChatWidget = forwardRef(({
       const mUserLower = myUsername?.toLowerCase();
       const msgIsMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
 
-      if (!m.nonce) return { ...m, decryptedText: m.message || '' }; 
+      if (!m.nonce) {
+        // Legacy group message (predates client-side group E2EE) — DM's own legacy
+        // path (pre-DM-E2EE messages, if any) is untouched below, unchanged.
+        const isGroupMsgLegacy = m.type === 'group' || m.type === 'room' || type === 'room';
+        if (isGroupMsgLegacy) return { ...m, decryptedText: m.mediaUrl ? '' : LEGACY_GROUP_TEXT_PLACEHOLDER };
+        return { ...m, decryptedText: m.message || '' };
+      }
       if (!kp) return { ...m, decryptedText: null, mediaUrl: null }; 
       const msgKey = String(m.id || m.timestamp);
       let decryptedText = null;
@@ -4083,7 +4103,7 @@ const GlobalChatWidget = forwardRef(({
              // isEncrypted remains false
            }
         }
-      } else if (false && activeChat.type === 'room' && keyPair) {
+      } else if (activeChat.type === 'room' && keyPair) {
         const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
         const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -4094,7 +4114,7 @@ const GlobalChatWidget = forwardRef(({
             username: k.username,
             publicKey: robustDecode(k.publicKey)
           }));
-          
+
           try {
             const enc = encryptGroupMessage(optimisticMsg.message, recipients, keyPair, myUsername);
             messagePayload = enc.ciphertext;
@@ -4102,12 +4122,16 @@ const GlobalChatWidget = forwardRef(({
             e2eeKeysGroup = enc.keys;
             ephemeralKey = encodeBase64(keyPair.publicKey);
             isEncrypted = true;
-            console.log('[E2EE] Group Encryption success');
           } catch (err) {
             console.error('[E2EE] Group Encryption failed:', err);
             // isEncrypted remains false
           }
         }
+      }
+
+      // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
+      if (activeChat.type === 'room' && !isEncrypted) {
+        throw new Error('Message not sent — encryption failed.');
       }
 
       const postBody = {
@@ -4249,19 +4273,15 @@ const GlobalChatWidget = forwardRef(({
 
     try {
       const isRoom = activeChat?.type === 'room';
-      let encryptedBlob = null;
-      let mediaKeyBytes = null;
-      let mediaKeyB64 = null;
-
-      if (!isRoom) {
-        const enc = await encryptMedia(file);
-        encryptedBlob = enc.encryptedBlob;
-        mediaKeyBytes = enc.mediaKeyBytes;
-        mediaKeyB64 = encodeBase64(mediaKeyBytes);
-      }
+      // Group media/files are E2EE too now — same AES-256-GCM-then-NaCl-wrap-the-key
+      // pattern as DM media, just wrapped for every room recipient instead of one partner.
+      const enc = await encryptMedia(file);
+      const encryptedBlob = enc.encryptedBlob;
+      const mediaKeyBytes = enc.mediaKeyBytes;
+      const mediaKeyB64 = encodeBase64(mediaKeyBytes);
 
       const fd = new FormData();
-      fd.append('media', isRoom ? file : encryptedBlob, file.name);
+      fd.append('media', encryptedBlob, file.name);
       if (isRoom) {
         fd.append('roomId', (activeChat.partner || activeChat.id).toLowerCase());
       }
@@ -4306,6 +4326,22 @@ const GlobalChatWidget = forwardRef(({
             senderMessagePayload = enc.senderCiphertext;
             isEncrypted = true;
           }
+        } else if (activeChat.type === 'room' && keyPair && mediaKeyB64) {
+          const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
+          const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (pkRes.ok) {
+            const pkData = await pkRes.json();
+            const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
+            // STRATEGY: same as DM — encrypt the media key (not the URL), wrapped per recipient.
+            const enc = encryptGroupMessage(mediaKeyB64, recipients, keyPair, myUsername);
+            messagePayload = enc.ciphertext;
+            mediaNonce = enc.nonce;
+            e2eeKeysGroup = enc.keys;
+            mediaEphemeral = encodeBase64(keyPair.publicKey); // sender's own long-term public key
+            isEncrypted = true;
+          }
         }
       } catch (err) {
          console.warn("[E2EE] Media encryption error:", err);
@@ -4321,8 +4357,8 @@ const GlobalChatWidget = forwardRef(({
           : m
       ));
 
-      // STRICT SECURITY: For private chats, E2E encryption is mandatory.
-      if (activeChat.type === 'private' && !isEncrypted) {
+      // STRICT SECURITY: E2E encryption is mandatory for both private and group chats.
+      if ((activeChat.type === 'private' || activeChat.type === 'room') && !isEncrypted) {
          throw new Error("Encryption keys missing. Media not sent for security.");
       }
 

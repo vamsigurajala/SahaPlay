@@ -1967,10 +1967,20 @@ const Room = () => {
             displayMediaUrl = null;
           }
         } else {
-          // Plaintext or server-side AES-decrypted. If decryption failed server-side,
-          // msg.message keeps the encv1: prefix — treat those as unreadable.
+          // No e2ee metadata — predates client-side group E2EE (the old server-side-only
+          // scheme). No dual-format decrypt support: show a placeholder instead of the raw
+          // (already server-decrypted) plaintext. If server-side decryption itself failed,
+          // msg.message keeps the encv1: prefix — treat those as unreadable too. Media was
+          // never part of the old scheme (files were always stored unencrypted), so it
+          // keeps rendering normally.
           const rawMsg = msg.message || '';
-          decryptedText = rawMsg.startsWith('encv1:') ? null : rawMsg;
+          if (rawMsg.startsWith('encv1:')) {
+            decryptedText = null;
+          } else if (msg.mediaUrl) {
+            decryptedText = '';
+          } else {
+            decryptedText = LEGACY_GROUP_TEXT_PLACEHOLDER;
+          }
         }
 
         return {
@@ -3600,7 +3610,10 @@ const Room = () => {
           console.warn('[E2EE] Group decrypt failed:', err);
         }
       } else {
-        decryptedText = msg.message || '';
+        // Legacy message (predates client-side group E2EE) — see decryptRoomGroupMessages
+        // for the full rationale. Live receives essentially never hit this once sending is
+        // mandatory-encrypted, but kept as a safe fallback (e.g. a stale client mid-deploy).
+        decryptedText = msg.mediaUrl ? '' : LEGACY_GROUP_TEXT_PLACEHOLDER;
       }
       // ─────────────────────────────────────────────────────────────────────────
 
@@ -5510,12 +5523,48 @@ const Room = () => {
     return { failCount };
   };
 
+  // ─── E2EE: build the recipient list for a group message ───────────────────
+  // Merges dbPublicKeys.current (DB fallback covering recently-active room
+  // participants, from GET /api/rooms/:roomId/public-keys — see the pre-fetch
+  // effect above) with live userList/peerPublicKeys (current socket presence,
+  // takes priority since it's the freshest). Recipients are the UNION of both
+  // sets, not just userList alone — a message's key must be wrapped for anyone
+  // with a known public key, not only whoever happens to be connected at this
+  // exact instant, otherwise a member who briefly disconnects/reconnects loses
+  // access to messages sent during that gap, permanently.
+  const buildGroupRecipients = () => {
+    const mergedKeys = { ...dbPublicKeys.current };
+    userList.forEach(u => {
+      if (u.socketId && peerPublicKeys.current[u.socketId]) {
+        mergedKeys[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
+      }
+    });
+    const liveUsernames = userList.map(u => u.username.toLowerCase());
+    const allUsernames = new Set([...liveUsernames, ...Object.keys(mergedKeys)]);
+    allUsernames.delete(username.toLowerCase());
+    const recipients = [...allUsernames]
+      .map(uname => ({ username: uname, publicKey: mergedKeys[uname] || null }))
+      .filter(r => r.publicKey);
+    if (myKeyPair.current) recipients.push({ username, publicKey: myKeyPair.current.publicKey });
+    return recipients;
+  };
+
+  // ─── E2EE: shown instead of raw content for group messages sent before this
+  // upgrade (server-side-only encryption, since retired — no dual-format decrypt
+  // support). Media wasn't part of that old scheme (files were always stored
+  // unencrypted), so it keeps rendering normally; only legacy text is replaced.
+  const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Sent before encryption upgrade';
+
   // Ã¢â€ â‚¬Ã¢â€ â‚¬ Send message Ã¢â€ â‚¬Ã¢â€ â‚¬
   // Ref holding the latest raw-send logic so the event listener always has fresh state.
   const sendRawGroupChatRef = useRef(null);
   const sendGroupMediaRef = useRef(null);
   sendRawGroupChatRef.current = (msgText, replyTo) => {
     if (!msgText || !socket) return;
+    if (!myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+      return;
+    }
     const ts = Date.now();
     const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
     const optimisticMsg = {
@@ -5528,27 +5577,26 @@ const Room = () => {
       return next;
     });
     let encryptedPayload = null;
-    if (false && myKeyPair.current && userList.length > 0) {
-      try {
-        const mergedKeys = { ...dbPublicKeys.current };
-        userList.forEach(u => {
-          if (u.socketId && peerPublicKeys.current[u.socketId]) mergedKeys[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
-        });
-        const recipients = userList
-          .filter(u => u.username.toLowerCase() !== username.toLowerCase())
-          .map(u => ({ username: u.username, publicKey: mergedKeys[u.username.toLowerCase()] || null }))
-          .filter(r => r.publicKey);
-        recipients.push({ username, publicKey: myKeyPair.current.publicKey });
-        encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
-      } catch (err) {
-        console.warn('[E2EE] Group encrypt failed, falling back to plaintext:', err);
-      }
+    try {
+      const recipients = buildGroupRecipients();
+      encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
+    } catch (err) {
+      console.warn('[E2EE] Group encrypt failed:', err);
+    }
+    // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
+    if (!encryptedPayload) {
+      toast.error('Message not sent — encryption failed.');
+      setGroupMessages(prev => {
+        const next = prev.filter(m => m.id !== tempId);
+        groupMessagesRef.current = next;
+        return next;
+      });
+      return;
     }
     socket.emit('chat_message', {
       roomId: (roomId || '').toLowerCase(),
-      message: encryptedPayload ? encryptedPayload.ciphertext : msgText,
-      plaintextMessage: !encryptedPayload ? msgText : undefined,
-      e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,
+      message: encryptedPayload.ciphertext,
+      e2ee: { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) },
       username, tempId, replyTo: replyTo || null
     });
   };
@@ -5656,6 +5704,10 @@ const Room = () => {
     e.preventDefault();
     if (groupEditingMessage) { editGroupMessage(); return; }
     if (!groupChatInput.trim() || !socket) return;
+    if (!myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+      return;
+    }
 
     const msgText = groupChatInput.trim();
     const ts = Date.now();
@@ -5681,57 +5733,38 @@ const Room = () => {
 
     // ─── E2EE: Encrypt group message for all current room members ────────────
     let encryptedPayload = null;
-    if (false && myKeyPair.current && userList.length > 0) {
-      try {
-        // Build a merged username → publicKey map:
-        //   1. dbPublicKeys.current  — fetched from API/DB, always current, keyed by username
-        //   2. peerPublicKeys.current — from live user_list events, keyed by socketId (override if newer)
-        const mergedKeys = { ...dbPublicKeys.current };
-        userList.forEach(u => {
-          if (u.socketId && peerPublicKeys.current[u.socketId]) {
-            mergedKeys[u.username.toLowerCase()] = peerPublicKeys.current[u.socketId];
-          }
-        });
-
-        const recipients = userList
-          .filter(u => u.username.toLowerCase() !== username.toLowerCase())
-          .map(u => ({
-            username: u.username,
-            publicKey: mergedKeys[u.username.toLowerCase()] || null
-          }))
-          .filter(r => r.publicKey);
-
-        recipients.push({
-          username: username,
-          publicKey: myKeyPair.current.publicKey
-        });
-
-        encryptedPayload = encryptGroupMessage(
-          msgText,
-          recipients,
-          myKeyPair.current,
-          username
-        );
-      } catch (err) {
-        console.warn('[E2EE] Group encrypt failed, falling back to plaintext:', err);
-      }
+    try {
+      const recipients = buildGroupRecipients();
+      encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
+    } catch (err) {
+      console.warn('[E2EE] Group encrypt failed:', err);
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
+    if (!encryptedPayload) {
+      toast.error('Message not sent — encryption failed.');
+      setGroupMessages(prev => {
+        const next = prev.filter(m => m.id !== tempId);
+        groupMessagesRef.current = next;
+        return next;
+      });
+      return;
+    }
+
     socket.emit('chat_message', {
-      roomId: (roomId || '').toLowerCase(), 
-      message: encryptedPayload ? encryptedPayload.ciphertext : msgText,
-      plaintextMessage: !encryptedPayload ? msgText : undefined, // fallback for server-side link/media checks
-      e2ee: encryptedPayload ? {
+      roomId: (roomId || '').toLowerCase(),
+      message: encryptedPayload.ciphertext,
+      e2ee: {
         nonce: encryptedPayload.nonce,
         keys: encryptedPayload.keys,
         senderPublicKey: encodeBase64(myKeyPair.current.publicKey)
-      } : null,
-      username, 
+      },
+      username,
       tempId,
       replyTo: optimisticMsg.replyTo
     });
-    
+
     setGroupReplyTo(null);
     setGroupChatInput('');
     if (socket) {
@@ -5762,6 +5795,10 @@ const Room = () => {
 
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
     if (!socket) return;
+    if (rawFile && !myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+      return;
+    }
     const ts = Date.now();
     const tempId = `opt-media-${ts}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -5793,14 +5830,23 @@ const Room = () => {
 
     let finalUrl = url;
     const token = localStorage.getItem('watch_token');
+    let encryptedPayload = null;
 
-    // Group chats are NOT E2EE client-side. They are securely encrypted server-side instead.
+    // Group media/files are E2EE, same pattern as DM media: the file is AES-256-GCM
+    // encrypted client-side with a fresh random key before upload (server only ever
+    // sees the encrypted blob), and that key is itself wrapped for each recipient the
+    // same way group text is (encryptGroupMessage), not a separate scheme.
     if (rawFile) {
       try {
+        const { encryptedBlob, mediaKeyBytes } = await encryptMedia(rawFile);
+        const mediaKeyB64 = encodeBase64(mediaKeyBytes);
+        const recipients = buildGroupRecipients();
+        encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
+
         const fd = new FormData();
-        fd.append('file', rawFile, rawFile.name || 'media');
+        fd.append('file', encryptedBlob, rawFile.name || 'media');
         if (roomId) fd.append('roomId', roomId);
-        console.log('[CLIENT UPLOAD] Sending raw file:', { name: rawFile.name, size: rawFile.size, type: rawFile.type });
+        console.log('[CLIENT UPLOAD] Sending encrypted file:', { name: rawFile.name, size: encryptedBlob.size, type: rawFile.type });
         const uploadHeaders = {};
         if (token) {
           uploadHeaders['Authorization'] = `Bearer ${token}`;
@@ -5846,11 +5892,23 @@ const Room = () => {
         URL.revokeObjectURL(optimisticUrl);
         return;
       }
+
+      // Group E2EE is mandatory — if the key couldn't be wrapped for anyone, don't send.
+      if (!encryptedPayload) {
+        toast.error('File not sent — encryption failed.');
+        setGroupMessages(prev => {
+          const next = prev.filter(m => m.id !== tempId);
+          groupMessagesRef.current = next;
+          return next;
+        });
+        URL.revokeObjectURL(optimisticUrl);
+        return;
+      }
     }
 
     socket.emit('chat_message', {
       roomId: (roomId || '').toLowerCase(),
-      message: '',
+      message: encryptedPayload ? encryptedPayload.ciphertext : '',
       username,
       mediaUrl: finalUrl,
       mediaType: type,
@@ -5858,7 +5916,7 @@ const Room = () => {
       mediaFileSize: rawFile?.size || null,
       mediaDuration: mediaDuration || null,
       tempId,
-      e2ee: null,
+      e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,
       replyTo: optimisticMsg.replyTo
     });
   };
