@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useState, lazy, Suspense } from 'rea
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import * as Sentry from '@sentry/react';
 import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
@@ -39,6 +40,7 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     console.error('[ERROR BOUNDARY]', error, info.componentStack);
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
 
     // Lazy-loaded route chunks are hashed per-deploy. If a tab has been open
     // across a new deploy (very common here — this repo ships several times a
@@ -48,25 +50,22 @@ class ErrorBoundary extends React.Component {
     // sometimes fails with Something went wrong, works after a refresh" —
     // clicking Login (or navigating post-login into Home/Room) is exactly when
     // a stale tab first tries to lazy-load a chunk that no longer exists.
-    // Auto-reload once to pick up the current index.html (and therefore
-    // current chunk hashes) instead of leaving the user stuck on a manual
-    // "Refresh" button. Guarded by sessionStorage so a genuinely broken chunk
-    // doesn't reload-loop forever; the guard is cleared on next successful
-    // mount (see the effect in App()) so a later deploy can still recover.
     //
-    // The message wording for "a dynamic import failed" differs across
-    // browsers/build tools, and previously only the Chrome/Firefox/Safari-JS
-    // phrasings were matched — Vite's separate CSS-chunk-preload failure
-    // message wasn't, so on some browsers this recovery path silently never
-    // fired and the user was stuck manually refreshing (sometimes more than
-    // once) until a request happened to land after they'd refreshed enough.
-    const isChunkLoadError = /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|Failed to load module script|Unable to preload CSS|dynamically imported module/i.test(error?.message || '');
-    if (isChunkLoadError) {
-      const guardKey = 'watch_chunk_reload_attempted';
-      if (!sessionStorage.getItem(guardKey)) {
-        sessionStorage.setItem(guardKey, '1');
-        window.location.reload();
-      }
+    // The same "Something went wrong" screen also showed up after a genuinely
+    // successful login: post-login views (Dashboard/Navbar/etc.) fetch profile
+    // data immediately, and while the Render backend is cold-starting those
+    // requests can come back malformed/late in ways a render doesn't expect,
+    // throwing mid-render. Rather than only auto-recovering the chunk-hash
+    // case, auto-reload once for *any* caught render error — a silent one-shot
+    // reload is strictly better than leaving the user stuck on a manual
+    // "Refresh" button either way. Guarded by sessionStorage so a genuinely
+    // broken render doesn't reload-loop forever; the guard is cleared on next
+    // stable mount (see the effect in App()) so a later deploy/backend hiccup
+    // can still auto-recover.
+    const guardKey = 'watch_chunk_reload_attempted';
+    if (!sessionStorage.getItem(guardKey)) {
+      sessionStorage.setItem(guardKey, '1');
+      window.location.reload();
     }
   }
   render() {
