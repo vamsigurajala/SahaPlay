@@ -4148,8 +4148,11 @@ const GlobalChatWidget = forwardRef(({
         }
       }
 
-      // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
-      if (activeChat.type === 'room' && !isEncrypted) {
+      // E2EE is mandatory for both DM and group text — never fall back to plaintext.
+      // Aborting here (before postBody is built) means an unencrypted message never
+      // leaves the client at all, not even inside a request the server goes on to
+      // reject — matching how group send/edit/forward and DM media already behave.
+      if ((activeChat.type === 'private' || activeChat.type === 'room') && !isEncrypted) {
         throw new Error('Message not sent — encryption failed.');
       }
 
@@ -4158,9 +4161,8 @@ const GlobalChatWidget = forwardRef(({
         partner: activeChat.type === 'room' ? (activeChat.partner || activeChat.id).toLowerCase() : activeChat.partner,
         targetId: activeChat.type === 'private' ? activeChat.targetId : null,
         roomId: activeChat.type === 'room' ? (activeChat.partner || activeChat.id).toLowerCase() : null,
-        message: messagePayload || optimisticMsg.message, // Fallback to plaintext ONLY if NO keyPair
+        message: messagePayload,
         senderMessage: senderMessagePayload,
-        plaintextMessage: !isEncrypted ? optimisticMsg.message : undefined,
         nonce: nonceValue,
         ephemeralPublicKey: ephemeralKey,
         e2eeKeys: e2eeKeysGroup,
