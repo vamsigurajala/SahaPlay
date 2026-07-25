@@ -126,7 +126,8 @@ const ResetPassword = () => {
           font-family: 'Outfit', sans-serif;
           background: #050505;
           color: #fff;
-          overflow: hidden;
+          overflow-x: hidden;
+          overflow-y: auto;
         }
 
         .login-left {
