@@ -1948,12 +1948,21 @@ const Room = () => {
                      
                      const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
                      msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
-                     
+
                      decryptedText = '';
-                     displayMediaUrl = objectUrl;
+                     // Leave displayMediaUrl as the original permanent file URL (its initial
+                     // value from msg.mediaUrl above) — do NOT overwrite it with the blob:
+                     // object URL. Rendering reads the decrypted blob from
+                     // groupDecryptedMediaUrls above instead; mediaUrl must stay the real,
+                     // fetchable URL so forwarding (which reuses it as-is for already-
+                     // encrypted media) never picks up a tab-local blob: reference that's
+                     // meaningless to anyone else, including the sender after a reload.
                    } catch (e) {
                      console.warn('[E2EE] Group messages media decrypt failed:', e);
-                     displayMediaUrl = null;
+                     // Local preview decrypt/fetch failed (e.g. network hiccup) — the media
+                     // key itself was already recovered successfully above, so the real
+                     // mediaUrl is still valid and forwardable; only the inline preview
+                     // failed. Leave displayMediaUrl untouched (still the real URL).
                    }
                  } else {
                    decryptedText = plain;
@@ -3588,7 +3597,7 @@ const Room = () => {
                   String(msg.tempId || ''),
                   String(msg.timestamp || '')
                 ].filter(Boolean);
-                
+
                 // Do not block rendering, do async decryption
                 (async () => {
                   try {
@@ -3600,11 +3609,17 @@ const Room = () => {
                     // Store under all keys so lookup works regardless of id evolution
                     msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
                     setGroupMediaUrlVersion(v => v + 1);
+                    // Restore the real, permanent file URL onto the message now that the
+                    // in-flight decrypt is done (rendering already switched to the cached
+                    // blob above) — otherwise this message's mediaUrl stays null forever for
+                    // a message received live, silently blocking forwarding it later even
+                    // though the file is fully accessible. Only patch it in, never clear it.
+                    setGroupMessages(prev => prev.map(m => msgKeys.includes(String(m.id)) || msgKeys.includes(String(m.tempId)) || msgKeys.includes(String(m.timestamp)) ? { ...m, mediaUrl: fileUrl } : m));
                   } catch (e) {
                     console.warn('[E2EE] Group media decrypt (recipient) failed:', e);
                   }
                 })();
-                
+
                 decryptedText = ''; // Media key decrypted
                 msg.mediaUrl = null; // Do not attempt to render the ciphertext blob immediately!
               } else {
@@ -3635,7 +3650,11 @@ const Room = () => {
             // CRITICAL SENDER FIX: If decryption failed (e.g. key mismatch or late key),
             // PRESERVE the optimistic plaintext instead of overwriting with ciphertext or null.
             const safeDecryptedText = fixed.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
-            next[optIdx] = { ...fixed, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || fixed.mediaFileName || null, _fileSize: oldMsg._fileSize || fixed.mediaFileSize || null, mediaDuration: fixed.mediaDuration || oldMsg.mediaDuration || null };
+            // Use the server-confirmed real mediaUrl (fixed.mediaUrl), not the sender's local
+            // optimistic blob: preview (oldMsg.mediaUrl) — that blob is only valid in this tab
+            // and must never be treated as a permanent, forwardable URL. The blob stays
+            // available for fast local rendering via _localMediaUrl.
+            next[optIdx] = { ...fixed, decryptedText: safeDecryptedText, mediaUrl: fixed.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || fixed.mediaFileName || null, _fileSize: oldMsg._fileSize || fixed.mediaFileSize || null, mediaDuration: fixed.mediaDuration || oldMsg.mediaDuration || null };
             const resolved = resolveReplyMessages(next);
             groupMessagesRef.current = resolved;
             return resolved;
@@ -4148,6 +4167,15 @@ const Room = () => {
                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                        dmDecryptedMediaUrls.current[msgKey] = objectUrl;
                        setDmMediaUrlVersion(v => v + 1);
+                       // Restore the real permanent URL now that the in-flight decrypt is
+                       // done, so this message stays forwardable — see the matching group fix.
+                       setDmThreads(prev => {
+                         const key = otherName.toLowerCase();
+                         const thread = prev[key];
+                         if (!thread) return prev;
+                         const next = thread.map(m => (String(m.id) === String(msgKey) || String(m.tempId) === String(msgKey) || String(m.timestamp) === String(msgKey)) ? { ...m, mediaUrl: targetMediaUrl } : m);
+                         return { ...prev, [key]: next };
+                       });
                      } catch (e) { console.warn('[E2EE] DM async media decrypt failed (sender copy):', e); }
                    })();
                  } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
@@ -4177,6 +4205,15 @@ const Room = () => {
                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                      dmDecryptedMediaUrls.current[msgKey] = objectUrl;
                      setDmMediaUrlVersion(v => v + 1);
+                     // Restore the real permanent URL now that the in-flight decrypt is
+                     // done, so this message stays forwardable — see the matching group fix.
+                     setDmThreads(prev => {
+                       const key = otherName.toLowerCase();
+                       const thread = prev[key];
+                       if (!thread) return prev;
+                       const next = thread.map(m => (String(m.id) === String(msgKey) || String(m.tempId) === String(msgKey) || String(m.timestamp) === String(msgKey)) ? { ...m, mediaUrl: targetMediaUrl } : m);
+                       return { ...prev, [key]: next };
+                     });
                    } catch (e) { console.warn('[E2EE] DM async media decrypt failed:', e); }
                  })();
                } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
@@ -4213,7 +4250,9 @@ const Room = () => {
           if (optIdx !== -1) {
             const oldMsg = thread[optIdx];
             const safeDecryptedText = newMsg.decryptedText || (oldMsg._isOptimistic ? oldMsg.message : null);
-            thread[optIdx] = { ...newMsg, decryptedText: safeDecryptedText, mediaUrl: oldMsg.mediaUrl || newMsg.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || newMsg.mediaFileName || null, _fileSize: oldMsg._fileSize || newMsg.mediaFileSize || null, mediaDuration: newMsg.mediaDuration || oldMsg.mediaDuration || null };
+            // Use the server-confirmed real mediaUrl (newMsg.mediaUrl), not the sender's local
+            // optimistic blob: preview (oldMsg.mediaUrl) — see the matching group fix above.
+            thread[optIdx] = { ...newMsg, decryptedText: safeDecryptedText, mediaUrl: newMsg.mediaUrl, _localMediaUrl: oldMsg._localMediaUrl || oldMsg.mediaUrl, _fileName: oldMsg._fileName || newMsg.mediaFileName || null, _fileSize: oldMsg._fileSize || newMsg.mediaFileSize || null, mediaDuration: newMsg.mediaDuration || oldMsg.mediaDuration || null };
             return { ...prev, [key]: resolveReplyMessages(thread) };
           }
         }

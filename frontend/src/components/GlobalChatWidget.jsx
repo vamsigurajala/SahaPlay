@@ -2539,6 +2539,9 @@ const GlobalChatWidget = forwardRef(({
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
                         setMediaUrlVersion(v => v + 1);
+                        // Restore the real permanent URL now that the in-flight decrypt is
+                        // done, so this message stays forwardable — matches Room.jsx's fix.
+                        setMessages(prev => prev.map(m => (String(m.id) === String(msgKey) || String(m.tempId) === String(msgKey) || String(m.timestamp) === String(msgKey)) ? { ...m, mediaUrl: targetMediaUrl } : m));
                       } catch (e) { console.warn('[E2EE] Async group media decrypt failed:', e); }
                     })();
                     decryptedMediaUrl = null;
@@ -2572,6 +2575,9 @@ const GlobalChatWidget = forwardRef(({
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
                         setMediaUrlVersion(v => v + 1);
+                        // Restore the real permanent URL now that the in-flight decrypt is
+                        // done, so this message stays forwardable — matches Room.jsx's fix.
+                        setMessages(prev => prev.map(m => (String(m.id) === String(msgKey) || String(m.tempId) === String(msgKey) || String(m.timestamp) === String(msgKey)) ? { ...m, mediaUrl: targetMediaUrl } : m));
                       } catch (e) { console.warn('[E2EE] Async media decrypt failed (sender copy):', e); }
                     })();
                     decryptedMediaUrl = null; // will be populated async
@@ -2600,6 +2606,9 @@ const GlobalChatWidget = forwardRef(({
                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
                         decryptedMediaUrls.current[msgKey] = objectUrl;
                         setMediaUrlVersion(v => v + 1);
+                        // Restore the real permanent URL now that the in-flight decrypt is
+                        // done, so this message stays forwardable, matching Room.jsx's fix.
+                        setMessages(prev => prev.map(m => (String(m.id) === String(msgKey) || String(m.tempId) === String(msgKey) || String(m.timestamp) === String(msgKey)) ? { ...m, mediaUrl: targetMediaUrl } : m));
                       } catch (e) { console.warn('[E2EE] Async media decrypt failed:', e); }
                     })();
                     decryptedMediaUrl = null;
@@ -3623,7 +3632,11 @@ const GlobalChatWidget = forwardRef(({
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
-                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                    // decryptedMediaUrl stays m.mediaUrl (its initial value) — the real,
+                    // permanent file URL — not the blob: object URL. Rendering reads the
+                    // decrypted blob from decryptedMediaUrls above; mediaUrl must stay
+                    // forwardable/fetchable by anyone, not just this tab.
+                    decryptedText = '';
                   } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
                 } else { decryptedText = plainText; }
               }
@@ -3641,7 +3654,8 @@ const GlobalChatWidget = forwardRef(({
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
-                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                    // decryptedMediaUrl stays m.mediaUrl — see sender-copy branch above.
+                    decryptedText = '';
                   } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
                 }
               } else if (m.message && m.message !== '') {
@@ -3665,7 +3679,8 @@ const GlobalChatWidget = forwardRef(({
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
-                    decryptedMediaUrl = objectUrl; decryptedText = '';
+                    // decryptedMediaUrl stays m.mediaUrl — see DM branches above.
+                    decryptedText = '';
                   } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
                 }
               } else if (m.message && m.message !== '') {
