@@ -941,7 +941,7 @@ const uploadLimiter = rateLimit({
   // Per-user bucket when authenticated so users sharing an IP don't collide
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `upload_${username}` : ipKeyGenerator(req);
+    return username ? `upload_${username}` : ipKeyGenerator(req.ip);
   },
   handler: (req, res) => {
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
@@ -986,7 +986,7 @@ const streamLimiter = rateLimit({   // A7-F8
   // Per-user bucket — same reasoning as uploadLimiter
   keyGenerator: (req) => {
     const username = req.user?.username;
-    return username ? `stream_${username}` : ipKeyGenerator(req);
+    return username ? `stream_${username}` : ipKeyGenerator(req.ip);
   },
   message: { error: 'Too many upload chunks' }
 });
