@@ -355,21 +355,14 @@ function encryptServerText(text) {
 // Google OAuth users have no password, so client-side PBKDF2 wrapping (used for
 // email/password accounts) isn't available to them. As an accepted tradeoff
 // (documented, not ideal — the server itself can decrypt these keys, unlike the
-// password-based scheme where the raw key never reaches the server), we wrap
-// their private key server-side with a key derived from their stable Google
-// "sub" ID plus CHAT_ENCRYPTION_SECRET. Uses a distinct 'gkv1:' prefix so it can
-// never be confused with password-wrapped blobs or 'encv1:' chat-text ciphertext.
+// password-based scheme where the raw key never reaches the server) — those
+// accounts have since migrated onto a client-chosen passphrase (see the E2EE
+// key restoration block in /api/auth/google below). deriveGoogleWrapKey and
+// decryptGoogleWrappedKey are kept ONLY to unwrap any remaining legacy 'gkv1:'
+// blobs one last time during that migration; nothing writes new 'gkv1:' blobs
+// anymore, so encryptRawKeyForGoogle has been removed as genuinely dead code.
 function deriveGoogleWrapKey(googleSub) {
   return crypto.createHash('sha256').update(`${CHAT_ENCRYPTION_SECRET}:${googleSub}`).digest();
-}
-
-function encryptRawKeyForGoogle(rawKeyBase64, googleSub) {
-  const key = deriveGoogleWrapKey(googleSub);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-  let encrypted = cipher.update(rawKeyBase64, 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  return 'gkv1:' + iv.toString('hex') + ':' + encrypted;
 }
 
 function decryptGoogleWrappedKey(blob, googleSub) {
@@ -389,21 +382,12 @@ function decryptGoogleWrappedKey(blob, googleSub) {
   }
 }
 
-// ─── Apple OAuth private-key wrapping ────────────────────────────────────────
-// Same rationale and scheme as the Google wrapping above, keyed off Apple's stable
-// "sub" ID instead. Uses a distinct 'akv1:' prefix so it can never be confused with
-// password-wrapped, Google-wrapped ('gkv1:'), or 'encv1:' chat-text ciphertext blobs.
+// ─── Apple OAuth private-key wrapping (legacy unwrap only) ───────────────────
+// Same situation as the Google wrapping above — kept only to unwrap any
+// remaining legacy 'akv1:' blobs during migration; encryptRawKeyForApple has
+// been removed since nothing writes new 'akv1:' blobs anymore.
 function deriveAppleWrapKey(appleSub) {
   return crypto.createHash('sha256').update(`${CHAT_ENCRYPTION_SECRET}:${appleSub}`).digest();
-}
-
-function encryptRawKeyForApple(rawKeyBase64, appleSub) {
-  const key = deriveAppleWrapKey(appleSub);
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-  let encrypted = cipher.update(rawKeyBase64, 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  return 'akv1:' + iv.toString('hex') + ':' + encrypted;
 }
 
 function decryptAppleWrappedKey(blob, appleSub) {
@@ -2231,14 +2215,27 @@ app.post('/api/auth/google', async (req, res) => {
       const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
 
       // ─── E2EE key restoration ───
-      // Google users have no password, so their encryptedPrivateKey (if any) is wrapped
-      // server-side (see encryptRawKeyForGoogle) instead of client-side. Decrypt it here
-      // so the client can restore the same key pair without ever needing a password.
-      let rawPrivateKeyB64 = null;
-      if (user.encryptedPrivateKey) {
-        rawPrivateKeyB64 = decryptGoogleWrappedKey(user.encryptedPrivateKey, effectiveGoogleSub);
+      // Google accounts wrap their private key with a passphrase the client picks
+      // (same PBKDF2+AES-GCM format password accounts use) — the server only ever
+      // holds ciphertext. Accounts created before this existed still hold the old
+      // server-unwrappable 'gkv1:' blob (see deriveGoogleWrapKey/decryptGoogleWrappedKey
+      // above); those get decrypted ONE more time here, purely so the client can re-wrap
+      // the SAME key with a passphrase via /api/auth/setup-keys and this branch
+      // never applies to that account again. A corrupted/unrecoverable legacy blob
+      // falls back to full key setup, matching this endpoint's prior behavior.
+      const isLegacyServerWrapped = !!user.encryptedPrivateKey && user.encryptedPrivateKey.startsWith('gkv1:');
+      let needsKeySetup = !user.encryptedPrivateKey;
+      let needsPassphraseMigration = false;
+      let migrationRawKeyB64 = null;
+
+      if (isLegacyServerWrapped) {
+        migrationRawKeyB64 = decryptGoogleWrappedKey(user.encryptedPrivateKey, effectiveGoogleSub);
+        if (migrationRawKeyB64) {
+          needsPassphraseMigration = true;
+        } else {
+          needsKeySetup = true;
+        }
       }
-      const needsKeySetup = !user.encryptedPrivateKey || !rawPrivateKeyB64;
 
       return res.json({
         message: 'Login successful',
@@ -2246,8 +2243,10 @@ app.post('/api/auth/google', async (req, res) => {
         username: user.username,
         role: user.role || 'user',
         publicKey: user.publicKey || null,
-        rawPrivateKeyB64,
+        encryptedPrivateKey: (!needsKeySetup && !needsPassphraseMigration) ? user.encryptedPrivateKey : null,
         needsKeySetup,
+        needsPassphraseMigration,
+        migrationRawKeyB64,
       });
     } else {
       // User does not exist, create them
@@ -2406,14 +2405,27 @@ app.post('/api/auth/apple', async (req, res) => {
       const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
 
       // ─── E2EE key restoration ───
-      // Apple users have no password, so their encryptedPrivateKey (if any) is wrapped
-      // server-side (see encryptRawKeyForApple) instead of client-side. Decrypt it here
-      // so the client can restore the same key pair without ever needing a password.
-      let rawPrivateKeyB64 = null;
-      if (user.encryptedPrivateKey) {
-        rawPrivateKeyB64 = decryptAppleWrappedKey(user.encryptedPrivateKey, effectiveAppleSub);
+      // Apple accounts wrap their private key with a passphrase the client picks
+      // (same PBKDF2+AES-GCM format password accounts use) — the server only ever
+      // holds ciphertext. Accounts created before this existed still hold the old
+      // server-unwrappable 'akv1:' blob (see deriveAppleWrapKey/decryptAppleWrappedKey
+      // above); those get decrypted ONE more time here, purely so the client can re-wrap
+      // the SAME key with a passphrase via /api/auth/setup-keys and this branch
+      // never applies to that account again. A corrupted/unrecoverable legacy blob
+      // falls back to full key setup, matching this endpoint's prior behavior.
+      const isLegacyServerWrapped = !!user.encryptedPrivateKey && user.encryptedPrivateKey.startsWith('akv1:');
+      let needsKeySetup = !user.encryptedPrivateKey;
+      let needsPassphraseMigration = false;
+      let migrationRawKeyB64 = null;
+
+      if (isLegacyServerWrapped) {
+        migrationRawKeyB64 = decryptAppleWrappedKey(user.encryptedPrivateKey, effectiveAppleSub);
+        if (migrationRawKeyB64) {
+          needsPassphraseMigration = true;
+        } else {
+          needsKeySetup = true;
+        }
       }
-      const needsKeySetup = !user.encryptedPrivateKey || !rawPrivateKeyB64;
 
       return res.json({
         message: 'Login successful',
@@ -2421,8 +2433,10 @@ app.post('/api/auth/apple', async (req, res) => {
         username: user.username,
         role: user.role || 'user',
         publicKey: user.publicKey || null,
-        rawPrivateKeyB64,
+        encryptedPrivateKey: (!needsKeySetup && !needsPassphraseMigration) ? user.encryptedPrivateKey : null,
         needsKeySetup,
+        needsPassphraseMigration,
+        migrationRawKeyB64,
       });
     } else {
       // User does not exist, create them
@@ -2679,7 +2693,11 @@ app.post('/api/reset-password', async (req, res) => {
 
 /**
  * POST /api/auth/setup-keys
- * Called after signup (or first login for legacy accounts).
+ * Called after signup, first login for legacy accounts, OR an OAuth account
+ * migrating off server-side key wrapping onto a client-chosen passphrase (see
+ * the OAuth login handlers below). recoveryKeyHash uses COALESCE so a migration
+ * call — which re-wraps an EXISTING key it has no way to recompute the original
+ * recovery phrase's hash for — doesn't null out a hash a prior call already set.
  * Stores the user's public key and PBKDF2+AES-wrapped private key.
  * The raw private key NEVER reaches the server.
  */
@@ -2691,77 +2709,12 @@ app.post('/api/auth/setup-keys', authenticateToken, async (req, res) => {
 
   try {
     await pool.query(
-      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
+      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = COALESCE($3, "recoveryKeyHash") WHERE id = $4',
       [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
     );
     res.json({ success: true });
   } catch (err) {
     console.error('[setup-keys] DB error:', err);
-    res.status(500).json({ error: 'Failed to store keys' });
-  }
-});
-
-/**
- * POST /api/auth/setup-google-keys
- * Called after first Google OAuth login (or as a repair for legacy Google accounts
- * that predate this endpoint). Unlike /api/auth/setup-keys, the client sends the RAW
- * private key — there is no password to wrap it with client-side. The server wraps it
- * with a key derived from the account's Google sub ID + CHAT_ENCRYPTION_SECRET before
- * storing it. Restricted to accounts that actually have a google_sub on file, so this
- * path can't be used to bypass password-based wrapping for a normal account.
- */
-app.post('/api/auth/setup-google-keys', authenticateToken, async (req, res) => {
-  const { publicKey, rawPrivateKey, recoveryKeyHash } = req.body;
-  if (!publicKey || !rawPrivateKey) {
-    return res.status(400).json({ error: 'publicKey and rawPrivateKey are required' });
-  }
-
-  try {
-    const result = await pool.query('SELECT google_sub FROM users WHERE id = $1', [req.user.id]);
-    const googleSub = result.rows[0]?.google_sub;
-    if (!googleSub) {
-      return res.status(400).json({ error: 'This endpoint is only available to Google OAuth accounts' });
-    }
-
-    const encryptedPrivateKey = encryptRawKeyForGoogle(rawPrivateKey, googleSub);
-    await pool.query(
-      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
-      [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[setup-google-keys] DB error:', err);
-    res.status(500).json({ error: 'Failed to store keys' });
-  }
-});
-
-/**
- * POST /api/auth/setup-apple-keys
- * Same as /api/auth/setup-google-keys above, but for Apple OAuth accounts —
- * wraps the raw private key with a key derived from the account's Apple sub ID.
- * Restricted to accounts that actually have an apple_sub on file.
- */
-app.post('/api/auth/setup-apple-keys', authenticateToken, async (req, res) => {
-  const { publicKey, rawPrivateKey, recoveryKeyHash } = req.body;
-  if (!publicKey || !rawPrivateKey) {
-    return res.status(400).json({ error: 'publicKey and rawPrivateKey are required' });
-  }
-
-  try {
-    const result = await pool.query('SELECT apple_sub FROM users WHERE id = $1', [req.user.id]);
-    const appleSub = result.rows[0]?.apple_sub;
-    if (!appleSub) {
-      return res.status(400).json({ error: 'This endpoint is only available to Apple OAuth accounts' });
-    }
-
-    const encryptedPrivateKey = encryptRawKeyForApple(rawPrivateKey, appleSub);
-    await pool.query(
-      'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = $3 WHERE id = $4',
-      [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[setup-apple-keys] DB error:', err);
     res.status(500).json({ error: 'Failed to store keys' });
   }
 });

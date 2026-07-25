@@ -8,11 +8,14 @@ import { useCrypto } from './contexts/CryptoContext';
 import {
   generateKeyPair,
   encryptPrivateKey,
+  decryptPrivateKey,
   secretKeyToMnemonic,
+  mnemonicToSecretKey,
   hashRecoveryPhrase
 } from './lib/crypto.js';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
+import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import SeoHead from './components/SeoHead';
 import nacl from 'tweetnacl';
 import { API } from './lib/api';
@@ -32,6 +35,8 @@ const Signup = () => {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [agreeTerms, setAgreeTerms]               = useState(false);
   const [agreePrivacy, setAgreePrivacy]            = useState(false);
+  const [oauthModalMode, setOauthModalMode] = useState(null); // null | 'set' | 'unlock'
+  const [oauthModalCtx, setOauthModalCtx] = useState(null);   // { data, oauthLabel, isMigration }
 
   const navigate       = useNavigate();
   const { t }          = useTranslation();
@@ -103,10 +108,18 @@ const Signup = () => {
     }
   };
 
-  // Shared by Google and Apple sign-in — both return the same { token, username,
-  // needsKeySetup, rawPrivateKeyB64 } shape from the backend, they only differ in which
-  // no-password key-wrapping endpoint to call on first login.
-  const completeOAuthSignup = async (data, setupKeysPath, oauthLabel) => {
+  // Shared by Google and Apple sign-in — both return the same response shape from
+  // the backend. OAuth accounts have no password, so their E2EE private key is
+  // protected by a separate encryption passphrase (OAuthEncryptionModal) instead
+  // — never the OAuth login itself, never the chat-lock PIN. Three cases:
+  //   needsKeySetup            — brand-new account (or unrecoverable legacy blob):
+  //                               generate a fresh key, ask for a passphrase.
+  //   needsPassphraseMigration — account still on the old server-side-wrapped
+  //                               format: reuse the SAME key (server handed back
+  //                               the raw key one final time), ask for a passphrase.
+  //   otherwise                — already migrated: ask for the passphrase to
+  //                               decrypt the stored blob locally.
+  const completeOAuthSignup = async (data, oauthLabel) => {
     // Clear any previous user's session data to prevent cross-account leakage
     try {
       const { clearUserSession } = await import('./lib/authUtils.js');
@@ -120,53 +133,107 @@ const Signup = () => {
     localStorage.setItem('watch_last_activity', String(Date.now()));
 
     if (data.needsKeySetup) {
-      // First login (or a legacy account missing keys): generate an E2EE key pair.
-      // OAuth users have no password, so it's wrapped server-side instead (see
-      // setupKeysPath) rather than with a client-derived password key.
-      try {
-        const chars = 'abcdefghijklmnopqrstuvwxyz';
-        let phraseStr = '';
-        const randBytes = crypto.getRandomValues(new Uint8Array(24));
-        for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
-        const phrase = phraseStr.toUpperCase();
-
-        const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
-        const secretKey = new Uint8Array(hashBuf);
-        const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-        const recoveryKeyHash = await hashRecoveryPhrase(phrase);
-
-        await fetch(`${API}${setupKeysPath}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-          body: JSON.stringify({
-            publicKey: encodeBase64(keyPair.publicKey),
-            rawPrivateKey: encodeBase64(keyPair.secretKey),
-            recoveryKeyHash
-          })
-        });
-
-        await setKeyPair(keyPair);
-        window.dispatchEvent(new Event('login_success'));
-        setRecoveryPhrase(phrase);
-        setShowRecoveryModal(true);
-      } catch (keyErr) {
-        console.error(`[Signup] ${oauthLabel} key setup failed:`, keyErr);
-        window.dispatchEvent(new Event('login_success'));
-        navigate('/');
-      }
+      setOauthModalCtx({ data, oauthLabel, isMigration: false });
+      setOauthModalMode('set');
+    } else if (data.needsPassphraseMigration) {
+      setOauthModalCtx({ data, oauthLabel, isMigration: true });
+      setOauthModalMode('set');
+    } else if (data.encryptedPrivateKey) {
+      setOauthModalCtx({ data, oauthLabel });
+      setOauthModalMode('unlock');
     } else {
-      if (data.rawPrivateKeyB64) {
-        try {
-          const secretKey = decodeBase64(data.rawPrivateKeyB64);
-          const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-          await setKeyPair(keyPair);
-        } catch (restoreErr) {
-          console.warn(`[Signup] Failed to restore ${oauthLabel} E2EE key:`, restoreErr);
-        }
-      }
       window.dispatchEvent(new Event('login_success'));
       navigate('/');
     }
+  };
+
+  // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
+  // migrating an existing legacy-wrapped key onto a passphrase.
+  const handleOAuthSetPassphrase = async (passphrase) => {
+    const { data, isMigration } = oauthModalCtx;
+    const keyPair = isMigration
+      ? nacl.box.keyPair.fromSecretKey(decodeBase64(data.migrationRawKeyB64))
+      : generateKeyPair();
+
+    const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, passphrase);
+    const body = { publicKey: encodeBase64(keyPair.publicKey), encryptedPrivateKey: encryptedPrivKey };
+
+    // Migration reuses the account's existing key, so its original recovery
+    // phrase (if the user still has it) already recovers it — nothing new to
+    // hash. Omitting recoveryKeyHash here relies on setup-keys' COALESCE to
+    // leave the previously-stored hash untouched.
+    let phrase = null;
+    if (!isMigration) {
+      phrase = await secretKeyToMnemonic(keyPair.secretKey);
+      body.recoveryKeyHash = await hashRecoveryPhrase(phrase);
+    }
+
+    const res = await fetch(`${API}/api/auth/setup-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
+
+    await setKeyPair(keyPair);
+    setOauthModalMode(null);
+    setOauthModalCtx(null);
+    window.dispatchEvent(new Event('login_success'));
+
+    if (phrase) {
+      setRecoveryPhrase(phrase);
+      setShowRecoveryModal(true);
+    } else {
+      navigate('/');
+    }
+  };
+
+  // 'unlock' view — decrypt the already-migrated blob locally with the passphrase.
+  const handleOAuthUnlock = async (passphrase) => {
+    const { data } = oauthModalCtx;
+    let keyPair;
+    try {
+      const secretKey = await decryptPrivateKey(data.encryptedPrivateKey, passphrase);
+      keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+    } catch {
+      throw new Error(t('encPassphraseWrong', 'Incorrect passphrase. If this account also has a password set, try that.'));
+    }
+    await setKeyPair(keyPair);
+    setOauthModalMode(null);
+    setOauthModalCtx(null);
+    window.dispatchEvent(new Event('login_success'));
+    navigate('/');
+  };
+
+  // 'forgot' view — restore via the account's recovery phrase, verify it against
+  // the server's known publicKey, then re-wrap with a new passphrase.
+  const handleOAuthRecover = async (phrase, newPassphrase) => {
+    const { data } = oauthModalCtx;
+    let keyPair;
+    try {
+      const secretKey = await mnemonicToSecretKey(phrase);
+      keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
+    } catch {
+      throw new Error(t('encRecoveryPhraseInvalid', "That recovery phrase doesn't match this account."));
+    }
+    if (encodeBase64(keyPair.publicKey) !== data.publicKey) {
+      throw new Error(t('encRecoveryPhraseInvalid', "That recovery phrase doesn't match this account."));
+    }
+
+    const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, newPassphrase);
+    const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+    const res = await fetch(`${API}/api/auth/setup-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+      body: JSON.stringify({ publicKey: data.publicKey, encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
+    });
+    if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
+
+    await setKeyPair(keyPair);
+    setOauthModalMode(null);
+    setOauthModalCtx(null);
+    window.dispatchEvent(new Event('login_success'));
+    navigate('/');
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -191,7 +258,7 @@ const Signup = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        await completeOAuthSignup(data, '/api/auth/setup-google-keys', 'Google');
+        await completeOAuthSignup(data, 'Google');
       } else {
         setGlobalError(data.error || t('googleSignupFailed', 'Google Signup failed'));
       }
@@ -232,7 +299,7 @@ const Signup = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        await completeOAuthSignup(data, '/api/auth/setup-apple-keys', 'Apple');
+        await completeOAuthSignup(data, 'Apple');
       } else {
         setGlobalError(data.error || t('appleSignupFailed', 'Apple Signup failed'));
       }
@@ -264,6 +331,16 @@ const Signup = () => {
       <SeoHead path="/signup" />
       {showRecoveryModal && (
         <RecoveryPhraseModal phrase={recoveryPhrase} onConfirmed={handlePhraseConfirmed} />
+      )}
+      {oauthModalMode && (
+        <OAuthEncryptionModal
+          mode={oauthModalMode}
+          oauthLabel={oauthModalCtx?.oauthLabel}
+          isMigration={!!oauthModalCtx?.isMigration}
+          onSetPassphrase={handleOAuthSetPassphrase}
+          onUnlock={handleOAuthUnlock}
+          onRecover={handleOAuthRecover}
+        />
       )}
 
       <div className="login-layout">
