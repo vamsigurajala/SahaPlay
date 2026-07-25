@@ -130,7 +130,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
     const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
     if (daysLeft > 0) {
       const expiryColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
-      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: expiryColor, WebkitTextFillColor: expiryColor, marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={expiryColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
+      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: expiryColor, WebkitTextFillColor: expiryColor, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={expiryColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
     }
   }
 
@@ -165,17 +165,21 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
             {fileName || 'File'}
           </div>
           <div className="fc-sub" style={{ fontSize: 10, fontWeight: 400, color: subtitleColor, marginTop: 2, WebkitTextFillColor: subtitleColor }}>{subtitle}</div>
-          {expiryLine}
         </div>
         {!isExpired && !isLoading && (
-          <button className="fc-dl" onClick={handleDownload} style={{ background: 'none', border: 'none', cursor: 'pointer', color: dlColor, padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-            <Download size={14} color={dlColor} />
+          <button className="fc-dl" onClick={handleDownload} style={{ background: 'none', border: 'none', cursor: 'pointer', color: dlColor, padding: 4, marginLeft: 6, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+            <Download size={20} color={dlColor} />
           </button>
         )}
-        {tick && !isExpired && !isLoading && (
-          <div style={{ display: 'flex', alignItems: 'center', marginLeft: 2, flexShrink: 0 }}>{tick}</div>
-        )}
       </div>
+      {(expiryLine || (tick && !isExpired && !isLoading)) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, paddingLeft: 48 }}>
+          {expiryLine || <span />}
+          {tick && !isExpired && !isLoading && (
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{tick}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -365,8 +369,8 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
         </button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {expiresAt && (() => {
             const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
             if (daysLeft <= 0) return null;
@@ -374,8 +378,8 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
             const expTxt = daysLeft <= 7 ? `⚠️ ${daysLeft}d left` : `${daysLeft}d left`;
             return <span className="rcp-vn-expiry" style={{ fontSize: 10, color: expTc, WebkitTextFillColor: expTc }}>{expTxt}</span>;
           })()}
+          {tick && <div style={{ display: 'flex', alignItems: 'center' }}>{tick}</div>}
         </div>
-        {tick && <div style={{ display: 'flex', alignItems: 'center', marginLeft: 6 }}>{tick}</div>}
       </div>
     </div>
   );
@@ -388,8 +392,12 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
   const isAudio = type?.startsWith('audio/');
   const tick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} /> : null;
   const cardTick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface /> : null;
+  // Voice note bubbles use a light tinted background in light mode (unlike the dark
+  // text/media bubbles the default white tick assumes), so treat it as a light
+  // surface in light mode only — dark mode keeps the original white tick unchanged.
+  const voiceTick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
 
-  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={tick} />;
+  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} />;
 
   if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} />;
 
