@@ -997,14 +997,31 @@ const checkUsernameLimiter = rateLimit({  // A8-F9
   legacyHeaders: false,
   message: { error: 'Too many username checks. Please slow down.' }
 });
+// TURN credentials and Hyperbeam sessions both proxy to paid third-party APIs
+// (Metered.ca, Hyperbeam) — this exists to cap quota/cost abuse, not to throttle
+// normal use. Both are fetched once per call/co-browse session, not per action,
+// so a low per-user cap doesn't interfere with real usage.
+const thirdPartyProxyLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // NOTE: req.user is never set here — this limiter runs via app.use(), which
+  // fires before the route's own authenticateToken — so this always falls to
+  // the IP branch. ipKeyGenerator (express-rate-limit v8) takes the IP STRING,
+  // not the request object; passing req.ip (not req) is required, or the
+  // function silently returns the req object itself as the map key — a unique
+  // reference every request, so nothing ever accumulates and the limit never
+  // trips (found and fixed during testing of this change).
+  keyGenerator: (req) => ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests to this feature. Please wait a few minutes.' }
+});
 
 // Apply limiters — order matters: specific limits before global
 app.use('/api/login', loginLimiter);
-app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/google', loginLimiter);      // A7-F1
 app.use('/api/auth/apple', loginLimiter);
 app.use('/api/signup', loginLimiter);
-app.use('/api/register', loginLimiter);
 app.use('/api/forgot-password', loginLimiter);
 app.use('/api/reset-password', loginLimiter);
 app.use('/api/upload', uploadLimiter);
@@ -1014,6 +1031,8 @@ app.use('/api/rooms/thumbnail', uploadLimiter); // A6-F18
 app.use('/api/chats/send', dmRestLimiter);      // A7-F5
 app.use('/api/stream/', streamLimiter);         // A7-F8
 app.use('/api/profile/check-username', checkUsernameLimiter); // A8-F9
+app.use('/api/turn-credentials', thirdPartyProxyLimiter);
+app.use('/api/hyperbeam/', thirdPartyProxyLimiter);
 app.use('/api/', globalLimiter);
 
 // Test endpoint — verify the global limiter fires at request 101
@@ -8855,7 +8874,7 @@ app.post('/api/chat-lock/verify', authenticateToken, chatLockRateLimit, async (r
 });
 
 // POST /api/chat-lock/verify-recovery — check Recovery Key
-app.post('/api/chat-lock/verify-recovery', authenticateToken, async (req, res) => {
+app.post('/api/chat-lock/verify-recovery', authenticateToken, chatLockRateLimit, async (req, res) => {
   const { recoveryKey } = req.body;
   if (!recoveryKey || recoveryKey.length < 16) return res.status(400).json({ error: 'Invalid recovery key' });
   try {
@@ -9002,7 +9021,7 @@ app.get('/api/chat-lock/recovery-phrase', authenticateToken, async (req, res) =>
 });
 
 // POST /api/chat-lock/recover-with-key — reset PIN using 32-char recovery key
-app.post('/api/chat-lock/recover-with-key', authenticateToken, async (req, res) => {
+app.post('/api/chat-lock/recover-with-key', authenticateToken, chatLockRateLimit, async (req, res) => {
   const { recoveryKey, newPin } = req.body;
   if (!newPin || !/^\d{6}$/.test(newPin)) return res.status(400).json({ error: 'New PIN must be 6 digits' });
   if (!recoveryKey || recoveryKey.length < 16) return res.status(400).json({ error: 'Invalid recovery key' });
@@ -9208,7 +9227,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px;width:80px">From</td>
           <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px;font-weight:600">${esc(cName)}</td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Email</td>
-          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${cEmail}" style="color:#818cf8;text-decoration:none">${cEmail}</a></td></tr>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${esc(cEmail)}" style="color:#818cf8;text-decoration:none">${esc(cEmail)}</a></td></tr>
       <tr><td style="padding:10px 0;color:#9ca3af;font-size:13px">Subject</td>
           <td style="padding:10px 0;color:#fff;font-size:14px">${esc(cSubject)}</td></tr>
     </table>
@@ -9219,7 +9238,7 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     ${attachments.length ? `<p style="color:#9ca3af;font-size:13px;margin:0">📎 ${attachments.length} image${attachments.length > 1 ? 's' : ''} attached</p>` : ''}
   </div>
   <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to respond directly to <strong>${esc(cName)}</strong> at ${cEmail}</p>
+    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to respond directly to <strong>${esc(cName)}</strong> at ${esc(cEmail)}</p>
   </div>
 </div>
 </body></html>`;
@@ -9319,7 +9338,11 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
     html:     notifyHtml,
     text:     `From: ${cName} <${cEmail}>\nSubject: ${cSubject}\n\n${cMsg}`,
     fromName: 'SahaPlay Contact',
-    replyTo:  `"${cName}" <${cEmail}>`,
+    // esc() is HTML-escaping, not header-sanitizing — used here purely as a cheap
+    // defense-in-depth pass (it does strip literal \n) on top of the real backstop,
+    // which is that Resend's JSON API takes replyTo as a discrete field rather than
+    // a raw header string, so this isn't a directly reachable CRLF-injection vector.
+    replyTo:  `"${esc(cName)}" <${esc(cEmail)}>`,
     attachments,
   }).then(result => {
     if (result) {
@@ -9501,7 +9524,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Reporter</td>
           <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:14px;font-weight:600">${esc(rName)}</td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Email</td>
-          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${rEmail}" style="color:#818cf8;text-decoration:none">${rEmail}</a></td></tr>
+          <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px"><a href="mailto:${esc(rEmail)}" style="color:#818cf8;text-decoration:none">${esc(rEmail)}</a></td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Severity</td>
           <td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)"><span style="background:${severityMeta.bg};color:${severityMeta.color};padding:3px 10px;border-radius:6px;font-size:13px;font-weight:700">${severityMeta.label}</span></td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);color:#9ca3af;font-size:13px">Bug Type</td>
@@ -9523,7 +9546,7 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     ${emailAttachments.length ? `<p style="color:#9ca3af;font-size:13px;margin:0">📎 ${emailAttachments.length} attachment${emailAttachments.length > 1 ? 's' : ''} included</p>` : ''}
   </div>
   <div style="padding:20px 40px;border-top:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02)">
-    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to contact <strong>${esc(rName)}</strong> at ${rEmail}</p>
+    <p style="color:#6b7280;font-size:12px;margin:0">Reply to this email to contact <strong>${esc(rName)}</strong> at ${esc(rEmail)}</p>
   </div>
 </div>
 </body></html>`;
@@ -9611,7 +9634,8 @@ app.post('/api/report-bug', bugReportLimiter, async (req, res) => {
     html:     notifyHtml,
     text:     `Bug Report ${reportId}\nReporter: ${rName} <${rEmail}>\nSeverity: ${rSeverity}\nBug Type: ${bugTypeLabel}\n\nWhat happened:\n${rWhatHappened}\n\nExpected:\n${rWhatExpected}\n\nActual:\n${rActualResult}${rSteps ? `\n\nSteps:\n${rSteps}` : ''}\n\nBrowser: ${rBrowser} | OS: ${rOs} | Screen: ${rScreenSize}`,
     fromName: 'SahaPlay Bug Reports',
-    replyTo:  `"${rName}" <${rEmail}>`,
+    // See the /api/contact replyTo comment above — same defense-in-depth rationale.
+    replyTo:  `"${esc(rName)}" <${esc(rEmail)}>`,
     attachments: emailAttachments,
   }).then(result => {
     if (result) {
