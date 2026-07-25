@@ -3934,9 +3934,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
     const senderAvatar = senderUser ? senderUser.avatarPath : null;
 
     if (type === 'private') {
-      // Only DM sends are validated here — group (type === 'room') sends are exempt because
-      // group chat is not client-side E2EE today (GlobalChatWidget.jsx gates group encryption
-      // behind `if (false && ...)`; server-side encryption at rest is used instead).
+      // Only DM sends are validated here — group (type === 'room') sends rely on the client
+      // refusing to send at all when group encryption fails (see the mandatory-encryption
+      // checks in Room.jsx/GlobalChatWidget.jsx), the same enforcement model DM already used
+      // before this check existed. No server-side rejection for missing group e2ee fields.
       const e2eeCheck = validateE2EEMessage(req.body);
       if (!e2eeCheck.valid) {
         console.warn('[E2EE] /api/chats/send rejected:', e2eeCheck.reason, 'user:', req.user?.username);
@@ -4325,18 +4326,25 @@ const EDIT_WINDOW_MS = 15 * 60 * 1000;
 // window is enforced here (inside the transaction, against the row's own
 // stored timestamp) — this is the real security boundary, independent of
 // whatever the client's UI happens to show.
-async function applyMessageEdit({ messageId, fallbackTs, username, newMessage, newSenderMessage, nonce, ephemeralPublicKey }) {
+//
+// SECURITY: if the row being edited already carries a nonce (it's E2EE),
+// the new (message, nonce, keys) must be replaced as one consistent set or
+// not at all — never COALESCE a missing nonce/keys onto new ciphertext, since
+// that pairs fresh content with stale crypto metadata and permanently corrupts
+// the row (decryptGroupMessage/decryptDM will then always fail on it). Editing
+// a currently-plaintext legacy message with no new crypto fields is still fine.
+async function applyMessageEdit({ messageId, fallbackTs, username, newMessage, newSenderMessage, nonce, ephemeralPublicKey, e2eeKeys }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     let { rows } = await client.query(
-      'SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE id::text = $1 FOR UPDATE',
+      'SELECT id, "senderName", "targetName", "roomId", type, timestamp, nonce FROM messages WHERE id::text = $1 FOR UPDATE',
       [String(messageId)]
     );
     if (rows.length === 0 && fallbackTs) {
       ({ rows } = await client.query(
-        'SELECT id, "senderName", "targetName", "roomId", type, timestamp FROM messages WHERE timestamp = $1 AND "senderName" = $2 FOR UPDATE',
+        'SELECT id, "senderName", "targetName", "roomId", type, timestamp, nonce FROM messages WHERE timestamp = $1 AND "senderName" = $2 FOR UPDATE',
         [fallbackTs, username]
       ));
     }
@@ -4355,10 +4363,34 @@ async function applyMessageEdit({ messageId, fallbackTs, username, newMessage, n
       return { error: 'expired' };
     }
 
+    const wasEncrypted = !!msg.nonce;
+    if (wasEncrypted) {
+      if (!nonce) {
+        await client.query('ROLLBACK');
+        return { error: 'encryption_required' };
+      }
+      if (msg.type === 'group') {
+        if (!e2eeKeys || typeof e2eeKeys !== 'object' || Array.isArray(e2eeKeys) || Object.keys(e2eeKeys).length === 0) {
+          await client.query('ROLLBACK');
+          return { error: 'encryption_required' };
+        }
+      } else if (!ephemeralPublicKey) {
+        await client.query('ROLLBACK');
+        return { error: 'encryption_required' };
+      }
+    }
+
+    // ephemeralPublicKey column double-duty (matches original send/insert path):
+    // group messages store the JSON key-map here; DM messages store the actual
+    // single ephemeral public key string.
+    const ephemeralColumnValue = msg.type === 'group'
+      ? (e2eeKeys ? JSON.stringify(e2eeKeys) : null)
+      : (ephemeralPublicKey || null);
+
     const editedAt = Date.now();
     await client.query(
-      'UPDATE messages SET message = $1, "senderMessage" = COALESCE($2, "senderMessage"), nonce = COALESCE($3, nonce), "ephemeralPublicKey" = COALESCE($4, "ephemeralPublicKey"), edited = TRUE, edited_at = $5 WHERE id = $6',
-      [newMessage, newSenderMessage || null, nonce || null, ephemeralPublicKey || null, editedAt, msg.id]
+      'UPDATE messages SET message = $1, "senderMessage" = $2, nonce = $3, "ephemeralPublicKey" = $4, edited = TRUE, edited_at = $5 WHERE id = $6',
+      [newMessage, newSenderMessage || null, nonce || null, ephemeralColumnValue, editedAt, msg.id]
     );
     await client.query('COMMIT');
 
@@ -4384,6 +4416,7 @@ function editErrorToStatus(error) {
   if (error === 'not_found') return [404, 'Message not found'];
   if (error === 'forbidden') return [403, 'You can only edit your own messages'];
   if (error === 'expired') return [403, 'This message can no longer be edited (15 minute limit)'];
+  if (error === 'encryption_required') return [400, 'This message is encrypted — the edit must be encrypted too. Please refresh and try again.'];
   return [500, 'Database error'];
 }
 
@@ -4391,7 +4424,7 @@ function editErrorToStatus(error) {
 app.put('/api/chats/message/:id', authenticateToken, async (req, res) => {
   const rawId = req.params.id;
   const username = req.user.username;
-  const { message: newMessage, senderMessage: newSenderMessage, nonce, ephemeralPublicKey } = req.body || {};
+  const { message: newMessage, senderMessage: newSenderMessage, nonce, ephemeralPublicKey, e2eeKeys } = req.body || {};
 
   if (!newMessage || typeof newMessage !== 'string' || !newMessage.trim()) {
     return res.status(400).json({ error: 'Message text is required' });
@@ -4404,7 +4437,7 @@ app.put('/api/chats/message/:id', authenticateToken, async (req, res) => {
     if (tsMatch) fallbackTs = tsMatch[1];
   }
 
-  const result = await applyMessageEdit({ messageId: rawId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey });
+  const result = await applyMessageEdit({ messageId: rawId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey, e2eeKeys });
 
   if (result.error) {
     const [status, message] = editErrorToStatus(result.error);
@@ -4417,6 +4450,7 @@ app.put('/api/chats/message/:id', authenticateToken, async (req, res) => {
     senderMessage: newSenderMessage || undefined,
     nonce: nonce || undefined,
     ephemeralPublicKey: ephemeralPublicKey || undefined,
+    keys: e2eeKeys || undefined,
     edited: true,
     editedAt: result.editedAt
   };
@@ -8513,11 +8547,11 @@ io.on('connection', (socket) => {
   });
 
   // ─── Edit message (own message only, within EDIT_WINDOW_MS of sending) ───
-  socket.on('message:edit', async ({ messageId, timestamp: fallbackTs, newMessage, newSenderMessage, nonce, ephemeralPublicKey }) => {
+  socket.on('message:edit', async ({ messageId, timestamp: fallbackTs, newMessage, newSenderMessage, nonce, ephemeralPublicKey, e2eeKeys }) => {
     const username = socket.username;
     if (!username || !messageId || typeof newMessage !== 'string' || !newMessage.trim()) return;
 
-    const result = await applyMessageEdit({ messageId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey });
+    const result = await applyMessageEdit({ messageId, fallbackTs, username, newMessage: newMessage.trim(), newSenderMessage, nonce, ephemeralPublicKey, e2eeKeys });
 
     if (result.error) {
       const [, message] = editErrorToStatus(result.error);
@@ -8531,6 +8565,7 @@ io.on('connection', (socket) => {
       senderMessage: newSenderMessage || undefined,
       nonce: nonce || undefined,
       ephemeralPublicKey: ephemeralPublicKey || undefined,
+      keys: e2eeKeys || undefined,
       edited: true,
       editedAt: result.editedAt
     };

@@ -447,6 +447,13 @@ import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 // unencrypted), so it keeps rendering normally; only legacy text is replaced.
 const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Sent before encryption upgrade';
 
+// Shown for a group message that was edited before this fix (an edit that resent
+// plaintext, which the backend then paired with the message's OLD nonce/keys —
+// permanently mismatched, so decrypt can never succeed for that row). Distinct
+// from LEGACY_GROUP_TEXT_PLACEHOLDER so it's not confused with an unrelated
+// pre-upgrade message.
+const CORRUPTED_EDIT_PLACEHOLDER = 'This edited message can no longer be decrypted';
+
 const resolveMediaUrl = (url, baseUrl) => {
   if (!url) return '';
   // Clean up any double-prepended URLs (e.g. "http://localhost:3001https://...")
@@ -2301,17 +2308,26 @@ const GlobalChatWidget = forwardRef(({
 
     // Edit broadcast — own edit reconciliation (this client's own PUT request
     // already patched local state optimistically) or the other participant
-    // editing their message live. Group messages are plaintext (nonce absent);
-    // DM messages are E2EE and are re-decrypted using whichever copy applies,
-    // based on the existing message's own isMe flag rather than new payload
-    // fields, since the editor's own socket also receives this broadcast.
-    const handleRemoteEdit = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, editedAt }) => {
+    // editing their message live. Branches on whether `keys` (the per-recipient
+    // e2ee key map) is present to tell group edits from DM edits — group and DM
+    // both always carry a nonce now, so "nonce absent" only means a legacy
+    // pre-upgrade group message being edited while still in plaintext.
+    const handleRemoteEdit = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, keys, editedAt }) => {
       setMessages(prev => prev.map(m => {
         if (!flexibleMatch(messageId, m)) return m;
         let decryptedText = newMessage;
         if (nonce && keyPair) {
           try {
-            if (m.isMe && senderMessage) {
+            if (keys) {
+              const myLower = myUsername?.toLowerCase();
+              const myEncKey = keys[myLower] || Object.entries(keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+              if (myEncKey && ephemeralPublicKey) {
+                const senderPubKey = decodeBase64(ephemeralPublicKey);
+                decryptedText = decryptGroupMessage(newMessage, nonce, myEncKey, senderPubKey, keyPair.secretKey) ?? CORRUPTED_EDIT_PLACEHOLDER;
+              } else {
+                decryptedText = m.decryptedText;
+              }
+            } else if (m.isMe && senderMessage) {
               decryptedText = decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
             } else if (!m.isMe && ephemeralPublicKey) {
               decryptedText = decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
@@ -2528,7 +2544,7 @@ const GlobalChatWidget = forwardRef(({
                     decryptedMediaUrl = null;
                   }
                 } else if (msg.message) {
-                  decryptedMessage = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey) || '\uD83D\uDD12 Encrypted message';
+                  decryptedMessage = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey) || (msg.edited ? CORRUPTED_EDIT_PLACEHOLDER : '\uD83D\uDD12 Encrypted message');
                 }
               }
             } else {
@@ -3653,7 +3669,10 @@ const GlobalChatWidget = forwardRef(({
                   } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
                 }
               } else if (m.message && m.message !== '') {
-                decryptedText = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
+                // A message that was edited but still fails to decrypt is most likely one of
+                // the rows corrupted by the pre-fix editGroupMessage bug — say so distinctly
+                // instead of falling through to the generic "Encrypted message" fallback.
+                decryptedText = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey) ?? (m.edited ? CORRUPTED_EDIT_PLACEHOLDER : null);
               }
             }
           }
@@ -4172,10 +4191,9 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
-  // Room/group messages here are plaintext (mirroring the "room" branch above,
-  // which is itself dead-disabled E2EE), so only private DMs need to re-run
-  // encryption — same key-lookup approach handleSend uses above, just against
-  // the already-known partner rather than looking up recipients fresh.
+  // Both DM and group edits re-run full encryption, mirroring handleSend above:
+  // DM re-encrypts against the already-known partner's key; group re-encrypts as
+  // a brand new payload (fresh secretbox key, re-wrapped for current recipients).
   const handleEditMessage = async () => {
     if (!inputValue.trim() || !editingMsg || !activeChat) return;
     const newText = inputValue.trim();
@@ -4186,6 +4204,8 @@ const GlobalChatWidget = forwardRef(({
     let senderMessagePayload = undefined;
     let nonceValue = undefined;
     let ephemeralKey = undefined;
+    let e2eeKeysGroup = undefined;
+    let isEncrypted = false;
 
     try {
       if (activeChat.type === 'private' && keyPair) {
@@ -4204,6 +4224,34 @@ const GlobalChatWidget = forwardRef(({
         senderMessagePayload = enc.senderCiphertext;
         nonceValue = enc.nonce;
         ephemeralKey = enc.ephemeralPublicKey;
+        isEncrypted = true;
+      } else if (activeChat.type === 'room' && keyPair) {
+        // Group edit is a brand new encrypted payload (fresh secretbox key, re-wrapped
+        // for the CURRENT room recipients), same as a fresh send — never resend plaintext,
+        // which would pair new content with the message's OLD nonce/keys server-side and
+        // permanently corrupt the row.
+        const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
+        const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
+          try {
+            const enc = encryptGroupMessage(newText, recipients, keyPair, myUsername);
+            messagePayload = enc.ciphertext;
+            nonceValue = enc.nonce;
+            e2eeKeysGroup = enc.keys;
+            ephemeralKey = encodeBase64(keyPair.publicKey);
+            isEncrypted = true;
+          } catch (err) {
+            console.error('[E2EE] Group edit encryption failed:', err);
+          }
+        }
+        if (!isEncrypted) {
+          toast.error('Edit not sent — encryption failed.');
+          return;
+        }
       }
 
       setMessages(prev => prev.map(m => (String(m.id) === idStr ? { ...m, message: messagePayload, decryptedText: newText, edited: true, editedAt: Date.now() } : m)));
@@ -4213,7 +4261,7 @@ const GlobalChatWidget = forwardRef(({
       const resp = await fetch(`${API}/api/chats/message/${target.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ message: messagePayload, senderMessage: senderMessagePayload, nonce: nonceValue, ephemeralPublicKey: ephemeralKey })
+        body: JSON.stringify({ message: messagePayload, senderMessage: senderMessagePayload, nonce: nonceValue, ephemeralPublicKey: ephemeralKey, e2eeKeys: e2eeKeysGroup })
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -4582,7 +4630,19 @@ const GlobalChatWidget = forwardRef(({
   // re-wrapped for a NEW recipient when forwarding — mirrors the exact same
   // sender-copy/recipient-copy decrypt branching already used to render this
   // message the first time (see handleRemoteEdit above for the same pattern).
+  // Group-sourced media (msg.e2ee present) is recovered via decryptGroupMessage
+  // against the message's own per-recipient key map, not the DM-only functions.
   const recoverMediaKeyB64 = (msg) => {
+    if (msg.e2ee && msg.e2ee.keys && msg.e2ee.senderPublicKey) {
+      if (!keyPair) return null;
+      try {
+        const myLower = myUsername?.toLowerCase();
+        const myEncKey = msg.e2ee.keys[myLower] || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+        if (!myEncKey) return null;
+        const senderPK = decodeBase64(msg.e2ee.senderPublicKey);
+        return decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPK, keyPair.secretKey);
+      } catch (e) { console.warn('[Forward] group media key recovery failed', e); return null; }
+    }
     if (!msg.nonce || !keyPair) return null;
     try {
       if (msg.isMe && msg.senderMessage) {
@@ -4601,9 +4661,20 @@ const GlobalChatWidget = forwardRef(({
   // encrypted bytes, landing as garbled text on the destination side once the outer
   // layer is (correctly) decrypted. If msg.decryptedText wasn't already cached, retry
   // decryption live here with the same sender-copy/recipient branching used above,
-  // and only give up (treat as unforwardable) if that also fails.
+  // and only give up (treat as unforwardable) if that also fails. Group-sourced text
+  // (msg.e2ee present) uses decryptGroupMessage against the message's own key map.
   const recoverDmText = (msg) => {
     if (msg.decryptedText != null && msg.decryptedText !== '') return msg.decryptedText;
+    if (msg.e2ee && msg.e2ee.keys && msg.e2ee.senderPublicKey) {
+      if (!keyPair) return null;
+      try {
+        const myLower = myUsername?.toLowerCase();
+        const myEncKey = msg.e2ee.keys[myLower] || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+        if (!myEncKey) return null;
+        const senderPK = decodeBase64(msg.e2ee.senderPublicKey);
+        return decryptGroupMessage(msg.message, msg.e2ee.nonce, myEncKey, senderPK, keyPair.secretKey);
+      } catch (e) { console.warn('[Forward] group text recovery failed', e); return null; }
+    }
     if (!msg.nonce) return msg.message || '';
     if (!keyPair) return null;
     try {
@@ -4621,7 +4692,11 @@ const GlobalChatWidget = forwardRef(({
   // Forwarding always goes through the REST send endpoint (POST /api/chats/send)
   // regardless of destination type — unlike the socket send paths, it doesn't
   // require the destination room to be currently joined, which most forward
-  // destinations won't be.
+  // destinations won't be. A room destination is E2EE just like a fresh send:
+  // the destination room's own recipients are fetched once per destination and
+  // the content (text, or the media AES key) is run through encryptGroupMessage —
+  // forwarding must never write plaintext into a room just because the source
+  // message's plaintext was already recovered client-side.
   const handleForwardSend = async () => {
     if (selectedForwardChats.length === 0) return;
     setForwarding(true);
@@ -4633,11 +4708,22 @@ const GlobalChatWidget = forwardRef(({
       const destType = dest.type === 'room' ? 'room' : 'private';
       const destPartner = dest.id || dest.partner;
       let targetPubKey = null;
+      let groupRecipients = null;
       if (destType === 'private') {
         try {
           const pkRes = await fetch(`${API}/api/auth/public-key/${destPartner}`);
           if (pkRes.ok) { const d = await pkRes.json(); targetPubKey = d.publicKey || null; }
         } catch {}
+      } else {
+        try {
+          const pkRes = await fetch(`${API}/api/rooms/${destPartner.toLowerCase()}/public-keys`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (pkRes.ok) {
+            const pkData = await pkRes.json();
+            groupRecipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
+          }
+        } catch { /* groupRecipients stays null; handled as an unencryptable destination below */ }
       }
       for (const msg of msgsToForward) {
         try {
@@ -4657,46 +4743,55 @@ const GlobalChatWidget = forwardRef(({
             mediaDuration: msg.mediaDuration || null,
           };
           if (isMedia) {
-            if (destType === 'private' && targetPubKey && keyPair) {
-              let mediaKeyB64 = null;
-              if (msg.nonce) {
-                // Source was already a DM (client-encrypted) — just recover the existing
-                // per-recipient key and re-wrap it for the new recipient, same file untouched.
-                mediaKeyB64 = recoverMediaKeyB64(msg);
-                if (!mediaKeyB64) { failCount++; continue; }
-              } else {
-                // Source was never client-encrypted (e.g. group chat media, stored plain) —
-                // there's no existing key to recover. Fetch the plain file, encrypt it fresh
-                // with a new random key, and re-upload so the DM destination gets a real
-                // E2EE copy instead of a plaintext file dressed up as encrypted.
-                try {
-                  const resolvedUrl = resolveMediaUrl(msg.mediaUrl, API);
-                  const rawBlob = await fetch(resolvedUrl).then(r => r.blob());
-                  const enc = await encryptMedia(rawBlob);
-                  const fd = new FormData();
-                  fd.append('media', enc.encryptedBlob, msg.mediaFileName || 'file');
-                  const uploadResp = await fetch(`${API}/api/upload/chat`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: fd
-                  });
-                  if (uploadResp.ok) {
-                    const uploadData = await uploadResp.json();
-                    if (uploadData.url) {
-                      body.mediaUrl = uploadData.url;
-                      mediaKeyB64 = encodeBase64(enc.mediaKeyBytes);
-                    }
+            let mediaKeyB64 = null;
+            if (msg.nonce || msg.e2ee) {
+              // Source was already client-encrypted (DM or group) — recover the existing
+              // per-recipient key and re-wrap it for the new destination, file untouched.
+              mediaKeyB64 = recoverMediaKeyB64(msg);
+              if (!mediaKeyB64) { failCount++; continue; }
+            } else {
+              // Source was never client-encrypted (legacy pre-upgrade group media, stored
+              // plain) — there's no existing key to recover. Fetch the plain file, encrypt
+              // it fresh with a new random key, and re-upload so the destination gets a
+              // real E2EE copy instead of a plaintext file dressed up as encrypted.
+              try {
+                const resolvedUrl = resolveMediaUrl(msg.mediaUrl, API);
+                const rawBlob = await fetch(resolvedUrl).then(r => r.blob());
+                const enc = await encryptMedia(rawBlob);
+                const fd = new FormData();
+                fd.append('media', enc.encryptedBlob, msg.mediaFileName || 'file');
+                const uploadResp = await fetch(`${API}/api/upload/chat`, {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                  body: fd
+                });
+                if (uploadResp.ok) {
+                  const uploadData = await uploadResp.json();
+                  if (uploadData.url) {
+                    body.mediaUrl = uploadData.url;
+                    mediaKeyB64 = encodeBase64(enc.mediaKeyBytes);
                   }
-                } catch (e) { console.warn('[Forward] media re-encrypt failed', e); }
-                if (!mediaKeyB64) { failCount++; continue; }
-              }
+                }
+              } catch (e) { console.warn('[Forward] media re-encrypt failed', e); }
+              if (!mediaKeyB64) { failCount++; continue; }
+            }
+            if (destType === 'private' && targetPubKey && keyPair) {
               const wrap = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(keyPair.publicKey));
               body.message = wrap.ciphertext;
               body.senderMessage = wrap.senderCiphertext;
               body.nonce = wrap.nonce;
               body.ephemeralPublicKey = wrap.ephemeralPublicKey;
+            } else if (destType === 'room' && groupRecipients && groupRecipients.length && keyPair) {
+              try {
+                const enc = encryptGroupMessage(mediaKeyB64, groupRecipients, keyPair, myUsername);
+                body.message = enc.ciphertext;
+                body.nonce = enc.nonce;
+                body.e2eeKeys = enc.keys;
+                body.ephemeralPublicKey = encodeBase64(keyPair.publicKey);
+              } catch (e) { console.warn('[Forward] group media re-wrap failed', e); failCount++; continue; }
             } else {
-              body.message = '';
+              // Can't securely deliver to this destination — never send an unwrapped key.
+              failCount++; continue;
             }
           } else {
             const text = recoverDmText(msg);
@@ -4707,8 +4802,17 @@ const GlobalChatWidget = forwardRef(({
               body.senderMessage = enc.senderCiphertext;
               body.nonce = enc.nonce;
               body.ephemeralPublicKey = enc.ephemeralPublicKey;
+            } else if (destType === 'room' && groupRecipients && groupRecipients.length && keyPair) {
+              try {
+                const enc = encryptGroupMessage(text, groupRecipients, keyPair, myUsername);
+                body.message = enc.ciphertext;
+                body.nonce = enc.nonce;
+                body.e2eeKeys = enc.keys;
+                body.ephemeralPublicKey = encodeBase64(keyPair.publicKey);
+              } catch (e) { console.warn('[Forward] group text re-wrap failed', e); failCount++; continue; }
             } else {
-              body.message = text;
+              // Can't securely deliver to this destination — never send plaintext.
+              failCount++; continue;
             }
           }
           const resp = await fetch(`${API}/api/chats/send`, {
