@@ -365,7 +365,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
           ))}
         </div>
         <button onClick={handleDownload} title="Download voice note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-          <Download size={14} color={dlColor} />
+          <Download size={18} color={dlColor} />
         </button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
