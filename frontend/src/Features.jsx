@@ -119,8 +119,8 @@ const Features = () => {
           position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.15;
           animation: floatBlob 20s infinite alternate ease-in-out;
         }
-        .mesh-blob-1 { width: 600px; height: 600px; background: #6366f1; top: -10%; left: -10%; }
-        .mesh-blob-2 { width: 500px; height: 500px; background: #a855f7; bottom: 20%; right: -5%; animation-delay: -5s; }
+        .mesh-blob-1 { width: 600px; height: 600px; background: var(--brand-1); top: -10%; left: -10%; }
+        .mesh-blob-2 { width: 500px; height: 500px; background: var(--brand-2); bottom: 20%; right: -5%; animation-delay: -5s; }
         .mesh-blob-3 { width: 400px; height: 400px; background: #06b6d4; bottom: -10%; left: 20%; animation-delay: -10s; }
         
         @keyframes floatBlob {
@@ -135,8 +135,8 @@ const Features = () => {
         }
         .glow-hover:hover {
           transform: translateY(-6px);
-          border-color: rgba(99, 102, 241, 0.4);
-          box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.25), 0 0 20px -5px rgba(99, 102, 241, 0.15);
+          border-color: rgba(var(--brand-1-rgb), 0.4);
+          box-shadow: 0 20px 40px -15px rgba(var(--brand-1-rgb), 0.25), 0 0 20px -5px rgba(var(--brand-1-rgb), 0.15);
           background: rgba(15, 15, 25, 0.6);
         }
 
@@ -145,7 +145,7 @@ const Features = () => {
           display: flex; align-items: flex-end; gap: 4px; height: 32px;
         }
         .sync-bar {
-          width: 4px; border-radius: 2px; background: linear-gradient(to top, #6366f1, #a855f7);
+          width: 4px; border-radius: 2px; background: linear-gradient(to top, var(--brand-1), var(--brand-2));
           animation: syncPulse 1.2s infinite ease-in-out;
         }
         .sync-bar:nth-child(2) { animation-delay: 0.15s; }
@@ -178,7 +178,7 @@ const Features = () => {
         }
         .glow-border::after {
           content: ''; position: absolute; inset: 0; border-radius: inherit;
-          padding: 1.5px; background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(168,85,247,0.4));
+          padding: 1.5px; background: linear-gradient(135deg, rgba(var(--brand-1-rgb),0.4), rgba(var(--brand-2-rgb),0.4));
           -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
           -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; opacity: 0.3;
           transition: opacity 0.4s;
@@ -427,8 +427,8 @@ const Features = () => {
           border: 1px solid rgba(0, 0, 0, 0.06);
         }
         .table-container:hover {
-          border-color: rgba(168, 85, 247, 0.45) !important;
-          box-shadow: 0 0 15px rgba(168, 85, 247, 0.12) !important;
+          border-color: rgba(var(--brand-2-rgb), 0.45) !important;
+          box-shadow: 0 0 15px rgba(var(--brand-2-rgb), 0.12) !important;
         }
         @media (max-width: 1023px) {
           .table-container,
@@ -459,19 +459,19 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section style={{
         position: 'relative', display: 'flex', alignItems: 'center', background: isLight
-          ? 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(99,102,241,0.18) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(168,85,247,0.14) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.08) 0%, transparent 60%), #ffffff'
-          : 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(99,102,241,0.28) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(168,85,247,0.22) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.12) 0%, transparent 60%), #0f0f18', color: 'var(--text-primary)', overflow: 'hidden',
+          ? 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(var(--brand-1-rgb),0.18) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(var(--brand-2-rgb),0.14) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.08) 0%, transparent 60%), #ffffff'
+          : 'radial-gradient(ellipse 60% 55% at 2% 98%, rgba(var(--brand-1-rgb),0.28) 0%, transparent 70%), radial-gradient(ellipse 55% 50% at 98% 2%, rgba(var(--brand-2-rgb),0.22) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 98% 98%, rgba(6,182,212,0.12) 0%, transparent 60%), #0f0f18', color: 'var(--text-primary)', overflow: 'hidden',
         paddingTop: 'clamp(48px, 8vw, 100px)',
         paddingBottom: 'clamp(48px, 8vw, 100px)',
       }}>
         <div className="features-container side-by-side-section" style={{ maxWidth: 1200, margin: '0 auto', width: '100%', position: 'relative', zIndex: 1 }}>
           {/* Left Hero */}
           <div className="info-wrapper" style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 99, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontSize: 13, fontWeight: 600, marginBottom: 24 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderRadius: 99, background: 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.2)', color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, marginBottom: 24 }}>
               <Sparkles size={14} /> {t('everythingUnlock', 'Sahaplay watch party hub')}
             </div>
             <h1 style={{ fontSize: 'clamp(40px, 6vw, 68px)', fontWeight: 900, lineHeight: 1.05, letterSpacing: '-1.5px', marginBottom: 24, background: isLight ? 'none' : 'linear-gradient(to right, #fff, #9ca3af)', WebkitBackgroundClip: isLight ? 'none' : 'text', WebkitTextFillColor: isLight ? 'var(--text-primary)' : 'transparent', backgroundClip: isLight ? 'none' : 'text', color: 'var(--text-primary)' }}>
-              {t('heroTitlePart1', 'Everything You Need To')} <span style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('heroTitlePart2', 'Watch Together')}</span>
+              {t('heroTitlePart1', 'Everything You Need To')} <span style={{ background: 'var(--brand-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('heroTitlePart2', 'Watch Together')}</span>
             </h1>
             <p className="section-body" style={{ color: 'var(--text-secondary)', marginBottom: 40, maxWidth: 540 }}>
               {t('featuresHeroDesc', 'Watch anything together — perfectly synced, privately encrypted, and always in real time.')}
@@ -516,7 +516,7 @@ const Features = () => {
                   <div style={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <Play fill="#fff" size={14} style={{ color: '#fff' }} />
                     <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.3)', borderRadius: 2, position: 'relative' }}>
-                      <div style={{ width: '60%', height: '100%', background: '#6366f1', borderRadius: 2 }} />
+                      <div style={{ width: '60%', height: '100%', background: 'var(--brand-1)', borderRadius: 2 }} />
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff', position: 'absolute', left: '60%', top: -2 }} />
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 600 }}>02:14 / 03:45</span>
@@ -538,7 +538,7 @@ const Features = () => {
                   </div>
                   <div style={{ display: 'flex', gap: 6, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6 }}>
                     <div style={{ flex: 1, height: 22, background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '0 8px', fontSize: 10, display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>{t('chatPlaceholder', 'Type a message...')}</div>
-                    <div style={{ width: 22, height: 22, background: '#6366f1', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 22, height: 22, background: 'var(--brand-1)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Send size={10} color="#fff" />
                     </div>
                   </div>
@@ -572,7 +572,7 @@ const Features = () => {
         <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: '70%', height: '1px',
-          background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.35), rgba(168,85,247,0.35), transparent)'
+          background: 'linear-gradient(to right, transparent, rgba(var(--brand-1-rgb),0.35), rgba(var(--brand-2-rgb),0.35), transparent)'
         }} />
         <div className="features-container" style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
@@ -589,7 +589,7 @@ const Features = () => {
                 className="glass-panel glow-border glow-hover feature-card"
                 style={{ padding: '24px 20px', borderRadius: 20, background: isLight ? '#ffffff' : 'rgba(15,15,25,0.3)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)' }}
               >
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(99,102,241,0.15)', color: feat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.15)', color: feat.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                   {feat.icon}
                 </div>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>{feat.title}</h3>
@@ -613,7 +613,7 @@ const Features = () => {
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
               <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#6366f1', marginBottom: 4 }}>{t('instant', 'Instant')}</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: 'var(--brand-1)', marginBottom: 4 }}>{t('instant', 'Instant')}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t('noDelayDesc', 'No delay in playback alignment')}</div>
               </div>
               <div style={{ background: isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)', padding: 16, borderRadius: 16, border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.05)' }}>
@@ -625,7 +625,7 @@ const Features = () => {
 
           {/* Left: Wave/Pulse Sync Visualizer */}
           <div className="glass-panel glow-border mockup-wrapper sync-mockup" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.5)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, position: 'relative', width: '100%' }}>
-            <div style={{ fontSize: 12, color: '#818cf8', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: 'var(--brand-1-light)', fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 20 }}>
               {t('livePlaybackSync', 'Live Playback Sync')}
             </div>
 
@@ -660,8 +660,8 @@ const Features = () => {
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 60 }}>
                 {latencyHistory.map((val, i) => (
-                  <div key={i} style={{ flex: 1, background: 'rgba(168, 85, 247, 0.25)', height: `${val * 2}%`, borderRadius: 3, position: 'relative' }} title={`${t('ping', 'Ping')}: ${val}ms`}>
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: '#a855f7', borderRadius: '0 0 3px 3px' }} />
+                  <div key={i} style={{ flex: 1, background: 'rgba(var(--brand-2-rgb), 0.25)', height: `${val * 2}%`, borderRadius: 3, position: 'relative' }} title={`${t('ping', 'Ping')}: ${val}ms`}>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'var(--brand-2)', borderRadius: '0 0 3px 3px' }} />
                   </div>
                 ))}
               </div>
@@ -699,10 +699,10 @@ const Features = () => {
           {/* Chat Mockup */}
           <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             <div style={{ display: 'flex', gap: 16, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 16, marginBottom: 16 }}>
-              <button onClick={() => setActiveTab('sync')} style={{ flex: 1, padding: 8, background: activeTab === 'sync' ? 'rgba(99,102,241,0.1)' : 'transparent', border: activeTab === 'sync' ? '1px solid rgba(99,102,241,0.2)' : 'none', color: activeTab === 'sync' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600, borderRadius: 10, cursor: 'pointer' }}>
+              <button onClick={() => setActiveTab('sync')} style={{ flex: 1, padding: 8, background: activeTab === 'sync' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border: activeTab === 'sync' ? '1px solid rgba(var(--brand-1-rgb),0.2)' : 'none', color: activeTab === 'sync' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600, borderRadius: 10, cursor: 'pointer' }}>
                 {t('groupLobbyChat', 'Group Lobby Chat')}
               </button>
-              <button onClick={() => setActiveTab('dm')} style={{ flex: 1, padding: 8, background: activeTab === 'dm' ? 'rgba(99,102,241,0.1)' : 'transparent', border: activeTab === 'dm' ? '1px solid rgba(99,102,241,0.2)' : 'none', color: activeTab === 'dm' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600, borderRadius: 10, cursor: 'pointer' }}>
+              <button onClick={() => setActiveTab('dm')} style={{ flex: 1, padding: 8, background: activeTab === 'dm' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border: activeTab === 'dm' ? '1px solid rgba(var(--brand-1-rgb),0.2)' : 'none', color: activeTab === 'dm' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: 600, borderRadius: 10, cursor: 'pointer' }}>
                 {t('privateDmSarah', 'Private DM (Sarah)')}
               </button>
             </div>
@@ -784,7 +784,7 @@ const Features = () => {
               <img src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=60" alt={t('mockScreenshareAlt', 'mock screen sharing')} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} />
 
               {/* WebRTC Video Overlay (Camera) */}
-              <div style={{ position: 'absolute', bottom: 12, right: 12, width: 90, height: 60, borderRadius: 10, border: '2px solid #6366f1', overflow: 'hidden', background: '#000' }}>
+              <div style={{ position: 'absolute', bottom: 12, right: 12, width: 90, height: 60, borderRadius: 10, border: '2px solid var(--brand-1)', overflow: 'hidden', background: '#000' }}>
                 <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=60" alt={t('avatarWebcamAlt', 'avatar webcam')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             </div>
@@ -797,8 +797,8 @@ const Features = () => {
       ──────────────────────────────────────────────────────── */}
       <section className="section-padding" style={{
         background: isLight
-          ? 'radial-gradient(ellipse 38% 120% at -2% 50%, rgba(168,85,247,0.14) 0%, rgba(139,92,246,0.06) 55%, transparent 100%), radial-gradient(ellipse 38% 120% at 102% 50%, rgba(139,92,246,0.12) 0%, rgba(168,85,247,0.05) 55%, transparent 100%), #f8f7ff'
-          : 'radial-gradient(ellipse 38% 120% at -2% 50%, rgba(168,85,247,0.28) 0%, rgba(139,92,246,0.10) 55%, transparent 100%), radial-gradient(ellipse 38% 120% at 102% 50%, rgba(139,92,246,0.24) 0%, rgba(168,85,247,0.08) 55%, transparent 100%), #13131f',
+          ? 'radial-gradient(ellipse 38% 120% at -2% 50%, rgba(var(--brand-2-rgb),0.14) 0%, rgba(139,92,246,0.06) 55%, transparent 100%), radial-gradient(ellipse 38% 120% at 102% 50%, rgba(139,92,246,0.12) 0%, rgba(var(--brand-2-rgb),0.05) 55%, transparent 100%), #f8f7ff'
+          : 'radial-gradient(ellipse 38% 120% at -2% 50%, rgba(var(--brand-2-rgb),0.28) 0%, rgba(139,92,246,0.10) 55%, transparent 100%), radial-gradient(ellipse 38% 120% at 102% 50%, rgba(139,92,246,0.24) 0%, rgba(var(--brand-2-rgb),0.08) 55%, transparent 100%), #13131f',
         borderBottom: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)'
       }}>
         <div className="features-container" style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
@@ -851,7 +851,7 @@ const Features = () => {
           {/* Interactive controls panel preview */}
           <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Crown size={18} color="#a855f7" /> {t('roomPermissionsControl', 'Room Permissions Control')}
+              <Crown size={18} color="var(--brand-2)" /> {t('roomPermissionsControl', 'Room Permissions Control')}
             </h3>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -869,7 +869,7 @@ const Features = () => {
                   <div
                     className="feat-toggle-track"
                     data-active={String(setting.active)}
-                    style={{ background: setting.active ? '#6366f1' : 'rgba(0,0,0,0.15)' }}
+                    style={{ background: setting.active ? 'var(--brand-1)' : 'rgba(0,0,0,0.15)' }}
                   >
                     <div className="feat-toggle-thumb" style={{ left: setting.active ? 21 : 3 }} />
                   </div>
@@ -933,14 +933,14 @@ const Features = () => {
 
           {/* Uploader Preview Second */}
           <div className="glass-panel glow-border mockup-wrapper" style={{ background: isLight ? '#ffffff' : 'rgba(10, 10, 15, 0.6)', border: isLight ? '1px solid rgba(0,0,0,0.06)' : '1px solid rgba(255,255,255,0.06)', borderRadius: 24, width: '100%' }}>
-            <div style={{ border: '2px dashed rgba(99,102,241,0.3)', padding: 40, borderRadius: 16, textAlign: 'center', background: 'rgba(99,102,241,0.02)' }}>
-              <FolderOpen size={48} color="#6366f1" style={{ margin: '0 auto 16px' }} />
+            <div style={{ border: '2px dashed rgba(var(--brand-1-rgb),0.3)', padding: 40, borderRadius: 16, textAlign: 'center', background: 'rgba(var(--brand-1-rgb),0.02)' }}>
+              <FolderOpen size={48} color="var(--brand-1)" style={{ margin: '0 auto 16px' }} />
               <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>{t('mockFileName', 'movie_night_sync.mp4')}</div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>{t('mockFileSize', 'File size: 1.2 GB')}</div>
 
               {/* Progress bar */}
               <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, position: 'relative', overflow: 'hidden', maxWidth: 280, margin: '0 auto' }}>
-                <div style={{ height: '100%', background: 'linear-gradient(to right, #6366f1, #a855f7)', width: `${uploadProgress}%`, borderRadius: 3 }} />
+                <div style={{ height: '100%', background: 'linear-gradient(to right, var(--brand-1), var(--brand-2))', width: `${uploadProgress}%`, borderRadius: 3 }} />
               </div>
               <span style={{ display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
                 {t('preparingVideo', 'Preparing video...')} {uploadProgress}%
@@ -972,8 +972,8 @@ const Features = () => {
                   key={device.id}
                   onClick={() => setDeviceScale(device.id)}
                   style={{
-                    padding: '8px 16px', background: deviceScale === device.id ? 'rgba(99,102,241,0.1)' : 'transparent',
-                    border: deviceScale === device.id ? '1px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+                    padding: '8px 16px', background: deviceScale === device.id ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent',
+                    border: deviceScale === device.id ? '1px solid rgba(var(--brand-1-rgb),0.3)' : '1px solid transparent',
                     borderRadius: 8, color: deviceScale === device.id ? 'var(--text-primary)' : 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', textTransform: 'capitalize'
                   }}
                 >
@@ -1036,9 +1036,9 @@ const Features = () => {
                     padding: '6px 14px',
                     borderRadius: 99,
                     border: '1px solid',
-                    borderColor: selectedCategory === cat.id ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.06)',
-                    background: selectedCategory === cat.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.02)',
-                    color: selectedCategory === cat.id ? '#a5b4fc' : 'var(--text-secondary)',
+                    borderColor: selectedCategory === cat.id ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.06)',
+                    background: selectedCategory === cat.id ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.02)',
+                    color: selectedCategory === cat.id ? 'var(--brand-1-light)' : 'var(--text-secondary)',
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1063,12 +1063,12 @@ const Features = () => {
                 .map((lobby, i) => (
                   <div key={i} className="lobby-item">
                     <div>
-                      <span style={{ fontSize: 11, color: '#6366f1', fontWeight: 600 }}>{lobby.catLabel}</span>
+                      <span style={{ fontSize: 11, color: 'var(--brand-1)', fontWeight: 600 }}>{lobby.catLabel}</span>
                       <h4 style={{ margin: '4px 0 0', fontSize: 14, fontWeight: 700 }}>{lobby.name}</h4>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{lobby.viewers} {t('watchingText', 'watching')}</span>
-                      <button className="stay-white" onClick={() => navigate('/public')} style={{ padding: '6px 12px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <button className="stay-white" onClick={() => navigate('/public')} style={{ padding: '6px 12px', background: 'var(--brand-gradient)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                         {t('joinBtn', 'Join')}
                       </button>
                     </div>
@@ -1141,14 +1141,14 @@ const Features = () => {
         background: isLight
           ? 'linear-gradient(160deg, #f5f4ff 0%, #ede9ff 100%)'
           : 'linear-gradient(160deg, #13131f 0%, #1c1b2e 100%)',
-        borderTop: isLight ? '1px solid rgba(99,102,241,0.12)' : '1px solid rgba(99,102,241,0.18)',
+        borderTop: isLight ? '1px solid rgba(var(--brand-1-rgb),0.12)' : '1px solid rgba(var(--brand-1-rgb),0.18)',
         position: 'relative'
       }}>
         {/* Subtle top accent line */}
         <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: '60%', height: '2px',
-          background: 'linear-gradient(to right, transparent, rgba(99,102,241,0.4), rgba(168,85,247,0.4), transparent)'
+          background: 'linear-gradient(to right, transparent, rgba(var(--brand-1-rgb),0.4), rgba(var(--brand-2-rgb),0.4), transparent)'
         }} />
         <div className="features-container" style={{ maxWidth: 800, margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <h2 className="section-title" style={{ fontWeight: 900, marginBottom: 20 }}>
@@ -1178,21 +1178,21 @@ const Features = () => {
             position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
             zIndex: 999,
             padding: '10px 22px', borderRadius: 50,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'var(--brand-gradient)',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
             color: '#fff', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            boxShadow: '0 4px 20px rgba(var(--brand-1-rgb),0.5)',
             whiteSpace: 'nowrap',
             transition: 'transform 0.2s, box-shadow 0.2s',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(var(--brand-1-rgb),0.65)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateX(-50%)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(var(--brand-1-rgb),0.5)';
           }}
         >
           <ChevronUp size={18} color="#fff" />
