@@ -107,12 +107,12 @@ const Dashboard = () => {
         }
 
         .dash-orb { position:absolute; border-radius:50%; filter:blur(90px); pointer-events:none; z-index:0; }
-        .dash-orb-1 { width:520px;height:520px; background:radial-gradient(circle,rgba(99,102,241,0.35),transparent 70%); top:-180px;left:-140px; animation:dashOrbFloat1 20s ease-in-out infinite; }
-        .dash-orb-2 { width:420px;height:420px; background:radial-gradient(circle,rgba(168,85,247,0.3),transparent 70%); bottom:-160px;right:-120px; animation:dashOrbFloat2 24s ease-in-out infinite; }
+        .dash-orb-1 { width:520px;height:520px; background:radial-gradient(circle,rgba(var(--brand-1-rgb),0.35),transparent 70%); top:-180px;left:-140px; animation:dashOrbFloat1 20s ease-in-out infinite; }
+        .dash-orb-2 { width:420px;height:420px; background:radial-gradient(circle,rgba(var(--brand-2-rgb),0.3),transparent 70%); bottom:-160px;right:-120px; animation:dashOrbFloat2 24s ease-in-out infinite; }
         html[data-theme='light'] .dash-orb { opacity:0.12; }
 
-        .dash-greeting { color:#818cf8; font-size:14px; font-weight:700; letter-spacing:0.3px; margin:0 0 10px; }
-        html[data-theme='light'] .dash-greeting { color:#4f46e5 !important; }
+        .dash-greeting { color:var(--brand-1-light); font-size:14px; font-weight:700; letter-spacing:0.3px; margin:0 0 10px; }
+        html[data-theme='light'] .dash-greeting { color:var(--brand-1-dark) !important; }
 
         .dash-title { color:#fff; }
         html[data-theme='light'] .dash-title { color:#0f172a !important; }
@@ -126,31 +126,31 @@ const Dashboard = () => {
         html[data-theme='light'] .dash-join-form { background:#f8fafc;border-color:rgba(0,0,0,0.08); }
         .dash-join-input { flex:1;background:transparent;border:none;outline:none;padding:16px 20px;font-size:15px;color:#fff; }
         html[data-theme='light'] .dash-join-input { color:#111 !important; }
-        .dash-join-btn { border:none;padding:16px 22px;font-weight:700;font-size:14px;cursor:pointer;transition:background 0.2s;background:rgba(99,102,241,0.18);color:#a5b4fc;display:flex;align-items:center;gap:6px; }
-        .dash-join-btn:hover { background:rgba(99,102,241,0.32); }
-        html[data-theme='light'] .dash-join-btn { background:#eef2ff !important;color:#4f46e5 !important; }
+        .dash-join-btn { border:none;padding:16px 22px;font-weight:700;font-size:14px;cursor:pointer;transition:background 0.2s;background:rgba(var(--brand-1-rgb),0.18);color:var(--brand-1-light);display:flex;align-items:center;gap:6px; }
+        .dash-join-btn:hover { background:rgba(var(--brand-1-rgb),0.32); }
+        html[data-theme='light'] .dash-join-btn { background:#eef2ff !important;color:var(--brand-1-dark) !important; }
         html[data-theme='light'] .dash-join-btn:hover { background:#e0e7ff !important; }
 
         /* ── Decorative room-preview panel (right column, desktop only) ── */
         .dash-preview-wrap { flex:0 0 auto; position:relative; display:flex; align-items:center; justify-content:center; }
-        .dash-preview-card { position:relative; width:380px; border-radius:16px; overflow:hidden; background:#0e0e20; border:1px solid rgba(99,102,241,0.3); box-shadow:0 0 0 1px rgba(99,102,241,0.1), 0 28px 70px -8px rgba(0,0,0,0.6); animation:dashCardFloat 6s ease-in-out infinite; }
-        html[data-theme='light'] .dash-preview-card { background:#fff; border-color:rgba(99,102,241,0.15); box-shadow:0 0 0 1px rgba(99,102,241,0.08), 0 28px 60px -10px rgba(0,0,0,0.12); }
+        .dash-preview-card { position:relative; width:380px; border-radius:16px; overflow:hidden; background:#0e0e20; border:1px solid rgba(var(--brand-1-rgb),0.3); box-shadow:0 0 0 1px rgba(var(--brand-1-rgb),0.1), 0 28px 70px -8px rgba(0,0,0,0.6); animation:dashCardFloat 6s ease-in-out infinite; }
+        html[data-theme='light'] .dash-preview-card { background:#fff; border-color:rgba(var(--brand-1-rgb),0.15); box-shadow:0 0 0 1px rgba(var(--brand-1-rgb),0.08), 0 28px 60px -10px rgba(0,0,0,0.12); }
         .dash-preview-titlebar { height:36px; background:#12122a; border-bottom:1px solid rgba(255,255,255,0.07); display:flex; align-items:center; justify-content:space-between; padding:0 12px; }
         html[data-theme='light'] .dash-preview-titlebar { background:#f8fafc; border-bottom-color:rgba(0,0,0,0.06); }
         .dash-preview-video { height:170px; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
         .dash-scene { position:absolute; inset:0; animation:dashSceneShift 10s ease-in-out infinite; }
         html[data-theme='light'] .dash-scene { animation:none; background:linear-gradient(135deg,#eef2ff 0%,#f5f3ff 100%) !important; }
         .dash-wave-bars { display:flex; align-items:center; gap:4px; height:26px; position:relative; z-index:1; }
-        .dash-wave-bar { width:4px; height:100%; border-radius:3px; background:rgba(99,102,241,0.9); transform-origin:center; animation:dashWaveBar 0.9s ease-in-out infinite; }
-        html[data-theme='light'] .dash-wave-bar { background:#6366f1; }
+        .dash-wave-bar { width:4px; height:100%; border-radius:3px; background:rgba(var(--brand-1-rgb),0.9); transform-origin:center; animation:dashWaveBar 0.9s ease-in-out infinite; }
+        html[data-theme='light'] .dash-wave-bar { background:var(--brand-1); }
         .dash-scrub-track { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,0.08); }
         html[data-theme='light'] .dash-scrub-track { background:rgba(0,0,0,0.08); }
-        .dash-scrub-fill { height:100%; background:linear-gradient(90deg,#6366f1,#a855f7); animation:dashScrub 9s linear infinite; }
+        .dash-scrub-fill { height:100%; background:linear-gradient(90deg,var(--brand-1),var(--brand-2)); animation:dashScrub 9s linear infinite; }
         .dash-preview-chat { padding:10px 12px; display:flex; flex-direction:column; gap:7px; min-height:98px; }
         .dash-bubble-row { animation:dashMsgPop 0.35s ease-out; }
         .dash-bubble-in { background:rgba(255,255,255,0.07); border-radius:10px 10px 10px 2px; padding:5px 9px; font-size:11px; color:rgba(255,255,255,0.7); display:inline-block; }
         html[data-theme='light'] .dash-bubble-in { background:rgba(0,0,0,0.06); color:#374151; }
-        .dash-bubble-out { background:linear-gradient(135deg,#6366f1,#7c3aed); border-radius:10px 10px 2px 10px; padding:5px 9px; font-size:11px; color:#fff; display:inline-block; }
+        .dash-bubble-out { background:linear-gradient(135deg,var(--brand-1),var(--brand-2-dark)); border-radius:10px 10px 2px 10px; padding:5px 9px; font-size:11px; color:#fff; display:inline-block; }
         .dash-typing-dot { width:3px; height:3px; border-radius:50%; background:rgba(255,255,255,0.3); animation:dashTypingBounce 1.2s ease infinite; }
         html[data-theme='light'] .dash-typing-dot { background:rgba(0,0,0,0.25); }
 
@@ -182,8 +182,8 @@ const Dashboard = () => {
 
             <div className="dash-card">
               <button onClick={createRoom} className="create-room-hero-btn stay-white"
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff', padding: '17px 24px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', marginBottom: 16 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(168,85,247,0.25)'; }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', color: '#fff', padding: '17px 24px', fontSize: 16, borderRadius: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', marginBottom: 16 }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(var(--brand-2-rgb),0.25)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
               >
                 <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
@@ -211,7 +211,7 @@ const Dashboard = () => {
               </div>
               <div className="dash-preview-video">
                 <div className="dash-scene" />
-                <div style={{ position: 'absolute', width: 140, height: 140, background: 'radial-gradient(circle,rgba(99,102,241,0.22) 0%,transparent 70%)', borderRadius: '50%', filter: 'blur(18px)' }} />
+                <div style={{ position: 'absolute', width: 140, height: 140, background: 'radial-gradient(circle,rgba(var(--brand-1-rgb),0.22) 0%,transparent 70%)', borderRadius: '50%', filter: 'blur(18px)' }} />
                 <div className="dash-wave-bars">
                   {[0, 1, 2, 3, 4].map(i => (
                     <div key={i} className="dash-wave-bar" style={{ animationDelay: `${i * 0.12}s` }} />
@@ -222,7 +222,7 @@ const Dashboard = () => {
               <div className="dash-preview-chat">
                 {previewMessages.map(msg => (
                   <div key={msg._k} className="dash-bubble-row" style={{ display: 'flex', gap: 6, alignItems: 'flex-start', justifyContent: msg.type === 'out' ? 'flex-end' : 'flex-start' }}>
-                    {msg.type === 'in' && <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#6366f1', flexShrink: 0 }} />}
+                    {msg.type === 'in' && <div style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--brand-1)', flexShrink: 0 }} />}
                     <div className={msg.type === 'out' ? 'dash-bubble-out stay-white' : 'dash-bubble-in'}>{msg.text}</div>
                   </div>
                 ))}

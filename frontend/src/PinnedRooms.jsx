@@ -84,7 +84,7 @@ const PinnedRooms = () => {
       <Toaster position="top-center" />
       <style>{`
         .pinned-card { border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
-        .pinned-card:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.5);border-color:rgba(99,102,241,0.5); }
+        .pinned-card:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.5);border-color:rgba(var(--brand-1-rgb),0.5); }
         .img-layer { height:130px;position:relative;overflow:hidden;background:linear-gradient(135deg,#1e1e2e 0%,#111119 100%); }
         html[data-theme='light'] .img-layer { background:linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 100%); }
         .pinned-img { width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease,opacity 0.4s ease;opacity:0; }
@@ -97,10 +97,10 @@ const PinnedRooms = () => {
         .unpin-btn .unpin-icon { transition:fill 0.3s ease;fill:none; }
         .unpin-btn:hover .unpin-icon { fill:currentColor; }
         html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
-        html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:#4f46e5 !important;color:#4f46e5 !important; }
-        .footer-layer { background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(168,85,247,0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
+        html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:var(--brand-1-dark) !important;color:var(--brand-1-dark) !important; }
+        .footer-layer { background:linear-gradient(135deg,rgba(var(--brand-1-rgb),0.12),rgba(var(--brand-2-rgb),0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
         html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
-        .join-btn { background:linear-gradient(135deg,#6366f1,#a855f7);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
+        .join-btn { background:linear-gradient(135deg,var(--brand-1),var(--brand-2));border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
         .pinned-card:hover .join-btn { transform:translateY(-2px); }
         html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
 

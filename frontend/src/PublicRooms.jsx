@@ -129,7 +129,7 @@ const PublicRooms = () => {
         .pinned-card:hover {
           transform: translateY(-4px);
           box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-          border-color: rgba(99,102,241,0.5);
+          border-color: rgba(var(--brand-1-rgb),0.5);
         }
         .img-layer {
           height: 130px;
@@ -169,14 +169,14 @@ const PublicRooms = () => {
           z-index: 10;
         }
         .footer-layer {
-          background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.12));
+          background: linear-gradient(135deg, rgba(var(--brand-1-rgb),0.12), rgba(var(--brand-2-rgb),0.12));
           padding: 12px 16px;
           display: flex;
           flex-direction: column;
           border-top: 1px solid rgba(255,255,255,0.05);
         }
         .join-btn {
-          background: linear-gradient(135deg, #6366f1, #a855f7);
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           border: none;
           color: #fff;
           padding: 5px 14px;
@@ -188,7 +188,7 @@ const PublicRooms = () => {
         }
         .nav-icon-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .nav-icon-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; }
-        .nav-icon-btn.active { background: rgba(99,102,241,0.12); border-radius: 12px; border-color: rgba(255,255,255,0.15); color: #818cf8; }
+        .nav-icon-btn.active { background: rgba(var(--brand-1-rgb),0.12); border-radius: 12px; border-color: rgba(255,255,255,0.15); color: var(--brand-1-light); }
         
         .cat-tab {
           background: rgba(255,255,255,0.05);
@@ -200,11 +200,11 @@ const PublicRooms = () => {
           white-space: nowrap;
         }
         .cat-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
-        .cat-tab.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); color: #a5b4fc; }
+        .cat-tab.active { background: rgba(var(--brand-1-rgb),0.2); border-color: rgba(var(--brand-1-rgb),0.5); color: var(--brand-1-light); }
         
         html[data-theme='light'] .cat-tab { background: #fff; border-color: rgba(0,0,0,0.08); color: #64748b; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         html[data-theme='light'] .cat-tab:hover { background: #f8fafc; color: #1e293b; border-color: rgba(0,0,0,0.15); }
-        html[data-theme='light'] .cat-tab.active { background: #6366f1; border-color: #6366f1; color: #fff !important; box-shadow: 0 4px 12px rgba(99,102,241,0.25); }
+        html[data-theme='light'] .cat-tab.active { background: var(--brand-1); border-color: var(--brand-1); color: #fff !important; box-shadow: 0 4px 12px rgba(var(--brand-1-rgb),0.25); }
         html[data-theme='light'] .cat-tab.active * { color: #fff !important; }
 
         /* Filter row */
@@ -362,10 +362,10 @@ const PublicRooms = () => {
           border-color: #ef4444 !important;
           color: #ef4444 !important;
         }
-        html[data-theme='light'] .nav-icon-btn.active { color: #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+        html[data-theme='light'] .nav-icon-btn.active { color: var(--brand-1) !important; background: rgba(var(--brand-1-rgb),0.1) !important; }
         
         html[data-theme='light'] .pinned-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-        html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(99,102,241,0.3); }
+        html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(var(--brand-1-rgb),0.3); }
         html[data-theme='light'] .footer-layer { background: #fff !important; border-top: 1px solid rgba(0,0,0,0.04) !important; }
         html[data-theme='light'] .join-btn { background: linear-gradient(135deg, #8b5cf6, #d946ef); color: #fff !important; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); }
         html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 6px 15px rgba(139, 92, 246, 0.4); }
@@ -443,9 +443,9 @@ const PublicRooms = () => {
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '20px' }}>
                 {Array.from({ length: Math.ceil(filteredRooms.length / itemsPerPage) }).map((_, idx) => (
                   <button key={idx} onClick={() => setCurrentPage(idx + 1)} style={{
-                    background: currentPage === idx + 1 ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'rgba(255,255,255,0.05)',
+                    background: currentPage === idx + 1 ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))' : 'rgba(255,255,255,0.05)',
                     border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600,
-                    transition: 'transform 0.2s', boxShadow: currentPage === idx + 1 ? '0 2px 10px rgba(168,85,247,0.3)' : 'none'
+                    transition: 'transform 0.2s', boxShadow: currentPage === idx + 1 ? '0 2px 10px rgba(var(--brand-2-rgb),0.3)' : 'none'
                   }}
                   onMouseEnter={e => { if (currentPage !== idx + 1) e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
                   onMouseLeave={e => { if (currentPage !== idx + 1) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}>

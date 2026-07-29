@@ -344,8 +344,8 @@ export default function ReportBug() {
           <div style={{ ...cardSt, borderRadius: 20, padding: isMobile ? '40px 24px' : '60px 48px', textAlign: 'center', maxWidth: 540, width: '100%', animation: 'fadeInUp 0.4s ease' }}>
 
             {/* Icon */}
-            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(99,102,241,0.15)', border: '2px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', animation: 'popIn 0.4s ease' }}>
-              <CheckCircle size={40} color="#818cf8" strokeWidth={2} />
+            <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.15)', border: '2px solid rgba(var(--brand-1-rgb),0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', animation: 'popIn 0.4s ease' }}>
+              <CheckCircle size={40} color="var(--brand-1-light)" strokeWidth={2} />
             </div>
 
             {/* Title */}
@@ -364,13 +364,13 @@ export default function ReportBug() {
             </p>
 
             {/* Report ID pill */}
-            <div style={{ display: 'inline-block', background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '8px 18px', marginBottom: 28, fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 700, color: '#818cf8', letterSpacing: '0.5px' }}>
+            <div style={{ display: 'inline-block', background: isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.12)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 8, padding: '8px 18px', marginBottom: 28, fontFamily: "'Courier New', monospace", fontSize: 14, fontWeight: 700, color: 'var(--brand-1-light)', letterSpacing: '0.5px' }}>
               {t('rbReportId', 'Report ID: {{reportId}}', { reportId })}
             </div>
 
             {/* What happens next */}
-            <div style={{ background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#818cf8', margin: '0 0 12px' }}>
+            <div style={{ background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.08)', border: '1px solid rgba(var(--brand-1-rgb),0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
+              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--brand-1-light)', margin: '0 0 12px' }}>
                 {t('rbNextTitle', 'What happens next')}
               </p>
               {[
@@ -393,9 +393,9 @@ export default function ReportBug() {
                 onMouseLeave={() => setHoveredSuccessBtn(null)}
                 style={{
                   flex: 1, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                  border: `1px solid ${hoveredSuccessBtn === 'secondary' ? 'rgba(99,102,241,0.45)' : cardBorder}`,
-                  background: hoveredSuccessBtn === 'secondary' ? 'rgba(99,102,241,0.08)' : 'transparent',
-                  color: hoveredSuccessBtn === 'secondary' ? '#818cf8' : (isLight ? '#374151' : '#9ca3af'),
+                  border: `1px solid ${hoveredSuccessBtn === 'secondary' ? 'rgba(var(--brand-1-rgb),0.45)' : cardBorder}`,
+                  background: hoveredSuccessBtn === 'secondary' ? 'rgba(var(--brand-1-rgb),0.08)' : 'transparent',
+                  color: hoveredSuccessBtn === 'secondary' ? 'var(--brand-1-light)' : (isLight ? '#374151' : '#9ca3af'),
                   transform: hoveredSuccessBtn === 'secondary' ? 'translateY(-2px)' : 'translateY(0)',
                   transition: 'all 0.18s ease',
                 }}
@@ -409,10 +409,10 @@ export default function ReportBug() {
                 onMouseLeave={() => setHoveredSuccessBtn(null)}
                 style={{
                   flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   color: '#fff',
                   transform: hoveredSuccessBtn === 'primary' ? 'translateY(-2px)' : 'translateY(0)',
-                  boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(99,102,241,0.4)' : '0 0px 0px transparent',
+                  boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(var(--brand-1-rgb),0.4)' : '0 0px 0px transparent',
                   opacity: hoveredSuccessBtn === 'primary' ? 0.9 : 1,
                   transition: 'all 0.18s ease',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -444,7 +444,7 @@ export default function ReportBug() {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>
 
         {/* ── Badge ── */}
-        <div className="rb-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.12)', border: `1px solid rgba(99,102,241,${isLight ? '0.3' : '0.25'})`, color: isLight ? '#4f46e5' : '#818cf8', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
+        <div className="rb-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.12)', border: `1px solid rgba(var(--brand-1-rgb),${isLight ? '0.3' : '0.25'})`, color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
           <Bug size={14} /> {t('rbBadge', 'Bug Report')}
         </div>
 
@@ -483,7 +483,7 @@ export default function ReportBug() {
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
                   {apiErr || t('rbErrorFallback', 'Something went wrong.')}{' '}
                   {t('rbErrorEmailFallback', 'Email us at')}{' '}
-                  <a href="mailto:report@sahaplay.com?subject=Bug%20Report" style={{ color: '#818cf8', textDecoration: 'none' }}>
+                  <a href="mailto:report@sahaplay.com?subject=Bug%20Report" style={{ color: 'var(--brand-1-light)', textDecoration: 'none' }}>
                     report@sahaplay.com
                   </a>
                   {' '}{t('rbErrorSubject', 'with subject: Bug Report')}
@@ -591,7 +591,7 @@ export default function ReportBug() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                             padding: '9px 10px', borderRadius: 8, border: 'none',
-                            background: selected ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)') : 'transparent',
+                            background: selected ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.12)') : 'transparent',
                             cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 0.12s',
                           }}
                           onMouseEnter={e => { if (!selected) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
@@ -600,10 +600,10 @@ export default function ReportBug() {
                           <div style={{ width: 28, height: 28, borderRadius: 8, background: selected ? `${color}28` : (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <Icon size={14} color={selected ? color : (isLight ? '#6b7280' : '#9ca3af')} />
                           </div>
-                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#374151' : '#d1d5db') }}>
+                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#374151' : '#d1d5db') }}>
                             {t(labelKey, fallback)}
                           </span>
-                          {selected && <CheckCircle size={14} color="#818cf8" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                          {selected && <CheckCircle size={14} color="var(--brand-1-light)" style={{ marginLeft: 'auto', flexShrink: 0 }} />}
                         </button>
                       );
                     })}
@@ -819,18 +819,18 @@ export default function ReportBug() {
                   onDrop={onDrop}
                   onClick={() => status !== 'loading' && fileRef.current?.click()}
                   style={{
-                    border: `2px dashed ${dragging ? '#6366f1' : isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.1)'}`,
+                    border: `2px dashed ${dragging ? 'var(--brand-1)' : isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.1)'}`,
                     borderRadius: 12, padding: '28px 20px', textAlign: 'center',
                     cursor: status === 'loading' ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
-                    background: dragging ? (isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.07)') : 'transparent',
+                    background: dragging ? (isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(var(--brand-1-rgb),0.07)') : 'transparent',
                   }}
                 >
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                    <Upload size={18} color="#818cf8" />
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                    <Upload size={18} color="var(--brand-1-light)" />
                   </div>
                   <div style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: 4 }}>
-                    <span style={{ color: '#818cf8', fontWeight: 600 }}>{t('rbAttachClick', 'Click to attach')}</span> {t('rbAttachDrop', 'or drag and drop')}
+                    <span style={{ color: 'var(--brand-1-light)', fontWeight: 600 }}>{t('rbAttachClick', 'Click to attach')}</span> {t('rbAttachDrop', 'or drag and drop')}
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>
                     {t('rbAttachTypes', 'Images (JPG, PNG, GIF, WEBP) or Videos (MP4, WEBM) — up to 10 MB each')}
@@ -857,10 +857,10 @@ export default function ReportBug() {
                         {att.isVideo ? (
                           /* Video thumbnail: dark box + play icon */
                           <div style={{ width: 80, height: 80, background: '#111', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(99,102,241,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="#fff"><polygon points="5,3 19,12 5,21" /></svg>
                             </div>
-                            <div style={{ background: 'rgba(99,102,241,0.85)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                            <div style={{ background: 'rgba(var(--brand-1-rgb),0.85)', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
                               {getFileExt(att.name, att.type)}
                             </div>
                           </div>
@@ -931,7 +931,7 @@ export default function ReportBug() {
               className="stay-white rb-submit"
               style={{
                 width: '100%', padding: '14px', borderRadius: 12, border: 'none',
-                background: status === 'loading' ? 'rgba(99,102,241,0.55)' : 'linear-gradient(135deg,#6366f1,#a855f7)',
+                background: status === 'loading' ? 'rgba(var(--brand-1-rgb),0.55)' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
                 color: '#fff', fontSize: 15, fontWeight: 700,
                 cursor: status === 'loading' ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,

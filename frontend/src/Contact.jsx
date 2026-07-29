@@ -241,8 +241,8 @@ export default function Contact() {
               <strong style={{ color: isLight ? '#111' : '#fff' }}>{t('contactSuccessHours', '48 hours')}</strong>.
             </p>
 
-            <div style={{ background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
-              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: '#818cf8', margin: '0 0 12px' }}>
+            <div style={{ background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.08)', border: '1px solid rgba(var(--brand-1-rgb),0.2)', borderRadius: 12, padding: '16px 20px', marginBottom: 32, textAlign: 'left' }}>
+              <p style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--brand-1-light)', margin: '0 0 12px' }}>
                 {t('contactSuccessNextTitle', 'What happens next')}
               </p>
               {[
@@ -263,9 +263,9 @@ export default function Contact() {
                 onMouseLeave={() => setHoveredSuccessBtn(null)}
                 style={{
                   flex: 1, padding: '12px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                  border: `1px solid ${hoveredSuccessBtn === 'secondary' ? 'rgba(99,102,241,0.45)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)')}`,
-                  background: hoveredSuccessBtn === 'secondary' ? 'rgba(99,102,241,0.08)' : 'transparent',
-                  color: hoveredSuccessBtn === 'secondary' ? '#818cf8' : (isLight ? '#374151' : '#9ca3af'),
+                  border: `1px solid ${hoveredSuccessBtn === 'secondary' ? 'rgba(var(--brand-1-rgb),0.45)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)')}`,
+                  background: hoveredSuccessBtn === 'secondary' ? 'rgba(var(--brand-1-rgb),0.08)' : 'transparent',
+                  color: hoveredSuccessBtn === 'secondary' ? 'var(--brand-1-light)' : (isLight ? '#374151' : '#9ca3af'),
                   transform: hoveredSuccessBtn === 'secondary' ? 'translateY(-2px)' : 'translateY(0)',
                   transition: 'all 0.18s ease',
                 }}
@@ -278,11 +278,11 @@ export default function Contact() {
                 onMouseLeave={() => setHoveredSuccessBtn(null)}
                 style={{
                   flex: 1, padding: '12px 20px', borderRadius: 10, border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   color: '#fff',
                   WebkitTextFillColor: '#fff',
                   transform: hoveredSuccessBtn === 'primary' ? 'translateY(-2px)' : 'translateY(0)',
-                  boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(99,102,241,0.4)' : '0 0px 0px transparent',
+                  boxShadow: hoveredSuccessBtn === 'primary' ? '0 8px 20px rgba(var(--brand-1-rgb),0.4)' : '0 0px 0px transparent',
                   opacity: hoveredSuccessBtn === 'primary' ? 0.9 : 1,
                   transition: 'all 0.18s ease',
                 }}
@@ -319,7 +319,7 @@ export default function Contact() {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>
 
         {/* ── Badge ── */}
-        <div className="contact-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.12)', border: `1px solid rgba(99,102,241,${isLight ? '0.3' : '0.25'})`, color: isLight ? '#4f46e5' : '#818cf8', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
+        <div className="contact-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.12)', border: `1px solid rgba(var(--brand-1-rgb),${isLight ? '0.3' : '0.25'})`, color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)', padding: '6px 18px', borderRadius: 100, fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', marginBottom: 28 }}>
           <MessageCircle size={14} style={{ flexShrink: 0 }} /> {t('contactBadge', 'Get in Touch')}
         </div>
 
@@ -345,7 +345,7 @@ export default function Contact() {
                 <div style={{ color: isLight ? '#7f1d1d' : '#fca5a5', fontSize: 13, lineHeight: 1.6 }}>
                   {apiErr || t('contactErrorFallback', 'Something went wrong.')}{' '}
                   {t('contactErrorEmailFallback', 'Or email us directly at')}{' '}
-                  <a href="mailto:contact@sahaplay.com" style={{ color: '#818cf8', textDecoration: 'none' }}>
+                  <a href="mailto:contact@sahaplay.com" style={{ color: 'var(--brand-1-light)', textDecoration: 'none' }}>
                     contact@sahaplay.com
                   </a>
                 </div>
@@ -450,16 +450,16 @@ export default function Contact() {
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                             padding: '10px 12px', borderRadius: 8, border: 'none',
-                            background: selected ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)') : 'transparent',
+                            background: selected ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.12)') : 'transparent',
                             cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', transition: 'background 0.12s',
                           }}
                           onMouseEnter={e => { if (!selected) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
                           onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
                         >
-                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#374151' : '#d1d5db'), flex: 1 }}>
+                          <span style={{ fontSize: 14, fontWeight: selected ? 600 : 400, color: selected ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#374151' : '#d1d5db'), flex: 1 }}>
                             {t(labelKey, value)}
                           </span>
-                          {selected && <CheckCircle size={14} color="#818cf8" style={{ flexShrink: 0 }} />}
+                          {selected && <CheckCircle size={14} color="var(--brand-1-light)" style={{ flexShrink: 0 }} />}
                         </button>
                       );
                     })}
@@ -516,20 +516,20 @@ export default function Contact() {
                   onDrop={onDrop}
                   onClick={() => status !== 'loading' && fileRef.current?.click()}
                   style={{
-                    border: `2px dashed ${dragging ? '#6366f1' : isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.1)'}`,
+                    border: `2px dashed ${dragging ? 'var(--brand-1)' : isLight ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.1)'}`,
                     borderRadius: 12,
                     padding: '28px 20px',
                     textAlign: 'center',
                     cursor: status === 'loading' ? 'not-allowed' : 'pointer',
                     transition: 'all 0.2s',
-                    background: dragging ? (isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.07)') : 'transparent',
+                    background: dragging ? (isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(var(--brand-1-rgb),0.07)') : 'transparent',
                   }}
                 >
-                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                    <Upload size={18} color="#818cf8" />
+                  <div style={{ width: 42, height: 42, borderRadius: 10, background: isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                    <Upload size={18} color="var(--brand-1-light)" />
                   </div>
                   <div style={{ fontSize: 14, color: isLight ? '#374151' : '#9ca3af', marginBottom: 4 }}>
-                    <span style={{ color: '#818cf8', fontWeight: 600 }}>{t('contactImagesClick', 'Click to attach')}</span>{' '}
+                    <span style={{ color: 'var(--brand-1-light)', fontWeight: 600 }}>{t('contactImagesClick', 'Click to attach')}</span>{' '}
                     {t('contactImagesDrop', 'or drag and drop')}
                   </div>
                   <div style={{ fontSize: 12, color: '#6b7280' }}>{t('contactImagesTypes', 'JPG, PNG, GIF, WEBP — up to 5 MB each')}</div>
@@ -587,7 +587,7 @@ export default function Contact() {
                 padding: '14px',
                 borderRadius: 12,
                 border: 'none',
-                background: status === 'loading' ? 'rgba(99,102,241,0.55)' : 'linear-gradient(135deg,#6366f1,#a855f7)',
+                background: status === 'loading' ? 'rgba(var(--brand-1-rgb),0.55)' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
                 color: '#fff',
                 fontSize: 15,
                 fontWeight: 700,
