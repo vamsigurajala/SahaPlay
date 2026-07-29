@@ -46,6 +46,10 @@
   --brand-1-darker: #4338ca;
   --brand-2-darker: #6d28d9;
   --brand-gradient: linear-gradient(135deg, var(--brand-1), var(--brand-2));
+  /* Always-dark tint (not mode-dependent) for "gcw-force-dark" CTA banners
+     that stay a deep navy-ish gradient in both light and dark site mode. */
+  --brand-1-deep: #1e1b4b;
+  --brand-2-deep: #312e81;
 }
 
 * {

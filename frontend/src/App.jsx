@@ -1104,6 +1104,8 @@ function App() {
       // stops), so tritone themes show all 3 colors wherever CSS reads
       // var(--brand-gradient) instead of collapsing to just brand-1/brand-2.
       root.setProperty('--brand-gradient', theme.previewCss);
+      root.setProperty('--brand-1-deep', theme.ctaBg1);
+      root.setProperty('--brand-2-deep', theme.ctaBg2);
 
       // Flowing body-background tint (index.css's animated gradientPan) —
       // has separate dark/light values per theme, so pick based on the

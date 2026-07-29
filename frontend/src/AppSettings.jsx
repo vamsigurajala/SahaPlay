@@ -30,10 +30,10 @@ function ThemeSwatch({ themeOpt, isActive, onSelect }) {
     >
       <div
         style={{
-          position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 10,
-          border: isActive ? '3px solid #fff' : '3px solid transparent',
+          position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 8,
+          border: isActive ? '2px solid #fff' : '2px solid transparent',
           outline: isActive ? `2px solid ${themeOpt.accent1}` : '1px solid rgba(255,255,255,0.1)',
-          boxShadow: isActive ? `0 0 0 4px rgba(${themeOpt.accent1Rgb},0.25)` : '0 2px 6px rgba(0,0,0,0.25)',
+          boxShadow: isActive ? `0 0 0 3px rgba(${themeOpt.accent1Rgb},0.25)` : '0 1px 4px rgba(0,0,0,0.25)',
           background: themeOpt.previewCss, transition: 'transform 0.15s',
         }}
         onMouseEnter={e => { if (!isActive) e.currentTarget.style.transform = 'scale(1.05)'; }}
@@ -41,11 +41,11 @@ function ThemeSwatch({ themeOpt, isActive, onSelect }) {
       >
         {isActive && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Check size={18} color="#fff" strokeWidth={3} />
+            <Check size={14} color="#fff" strokeWidth={3} />
           </div>
         )}
       </div>
-      <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#fff' : '#9ca3af', textAlign: 'center', lineHeight: 1.25 }}>{themeOpt.name}</span>
+      <span style={{ fontSize: 9.5, fontWeight: 600, color: isActive ? '#fff' : '#9ca3af', textAlign: 'center', lineHeight: 1.2, maxWidth: 60 }}>{themeOpt.name}</span>
     </button>
   );
 }
@@ -1349,7 +1349,7 @@ const AppSettings = () => {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>
                 {t('duotoneThemes', 'Duotone — 2 Colors')}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 16, marginBottom: 26 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 52px)', gap: 10, marginBottom: 22 }}>
                 {APP_THEMES.filter(themeOpt => themeOpt.category === 'duotone').map(themeOpt => (
                   <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
                 ))}
@@ -1358,7 +1358,7 @@ const AppSettings = () => {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>
                 {t('tritoneThemes', 'Tritone — 3 Colors')}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 52px)', gap: 10 }}>
                 {APP_THEMES.filter(themeOpt => themeOpt.category === 'tritone').map(themeOpt => (
                   <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
                 ))}

@@ -510,7 +510,7 @@ export default function Safety() {
         {/* ══════════════════════════════════════════
             SECTION 6 — NEED SAFETY HELP
         ══════════════════════════════════════════ */}
-        <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)' }}>
+        <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, var(--brand-1-deep), var(--brand-2-deep))' }}>
           <div className="hiw-container" style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto' }}>
             <Shield size={48} color="var(--brand-1-light)" style={{ marginBottom: 24 }} />
 

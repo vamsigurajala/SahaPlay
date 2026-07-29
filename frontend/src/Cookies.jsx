@@ -676,7 +676,7 @@ export default function Cookies() {
         {/* ══════════════════════════════════════════
             SECTION 9 — CONTACT SECTION
         ══════════════════════════════════════════ */}
-        <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)', padding: '80px 0' }}>
+        <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, var(--brand-1-deep), var(--brand-2-deep))', padding: '80px 0' }}>
           <div className="hiw-container" style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto' }}>
             <Mail size={44} color="var(--brand-1-light)" style={{ marginBottom: 20 }} />
 

@@ -86,6 +86,18 @@ function adjust(hex, deltaL, satMul = 1) {
   return rgbTupleToHex(nr, ng, nb);
 }
 
+// Sets an absolute target lightness (rather than adjust()'s relative delta) —
+// used for the "always dark" CTA-banner tint so wildly different base
+// lightnesses (a pastel base vs an already-deep base) land at a consistent
+// absolute darkness instead of drifting relative to their own starting point.
+function toLightness(hex, targetL, satMul = 1) {
+  const [r, g, b] = hexToRgbTuple(hex);
+  const [h, s] = rgbToHsl(r, g, b);
+  const newS = Math.max(0, Math.min(100, s * satMul));
+  const [nr, ng, nb] = hslToRgbTuple(h, newS, targetL);
+  return rgbTupleToHex(nr, ng, nb);
+}
+
 function deriveShades(baseHex) {
   return {
     accent: baseHex,
@@ -121,6 +133,10 @@ function duotone({ id, name, base1, base2 }) {
     bgGradient2: s2.bgDark,
     bgGradient1Light: s1.bgLight,
     bgGradient2Light: s2.bgLight,
+    // Always-dark tint (not mode-dependent) for "gcw-force-dark" CTA banners
+    // that stay a deep navy-ish gradient in both light and dark site mode.
+    ctaBg1: toLightness(base1, 18, 0.9),
+    ctaBg2: toLightness(base2, 32, 0.85),
     previewCss: `linear-gradient(135deg, ${s1.accent}, ${s2.accent})`,
   };
 }
@@ -152,6 +168,8 @@ function tritone({ id, name, base1, base2, base3 }) {
     bgGradient2: s3.bgDark,
     bgGradient1Light: s1.bgLight,
     bgGradient2Light: s3.bgLight,
+    ctaBg1: toLightness(base1, 18, 0.9),
+    ctaBg2: toLightness(base3, 32, 0.85),
     previewCss: `linear-gradient(135deg, ${s1.accent}, ${s2.accent}, ${s3.accent})`,
   };
 }
@@ -175,6 +193,10 @@ const HAND_PICKED = [
     bgGradient2: '#0b1a2e',
     bgGradient1Light: '#ebf4ff',
     bgGradient2Light: '#e2e8f0',
+    // Exact original hardcoded values — kept as literals (not derived) so the
+    // "gcw-force-dark" CTA banners stay byte-identical for Default.
+    ctaBg1: '#1e1b4b',
+    ctaBg2: '#312e81',
     previewCss: 'linear-gradient(135deg, #6366f1, #a855f7)',
   },
   {
@@ -195,6 +217,8 @@ const HAND_PICKED = [
     bgGradient2: '#062430',
     bgGradient1Light: '#eaf4ff',
     bgGradient2Light: '#e0f7fa',
+    ctaBg1: toLightness('#3b82f6', 18, 0.9),
+    ctaBg2: toLightness('#06b6d4', 32, 0.85),
     previewCss: 'linear-gradient(135deg, #3b82f6, #06b6d4)',
   },
   {
@@ -215,6 +239,8 @@ const HAND_PICKED = [
     bgGradient2: '#0b2624',
     bgGradient1Light: '#eafff3',
     bgGradient2Light: '#e0fbf7',
+    ctaBg1: toLightness('#22c55e', 18, 0.9),
+    ctaBg2: toLightness('#14b8a6', 32, 0.85),
     previewCss: 'linear-gradient(135deg, #22c55e, #14b8a6)',
   },
   {
@@ -235,6 +261,8 @@ const HAND_PICKED = [
     bgGradient2: '#2a0b11',
     bgGradient1Light: '#fff0f7',
     bgGradient2Light: '#ffeef0',
+    ctaBg1: toLightness('#ec4899', 18, 0.9),
+    ctaBg2: toLightness('#f43f5e', 32, 0.85),
     previewCss: 'linear-gradient(135deg, #ec4899, #f43f5e)',
   },
   {
@@ -255,6 +283,8 @@ const HAND_PICKED = [
     bgGradient2: '#2a220b',
     bgGradient1Light: '#fff5eb',
     bgGradient2Light: '#fff8e8',
+    ctaBg1: toLightness('#f97316', 18, 0.9),
+    ctaBg2: toLightness('#f59e0b', 32, 0.85),
     previewCss: 'linear-gradient(135deg, #f97316, #f59e0b)',
   },
   {
@@ -277,6 +307,8 @@ const HAND_PICKED = [
     bgGradient2: '#240b16',
     bgGradient1Light: '#fff0f0',
     bgGradient2Light: '#fff0f4',
+    ctaBg1: toLightness('#dc2626', 18, 0.9),
+    ctaBg2: toLightness('#9f1239', 32, 0.85),
     previewCss: 'linear-gradient(135deg, #dc2626, #9f1239)',
   },
 ];
