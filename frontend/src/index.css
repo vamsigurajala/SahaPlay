@@ -30,6 +30,22 @@
   --room-main-bg: #0a0a0a;
   --room-card-bg: rgba(255, 255, 255, 0.03);
   --room-border: rgba(255, 255, 255, 0.07);
+
+  /* Brand accent theme — defaults match the app's original hardcoded
+     indigo/purple exactly. Overridden inline on documentElement by
+     App.jsx's accent-theme effect (see data/appThemes.js), independent of
+     the light/dark axis above. */
+  --brand-1: #6366f1;
+  --brand-2: #a855f7;
+  --brand-1-rgb: 99, 102, 241;
+  --brand-2-rgb: 168, 85, 247;
+  --brand-1-light: #818cf8;
+  --brand-2-light: #c084fc;
+  --brand-1-dark: #4f46e5;
+  --brand-2-dark: #7c3aed;
+  --brand-1-darker: #4338ca;
+  --brand-2-darker: #6d28d9;
+  --brand-gradient: linear-gradient(135deg, var(--brand-1), var(--brand-2));
 }
 
 * {

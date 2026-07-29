@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check } from 'lucide-react';
+import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
@@ -251,6 +252,7 @@ const AppSettings = () => {
   const [countryCode, setCountryCode] = useState('');
   const [showCountry, setShowCountry] = useState(true);
   const [theme, setTheme] = useState(() => localStorage.getItem('watch_theme') || 'dark');
+  const [accentTheme, setAccentTheme] = useState(() => localStorage.getItem('watch_accent_theme') || 'default');
   const isLight = theme === 'light';
   const [notifyApp, setNotifyApp] = useState(true);
   const [notifyJoin, setNotifyJoin] = useState(true);
@@ -633,6 +635,14 @@ const AppSettings = () => {
     toast.success(next === 'light' ? 'Light mode activated' : 'Dark mode activated');
   };
 
+  // Accent color theme — independent axis from light/dark above (App.jsx's
+  // accent-theme effect applies it via CSS custom properties).
+  const handleAccentThemeSelect = (themeId) => {
+    setAccentTheme(themeId);
+    localStorage.setItem('watch_accent_theme', themeId);
+    window.dispatchEvent(new Event('accent_theme_changed'));
+  };
+
   // Notification toggles
   const toggleNotifSetting = (key, current, setter) => {
     const next = !current;
@@ -687,7 +697,7 @@ const AppSettings = () => {
             // Dynamic color based on loudness
             if (vol > 70) ctx.fillStyle = '#10b981';
             else if (vol > 30) ctx.fillStyle = '#f59e0b';
-            else ctx.fillStyle = '#6366f1';
+            else ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--brand-1').trim() || '#6366f1';
 
             // Draw wave centered vertically
             const y = (h - barHeight) / 2;
@@ -719,7 +729,7 @@ const AppSettings = () => {
   const selectedLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
 
   const Toggle = ({ on, onToggle, disabled }) => (
-    <button className={`custom-toggle ${on ? 'toggle-on' : 'toggle-off'}`} onClick={onToggle} disabled={disabled} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: on ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.25s', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
+    <button className={`custom-toggle ${on ? 'toggle-on' : 'toggle-off'}`} onClick={onToggle} disabled={disabled} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: on ? 'var(--brand-gradient)' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.25s', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
       <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: on ? 25 : 3, transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
     </button>
   );
@@ -806,7 +816,7 @@ const AppSettings = () => {
           background-repeat: no-repeat;
           background-position: right 14px center;
         }
-        .device-select:focus { border-color: #6366f1; background-color: rgba(255,255,255,0.08); }
+        .device-select:focus { border-color: var(--brand-1); background-color: rgba(255,255,255,0.08); }
         .device-select option { background: #1a1a2e; color: #fff; }
         
         html[data-theme='light'] .device-select { 
@@ -854,9 +864,9 @@ const AppSettings = () => {
           border-color: rgba(255,255,255,0.2); 
           color: #fff; 
         }
-        .nav-icon-btn.active { 
-          background: rgba(99,102,241,0.12); 
-          color: #818cf8; 
+        .nav-icon-btn.active {
+          background: rgba(var(--brand-1-rgb),0.12);
+          color: var(--brand-1-light);
           border-radius: 12px;
         }
         .profile-pill {
@@ -975,7 +985,7 @@ const AppSettings = () => {
                       <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                            onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1037,9 +1047,9 @@ const AppSettings = () => {
                   {followRequests.length > 0 ? (
                     followRequests.map(u => (
                       <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent' }}
                         onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
+                        onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent'}>
                         <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                           {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color={isLight ? '#666' : '#888'} />}
                         </div>
@@ -1050,7 +1060,7 @@ const AppSettings = () => {
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             {u.status === 'pending' ? (
-                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                              <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                             ) : (
                               <button disabled style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                             )}
@@ -1062,7 +1072,7 @@ const AppSettings = () => {
                                 e.stopPropagation();
                                 if (u.myFollowStatus === 'pending') return;
                                 handleFollowBack(u.username, e);
-                              }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                              }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                 {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                               </button>
                             )}
@@ -1095,7 +1105,7 @@ const AppSettings = () => {
                 {profile?.avatarPath ? (
                   <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <UserIcon size={14} style={{ color: '#6366f1' }} />
+                  <UserIcon size={14} style={{ color: 'var(--brand-1)' }} />
                 )}
               </div>
               <span style={{ fontWeight: 600 }}>{myUsername}</span>
@@ -1104,11 +1114,11 @@ const AppSettings = () => {
               <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
                 <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
                   <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <UserIcon size={16} color="#6366f1" />
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <UserIcon size={16} color="var(--brand-1)" />
                     </div>
                     {t('account', 'Account')}
                   </button>
@@ -1144,12 +1154,12 @@ const AppSettings = () => {
                     </button>
                   )}
                   {isAdminRole && (
-                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'rgba(168,85,247,0.1)', border: 'none', color: '#c084fc', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.2)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
+                    <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'rgba(var(--brand-2-rgb),0.1)', border: 'none', color: 'var(--brand-2-light)', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-2-rgb),0.2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(var(--brand-2-rgb),0.1)'}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Sparkles size={16} color="#a855f7" />
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-2-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Sparkles size={16} color="var(--brand-2)" />
                       </div>
                       {t('adminDashboard', 'Admin Dashboard')}
                     </button>
@@ -1157,11 +1167,11 @@ const AppSettings = () => {
                   <div className="profile-divider" />
                   {isGuest ? (
                     <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); handleLogout(); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.15)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <UserIcon size={16} color="#6366f1" />
+                      <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <UserIcon size={16} color="var(--brand-1)" />
                       </div>
                       {t('logIn', 'Sign In')}
                     </button>
@@ -1190,7 +1200,7 @@ const AppSettings = () => {
         {/* Language */}
         <div className="settings-card">
           <div className="acc-header" onClick={() => toggleSection('language')}>
-            <h3><Languages size={18} color="#6366f1" /> {t('language', 'Language')}</h3>
+            <h3><Languages size={18} color="var(--brand-1)" /> {t('language', 'Language')}</h3>
             <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'language' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </div>
           {openSection === 'language' && (
@@ -1204,7 +1214,7 @@ const AppSettings = () => {
                 {showLangDropdown && (
                   <div className="nav-dropdown" style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 6, maxHeight: 260, overflowY: 'auto', zIndex: 50, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}>
                     {LANGUAGES.map(lang => (
-                      <button key={lang.code} onClick={() => handleLangChange(lang.code)} style={{ width: '100%', padding: '10px 14px', background: language === lang.code ? 'rgba(99,102,241,0.15)' : 'transparent', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.15s' }}
+                      <button key={lang.code} onClick={() => handleLangChange(lang.code)} style={{ width: '100%', padding: '10px 14px', background: language === lang.code ? 'rgba(var(--brand-1-rgb),0.15)' : 'transparent', border: 'none', color: '#fff', fontSize: 14, cursor: 'pointer', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.15s' }}
                         onMouseEnter={e => { if (language !== lang.code) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
                         onMouseLeave={e => { if (language !== lang.code) e.currentTarget.style.background = 'transparent'; }}
                       >
@@ -1243,6 +1253,38 @@ const AppSettings = () => {
                   <span style={{ fontSize: 12, color: '#888' }}>{theme === 'light' ? t('lightLabel', 'Light') : t('darkLabel', 'Dark')}</span>
                   <Toggle on={theme === 'light'} onToggle={handleThemeToggle} />
                 </div>
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '18px 0 12px' }}>
+                {t('accentColor', 'Accent Color')}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+                {APP_THEMES.map(themeOpt => {
+                  const isActive = accentTheme === themeOpt.id;
+                  return (
+                    <button
+                      key={themeOpt.id}
+                      onClick={() => handleAccentThemeSelect(themeOpt.id)}
+                      title={themeOpt.name}
+                      style={{
+                        position: 'relative', width: 40, height: 40, borderRadius: '50%',
+                        border: isActive ? '3px solid #fff' : '3px solid transparent',
+                        outline: isActive ? `2px solid ${themeOpt.accent1}` : 'none',
+                        boxShadow: isActive ? `0 0 0 4px rgba(${themeOpt.accent1Rgb},0.25)` : '0 2px 6px rgba(0,0,0,0.25)',
+                        background: themeOpt.previewCss, cursor: 'pointer', padding: 0,
+                        transition: 'transform 0.15s', flexShrink: 0,
+                      }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.transform = 'scale(1.08)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    >
+                      {isActive && (
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Check size={16} color="#fff" strokeWidth={3} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1319,7 +1361,7 @@ const AppSettings = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <p style={{ color: '#888', fontSize: 13, margin: 0 }}>{t('micDesc', 'Test your microphone before joining a room')}</p>
                 {micDevices.some(d => !d.label) && (
-                  <button onClick={() => updateDevices(true, 'audio')} style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                  <button onClick={() => updateDevices(true, 'audio')} style={{ background: 'none', border: 'none', color: 'var(--brand-1)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
                     {t('refreshLabels', 'Refresh Labels')}
                   </button>
                 )}
@@ -1392,7 +1434,7 @@ const AppSettings = () => {
         {/* Notifications */}
         <div className="settings-card">
           <div className="acc-header" onClick={() => toggleSection('notifications')}>
-            <h3><Bell size={18} color="#a855f7" /> {t('notifications', 'Notifications')}</h3>
+            <h3><Bell size={18} color="var(--brand-2)" /> {t('notifications', 'Notifications')}</h3>
             <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'notifications' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </div>
           {openSection === 'notifications' && (
@@ -1402,8 +1444,8 @@ const AppSettings = () => {
               {/* Master toggle */}
               <div className="notif-row" style={{ paddingBottom: 18, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                 <div className="notif-label">
-                  <div className="notif-icon" style={{ background: 'rgba(168,85,247,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {notifyApp ? <Bell size={16} color="#a855f7" /> : <BellOff size={16} color="#666" />}
+                  <div className="notif-icon" style={{ background: 'rgba(var(--brand-2-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {notifyApp ? <Bell size={16} color="var(--brand-2)" /> : <BellOff size={16} color="#666" />}
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{t('appNotifications', 'App Notifications')}</div>
@@ -1429,8 +1471,8 @@ const AppSettings = () => {
 
               <div className="notif-row">
                 <div className="notif-label">
-                  <div className="notif-icon" style={{ background: 'rgba(168,85,247,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <ShieldCheck size={16} color="#a855f7" />
+                  <div className="notif-icon" style={{ background: 'rgba(var(--brand-2-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <ShieldCheck size={16} color="var(--brand-2)" />
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('joinReqNotifications', 'Join Request Result Toasts')}</div>
@@ -1442,8 +1484,8 @@ const AppSettings = () => {
 
               <div className="notif-row">
                 <div className="notif-label">
-                  <div className="notif-icon" style={{ background: 'rgba(99,102,241,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MessageSquare size={16} color="#6366f1" />
+                  <div className="notif-icon" style={{ background: 'rgba(var(--brand-1-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MessageSquare size={16} color="var(--brand-1)" />
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('msgNotifications', 'Message Notifications')}</div>
@@ -1484,7 +1526,7 @@ const AppSettings = () => {
         {/* Privacy & Storage */}
         <div id="privacy-storage" className="settings-card">
           <div className="acc-header" onClick={() => toggleSection('privacy')}>
-            <h3><ShieldCheck size={18} color="#6366f1" /> {t('privacyStorage', 'Privacy & Storage')}</h3>
+            <h3><ShieldCheck size={18} color="var(--brand-1)" /> {t('privacyStorage', 'Privacy & Storage')}</h3>
             <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'privacy' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
           </div>
           {openSection === 'privacy' && (
@@ -1498,8 +1540,8 @@ const AppSettings = () => {
               }}>
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <HardDrive size={20} color="#6366f1" />
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <HardDrive size={20} color="var(--brand-1)" />
                   </div>
                   <div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: (theme === 'light') ? '#111' : '#f9fafb' }}>{t('mediaStoragePolicy', 'Media Storage Policy')}</div>
@@ -1538,8 +1580,8 @@ const AppSettings = () => {
                 {/* Info note */}
                 <div style={{
                   marginTop: 20, padding: '12px 16px',
-                  background: (theme === 'light') ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.1)',
-                  border: '1px solid rgba(99,102,241,0.2)', borderRadius: 10,
+                  background: (theme === 'light') ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.1)',
+                  border: '1px solid rgba(var(--brand-1-rgb),0.2)', borderRadius: 10,
                   fontSize: 13, color: (theme === 'light') ? '#4b5563' : '#9ca3af', lineHeight: 1.6
                 }}>
                   {t('mediaStorageNote', 'Files are automatically deleted after the above period to save storage space. Download important files before they expire. Text messages and reactions are never deleted.')}
@@ -1569,7 +1611,7 @@ const AppSettings = () => {
                     }}
                     style={{
                       width: 44, height: 24, borderRadius: 999,
-                      background: expiryReminders ? '#6366f1' : ((theme === 'light') ? '#d1d5db' : '#374151'),
+                      background: expiryReminders ? 'var(--brand-1)' : ((theme === 'light') ? '#d1d5db' : '#374151'),
                       position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0
                     }}
                   >

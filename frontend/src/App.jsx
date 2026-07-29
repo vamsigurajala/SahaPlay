@@ -8,6 +8,7 @@ import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp } from './lib/platform';
+import { APP_THEMES } from './data/appThemes';
 const Home = lazy(() => import('./Home'));
 const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
@@ -82,7 +83,7 @@ class ErrorBoundary extends React.Component {
           <button
             onClick={() => window.location.reload()}
             style={{
-              background: '#7c3aed', color: '#fff', border: 'none',
+              background: 'var(--brand-2-dark)', color: '#fff', border: 'none',
               padding: '10px 24px', borderRadius: 8, cursor: 'pointer', fontSize: 14,
             }}
           >
@@ -140,7 +141,7 @@ function AcceptInvitePage() {
             <p style={{ color: '#34d399', margin: '20px 0 8px', fontWeight: 700, fontSize: 15 }}>{msg}</p>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: '0 0 24px' }}>You now have admin access.</p>
             <button onClick={() => window.location.href = '/admin'}
-              style={{ padding: '11px 28px', borderRadius: 10, border: 'none', background: 'rgba(99,102,241,0.2)', color: '#818cf8', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              style={{ padding: '11px 28px', borderRadius: 10, border: 'none', background: 'rgba(var(--brand-1-rgb),0.2)', color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
               Go to Dashboard
             </button>
           </>
@@ -183,7 +184,7 @@ function RouteLoadingFallback() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, height: '100vh', width: '100%', background: '#0a0a12' }}>
       <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 44, height: 44, opacity: 0.9 }} />
-      <div style={{ width: 30, height: 30, border: '3px solid rgba(129,140,248,0.2)', borderTop: '3px solid #818cf8', borderRadius: '50%', animation: 'app-route-spin 0.8s linear infinite' }} />
+      <div style={{ width: 30, height: 30, border: '3px solid rgba(var(--brand-1-rgb),0.2)', borderTop: '3px solid var(--brand-1-light)', borderRadius: '50%', animation: 'app-route-spin 0.8s linear infinite' }} />
       <style>{'@keyframes app-route-spin { to { transform: rotate(360deg); } }'}</style>
     </div>
   );
@@ -638,9 +639,8 @@ function App() {
       }
 
       /* Enhance Profile Menu Icon backgrounds in Light Mode */
-      html[data-theme='light'] .nav-dropdown div[style*="99, 102, 241"],
-      html[data-theme='light'] .nav-dropdown div[style*="99,102,241"] {
-        background: rgba(99,102,241,0.25) !important;
+      html[data-theme='light'] .nav-dropdown div[style*="var(--brand-1-rgb)"] {
+        background: rgba(var(--brand-1-rgb),0.25) !important;
       }
       html[data-theme='light'] .nav-dropdown div[style*="16, 185, 129"],
       html[data-theme='light'] .nav-dropdown div[style*="16,185,129"] {
@@ -753,9 +753,9 @@ function App() {
         border-color: rgba(0,0,0,0.15) !important;
       }
       html[data-theme='light'] .nav-icon-btn.active {
-        color: #7c3aed !important;
-        background: rgba(124, 58, 237, 0.08) !important;
-        border-color: rgba(124, 58, 237, 0.3) !important;
+        color: var(--brand-2-dark) !important;
+        background: rgba(var(--brand-2-rgb), 0.08) !important;
+        border-color: rgba(var(--brand-2-rgb), 0.3) !important;
       }
 
       /* Profile Pill */
@@ -784,7 +784,7 @@ function App() {
       html[data-theme='light'] .msg-bubble .fc-expiry-warn { color: #d97706 !important; }
       html[data-theme='light'] .msg-bubble .fc-expiry-ok { color: #9ca3af !important; }
       html[data-theme='light'] .msg-bubble .fc-dl,
-      html[data-theme='light'] .msg-bubble .fc-dl * { color: #6d28d9 !important; }
+      html[data-theme='light'] .msg-bubble .fc-dl * { color: var(--brand-2-darker) !important; }
       html[data-theme='light'] .msg-bubble .media-expiry-warn { color: #d97706 !important; }
       html[data-theme='light'] .msg-bubble .media-expiry-ok { color: #666666 !important; }
 
@@ -801,8 +801,8 @@ function App() {
       }
 
       /* Restore colors for action icons inside dropdowns with better contrast */
-      html[data-theme='light'] .nav-dropdown [style*="color: #6366f1"],
-      html[data-theme='light'] .nav-dropdown [style*="color:#6366f1"] { color: #4f46e5 !important; stroke: #4f46e5 !important; }
+      html[data-theme='light'] .nav-dropdown [style*="color: var(--brand-1)"],
+      html[data-theme='light'] .nav-dropdown [style*="color:var(--brand-1)"] { color: var(--brand-1-dark) !important; stroke: var(--brand-1-dark) !important; }
       html[data-theme='light'] .nav-dropdown [style*="color: #10b981"],
       html[data-theme='light'] .nav-dropdown [style*="color:#10b981"] { color: #059669 !important; stroke: #059669 !important; }
       html[data-theme='light'] .nav-dropdown [style*="color: #f59e0b"],
@@ -847,11 +847,10 @@ function App() {
         font-weight: 800 !important;
       }
       /* Darken the tag text for room/private */
-      html[data-theme='light'] .chat-tag[style*="rgb(129, 140, 248)"]:not(.gcw-force-dark .chat-tag),
-      html[data-theme='light'] .chat-tag[style*="#818cf8"]:not(.gcw-force-dark .chat-tag),
-      html[data-theme='light'] .chat-tag[style*="rgba(99, 102, 241"]:not(.gcw-force-dark .chat-tag) { 
-        color: #4338ca !important; 
-        background: rgba(67, 56, 202, 0.12) !important; 
+      html[data-theme='light'] .chat-tag[style*="var(--brand-1-light)"]:not(.gcw-force-dark .chat-tag),
+      html[data-theme='light'] .chat-tag[style*="var(--brand-1-rgb)"]:not(.gcw-force-dark .chat-tag) {
+        color: var(--brand-1-darker) !important;
+        background: rgba(var(--brand-1-rgb), 0.12) !important;
       }
       html[data-theme='light'] .chat-tag[style*="rgb(74, 222, 128)"]:not(.gcw-force-dark .chat-tag),
       html[data-theme='light'] .chat-tag[style*="#4ade80"]:not(.gcw-force-dark .chat-tag),
@@ -897,16 +896,22 @@ function App() {
         fill: none !important;
       }
 
-      /* ── Purple/violet gradient buttons stay as-is (they look great in both modes) ── */
-      html[data-theme='light'] [style*="background: linear-gradient(135deg, #6366f1"],
-      html[data-theme='light'] [style*="background:linear-gradient(135deg, #6366f1"],
-      html[data-theme='light'] [style*="background: linear-gradient(135deg,#6366f1"],
-      html[data-theme='light'] [style*="background:linear-gradient(135deg,#6366f1"] {
+      /* ── Purple/violet gradient buttons stay as-is (they look great in both modes) ──
+         Matches the literal var(--brand-...) text CSS custom-property references
+         serialize to in the DOM's style attribute (browsers preserve the reference,
+         they don't resolve it before serializing) — so this keeps matching correctly
+         regardless of which accent theme is active. */
+      html[data-theme='light'] [style*="background: linear-gradient(135deg, var(--brand-1)"],
+      html[data-theme='light'] [style*="background:linear-gradient(135deg, var(--brand-1)"],
+      html[data-theme='light'] [style*="background: var(--brand-gradient)"],
+      html[data-theme='light'] [style*="background:var(--brand-gradient)"] {
         color: #ffffff !important;
         box-shadow: none !important;
       }
-      html[data-theme='light'] [style*="background: linear-gradient(135deg, #6366f1"] *,
-      html[data-theme='light'] [style*="background:linear-gradient(135deg, #6366f1"] * {
+      html[data-theme='light'] [style*="background: linear-gradient(135deg, var(--brand-1)"] *,
+      html[data-theme='light'] [style*="background:linear-gradient(135deg, var(--brand-1)"] *,
+      html[data-theme='light'] [style*="background: var(--brand-gradient)"] *,
+      html[data-theme='light'] [style*="background:var(--brand-gradient)"] * {
         color: #ffffff !important;
       }
 
@@ -946,7 +951,7 @@ function App() {
       html[data-theme='light'] .gcw-force-dark button[style*="color:#888"],
       html[data-theme='light'] .gcw-force-dark [style*="color: #888"],
       html[data-theme='light'] .gcw-force-dark [style*="color:#888"],
-      html[data-theme='light'] .gcw-force-dark [style*="color: #a5b4fc"] {
+      html[data-theme='light'] .gcw-force-dark [style*="color: var(--brand-1-light)"] {
         color: inherit !important;
       }
 
@@ -956,11 +961,11 @@ function App() {
       
       html[data-theme='light'] .nav-link-btn { color: #555 !important; font-size: 13px; font-weight: 600; background: none; border: none; cursor: pointer; transition: all 0.2s; }
       html[data-theme='light'] .nav-link-btn:hover { color: #111 !important; background: rgba(0,0,0,0.04) !important; border-radius: 8px; }
-      html[data-theme='light'] .nav-link-btn.active { 
-        background: rgba(99,102,241,0.08) !important; 
-        color: #4f46e5 !important; 
+      html[data-theme='light'] .nav-link-btn.active {
+        background: rgba(var(--brand-1-rgb),0.08) !important;
+        color: var(--brand-1-dark) !important;
         border-radius: 8px;
-        box-shadow: 0 0 0 1px rgba(99,102,241,0.1);
+        box-shadow: 0 0 0 1px rgba(var(--brand-1-rgb),0.1);
       }
 
       /* Navigation Icons refined */
@@ -980,11 +985,11 @@ function App() {
         color: #000 !important; 
         background: rgba(0,0,0,0.08) !important; 
       }
-      html[data-theme='light'] .nav-icon-btn.active { 
-        color: #7c3aed !important; 
-        background: rgba(124, 58, 237, 0.08) !important; 
-        box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.15) !important; 
-        border-radius: 12px !important; 
+      html[data-theme='light'] .nav-icon-btn.active {
+        color: var(--brand-2-dark) !important;
+        background: rgba(var(--brand-2-rgb), 0.08) !important;
+        box-shadow: 0 0 0 1px rgba(var(--brand-2-rgb), 0.15) !important;
+        border-radius: 12px !important;
       }
       
       /* Dropdown and Popovers */
@@ -997,7 +1002,7 @@ function App() {
       html[data-theme='light'] .profile-pill { background: rgba(0,0,0,0.04) !important; border: 1px solid rgba(0,0,0,0.08) !important; color: #111 !important; }
       
       html[data-theme='light'] .pinned-card { background: #ffffff !important; border: 1px solid rgba(0,0,0,0.08) !important; box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important; color: #111 !important; }
-      html[data-theme='light'] .pinned-card:hover { border-color: rgba(99,102,241,0.3) !important; }
+      html[data-theme='light'] .pinned-card:hover { border-color: rgba(var(--brand-1-rgb),0.3) !important; }
       html[data-theme='light'] .unpin-btn { background: rgba(0,0,0,0.05) !important; color: #555 !important; border: none !important; }
       html[data-theme='light'] .unpin-btn:hover { background: rgba(239,68,68,0.1) !important; color: #ef4444 !important; }
       
@@ -1019,7 +1024,7 @@ function App() {
       }
       
       /* Footer violet hover */
-      html[data-theme='light'] .footer-link-btn:hover { color: #6366f1 !important; }
+      html[data-theme='light'] .footer-link-btn:hover { color: var(--brand-1) !important; }
       /* footer-social-btn hover: brand bg + white icon come from React inline styles; don't override them here */
       html[data-theme='light'] .footer-social-btn:hover { transform: translateY(-2px); }
       
@@ -1075,6 +1080,32 @@ function App() {
     window.addEventListener('theme_changed', applyTheme);
     return () => window.removeEventListener('theme_changed', applyTheme);
   }, [i18n]);
+
+  // Accent color theme — independent axis from light/dark above. Sets CSS
+  // custom properties directly on documentElement, which always win over the
+  // :root defaults in index.css, so this runs unconditionally on every load
+  // (no special-casing "Default" — it's just the first entry in APP_THEMES).
+  useEffect(() => {
+    const applyAccentTheme = () => {
+      const savedId = localStorage.getItem('watch_accent_theme') || 'default';
+      const theme = APP_THEMES.find(t => t.id === savedId) || APP_THEMES[0];
+      const root = document.documentElement.style;
+      root.setProperty('--brand-1', theme.accent1);
+      root.setProperty('--brand-2', theme.accent2);
+      root.setProperty('--brand-1-rgb', theme.accent1Rgb);
+      root.setProperty('--brand-2-rgb', theme.accent2Rgb);
+      root.setProperty('--brand-1-light', theme.accent1Light);
+      root.setProperty('--brand-2-light', theme.accent2Light);
+      root.setProperty('--brand-1-dark', theme.accent1Dark);
+      root.setProperty('--brand-2-dark', theme.accent2Dark);
+      root.setProperty('--brand-1-darker', theme.accent1Darker);
+      root.setProperty('--brand-2-darker', theme.accent2Darker);
+    };
+
+    applyAccentTheme();
+    window.addEventListener('accent_theme_changed', applyAccentTheme);
+    return () => window.removeEventListener('accent_theme_changed', applyAccentTheme);
+  }, []);
 
   // ── Desktop (Tauri) chrome: hide scrollbars everywhere (scrolling itself is
   // untouched — only the OS scrollbar indicator is hidden) so the app reads as
