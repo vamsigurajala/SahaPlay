@@ -197,7 +197,7 @@ export default function RoomModals({
         @keyframes rmSlideUp { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
         .rm-tab-btn { transition: all 0.2s; cursor: pointer; border: none; background: transparent; }
         .rm-tab-btn:hover { opacity: 0.85; }
-        .rm-code-input:focus { outline: none; border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+        .rm-code-input:focus { outline: none; border-color: var(--brand-1) !important; box-shadow: 0 0 0 3px rgba(var(--brand-1-rgb),0.15); }
         .rm-user-row { transition: all 0.2s; cursor: pointer; }
         .rm-user-row:hover { background: ${isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)'} !important; transform: translateX(3px); }
         .rm-link-btn { transition: all 0.2s; }
@@ -211,8 +211,8 @@ export default function RoomModals({
           <div style={modalStyle} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '28px 28px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Edit2 size={20} color="#6366f1" />
+                <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Edit2 size={20} color="var(--brand-1)" />
                 </div>
                 <h3 style={{ margin: 0, color: textPrimary, fontSize: 20, fontWeight: 900 }}>{t('renameRoomTitle', 'Rename Room')}</h3>
               </div>
@@ -230,7 +230,7 @@ export default function RoomModals({
               />
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setRenameModalOpen(false)} style={{ padding: '12px 24px', background: 'transparent', border: 'none', color: textSecondary, fontWeight: 700, cursor: 'pointer', borderRadius: 12 }}>{t('cancel', 'Cancel')}</button>
-                <button onClick={() => { if (renameInput.trim()) { socket.emit('mod_rename_room', { roomId, newName: renameInput.trim() }); setRenameModalOpen(false); } }} style={{ padding: '12px 28px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 14, color: '#fff', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 14px rgba(99,102,241,0.35)' }}>{t('save', 'Save')}</button>
+                <button onClick={() => { if (renameInput.trim()) { socket.emit('mod_rename_room', { roomId, newName: renameInput.trim() }); setRenameModalOpen(false); } }} style={{ padding: '12px 28px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 14, color: '#fff', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 14px rgba(var(--brand-1-rgb),0.35)' }}>{t('save', 'Save')}</button>
               </div>
             </div>
           </div>
@@ -270,13 +270,13 @@ export default function RoomModals({
 
             {/* Header */}
             <div style={{
-              background: 'linear-gradient(135deg, rgba(99,102,241,0.1) 0%, rgba(168,85,247,0.05) 100%)',
+              background: 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.1) 0%, rgba(var(--brand-2-rgb),0.05) 100%)',
               borderBottom: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.06)',
               padding: '24px 28px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(99,102,241,0.3)' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(var(--brand-1-rgb),0.3)' }}>
                   <Cast size={18} color="#fff" />
                 </div>
                 <h3 style={{ margin: 0, color: textPrimary, fontSize: 18, fontWeight: 900 }}>{t('castToTv', 'Cast to TV')}</h3>
@@ -293,19 +293,19 @@ export default function RoomModals({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24, textAlign: 'left' }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <div style={{
-                    width: 22, height: 22, borderRadius: '50%', background: 'rgba(99,102,241,0.1)',
+                    width: 22, height: 22, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#6366f1', flexShrink: 0, marginTop: 1
+                    fontSize: 12, fontWeight: 700, color: 'var(--brand-1)', flexShrink: 0, marginTop: 1
                   }}>1</div>
                   <p style={{ margin: 0, color: textSecondary, fontSize: 13.5, lineHeight: 1.5 }}>
-                    Open <a href="/tv" target="_blank" rel="noopener noreferrer" style={{ color: '#818cf8', fontWeight: 700, textDecoration: 'none' }}>sahaplay.com/tv</a> on your TV or projector.
+                    Open <a href="/tv" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-1-light)', fontWeight: 700, textDecoration: 'none' }}>sahaplay.com/tv</a> on your TV or projector.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                   <div style={{
-                    width: 22, height: 22, borderRadius: '50%', background: 'rgba(99,102,241,0.1)',
+                    width: 22, height: 22, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.1)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#6366f1', flexShrink: 0, marginTop: 1
+                    fontSize: 12, fontWeight: 700, color: 'var(--brand-1)', flexShrink: 0, marginTop: 1
                   }}>2</div>
                   <p style={{ margin: 0, color: textSecondary, fontSize: 13.5, lineHeight: 1.5 }}>
                     Enter the 6-character pairing code shown on the TV below:
@@ -352,7 +352,7 @@ export default function RoomModals({
                 className="rm-link-btn stay-white"
                 style={{
                   width: '100%',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   color: '#fff',
                   border: 'none',
                   borderRadius: 16,
@@ -360,7 +360,7 @@ export default function RoomModals({
                   fontWeight: 800,
                   fontSize: 15,
                   cursor: (isLinking || tvPairingCode.trim().length !== 6) ? 'not-allowed' : 'pointer',
-                  boxShadow: '0 8px 24px rgba(99,102,241,0.25)',
+                  boxShadow: '0 8px 24px rgba(var(--brand-1-rgb),0.25)',
                   opacity: tvPairingCode.trim().length === 6 ? 1 : 0.6,
                   transition: 'all 0.2s',
                   marginBottom: 24
@@ -427,7 +427,7 @@ export default function RoomModals({
                   <button
                     onClick={handleCopyUrl}
                     style={{
-                      background: 'transparent', border: 'none', color: '#6366f1',
+                      background: 'transparent', border: 'none', color: 'var(--brand-1)',
                       fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex',
                       alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8
                     }}
@@ -451,7 +451,7 @@ export default function RoomModals({
                     rel="noopener noreferrer"
                     title="Open TV mode in a new tab"
                     style={{
-                      color: '#6366f1', display: 'flex', alignItems: 'center',
+                      color: 'var(--brand-1)', display: 'flex', alignItems: 'center',
                       padding: 4, borderRadius: 6, cursor: 'pointer'
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.08)'}

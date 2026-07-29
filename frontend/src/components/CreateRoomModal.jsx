@@ -154,8 +154,8 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           display: flex;
           align-items: center;
           gap: 10px;
-          background: rgba(99,102,241,0.08);
-          border: 1px solid rgba(99,102,241,0.25);
+          background: rgba(var(--brand-1-rgb),0.08);
+          border: 1px solid rgba(var(--brand-1-rgb),0.25);
           border-radius: 12px;
           padding: 12px 16px;
         }
@@ -169,7 +169,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           transition: border-color 0.2s, background 0.2s;
           box-sizing: border-box;
         }
-        .cr-input:focus { border-color: rgba(99,102,241,0.7); background: rgba(255,255,255,0.08); }
+        .cr-input:focus { border-color: rgba(var(--brand-1-rgb),0.7); background: rgba(255,255,255,0.08); }
         .cr-input option { background: #1a1a2e; }
 
         .cr-cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 8px; }
@@ -180,8 +180,8 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           font-size: 13px; font-weight: 600;
           cursor: pointer; transition: all 0.2s; text-align: center;
         }
-        .cr-cat-btn:hover { border-color: rgba(99,102,241,0.4); color: #fff; background: rgba(99,102,241,0.08); }
-        .cr-cat-btn.active { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.7); color: #a5b4fc; }
+        .cr-cat-btn:hover { border-color: rgba(var(--brand-1-rgb),0.4); color: #fff; background: rgba(var(--brand-1-rgb),0.08); }
+        .cr-cat-btn.active { background: rgba(var(--brand-1-rgb),0.2); border-color: rgba(var(--brand-1-rgb),0.7); color: var(--brand-1-light); }
 
         .cr-toggle-row {
           display: flex; align-items: center; gap: 12px;
@@ -190,7 +190,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           background: rgba(255,255,255,0.03);
           cursor: pointer; transition: border-color 0.2s, background 0.2s;
         }
-        .cr-toggle-row:hover { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.04); }
+        .cr-toggle-row:hover { border-color: rgba(var(--brand-1-rgb),0.35); background: rgba(var(--brand-1-rgb),0.04); }
         .cr-toggle-track {
           width: 42px; height: 24px; border-radius: 999px;
           transition: background 0.3s; position: relative; flex-shrink: 0;
@@ -203,23 +203,23 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
 
         .cr-launch-btn {
           width: 100%; padding: 14px; border-radius: 14px; border: none;
-          background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff;
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); color: #fff;
           font-size: 16px; font-weight: 700; cursor: pointer;
           transition: transform 0.2s, box-shadow 0.2s; letter-spacing: 0.3px;
           display: flex; align-items: center; justify-content: center; gap: 8px;
         }
-        .cr-launch-btn:hover { transform: scale(1.02); box-shadow: 0 8px 28px rgba(168,85,247,0.5); }
+        .cr-launch-btn:hover { transform: scale(1.02); box-shadow: 0 8px 28px rgba(var(--brand-2-rgb),0.5); }
         .cr-launch-btn:active { transform: scale(0.99); }
 
         .cr-copy-btn {
           margin-left: auto; flex-shrink: 0;
-          background: rgba(99,102,241,0.12);
-          border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc;
+          background: rgba(var(--brand-1-rgb),0.12);
+          border: 1px solid rgba(var(--brand-1-rgb),0.3); color: var(--brand-1-light);
           padding: 4px 12px; border-radius: 8px;
           font-size: 11px; font-weight: 700;
           cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s;
         }
-        .cr-copy-btn:hover { background: rgba(99,102,241,0.28); }
+        .cr-copy-btn:hover { background: rgba(var(--brand-1-rgb),0.28); }
         .cr-copy-btn.copied {
           background: #10b981 !important;
           border-color: #10b981 !important;
@@ -233,19 +233,19 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         html[data-theme='light'] .cr-modal p  { color: #334155 !important; }
         html[data-theme='light'] .cr-modal label { color: #1e293b !important; font-weight: 800 !important; }
         html[data-theme='light'] .cr-input { background: #f8fafc; border-color: #e2e8f0; color: #0f172a; }
-        html[data-theme='light'] .cr-input:focus { border-color: #6366f1; background: #fff; }
+        html[data-theme='light'] .cr-input:focus { border-color: var(--brand-1); background: #fff; }
         html[data-theme='light'] .cr-cat-btn { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
-        html[data-theme='light'] .cr-cat-btn:hover { border-color: #6366f1; color: #6366f1; background: rgba(99,102,241,0.06); }
-        html[data-theme='light'] .cr-cat-btn.active { background: rgba(99,102,241,0.1); border-color: #6366f1; color: #4f46e5; }
+        html[data-theme='light'] .cr-cat-btn:hover { border-color: var(--brand-1); color: var(--brand-1); background: rgba(var(--brand-1-rgb),0.06); }
+        html[data-theme='light'] .cr-cat-btn.active { background: rgba(var(--brand-1-rgb),0.1); border-color: var(--brand-1); color: var(--brand-1-dark); }
         html[data-theme='light'] .cr-toggle-row { background: #f8fafc; border-color: #e2e8f0; }
         html[data-theme='light'] .cr-toggle-row:hover { border-color: #cbd5e1; background: #f1f5f9; }
         html[data-theme='light'] .cr-toggle-row .toggle-label { color: #0f172a !important; }
         html[data-theme='light'] .cr-toggle-row .toggle-desc  { color: #334155 !important; }
-        html[data-theme='light'] .cr-copy-btn { background: #f1f5f9; border-color: #cbd5e1; color: #4f46e5; }
+        html[data-theme='light'] .cr-copy-btn { background: #f1f5f9; border-color: #cbd5e1; color: var(--brand-1-dark); }
         html[data-theme='light'] .cr-copy-btn:hover { background: #e2e8f0; }
         html[data-theme='light'] .cr-close-btn { background: #f1f5f9; border-color: #e2e8f0; color: #64748b; }
         html[data-theme='light'] .cr-close-btn:hover { background: #e2e8f0; color: #1e293b; }
-        html[data-theme='light'] .cr-launch-btn { color: #fff !important; box-shadow: 0 4px 16px rgba(99,102,241,0.25); }
+        html[data-theme='light'] .cr-launch-btn { color: #fff !important; box-shadow: 0 4px 16px rgba(var(--brand-1-rgb),0.25); }
         html[data-theme='light'] .cr-id-box { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
 
         /* ── Tablet & Mobile View ── */
@@ -315,8 +315,8 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
             {t('roomIdLabel', 'Room ID (auto-generated)')}
           </label>
           <div className="cr-id-box">
-            <Hash size={15} color="#6366f1" />
-            <span style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: isLight ? '#4338ca' : '#a5b4fc', letterSpacing: '2px' }}>
+            <Hash size={15} color="var(--brand-1)" />
+            <span style={{ fontFamily: 'monospace', fontSize: 17, fontWeight: 700, color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', letterSpacing: '2px' }}>
               {pendingRoomId}
             </span>
             <button
@@ -378,7 +378,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
             {t('visibilityLabel', 'Visibility')}
           </label>
           <div className="cr-toggle-row" onClick={() => setNewRoomPublic(p => !p)}>
-            <div className="cr-toggle-track" style={{ background: newRoomPublic ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)') }}>
+            <div className="cr-toggle-track" style={{ background: newRoomPublic ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)') }}>
               <div className="cr-toggle-thumb" style={{ transform: newRoomPublic ? 'translateX(18px)' : 'translateX(0)', boxShadow: isLight ? '0 2px 4px rgba(0,0,0,0.12)' : 'none' }} />
             </div>
             <div>

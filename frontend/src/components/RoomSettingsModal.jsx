@@ -202,12 +202,12 @@ export default function RoomSettingsModal({
       onClick={() => setActiveTab(id)}
       style={{
         position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', borderRadius: 10, border: 'none',
-        background: activeTab === id ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.15)') : 'transparent',
-        color: activeTab === id ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#000' : '#888'),
+        background: activeTab === id ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.15)') : 'transparent',
+        color: activeTab === id ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#000' : '#888'),
         fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
       }}
     >
-      {activeTab === id && <div style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: '#818cf8', borderRadius: '0 10px 10px 0'}} />}
+      {activeTab === id && <div style={{position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, background: 'var(--brand-1-light)', borderRadius: '0 10px 10px 0'}} />}
       <Icon size={16} /> {label}
     </button>
   );
@@ -222,7 +222,7 @@ export default function RoomSettingsModal({
       <div
         onClick={e => e.stopPropagation()}
         className={`modal-enter rsm-container`}
-        style={{ position: 'relative', background: isLight ? '#fff' : 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.25)', borderRadius: isMobile ? '20px 20px 0 0' : 28, width: '100%', maxWidth: isMobile ? '100%' : 740, maxHeight: isMobile ? '94vh' : '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(168, 85, 247, 0.1)' }}
+        style={{ position: 'relative', background: isLight ? '#fff' : 'linear-gradient(135deg, #2d1654 0%, #150a2e 100%)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.25)', borderRadius: isMobile ? '20px 20px 0 0' : 28, width: '100%', maxWidth: isMobile ? '100%' : 740, maxHeight: isMobile ? '94vh' : '85vh', display: 'flex', flexDirection: 'column', overflow: 'visible', boxShadow: isLight ? '0 30px 80px rgba(0,0,0,0.1)' : '0 40px 100px rgba(0,0,0,0.8), 0 0 50px rgba(var(--brand-2-rgb), 0.1)' }}
       >
 
         {/* Close Button */}
@@ -242,7 +242,7 @@ export default function RoomSettingsModal({
           onMouseEnter={e => {
             e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(45, 41, 69, 0.9)';
             e.currentTarget.style.transform = 'scale(1.1) rotate(90deg)';
-            e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(168, 85, 247, 0.4)';
+            e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(var(--brand-2-rgb), 0.4)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.background = isLight ? '#fff' : 'rgba(30, 27, 46, 0.8)';
@@ -256,7 +256,7 @@ export default function RoomSettingsModal({
         {/* Header */}
         <div style={{ padding: isMobile ? '20px 20px 16px' : '24px 30px', borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: thumbnail ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(99,102,241,0.2)', overflow: 'hidden' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: thumbnail ? 'none' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(var(--brand-1-rgb),0.2)', overflow: 'hidden' }}>
                 {thumbnail ? (
                   <img src={getRoomThumbnailUrl(thumbnail)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
@@ -276,7 +276,7 @@ export default function RoomSettingsModal({
 
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Sidebar — hidden on mobile */}
-          <div className="rsm-sidebar" style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="rsm-sidebar" style={{ width: 220, padding: 24, background: isLight ? '#f8fafc' : 'rgba(21, 10, 46, 0.4)', borderRight: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.15)', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <TabButton id="general" label={t('generalTab', 'General')} icon={Settings} />
             <TabButton id="media" label={t('mediaPlayerTab', 'Media Player')} icon={Zap} />
             <TabButton id="security" label={t('securityTab', 'Security')} icon={Shield} />
@@ -288,15 +288,15 @@ export default function RoomSettingsModal({
             {isMobile && mobileScreen === 'list' && (
               <div>
                 <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('general'); setActiveTab('general'); }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Settings size={18} color="#818cf8" /> {t('generalTab', 'General')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Settings size={18} color="var(--brand-1-light)" /> {t('generalTab', 'General')}</span>
                   <ChevronRight size={18} style={{ opacity: 0.5 }} />
                 </button>
                 <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('media'); setActiveTab('media'); }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Zap size={18} color="#818cf8" /> {t('mediaPlayerTab', 'Media Player')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Zap size={18} color="var(--brand-1-light)" /> {t('mediaPlayerTab', 'Media Player')}</span>
                   <ChevronRight size={18} style={{ opacity: 0.5 }} />
                 </button>
                 <button className="rsm-mob-list-item" onClick={() => { setMobileScreen('security'); setActiveTab('security'); }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Shield size={18} color="#818cf8" /> {t('securityTab', 'Security')}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><Shield size={18} color="var(--brand-1-light)" /> {t('securityTab', 'Security')}</span>
                   <ChevronRight size={18} style={{ opacity: 0.5 }} />
                 </button>
               </div>
@@ -313,23 +313,23 @@ export default function RoomSettingsModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                 {/* Room Name */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomNameLabel', 'Room Name')}</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-2)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomNameLabel', 'Room Name')}</label>
                   <input 
                     value={roomName}
                     onChange={e => setRoomName(e.target.value)}
-                    style={{ width: '100%', padding: '16px 20px', background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(168, 85, 247, 0.2)', borderRadius: 16, color: isLight ? '#000' : '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
+                    style={{ width: '100%', padding: '16px 20px', background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(var(--brand-2-rgb), 0.2)', borderRadius: 16, color: isLight ? '#000' : '#fff', fontSize: 15, outline: 'none', transition: 'all 0.3s' }}
                     placeholder={t('enterRoomName', 'Enter room name...')}
-                    onFocus={e => { e.target.style.borderColor = '#a855f7'; e.target.style.boxShadow = '0 0 15px rgba(168, 85, 247, 0.2)'; e.target.style.background = 'rgba(0,0,0,0.4)'; }}
-                    onBlur={e => { e.target.style.borderColor = 'rgba(168, 85, 247, 0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(0,0,0,0.3)'; }}
+                    onFocus={e => { e.target.style.borderColor = 'var(--brand-2)'; e.target.style.boxShadow = '0 0 15px rgba(var(--brand-2-rgb), 0.2)'; e.target.style.background = 'rgba(0,0,0,0.4)'; }}
+                    onBlur={e => { e.target.style.borderColor = 'rgba(var(--brand-2-rgb), 0.2)'; e.target.style.boxShadow = 'none'; e.target.style.background = 'rgba(0,0,0,0.3)'; }}
                   />
                   <p style={{ fontSize: 12, color: '#6b7280', marginTop: 10 }}>{t('visibleOnceSaved', 'Visible across the platform once saved.')}</p>
                 </div>
 
                 {/* Thumbnail */}
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? '#4f46e5' : '#a855f7', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomThumbnailLabel', 'Room Thumbnail')}</label>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-2)', marginBottom: 14, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('roomThumbnailLabel', 'Room Thumbnail')}</label>
                   <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-                    <div style={{ width: 160, height: 100, borderRadius: 18, background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)' }}>
+                    <div style={{ width: 160, height: 100, borderRadius: 18, background: isLight ? '#f1f5f9' : 'rgba(0,0,0,0.3)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', boxShadow: isLight ? '0 4px 12px rgba(0,0,0,0.05)' : '0 10px 30px rgba(0,0,0,0.3)' }}>
                       {thumbnail ? (
                         <img src={getRoomThumbnailUrl(thumbnail)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
@@ -375,7 +375,7 @@ export default function RoomSettingsModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', gap: 14 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', flexShrink: 0 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-1-light)', flexShrink: 0 }}>
                         <Volume2 size={20} />
                       </div>
                       <div>
@@ -385,7 +385,7 @@ export default function RoomSettingsModal({
                     </div>
                     <button
                       onClick={() => setSettings(s => ({ ...s, audioDucking: !s.audioDucking }))}
-                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.audioDucking ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
                     >
                       <div style={{ position: 'absolute', top: 3, left: settings.audioDucking ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                     </button>
@@ -397,7 +397,7 @@ export default function RoomSettingsModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 20px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', gap: 14 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', flexShrink: 0 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-1-light)', flexShrink: 0 }}>
                         <Settings2 size={20} />
                       </div>
                       <div>
@@ -407,7 +407,7 @@ export default function RoomSettingsModal({
                     </div>
                     <button
                       onClick={() => setSettings(s => ({ ...s, allUsersPlayerSettings: !s.allUsersPlayerSettings }))}
-                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.allUsersPlayerSettings ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                      style={{ width: 44, height: 24, borderRadius: 12, background: settings.allUsersPlayerSettings ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
                     >
                       <div style={{ position: 'absolute', top: 3, left: settings.allUsersPlayerSettings ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                     </button>
@@ -424,15 +424,15 @@ export default function RoomSettingsModal({
                   
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {/* Lock Room Toggle */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: isLight ? '#fff' : 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '16px 20px', background: isLight ? '#fff' : 'rgba(var(--brand-2-rgb), 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.1)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <Lock size={18} color="#a855f7" />
+                          <Lock size={18} color="var(--brand-2)" />
                           <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 700 }}>{t('lockRoom', 'Lock Room')}</span>
                         </div>
                         <button 
                           onClick={() => setSettings({...settings, lockRoom: !settings.lockRoom})}
-                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.lockRoom ? '#a855f7' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: settings.lockRoom ? 'var(--brand-2)' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}
                         >
                           <div style={{ position: 'absolute', top: 2, left: settings.lockRoom ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.2s' }}></div>
                         </button>
@@ -496,9 +496,9 @@ export default function RoomSettingsModal({
                   ].map(p => {
                     const val = permissions[p.id] || 'all';
                     return (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', background: isLight ? '#f8fafc' : 'rgba(168, 85, 247, 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.1)' }}>
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', background: isLight ? '#f8fafc' : 'rgba(var(--brand-2-rgb), 0.04)', borderRadius: 16, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.1)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                           <p.icon size={16} color="#a855f7" />
+                           <p.icon size={16} color="var(--brand-2)" />
                            <span style={{ fontSize: 13, color: isLight ? '#1e293b' : '#eee', fontWeight: 500 }}>{p.label}</span>
                         </div>
                         <div style={{ display: 'flex', background: isLight ? '#e2e8f0' : 'rgba(10, 5, 25, 0.6)', padding: 4, borderRadius: 10 }}>
@@ -506,7 +506,7 @@ export default function RoomSettingsModal({
                             <button 
                               key={v}
                               onClick={() => setPermissions({...permissions, [p.id]: v})}
-                              style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'transparent', color: val === v ? (isLight ? '#fefefe' : '#fff') : (isLight ? '#000' : '#555'), transition: 'all 0.3s' }}
+                              style={{ padding: '6px 16px', border: 'none', borderRadius: 7, fontSize: 11, fontWeight: 800, cursor: 'pointer', background: val === v ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))' : 'transparent', color: val === v ? (isLight ? '#fefefe' : '#fff') : (isLight ? '#000' : '#555'), transition: 'all 0.3s' }}
                             >
                               {v === 'all' ? t('allLabel', 'ALL') : t('hostOnlyLabel', 'HOST ONLY')}
                             </button>
@@ -532,7 +532,7 @@ export default function RoomSettingsModal({
                         </div>
                         <button 
                           onClick={() => setPermissions({...permissions, [f.id]: permissions[f.id] === false ? true : false})}
-                          style={{ width: 32, height: 16, borderRadius: 8, background: permissions[f.id] !== false ? '#6366f1' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer' }}
+                          style={{ width: 32, height: 16, borderRadius: 8, background: permissions[f.id] !== false ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#333'), border: 'none', position: 'relative', cursor: 'pointer' }}
                         >
                           <div style={{ position: 'absolute', top: 2, left: permissions[f.id] !== false ? 18 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: '0.2s' }}></div>
                         </button>
@@ -550,7 +550,7 @@ export default function RoomSettingsModal({
                         </label>
                        <button 
                          onClick={() => socket.emit('mod_fetch_bans', { roomId })}
-                         style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#a855f7', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                         style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--brand-2)', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                        >
                          <Zap size={12} /> {t('syncNow', 'Sync Now')}
                        </button>
@@ -602,9 +602,9 @@ export default function RoomSettingsModal({
           </div>
         </div>
 
-        <div style={{ padding: '24px 30px', borderTop: isLight ? '1px solid #f1f5f9' : '1px solid rgba(168, 85, 247, 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: isLight ? '#f8fafc' : 'rgba(15, 10, 35, 0.2)', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}>
+        <div style={{ padding: '24px 30px', borderTop: isLight ? '1px solid #f1f5f9' : '1px solid rgba(var(--brand-2-rgb), 0.15)', display: 'flex', justifyContent: 'flex-end', gap: 16, background: isLight ? '#f8fafc' : 'rgba(15, 10, 35, 0.2)', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}>
           <button onClick={onClose} style={{ padding: '14px 28px', background: isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)', borderRadius: 16, color: isLight ? '#000' : '#eee', fontWeight: 700, fontSize: 14, cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => { e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255, 255, 255, 0.15)'; e.currentTarget.style.borderColor = isLight ? '#94a3b8' : 'rgba(255,255,255,0.3)'; }} onMouseLeave={e => { e.currentTarget.style.background = isLight ? '#fff' : 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)'; }}>{t('cancel', 'Cancel')}</button>
-          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 16, color: isLight ? '#fefefe' : '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!isLight) e.currentTarget.style.boxShadow = '0 10px 25px rgba(99, 102, 241, 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? 'none' : '0 10px 25px rgba(99, 102, 241, 0.4)'; }}>{t('saveChanges', 'Save Changes')}</button>
+          <button onClick={handleSave} style={{ padding: '14px 32px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', borderRadius: 16, color: isLight ? '#fefefe' : '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? 'none' : '0 10px 25px rgba(var(--brand-1-rgb), 0.4)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; if (!isLight) e.currentTarget.style.boxShadow = '0 10px 25px rgba(var(--brand-1-rgb), 0.4)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? 'none' : '0 10px 25px rgba(var(--brand-1-rgb), 0.4)'; }}>{t('saveChanges', 'Save Changes')}</button>
         </div>
       </div>
 
@@ -646,7 +646,7 @@ export default function RoomSettingsModal({
                   step={0.1}
                   aria-labelledby="Zoom"
                   onChange={(e) => setZoom(parseFloat(e.target.value))}
-                  style={{ flex: 1, accentColor: '#a855f7' }}
+                  style={{ flex: 1, accentColor: 'var(--brand-2)' }}
                 />
                 <ZoomIn size={18} color="#888" />
               </div>
@@ -663,7 +663,7 @@ export default function RoomSettingsModal({
                 <button 
                   onClick={handleConfirmCrop}
                   disabled={isUploading}
-                  style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: isLight ? '#fefefe' : '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isUploading ? 0.7 : 1, transition: 'transform 0.2s' }}
+                  style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', color: isLight ? '#fefefe' : '#fff', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: isUploading ? 0.7 : 1, transition: 'transform 0.2s' }}
                   onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                 >
