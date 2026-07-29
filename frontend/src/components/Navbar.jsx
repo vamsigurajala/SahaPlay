@@ -449,7 +449,7 @@ const Navbar = () => {
                               <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                    onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -514,9 +514,9 @@ const Navbar = () => {
                             {followRequests.length > 0 ? (
                               followRequests.map(u => (
                                 <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent' }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent' }}
                                   onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)') : 'transparent'}>
+                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent'}>
                                   <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                                     {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color={isLight ? '#666' : '#888'} />}
                                   </div>
@@ -527,7 +527,7 @@ const Navbar = () => {
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                       {u.status === 'pending' ? (
-                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                                       ) : (
                                         <button disabled style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                                       )}
@@ -539,7 +539,7 @@ const Navbar = () => {
                                           e.stopPropagation();
                                           if (u.myFollowStatus === 'pending') return;
                                           handleFollowBack(u.username, e);
-                                        }} className={u.myFollowStatus === 'pending' ? '' : 'stay-white'} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                        }} className={u.myFollowStatus === 'pending' ? '' : 'stay-white'} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                           {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                                         </button>
                                       )}
@@ -651,7 +651,7 @@ const Navbar = () => {
                                 <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
                                   </div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -701,9 +701,9 @@ const Navbar = () => {
                             {followRequests.length > 0 ? (
                               followRequests.map(u => (
                                 <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent' }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? 'rgba(var(--brand-1-rgb),0.05)' : 'transparent' }}
                                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(99,102,241,0.05)' : 'transparent'}>
+                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? 'rgba(var(--brand-1-rgb),0.05)' : 'transparent'}>
                                   <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                                     {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color="#888" />}
                                   </div>
@@ -714,7 +714,7 @@ const Navbar = () => {
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                       {u.status === 'pending' ? (
-                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(99,102,241,0.15)', border: 'none', color: '#818cf8', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                                       ) : (
                                         <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                                       )}
@@ -726,7 +726,7 @@ const Navbar = () => {
                                           e.stopPropagation();
                                           if (u.myFollowStatus === 'pending') return;
                                           handleFollowBack(u.username, e);
-                                        }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                                        }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                           {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                                         </button>
                                       )}
@@ -768,7 +768,7 @@ const Navbar = () => {
                         {profile?.avatarPath ? (
                           <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          <User size={14} style={{ color: '#6366f1' }} />
+                          <User size={14} style={{ color: 'var(--brand-1)' }} />
                         )}
                       </div>
                       <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
@@ -777,11 +777,11 @@ const Navbar = () => {
                       <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
                         <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
                           <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
-                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <User size={16} color="#6366f1" />
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <User size={16} color="var(--brand-1)" />
                             </div>
                             {t('account', 'Account')}
                           </button>
@@ -816,11 +816,11 @@ const Navbar = () => {
                           )}
                           {isAdminRole && (
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/admin'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(168,85,247,0.1)'}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-2-rgb),0.1)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
-                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Sparkles size={16} color="#a855f7" />
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-2-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Sparkles size={16} color="var(--brand-2)" />
                               </div>
                               {t('adminDashboard', 'Admin Dashboard')}
                             </button>
@@ -849,7 +849,7 @@ const Navbar = () => {
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
                       >
                         <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <User size={14} style={{ color: '#6366f1' }} />
+                          <User size={14} style={{ color: 'var(--brand-1)' }} />
                         </div>
                         <span style={{ fontWeight: 600 }}>{loggedInUsername}</span>
                       </div>
@@ -857,11 +857,11 @@ const Navbar = () => {
                         <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
                           <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.1)'}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
-                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <User size={16} color="#6366f1" />
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <User size={16} color="var(--brand-1)" />
                               </div>
                               {t('account', 'Account')}
                             </button>
@@ -887,11 +887,11 @@ const Navbar = () => {
                             )}
                             <div className="profile-divider" style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                             <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); clearUserSession(); navigate('/login'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 600, transition: 'background 0.15s' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.15)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
-                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <User size={16} color="#6366f1" />
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <User size={16} color="var(--brand-1)" />
                               </div>
                               {t('logIn', 'Sign In')}
                             </button>
@@ -906,7 +906,7 @@ const Navbar = () => {
                   >
                     {t('logIn', 'Log In')}
                   </button>
-                  <button onClick={() => navigate('/signup')} className="stay-white" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
+                  <button onClick={() => navigate('/signup')} className="stay-white" style={{ background: 'var(--brand-gradient)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '9px 20px', borderRadius: '10px', transition: 'opacity 0.2s' }}
                     onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
                     onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                   >
@@ -940,7 +940,7 @@ const Navbar = () => {
             {/* Drawer Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Play fill="#fff" size={12} style={{ marginLeft: 1 }} />
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 15, color: isLight ? '#111' : '#fff' }}>Menu</span>
@@ -1020,7 +1020,7 @@ const Navbar = () => {
 
                   {isAdminRole && (
                     <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/admin')}>
-                      <Sparkles size={16} color="#a855f7" />
+                      <Sparkles size={16} color="var(--brand-2)" />
                       {t('adminDashboard', 'Admin Dashboard')}
                     </button>
                   )}
@@ -1031,7 +1031,7 @@ const Navbar = () => {
                         <User size={16} />
                         {t('logIn', 'Sign In')}
                       </button>
-                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
+                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'var(--brand-gradient)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
                         <Sparkles size={16} />
                         {t('signUp', 'Sign Up')}
                       </button>
@@ -1052,7 +1052,7 @@ const Navbar = () => {
                     {t('logIn', 'Sign In')}
                   </button>
 
-                  <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
+                  <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'var(--brand-gradient)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
                     <Sparkles size={16} />
                     {t('signUp', 'Sign Up')}
                   </button>
