@@ -201,7 +201,7 @@ const ForgotPassword = () => {
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
             {t('forgotPasswordTitle', 'Forgot your password?')}<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('noProblem', 'No problem.')}</span>
+            <span style={{ background: 'linear-gradient(135deg, var(--brand-2-light), var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('noProblem', 'No problem.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
             {t('forgotPasswordLeftDesc', "Enter your email and we'll send you a secure link to reset your password. Takes less than a minute.")}

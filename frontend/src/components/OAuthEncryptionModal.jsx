@@ -37,8 +37,8 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
     document.documentElement.getAttribute('data-theme') === 'light';
 
   const card = isLight
-    ? { background: '#ffffff', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(99,102,241,0.08)' }
-    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(168,85,247,0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(168,85,247,0.1), inset 0 1px 0 rgba(255,255,255,0.06)' };
+    ? { background: '#ffffff', border: '1px solid rgba(var(--brand-1-rgb),0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(var(--brand-1-rgb),0.08)' }
+    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(var(--brand-2-rgb),0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(var(--brand-2-rgb),0.1), inset 0 1px 0 rgba(255,255,255,0.06)' };
   const titleColor = isLight ? '#1a1a2e' : '#ffffff';
   const descColor  = isLight ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)';
   const inputBg    = isLight ? '#ffffff' : '#1a1a1f';
@@ -117,7 +117,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
             background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px',
-            boxShadow: '0 0 0 8px rgba(99,102,241,0.15), 0 8px 24px rgba(99,102,241,0.4)'
+            boxShadow: '0 0 0 8px rgba(var(--brand-1-rgb),0.15), 0 8px 24px rgba(var(--brand-1-rgb),0.4)'
           }}>
             {view === 'forgot' ? <ShieldAlert size={28} color="#fff" /> : <KeyRound size={28} color="#fff" />}
           </div>

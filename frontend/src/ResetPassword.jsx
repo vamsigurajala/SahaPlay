@@ -249,7 +249,7 @@ const ResetPassword = () => {
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
             {t('createNewPassword', 'Create your new password.')}<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('staySecure', 'Stay secure.')}</span>
+            <span style={{ background: 'linear-gradient(135deg, var(--brand-2-light), var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('staySecure', 'Stay secure.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
             {t('resetPasswordLeftDesc', 'Choose a strong password with at least 8 characters, one uppercase letter, and one number.')}
