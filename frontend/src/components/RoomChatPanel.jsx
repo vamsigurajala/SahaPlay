@@ -144,7 +144,7 @@ function FileTypeIcon({ mimeType, size = 20, color }) {
   if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return <FileText size={size} color={c || "#f97316"} />;
   if (mimeType === 'application/zip') return <Paperclip size={size} color={c || "#6b7280"} />;
   if (mimeType === 'text/plain' || mimeType === 'text/csv') return <FileText size={size} color={c || "#6b7280"} />;
-  if (mimeType.startsWith('audio/')) return <Music size={size} color={c || "#a855f7"} />;
+  if (mimeType.startsWith('audio/')) return <Music size={size} color={c || "var(--brand-2)"} />;
   if (mimeType.startsWith('video/')) return <Play size={size} color={c || "#3b82f6"} fill={c || "#3b82f6"} />;
   return <Paperclip size={size} color={c || "#888"} />;
 }
@@ -176,7 +176,7 @@ function getFileIconBg(mimeType) {
   if (mimeType?.includes('powerpoint') || mimeType?.includes('presentation')) return '#f97316';
   if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed') return '#6b7280';
   if (mimeType === 'text/plain' || mimeType === 'text/csv') return '#64748b';
-  return '#6366f1';
+  return 'var(--brand-1)';
 }
 
 function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick }) {
@@ -213,7 +213,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   const cardBorder = isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)');
   const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
   const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
-  const dlColor = isLight ? '#6d28d9' : (isMe ? 'rgba(255,255,255,0.8)' : '#a5b4fc');
+  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? 'rgba(255,255,255,0.8)' : 'var(--brand-1-light)');
   const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
   const iconColor = isLight ? iconBg : '#fff';
 
@@ -278,12 +278,12 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)');
+  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)');
 
   if (isLoading) return (
     <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMe ? 'rgba(255,255,255,0.12)' : (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#6366f1' }} />
+      <div style={{ width: 32, height: 32, borderRadius: '50%', background: isMe ? 'rgba(255,255,255,0.12)' : (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)' }} />
       </div>
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 20, marginBottom: 4 }}>
@@ -391,9 +391,9 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
   };
 
   const bubbleBg = isMe
-    ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.15)')
+    ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
-  const playedColor = '#a855f7';
+  const playedColor = 'var(--brand-2)';
   const unplayedColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
     : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
@@ -401,8 +401,8 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
     ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
   const dlColor = isMe
-    ? (isLight ? '#6366f1' : 'rgba(255,255,255,0.7)')
-    : (isLight ? '#7c3aed' : '#c084fc');
+    ? (isLight ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
+    : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)');
   // Before play: show total duration. While playing or paused mid-track: show elapsed.
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
 
@@ -412,7 +412,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={toggle} style={{ background: '#a855f7', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+        <button onClick={toggle} style={{ background: 'var(--brand-2)', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
           {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
         <div
@@ -514,22 +514,22 @@ const MenuStyles = () => (
       transition: all 0.2s ease !important;
     }
     .menu-btn:hover {
-      background: rgba(99, 102, 241, 0.1) !important;
-      color: #6366f1 !important;
-      -webkit-text-fill-color: #6366f1 !important;
+      background: rgba(var(--brand-1-rgb), 0.1) !important;
+      color: var(--brand-1) !important;
+      -webkit-text-fill-color: var(--brand-1) !important;
     }
     .menu-btn:hover svg {
-      color: #6366f1 !important;
-      -webkit-text-fill-color: #6366f1 !important;
+      color: var(--brand-1) !important;
+      -webkit-text-fill-color: var(--brand-1) !important;
     }
     html[data-theme='light'] .menu-btn:hover {
-      background: rgba(99, 102, 241, 0.1) !important;
-      color: #4f46e5 !important;
-      -webkit-text-fill-color: #4f46e5 !important;
+      background: rgba(var(--brand-1-rgb), 0.1) !important;
+      color: var(--brand-1-dark) !important;
+      -webkit-text-fill-color: var(--brand-1-dark) !important;
     }
     html[data-theme='light'] .menu-btn:hover svg {
-      color: #4f46e5 !important;
-      -webkit-text-fill-color: #4f46e5 !important;
+      color: var(--brand-1-dark) !important;
+      -webkit-text-fill-color: var(--brand-1-dark) !important;
     }
     
     .menu-btn-danger {
@@ -560,7 +560,7 @@ const MenuStyles = () => (
     }
 
     /* "Delete for me" in message dropdown: keep original text color, light red background on hover.
-       Overrides the global .menu-btn:hover { color: #6366f1 } rule without changing the text. */
+       Overrides the global .menu-btn:hover { color: var(--brand-1) } rule without changing the text. */
     .menu-btn-del-me {
       color: var(--menu-item-text) !important;
       -webkit-text-fill-color: var(--menu-item-text) !important;
@@ -611,17 +611,17 @@ const MenuStyles = () => (
     /* Hover states for the dropdown items under stay-white/msg-sent in light mode */
     html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover,
     html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover {
-      background: rgba(99, 102, 241, 0.1) !important;
-      color: #4f46e5 !important;
-      -webkit-text-fill-color: #4f46e5 !important;
+      background: rgba(var(--brand-1-rgb), 0.1) !important;
+      color: var(--brand-1-dark) !important;
+      -webkit-text-fill-color: var(--brand-1-dark) !important;
     }
     html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg,
     html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn:hover svg *,
     html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg,
     html[data-theme='light'] .msg-sent .menu-dropdown .chat-menu-item.menu-btn:hover svg * {
-      color: #4f46e5 !important;
-      -webkit-text-fill-color: #4f46e5 !important;
-      stroke: #4f46e5 !important;
+      color: var(--brand-1-dark) !important;
+      -webkit-text-fill-color: var(--brand-1-dark) !important;
+      stroke: var(--brand-1-dark) !important;
     }
 
     html[data-theme='light'] .stay-white .menu-dropdown .chat-menu-item.menu-btn-danger:hover,
@@ -797,7 +797,7 @@ function renderMessageText(text, isMe) {
       const href = part.startsWith('http') ? part : `https://${part}`;
       return (
         <a key={i} href={href} target="_blank" rel="noopener noreferrer"
-          style={{ color: isMe ? 'rgba(255,255,255,0.9)' : (document.documentElement.getAttribute('data-theme')==='light' ? '#4f46e5' : '#818cf8'), textDecoration: 'underline', wordBreak: 'break-all', cursor: 'pointer', fontWeight: 500 }}
+          style={{ color: isMe ? 'rgba(255,255,255,0.9)' : (document.documentElement.getAttribute('data-theme')==='light' ? 'var(--brand-1-dark)' : 'var(--brand-1-light)'), textDecoration: 'underline', wordBreak: 'break-all', cursor: 'pointer', fontWeight: 500 }}
           onClick={e => e.stopPropagation()}
         >{part}</a>
       );
@@ -892,7 +892,7 @@ function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
                     overflow: 'hidden',
                     width: 16,
                     height: 16,
-                    background: '#6366f1',
+                    background: 'var(--brand-1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -977,7 +977,7 @@ function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
                       overflow: 'hidden',
                       width: 14,
                       height: 14,
-                      background: '#6366f1',
+                      background: 'var(--brand-1)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -1907,7 +1907,7 @@ export default function RoomChatPanel({ p }) {
     if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} />;
 
     if (!url) {
-      if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: '#6366f1', opacity: 0.6 }} /></div>;
+      if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
       return null;
     }
 
@@ -1933,7 +1933,7 @@ export default function RoomChatPanel({ p }) {
           <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} muted />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,102,241,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(99,102,241,0.5)' }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(var(--brand-1-rgb),0.5)' }}>
                 <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
               </div>
             </div>
@@ -2065,7 +2065,7 @@ export default function RoomChatPanel({ p }) {
             </div>
           </div>
           {showHiddenChats && (
-            <div style={{ padding: '10px 14px', background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.08)', borderBottom: '1px solid var(--room-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '10px 14px', background: isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(var(--brand-1-rgb),0.08)', borderBottom: '1px solid var(--room-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button 
                   onClick={() => setShowHiddenChats(false)}
@@ -2073,14 +2073,14 @@ export default function RoomChatPanel({ p }) {
                 >
                   <ChevronLeft size={20} />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: isLight ? '#4f46e5' : '#a5b4fc', fontSize: 12, fontWeight: 700 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)', fontSize: 12, fontWeight: 700 }}>
                   <Lock size={14} /> {t('hiddenFolder', 'Hidden Folder')}
                 </div>
               </div>
               <div ref={hiddenMenuRef} style={{position:'relative', display:'flex', alignItems:'center'}}>
                 <button 
                   onClick={(e) => { e.stopPropagation(); setShowHiddenMenu(!showHiddenMenu); }}
-                  style={{ background: 'none', border: 'none', color: isLight ? '#4f46e5' : '#888', cursor: 'pointer', padding: 4, display: 'flex' }}
+                  style={{ background: 'none', border: 'none', color: isLight ? 'var(--brand-1-dark)' : '#888', cursor: 'pointer', padding: 4, display: 'flex' }}
                 >
                   <MoreVertical size={18} />
                 </button>
@@ -2115,7 +2115,7 @@ export default function RoomChatPanel({ p }) {
               // Also clear the global navbar badge for this room
               if (p.onMarkRead) p.onMarkRead(p.roomId);
             }} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'transparent',border:'none',borderBottom:'1px solid var(--room-border)',cursor:'pointer',color: isLight ? '#1e293b' : '#fff',width:'100%',textAlign:'left',position:'relative'}}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
                 {p.room?.thumbnailPath ? (
                   <img src={getRoomThumbnailUrl(p.room.thumbnailPath)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
@@ -2157,7 +2157,7 @@ export default function RoomChatPanel({ p }) {
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
                     {isGroupMuted && <BellOff size={14} color={isLight ? "#475569" : "#888"} style={{flexShrink:0}} />}
                     {isGroupLocked ? (
-                      <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
+                      <Lock size={16} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} style={{flexShrink:0}} />
                     ) : p.groupUnread > 0 ? (
                       <span className="unread-badge stay-white" style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {p.groupUnread > 9 ? '9+' : p.groupUnread}
@@ -2271,10 +2271,10 @@ export default function RoomChatPanel({ p }) {
                     </div>
                   </div>
                   <div style={{position:'relative',display:'flex',alignItems:'center',gap:4}}>
-                    {isPinned && <Pin size={12} color="#6366f1" />}
+                    {isPinned && <Pin size={12} color="var(--brand-1)" />}
                     {mutedChats.includes(chatKey) && <BellOff size={14} color={isLight ? "#475569" : "#888"} style={{flexShrink:0}} />}
                     {isDmLocked ? (
-                      <Lock size={16} color={isLight ? "#4f46e5" : "#818cf8"} style={{flexShrink:0}} />
+                      <Lock size={16} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} style={{flexShrink:0}} />
                     ) : unread > 0 && (
                       <span className="unread-badge stay-white" style={{width:20,height:20,borderRadius:'50%',background:'#ef4444',color:'#fff',fontSize:11,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                         {unread > 9 ? '9+' : unread}
@@ -2304,7 +2304,7 @@ export default function RoomChatPanel({ p }) {
             <button onClick={handleBackToList} style={{width:30,height:30,borderRadius:8,background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
               <ChevronLeft size={16}/>
             </button>
-            <div style={{ width: 32, height: 32, borderRadius: 10, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: p.room?.thumbnailPath ? 'none' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
               {p.room?.thumbnailPath ? (
                 <img src={getRoomThumbnailUrl(p.room.thumbnailPath)} alt="Room" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
@@ -2365,14 +2365,14 @@ export default function RoomChatPanel({ p }) {
             onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:12,display:'flex',flexDirection:'column',gap:10}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
-                <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+                <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
               </div>
             )}
             {p.groupMessages.length===0 && (
               p.groupHistoryReady ? (
                 <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>
               ) : (
-                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} /></div>
+                <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} /></div>
               )
             )}
             {(() => {
@@ -2427,7 +2427,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
                      onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                      onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                      onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -2440,12 +2440,12 @@ export default function RoomChatPanel({ p }) {
                       style={{ position:'absolute', inset:0, zIndex:70, cursor:'pointer', display:'flex', alignItems:'center', justifyContent: isMe ? 'flex-start' : 'flex-end', padding: '0 6px' }}
                     >
                       {selectedMsgIds.has(rowKey)
-                        ? <SquareCheck size={20} color="#818cf8" fill="rgba(129,140,248,0.15)" />
+                        ? <SquareCheck size={20} color="var(--brand-1-light)" fill="rgba(129,140,248,0.15)" />
                         : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
                     </div>
                   )}
                   {msg.replyTo && (
-                    <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid #6366f1',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
+                    <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
                       <span style={{color: isLight ? '#1e293b' : '#a0aab2',fontWeight:600}}>{(() => { 
                         const n = msg.replyTo.username || msg.replyTo.senderName; 
                         const partner = (n||'').toLowerCase();
@@ -2512,14 +2512,14 @@ export default function RoomChatPanel({ p }) {
                           transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
                           transition: 'transform 0.15s ease',
                           opacity: isSwipingRow ? 1 : 0,
-                          color: '#7c3aed', zIndex: 1, pointerEvents: 'none'
+                          color: 'var(--brand-2-dark)', zIndex: 1, pointerEvents: 'none'
                         }}>
                           <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                         </div>
                         <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
                           zIndex: 2,
-                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
@@ -2697,7 +2697,7 @@ export default function RoomChatPanel({ p }) {
                   </div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                     {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                      <button key={emoji} onClick={()=>p.handleGroupReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
+                      <button key={emoji} onClick={()=>p.handleGroupReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
                         {emoji} {uids.length}
                       </button>
                     ))}
@@ -2732,8 +2732,8 @@ export default function RoomChatPanel({ p }) {
             <div ref={p.messagesEndRef}/>
           </div>
           {p.groupReplyTo && (
-            <div style={{padding:'6px 12px',background:'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
-              <span><span style={{color:'#6366f1',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
+            <div style={{padding:'6px 12px',background:'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+              <span><span style={{color:'var(--brand-1)',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
                 const r = p.groupReplyTo;
                 if (r.mediaType) { const rmt3=r.mediaType; return rmt3.startsWith('video')?'Video':rmt3.startsWith('image')?'Photo':rmt3.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
                 if (r.decryptedText) return r.decryptedText.slice(0,50);
@@ -2775,21 +2775,21 @@ export default function RoomChatPanel({ p }) {
                 <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
                 <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
                   {waveHeights.map((h, i) => (
-                    <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, #6366f1, #a855f7)', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
+                    <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, var(--brand-1), var(--brand-2))', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
                   ))}
                 </div>
                 <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                <button className="stay-white" type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                <button className="stay-white" type="button" onClick={stopRecording} style={{ background: 'var(--brand-1)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
                   <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
                 </button>
               </div>
             )}
             {!isRecording && audioBlob && audioUrl && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
-                <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+                <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
                 <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
                 <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
                   {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
                 </button>
               </div>
@@ -2844,10 +2844,10 @@ export default function RoomChatPanel({ p }) {
                           <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                             <SmilePlus size={18}/>
                           </button>
-                          <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1' : (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                          <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                             <Paperclip size={18}/>
                           </button>
-                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
+                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color:'var(--brand-1-light)',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
                             <Mic size={18}/>
                           </button>
                         </div>
@@ -2855,11 +2855,11 @@ export default function RoomChatPanel({ p }) {
 
                       {isUploading && (
                         <div style={{ position: 'absolute', right: 10 }}>
-                          <Loader2 size={16} className="animate-spin" color="#6366f1" />
+                          <Loader2 size={16} className="animate-spin" color="var(--brand-1)" />
                         </div>
                       )}
                     </div>
-                    <button type="submit" disabled={isDisabled||!p.groupChatInput.trim()} style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1, flexShrink: 0}}>
+                    <button type="submit" disabled={isDisabled||!p.groupChatInput.trim()} style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1, flexShrink: 0}}>
                       <Send size={15} color="#fff"/>
                     </button>
                   </form>
@@ -2983,7 +2983,7 @@ export default function RoomChatPanel({ p }) {
                   onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:10,display:'flex',flexDirection:'column',gap:8}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
-                      <Loader2 size={20} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} />
+                      <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
                     </div>
                   )}
                   {(p.dmThreads[p.dmTarget?.toLowerCase()]||[]).length===0 && (
@@ -2992,7 +2992,7 @@ export default function RoomChatPanel({ p }) {
                         <Lock size={28} opacity={0.2}/><p style={{margin:0,fontSize:12}}>Start a private conversation</p>
                       </div>
                     ) : (
-                      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: '#6366f1', animation: 'spin 1s linear infinite' }} /></div>
+                      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} /></div>
                     )
                   )}
                   {(() => {
@@ -3045,7 +3045,7 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(99,102,241,0.10)' : 'rgba(99,102,241,0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
                            onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                            onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                            onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -3058,13 +3058,13 @@ export default function RoomChatPanel({ p }) {
                             style={{ position:'absolute', inset:0, zIndex:70, cursor:'pointer', display:'flex', alignItems:'center', justifyContent: isMe ? 'flex-start' : 'flex-end', padding: '0 6px' }}
                           >
                             {selectedMsgIds.has(rowKey)
-                              ? <SquareCheck size={20} color="#818cf8" fill="rgba(129,140,248,0.15)" />
+                              ? <SquareCheck size={20} color="var(--brand-1-light)" fill="rgba(129,140,248,0.15)" />
                               : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
                           </div>
                         )}
                         {msg.replyTo && (
-                          <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(99,102,241,0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'#6366f1':'#a855f7'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
-                            <span style={{color:'#6366f1',fontWeight:600}} className="reply-sender">
+                          <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
+                            <span style={{color:'var(--brand-1)',fontWeight:600}} className="reply-sender">
                               {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                             </span> {(() => {
                               const raw = msg.replyTo.message || '';
@@ -3096,14 +3096,14 @@ export default function RoomChatPanel({ p }) {
                                 transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
                                 transition: 'transform 0.15s ease',
                                 opacity: isSwipingRow ? 1 : 0,
-                                color: '#7c3aed', zIndex: 1, pointerEvents: 'none'
+                                color: 'var(--brand-2-dark)', zIndex: 1, pointerEvents: 'none'
                               }}>
                                 <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                               </div>
                               <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,#6366f1,#a855f7)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
@@ -3275,7 +3275,7 @@ export default function RoomChatPanel({ p }) {
                         </div>
                         <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                            <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
+                            <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}
                             </button>
                           ))}
@@ -3311,8 +3311,8 @@ export default function RoomChatPanel({ p }) {
                 </div>
                 <div style={{padding:'10px 12px',borderTop:'1px solid var(--room-border)',flexShrink:0,position:'relative'}}>
                   {p.dmReplyTo && (
-                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(99,102,241,0.04)' : 'rgba(99,102,241,0.08)',borderTop:'1px solid rgba(99,102,241,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
-                      <span><span style={{color:'#6366f1',fontWeight:600}}>
+                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(var(--brand-1-rgb),0.04)' : 'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+                      <span><span style={{color:'var(--brand-1)',fontWeight:600}}>
                         {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                       </span> {(() => {
                         const r = p.dmReplyTo;
@@ -3320,13 +3320,13 @@ export default function RoomChatPanel({ p }) {
                         if (r.decryptedText) return r.decryptedText.slice(0,50);
                         return (r.message||'').slice(0,50) + ((r.message||'').length > 50 ? '...' : '');
                       })()}</span>
-                      <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'#6366f1',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
+                      <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>
                   )}
                   {p.dmEditingMessage && (
                     <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(56,189,248,0.05)' : 'rgba(56,189,248,0.08)',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
-                      <button onClick={()=>{ p.setDmEditingMessage(null); p.setDmChatInput(''); }} style={{background:'none',border:'none',color:'#6366f1',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
+                      <button onClick={()=>{ p.setDmEditingMessage(null); p.setDmChatInput(''); }} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>
                   )}
 
@@ -3350,7 +3350,7 @@ export default function RoomChatPanel({ p }) {
                           <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
                             {t('loginToMessage', 'You need to be logged in to send private messages.')}
                           </p>
-                          <a className="stay-white" href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }}>
+                          <a className="stay-white" href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }}>
                             {t('logIn', 'Log In')}
                           </a>
                         </div>
@@ -3414,7 +3414,7 @@ export default function RoomChatPanel({ p }) {
                           <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
                             {t('needMutualFollow', 'You need to follow each other to start messaging.')}
                           </p>
-                          <a className="stay-white" href={`/profile/${p.dmTarget}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(99,102,241,0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(99,102,241,0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
+                          <a className="stay-white" href={`/profile/${p.dmTarget}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(var(--brand-1-rgb),0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
                             {t('viewProfile', 'View Profile')}
                           </a>
                         </div>
@@ -3427,21 +3427,21 @@ export default function RoomChatPanel({ p }) {
                         <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
                         <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
                           {waveHeights.map((h, i) => (
-                            <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, #6366f1, #a855f7)', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
+                            <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, var(--brand-1), var(--brand-2))', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
                           ))}
                         </div>
                         <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                        <button className="stay-white" type="button" onClick={stopRecording} style={{ background: '#6366f1', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                        <button className="stay-white" type="button" onClick={stopRecording} style={{ background: 'var(--brand-1)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
                           <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
                         </button>
                       </div>
                     );
                     if (!isRecording && audioBlob && audioUrl && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '8px 12px' }}>
-                        <Music size={14} color="#a855f7" style={{ flexShrink: 0 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                        <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
                         <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
                         <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                        <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
+                        <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
                           {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
                         </button>
                       </div>
@@ -3488,10 +3488,10 @@ export default function RoomChatPanel({ p }) {
                               <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <SmilePlus size={18}/>
                               </button>
-                              <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'#6366f1':(isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                              <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <Paperclip size={18}/>
                               </button>
-                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color:'#818cf8',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
+                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color:'var(--brand-1-light)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
                                 <Mic size={18}/>
                               </button>
                             </div>
@@ -3499,11 +3499,11 @@ export default function RoomChatPanel({ p }) {
 
                           {isUploading && (
                             <div style={{ position: 'absolute', right: 10 }}>
-                              <Loader2 size={16} className="animate-spin" color="#6366f1" />
+                              <Loader2 size={16} className="animate-spin" color="var(--brand-1)" />
                             </div>
                           )}
                         </div>
-                        <button type="submit" disabled={!p.dmChatInput.trim() || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,#6366f1,#a855f7)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isUploading)?0.5:1, flexShrink: 0}}>
+                        <button type="submit" disabled={!p.dmChatInput.trim() || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isUploading)?0.5:1, flexShrink: 0}}>
                           <Send size={14} color="#fff"/>
                         </button>
                       </form>
@@ -3580,13 +3580,13 @@ export default function RoomChatPanel({ p }) {
             bottom: 85,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             borderRadius: '50%',
             width: 42,
             height: 42,
             cursor: 'pointer',
             zIndex: 9999,
-            boxShadow: '0 0 20px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(0,0,0,0.5)',
+            boxShadow: '0 0 20px rgba(var(--brand-1-rgb), 0.4), 0 4px 12px rgba(0,0,0,0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -3594,8 +3594,8 @@ export default function RoomChatPanel({ p }) {
             border: '2px solid rgba(255,255,255,0.15)',
             animation: 'msg-enter 0.4s ease forwards'
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1.1)'; e.currentTarget.style.boxShadow = '0 0 25px rgba(99, 102, 241, 0.6), 0 6px 15px rgba(0,0,0,0.6)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(99, 102, 241, 0.4), 0 4px 12px rgba(0,0,0,0.5)'; }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1.1)'; e.currentTarget.style.boxShadow = '0 0 25px rgba(var(--brand-1-rgb), 0.6), 0 6px 15px rgba(0,0,0,0.6)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(-50%) scale(1)'; e.currentTarget.style.boxShadow = '0 0 20px rgba(var(--brand-1-rgb), 0.4), 0 4px 12px rgba(0,0,0,0.5)'; }}
         >
           <ArrowDown color="white" size={22} />
         </div>
@@ -3648,9 +3648,9 @@ export default function RoomChatPanel({ p }) {
                   <div key={key} onClick={() => {
                     if (disabled) return;
                     setSelectedForwardChats(prev => checked ? prev.filter(k => k !== key) : [...prev, key]);
-                  }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, background: checked ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.15)') : 'transparent'}}>
-                    {checked ? <SquareCheck size={20} color="#818cf8" /> : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
-                    <div style={{width:34,height:34,borderRadius:'50%',background:'#6366f1',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
+                  }} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:12,cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.4 : 1, background: checked ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.15)') : 'transparent'}}>
+                    {checked ? <SquareCheck size={20} color="var(--brand-1-light)" /> : <Square size={20} color={isLight ? '#94a3b8' : '#666'} />}
+                    <div style={{width:34,height:34,borderRadius:'50%',background:'var(--brand-1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,overflow:'hidden'}}>
                       {getAvatarUrl(c.partnerAvatar) ? <img src={getAvatarUrl(c.partnerAvatar)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/> : (c.type === 'room' ? <Users size={16} color="#fff"/> : <User size={16} color="#fff"/>)}
                     </div>
                     <span style={{fontSize:14,color: isLight ? '#0f172a' : '#eee',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.displayName || c.partner || c.id}</span>
@@ -3662,7 +3662,7 @@ export default function RoomChatPanel({ p }) {
               onClick={handleForwardSend}
               disabled={selectedForwardChats.length === 0 || forwarding}
               className={selectedForwardChats.length > 0 && !forwarding ? 'stay-white' : ''}
-              style={{padding:'14px 20px',background: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg,#6366f1,#a855f7)', border:'none', borderRadius:14, color: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#94a3b8' : '#666') : '#fff', cursor: selectedForwardChats.length === 0 || forwarding ? 'default' : 'pointer', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
+              style={{padding:'14px 20px',background: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)') : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border:'none', borderRadius:14, color: selectedForwardChats.length === 0 || forwarding ? (isLight ? '#94a3b8' : '#666') : '#fff', cursor: selectedForwardChats.length === 0 || forwarding ? 'default' : 'pointer', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', gap:8}}>
               {forwarding ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />} {forwarding ? 'Sending…' : `Send${selectedForwardChats.length ? ` (${selectedForwardChats.length})` : ''}`}
             </button>
           </div>
