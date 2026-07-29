@@ -89,10 +89,10 @@ const HowItWorks = () => {
   // ── Reusable card style (defined inside component so isLight is in scope) ──
   const cardStyle = {
     background: isLight ? '#ffffff' : '#1e1e30',
-    border: `1px solid ${isLight ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.08)'}`,
+    border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.22)' : 'rgba(255,255,255,0.08)'}`,
     borderRadius: 16,
     padding: 32,
-    boxShadow: isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none',
+    boxShadow: isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none',
   };
 
   // ── Section 3 host steps — explicit white on icons ──
@@ -135,7 +135,7 @@ const HowItWorks = () => {
           <div style={{ background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px', fontSize: 12, marginBottom: 16, color: '#ef4444' }}>
             https://youtube.com/watch?v=dQw4w9WgXcQ
           </div>
-          <div style={{ textAlign: 'center', color: '#6366f1', marginBottom: 16, fontSize: 20 }}>↓</div>
+          <div style={{ textAlign: 'center', color: 'var(--brand-1)', marginBottom: 16, fontSize: 20 }}>↓</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('roomVideoBar', '📺 Room Video Bar')}</div>
           <div style={{ background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px', fontSize: 12, marginBottom: 12 }}>
             https://youtube.com/watch?v=dQw4w9WgXcQ
@@ -158,7 +158,7 @@ const HowItWorks = () => {
           <div style={{ background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px', fontSize: 12, marginBottom: 16, color: '#9146ff' }}>
             https://twitch.tv/shroud
           </div>
-          <div style={{ textAlign: 'center', color: '#6366f1', marginBottom: 16, fontSize: 20 }}>↓</div>
+          <div style={{ textAlign: 'center', color: 'var(--brand-1)', marginBottom: 16, fontSize: 20 }}>↓</div>
           <div style={{ background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.05)', borderRadius: 8, padding: '8px 12px', fontSize: 12, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className="stay-white" style={{ background: '#ef4444', color: '#fff', fontSize: 10, padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>{t('liveBadge', '● LIVE')}</span>
             twitch.tv/shroud
@@ -180,12 +180,12 @@ const HowItWorks = () => {
         <div style={{ ...cardStyle }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>{t('chooseWhatToShare', '🖥 Choose what to share')}</div>
           {[t('netflixStrangerThings', 'Netflix — Stranger Things'), t('primeTheBoys', 'Prime Video — The Boys'), t('disneyLoki', 'Disney+ — Loki')].map((tab, i) => (
-            <div key={i} style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 8, background: i === 0 ? 'rgba(99,102,241,0.15)' : (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)'), border: `1px solid ${i === 0 ? 'rgba(99,102,241,0.4)' : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)')}`, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
-              {i === 0 && <Check size={14} color="#6366f1" />}
+            <div key={i} style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 8, background: i === 0 ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.04)'), border: `1px solid ${i === 0 ? 'rgba(var(--brand-1-rgb),0.4)' : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)')}`, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+              {i === 0 && <Check size={14} color="var(--brand-1)" />}
               {tab}
             </div>
           ))}
-          <div className="stay-white" style={{ marginTop: 16, background: '#6366f1', color: '#fff', textAlign: 'center', padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+          <div className="stay-white" style={{ marginTop: 16, background: 'var(--brand-1)', color: '#fff', textAlign: 'center', padding: '8px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
             {t('shareTabBtn', 'Share Tab')}
           </div>
         </div>
@@ -201,7 +201,7 @@ const HowItWorks = () => {
       note: { type: 'green', text: t('noFileSizeLimits', '✓ No file size limits') },
       visual: (
         <div style={{ ...cardStyle }}>
-          <div style={{ border: '2px dashed rgba(99,102,241,0.3)', borderRadius: 12, padding: 24, textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ border: '2px dashed rgba(var(--brand-1-rgb),0.3)', borderRadius: 12, padding: 24, textAlign: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📁</div>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{t('mockFileNameLocal', 'movie_night.mp4')}</div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t('mockFileSizeLocal', '2.1 GB — Ready to stream')}</div>
@@ -212,7 +212,7 @@ const HowItWorks = () => {
               <span style={{ fontWeight: 700 }}>70%</span>
             </div>
             <div style={{ height: 6, background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)', borderRadius: 3 }}>
-              <div style={{ width: '70%', height: '100%', background: 'linear-gradient(to right, #6366f1, #a855f7)', borderRadius: 3 }} />
+              <div style={{ width: '70%', height: '100%', background: 'linear-gradient(to right, var(--brand-1), var(--brand-2))', borderRadius: 3 }} />
             </div>
           </div>
           <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>{t('streamingViewers', '● Streaming to 3 viewers')}</div>
@@ -335,8 +335,8 @@ const HowItWorks = () => {
           {/* Badge — tutorial identity */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)',
-            color: '#818cf8', borderRadius: 99, padding: '6px 16px',
+            background: 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.3)',
+            color: 'var(--brand-1-light)', borderRadius: 99, padding: '6px 16px',
             fontSize: 13, fontWeight: 600, marginBottom: 28,
           }}>
             <BookOpen size={14} /> {t('stepByStepGuide', 'Step-by-step guide')}
@@ -351,7 +351,7 @@ const HowItWorks = () => {
           }}>
             {t('upAndRunningIn', 'Up and Running in')}{' '}
             <span style={{
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+              background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -392,13 +392,13 @@ const HowItWorks = () => {
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                     padding: '6px 14px', borderRadius: 99,
-                    border: `1px solid ${isLight ? 'rgba(99,102,241,0.35)' : 'rgba(99,102,241,0.4)'}`,
+                    border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.35)' : 'rgba(var(--brand-1-rgb),0.4)'}`,
                     background: 'transparent',
-                    color: isLight ? '#6366f1' : '#818cf8',
+                    color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)',
                     fontSize: 13, fontWeight: 500, cursor: 'pointer',
                     transition: 'all 0.18s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
                   <Icon size={13} /> {label}
@@ -424,7 +424,7 @@ const HowItWorks = () => {
       <section id="steps" ref={el => sectionRefs.current.steps = el} className="hiw-section" style={{ background: isLight ? '#eeeaff' : '#111120' }}>
         <div className="hiw-container">
           {/* Top label */}
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? '#4338ca' : '#818cf8', textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', textAlign: 'center', marginBottom: 16 }}>
             {t('howItWorksLabel', 'HOW IT WORKS')}
           </div>
           {/* Title */}
@@ -437,11 +437,11 @@ const HowItWorks = () => {
             {/* Step 1 — icon LEFT, number circle RIGHT */}
             <div
               className="hiw-animate"
-              style={{ flex: '1 1 280px', maxWidth: 380, ...cardStyle, animationDelay: '0s', animationFillMode: 'both', borderBottom: '3px solid #6366f1' }}
+              style={{ flex: '1 1 280px', maxWidth: 380, ...cardStyle, animationDelay: '0s', animationFillMode: 'both', borderBottom: '3px solid var(--brand-1)' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <PlusCircle size={28} color="#6366f1" />
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+                <PlusCircle size={28} color="var(--brand-1)" />
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
                   <span className="stay-white" style={{ color: '#ffffff' }}>01</span>
                 </div>
               </div>
@@ -455,8 +455,8 @@ const HowItWorks = () => {
               style={{ flex: '1 1 280px', maxWidth: 380, ...cardStyle, animationDelay: '0.1s', animationFillMode: 'both', borderBottom: '3px solid #3b82f6' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <Share2 size={28} color="#6366f1" />
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+                <Share2 size={28} color="var(--brand-1)" />
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
                   <span className="stay-white" style={{ color: '#ffffff' }}>02</span>
                 </div>
               </div>
@@ -470,8 +470,8 @@ const HowItWorks = () => {
               style={{ flex: '1 1 280px', maxWidth: 380, ...cardStyle, animationDelay: '0.2s', animationFillMode: 'both', borderBottom: '3px solid #10b981' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                <Play size={28} color="#6366f1" />
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+                <Play size={28} color="var(--brand-1)" />
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
                   <span className="stay-white" style={{ color: '#ffffff' }}>03</span>
                 </div>
               </div>
@@ -498,10 +498,10 @@ const HowItWorks = () => {
                   <div key={idx} style={{ display: 'flex', gap: 16, position: 'relative', marginBottom: 0 }}>
                     {/* Vertical line */}
                     {idx < hostSteps.length - 1 && (
-                      <div style={{ position: 'absolute', left: 18, top: 44, bottom: -32, width: 2, background: 'rgba(99,102,241,0.25)', zIndex: 0 }} />
+                      <div style={{ position: 'absolute', left: 18, top: 44, bottom: -32, width: 2, background: 'rgba(var(--brand-1-rgb),0.25)', zIndex: 0 }} />
                     )}
                     {/* Icon circle */}
-                    <div className="gcw-force-dark" style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
+                    <div className="gcw-force-dark" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
                       {step.icon}
                     </div>
                     <div style={{ paddingBottom: 32 }}>
@@ -516,15 +516,15 @@ const HowItWorks = () => {
             {/* Right: Room preview — streaming · chat · calls */}
             <div style={{ flex: '1 1 280px', minWidth: 0 }}>
               <div style={{
-                border: `1px solid ${isLight ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.08)'}`,
+                border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.2)' : 'rgba(255,255,255,0.08)'}`,
                 borderRadius: 20,
                 overflow: 'hidden',
-                boxShadow: isLight ? '0 20px 60px rgba(99,102,241,0.18)' : '0 20px 60px rgba(0,0,0,0.4)',
+                boxShadow: isLight ? '0 20px 60px rgba(var(--brand-1-rgb),0.18)' : '0 20px 60px rgba(0,0,0,0.4)',
               }}>
 
                 {/* ── Room header bar ── */}
                 <div style={{ background: '#1e1b4b', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Crown size={13} color="#a855f7" />
+                  <Crown size={13} color="var(--brand-2)" />
                   <span className="stay-white" style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>{t('popcornNightLobby', 'Popcorn Night Lobby')}</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span className="stay-white" style={{ fontSize: 9, background: 'rgba(16,185,129,0.25)', color: '#4ade80', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>{t('liveBadgeDot', '● LIVE')}</span>
@@ -538,14 +538,14 @@ const HowItWorks = () => {
                   <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.01) 3px,rgba(255,255,255,0.01) 4px)', pointerEvents: 'none' }} />
                   {/* Centre icon + label */}
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 7 }}>
-                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Monitor size={18} color="#818cf8" />
+                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.18)', border: '1px solid rgba(var(--brand-1-rgb),0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Monitor size={18} color="var(--brand-1-light)" />
                     </div>
                     <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', letterSpacing: 0.5 }}>{t('screenshareInSync', 'Screenshare · In sync')}</span>
                   </div>
                   {/* Feature badges top-left */}
                   <div style={{ position: 'absolute', top: 8, left: 10, display: 'flex', gap: 4 }}>
-                    <span className="stay-white" style={{ background: 'rgba(99,102,241,0.85)', color: '#fff', fontSize: 8, padding: '2px 7px', borderRadius: 3, fontWeight: 700 }}>{t('screenBadge', '📺 SCREEN')}</span>
+                    <span className="stay-white" style={{ background: 'rgba(var(--brand-1-rgb),0.85)', color: '#fff', fontSize: 8, padding: '2px 7px', borderRadius: 3, fontWeight: 700 }}>{t('screenBadge', '📺 SCREEN')}</span>
                     <span className="stay-white" style={{ background: 'rgba(16,185,129,0.85)', color: '#fff', fontSize: 8, padding: '2px 7px', borderRadius: 3, fontWeight: 700 }}>{t('syncBadge', '🔊 SYNC')}</span>
                   </div>
                   {/* Progress bar */}
@@ -554,7 +554,7 @@ const HowItWorks = () => {
                       <span>18:42</span><span>1:45:00</span>
                     </div>
                     <div style={{ height: 3, background: 'rgba(255,255,255,0.08)' }}>
-                      <div style={{ width: '18%', height: '100%', background: 'linear-gradient(to right,#6366f1,#a855f7)' }} />
+                      <div style={{ width: '18%', height: '100%', background: 'linear-gradient(to right,var(--brand-1),var(--brand-2))' }} />
                     </div>
                   </div>
                 </div>
@@ -568,13 +568,13 @@ const HowItWorks = () => {
                     <Camera size={14} color="rgba(255,255,255,0.55)" />
                   </div>
                   {/* Screenshare — highlighted as active */}
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(99,102,241,0.22)', border: '1.5px solid rgba(99,102,241,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(99,102,241,0.3)' }} title={t('screenshareActiveTooltip', 'Screenshare (active)')}>
-                    <Monitor size={15} color="#818cf8" />
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.22)', border: '1.5px solid rgba(var(--brand-1-rgb),0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(var(--brand-1-rgb),0.3)' }} title={t('screenshareActiveTooltip', 'Screenshare (active)')}>
+                    <Monitor size={15} color="var(--brand-1-light)" />
                   </div>
                   {/* Chat with unread dot */}
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }} title={t('chatTooltip', 'Chat')}>
                     <MessageCircle size={14} color="rgba(255,255,255,0.55)" />
-                    <div style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, background: '#6366f1', borderRadius: '50%', border: '1.5px solid #13131f' }} />
+                    <div style={{ position: 'absolute', top: 5, right: 5, width: 7, height: 7, background: 'var(--brand-1)', borderRadius: '50%', border: '1.5px solid #13131f' }} />
                   </div>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.14)', border: '1px solid rgba(239,68,68,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={t('leaveRoomTooltip', 'Leave room')}>
                     <PhoneOff size={14} color="#ef4444" />
@@ -625,7 +625,7 @@ const HowItWorks = () => {
                 maxWidth: 336,
                 margin: '0 auto',
                 boxShadow: isLight
-                  ? '0 28px 80px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1.5px #1a1730'
+                  ? '0 28px 80px rgba(var(--brand-1-rgb),0.3), inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1.5px #1a1730'
                   : '0 28px 80px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1.5px #111',
               }}>
                 {/* Volume buttons (left) */}
@@ -642,14 +642,14 @@ const HowItWorks = () => {
 
                 {/* Screen */}
                 <div style={{
-                  border: '1px solid rgba(99,102,241,0.25)',
+                  border: '1px solid rgba(var(--brand-1-rgb),0.25)',
                   borderRadius: 30,
                   overflow: 'hidden',
                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
                 }}>
                   {/* Header */}
                   <div style={{ background: '#1e1b4b', padding: '14px 18px', textAlign: 'center' }}>
-                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Play size={20} color="#fff" fill="#fff" />
                     </div>
                     <div className="stay-white" style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: '#fff' }}>{t('joinWatchRoom', 'Join Watch Room')}</div>
@@ -667,7 +667,7 @@ const HowItWorks = () => {
                     </div>
 
                     {/* Join button */}
-                    <div className="stay-white" style={{ background: '#6366f1', color: '#fff', textAlign: 'center', padding: '10px', borderRadius: 10, fontWeight: 700, fontSize: 13, marginBottom: 16 }}>
+                    <div className="stay-white" style={{ background: 'var(--brand-1)', color: '#fff', textAlign: 'center', padding: '10px', borderRadius: 10, fontWeight: 700, fontSize: 13, marginBottom: 16 }}>
                       {t('joinRoomBtn', 'Join Room →')}
                     </div>
 
@@ -699,9 +699,9 @@ const HowItWorks = () => {
                 {guestSteps.map((step, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: 16, position: 'relative', marginBottom: 0 }}>
                     {idx < guestSteps.length - 1 && (
-                      <div style={{ position: 'absolute', left: 18, top: 44, bottom: -32, width: 2, background: 'rgba(99,102,241,0.25)', zIndex: 0 }} />
+                      <div style={{ position: 'absolute', left: 18, top: 44, bottom: -32, width: 2, background: 'rgba(var(--brand-1-rgb),0.25)', zIndex: 0 }} />
                     )}
-                    <div className="gcw-force-dark" style={{ width: 36, height: 36, borderRadius: '50%', background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
+                    <div className="gcw-force-dark" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--brand-1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}>
                       {step.icon}
                     </div>
                     <div style={{ paddingBottom: 32 }}>
@@ -723,7 +723,7 @@ const HowItWorks = () => {
         <div className="hiw-container">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? '#4338ca' : '#818cf8', marginBottom: 16 }}>{t('supportedPlatformsLabel', 'SUPPORTED PLATFORMS')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', marginBottom: 16 }}>{t('supportedPlatformsLabel', 'SUPPORTED PLATFORMS')}</div>
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 800, marginBottom: 0, color: isLight ? '#111' : '#f8f9fa' }}>{t('worksWithPlatformsTitle', 'Works with Your Favourite Platforms')}</h2>
           </div>
 
@@ -737,8 +737,8 @@ const HowItWorks = () => {
                 style={{
                   padding: '10px 20px',
                   borderRadius: 99,
-                  border: `1px solid ${activeTab === p.id ? '#6366f1' : (isLight ? 'rgba(99,102,241,0.5)' : 'rgba(99,102,241,0.3)')}`,
-                  background: activeTab === p.id ? '#6366f1' : (isLight ? 'rgba(49,46,129,0.88)' : 'rgba(99,102,241,0.16)'),
+                  border: `1px solid ${activeTab === p.id ? 'var(--brand-1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.5)' : 'rgba(var(--brand-1-rgb),0.3)')}`,
+                  background: activeTab === p.id ? 'var(--brand-1)' : (isLight ? 'rgba(49,46,129,0.88)' : 'rgba(var(--brand-1-rgb),0.16)'),
                   color: '#ffffff',
                   fontWeight: 600,
                   fontSize: 14,
@@ -758,7 +758,7 @@ const HowItWorks = () => {
               <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {tabContent[activeTab].steps.map((step, i) => (
                   <li key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, alignItems: 'flex-start' }}>
-                    <div className="gcw-force-dark" style={{ width: 28, height: 28, borderRadius: '50%', background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                    <div className="gcw-force-dark" style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--brand-1)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                     <span style={{ fontSize: 15, lineHeight: 1.6, paddingTop: 4 }}>{step}</span>
                   </li>
                 ))}
@@ -800,16 +800,16 @@ const HowItWorks = () => {
         <div className="hiw-container">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? '#4338ca' : '#818cf8', marginBottom: 16 }}>{t('communicationLabel', 'COMMUNICATION')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', marginBottom: 16 }}>{t('communicationLabel', 'COMMUNICATION')}</div>
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 800, marginBottom: 0, color: isLight ? '#111' : '#f8f9fa' }}>{t('chatWhileYouWatchTitle', 'Chat While You Watch')}</h2>
           </div>
 
           {/* Two cards */}
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 32 }}>
             {/* Left: Group Chat */}
-            <div style={{ flex: '1 1 300px', ...cardStyle, borderTop: '3px solid #6366f1' }}>
+            <div style={{ flex: '1 1 300px', ...cardStyle, borderTop: '3px solid var(--brand-1)' }}>
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><MessageCircle size={18} color="#6366f1" /> {t('groupChatTitle', 'Group Chat')}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><MessageCircle size={18} color="var(--brand-1)" /> {t('groupChatTitle', 'Group Chat')}</div>
                 <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{t('groupChatSub', 'Everyone in the room')}</div>
               </div>
 
@@ -838,7 +838,7 @@ const HowItWorks = () => {
                     <div style={{ width: 24, height: 24, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                       {m.name[0]}
                     </div>
-                    <div style={{ background: m.side === 'me' ? '#6366f1' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.08)'), color: m.side === 'me' ? '#fff' : 'var(--text-primary)', padding: '6px 10px', borderRadius: m.side === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0', fontSize: 12, maxWidth: 160 }}>
+                    <div style={{ background: m.side === 'me' ? 'var(--brand-1)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.08)'), color: m.side === 'me' ? '#fff' : 'var(--text-primary)', padding: '6px 10px', borderRadius: m.side === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0', fontSize: 12, maxWidth: 160 }}>
                       {m.msg}
                     </div>
                   </div>
@@ -881,7 +881,7 @@ const HowItWorks = () => {
                     <div style={{ width: 24, height: 24, borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                       {m.name[0]}
                     </div>
-                    <div style={{ background: m.side === 'me' ? '#6366f1' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.08)'), color: m.side === 'me' ? '#fff' : 'var(--text-primary)', padding: '6px 10px', borderRadius: m.side === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0', fontSize: 12, maxWidth: 180 }}>
+                    <div style={{ background: m.side === 'me' ? 'var(--brand-1)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.08)'), color: m.side === 'me' ? '#fff' : 'var(--text-primary)', padding: '6px 10px', borderRadius: m.side === 'me' ? '12px 12px 0 12px' : '12px 12px 12px 0', fontSize: 12, maxWidth: 180 }}>
                       {m.msg}
                     </div>
                   </div>
@@ -891,7 +891,7 @@ const HowItWorks = () => {
           </div>
 
           {/* Encryption banner */}
-          <div className="gcw-force-dark" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', borderRadius: 16, padding: '20px 32px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 900, margin: '0 auto' }}>
+          <div className="gcw-force-dark" style={{ background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', borderRadius: 16, padding: '20px 32px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', maxWidth: 900, margin: '0 auto' }}>
             <Lock size={20} color="#fff" style={{ flexShrink: 0 }} />
             <p className="stay-white" style={{ color: '#fff', fontSize: 14, margin: 0, lineHeight: 1.5 }}>
               <strong>{t('e2eEncryptedBold', 'All Group & Private Chat messages use end-to-end encryption.')}</strong> {t('notEvenWeRead', 'Not even we can read your conversations.')}
@@ -907,7 +907,7 @@ const HowItWorks = () => {
         <div className="hiw-container">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? '#4338ca' : '#818cf8', marginBottom: 16 }}>{t('yourPrivacyLabel', 'YOUR PRIVACY')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', marginBottom: 16 }}>{t('yourPrivacyLabel', 'YOUR PRIVACY')}</div>
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 800, marginBottom: 16, color: isLight ? '#111' : '#f8f9fa' }}>{t('privacyByDesignTitle', 'Privacy by Design')}</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: 17, maxWidth: 540, margin: '0 auto' }}>{t('privacyByDesignDesc', 'We built SahaPlay with your privacy as the foundation, not an afterthought.')}</p>
           </div>
@@ -915,8 +915,8 @@ const HowItWorks = () => {
           {/* Privacy cards grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24 }}>
             {privacyCards.map((card, i) => (
-              <div key={i} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 16, borderTop: '3px solid #6366f1' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(99,102,241,0.12)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div key={i} style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 16, borderTop: '3px solid var(--brand-1)' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: 'rgba(var(--brand-1-rgb),0.12)', color: 'var(--brand-1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {card.icon}
                 </div>
                 <h3 style={{ fontWeight: 700, fontSize: 18, margin: 0 }}>{card.title}</h3>
@@ -934,7 +934,7 @@ const HowItWorks = () => {
         <div className="hiw-container">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? '#4338ca' : '#818cf8', marginBottom: 16 }}>{t('faqLabel', 'FAQ')}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', marginBottom: 16 }}>{t('faqLabel', 'FAQ')}</div>
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 800, marginBottom: 0, color: isLight ? '#111' : '#f8f9fa' }}>{t('faqTitle', 'Frequently Asked Questions')}</h2>
           </div>
 
@@ -943,10 +943,10 @@ const HowItWorks = () => {
             {faqs.map((faq, i) => (
               <div key={i} style={{
                 marginBottom: 8,
-                border: `1px solid ${openFaq === i ? 'rgba(99,102,241,0.35)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)')}`,
-                borderLeft: openFaq === i ? '4px solid #6366f1' : `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,
+                border: `1px solid ${openFaq === i ? 'rgba(var(--brand-1-rgb),0.35)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)')}`,
+                borderLeft: openFaq === i ? '4px solid var(--brand-1)' : `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,
                 borderRadius: 12,
-                background: openFaq === i ? (isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.08)') : (isLight ? '#ffffff' : '#1e1e30'),
+                background: openFaq === i ? (isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(var(--brand-1-rgb),0.08)') : (isLight ? '#ffffff' : '#1e1e30'),
                 overflow: 'hidden',
                 transition: 'border-color 0.2s, background 0.2s',
               }}>
@@ -956,7 +956,7 @@ const HowItWorks = () => {
                 >
                   <span style={{ fontWeight: 700, fontSize: 17, color: isLight ? '#111827' : 'var(--text-primary)' }}>{faq.q}</span>
                   {openFaq === i
-                    ? <ChevronUp size={20} color="#6366f1" style={{ flexShrink: 0 }} />
+                    ? <ChevronUp size={20} color="var(--brand-1)" style={{ flexShrink: 0 }} />
                     : <ChevronDown size={20} color="var(--text-secondary)" style={{ flexShrink: 0 }} />
                   }
                 </button>
@@ -990,7 +990,7 @@ const HowItWorks = () => {
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '6px 16px', borderRadius: 20,
             background: 'rgba(108,99,255,0.18)', border: '1px solid rgba(108,99,255,0.4)',
-            color: '#a5b4fc', fontSize: 13, fontWeight: 600, marginBottom: 24,
+            color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, marginBottom: 24,
           }}>
             <Check size={13} /> {t('readGuideBadge', "You've read the guide")}
           </div>
@@ -1061,21 +1061,21 @@ const HowItWorks = () => {
             position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
             zIndex: 999,
             padding: '10px 22px', borderRadius: 50,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
             color: '#fff', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            boxShadow: '0 4px 20px rgba(var(--brand-1-rgb),0.5)',
             whiteSpace: 'nowrap',
             transition: 'transform 0.2s, box-shadow 0.2s',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(var(--brand-1-rgb),0.65)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateX(-50%)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(var(--brand-1-rgb),0.5)';
           }}
         >
           <ChevronUp size={18} color="#fff" />
