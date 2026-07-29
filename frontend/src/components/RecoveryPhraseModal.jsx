@@ -37,13 +37,13 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
   };
 
   const card = isLight
-    ? { background: '#ffffff', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(99,102,241,0.08)' }
-    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(168,85,247,0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(168,85,247,0.1), inset 0 1px 0 rgba(255,255,255,0.06)' };
+    ? { background: '#ffffff', border: '1px solid rgba(var(--brand-1-rgb),0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(var(--brand-1-rgb),0.08)' }
+    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(var(--brand-2-rgb),0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(var(--brand-2-rgb),0.1), inset 0 1px 0 rgba(255,255,255,0.06)' };
 
   const titleColor       = isLight ? '#1a1a2e'               : '#ffffff';
   const descColor        = isLight ? 'rgba(0,0,0,0.55)'      : 'rgba(255,255,255,0.55)';
-  const phraseBlockBg    = isLight ? 'rgba(99,102,241,0.07)' : 'rgba(255,255,255,0.06)';
-  const phraseBlockBdr   = isLight ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.1)';
+  const phraseBlockBg    = isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)';
+  const phraseBlockBdr   = isLight ? 'rgba(var(--brand-1-rgb),0.18)' : 'rgba(255,255,255,0.1)';
   const phraseTextColor  = isLight ? '#2d1f6e'               : '#e2e8f0';
   const revealOverlayBg  = isLight ? 'rgba(230,225,255,0.88)' : 'rgba(10,5,25,0.5)';
   const revealSubColor   = isLight ? 'rgba(0,0,0,0.45)'      : 'rgba(255,255,255,0.4)';
@@ -68,10 +68,10 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px',
-            boxShadow: '0 0 0 8px rgba(99,102,241,0.15), 0 8px 24px rgba(99,102,241,0.4)'
+            boxShadow: '0 0 0 8px rgba(var(--brand-1-rgb),0.15), 0 8px 24px rgba(var(--brand-1-rgb),0.4)'
           }}>
             <Shield size={28} color="#fff" />
           </div>
@@ -124,8 +124,8 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
               background: revealOverlayBg, borderRadius: 8, cursor: 'pointer'
             }} onClick={() => setRevealed(true)}>
               <div style={{ textAlign: 'center' }}>
-                <Eye size={24} color="#a78bfa" style={{ marginBottom: 6 }} />
-                <p style={{ margin: 0, color: '#a78bfa', fontSize: 13, fontWeight: 600 }}>{t('clickToRevealPhrase', 'Click to reveal phrase')}</p>
+                <Eye size={24} color="var(--brand-1-light)" style={{ marginBottom: 6 }} />
+                <p style={{ margin: 0, color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600 }}>{t('clickToRevealPhrase', 'Click to reveal phrase')}</p>
                 <p style={{ margin: '4px 0 0', color: revealSubColor, fontSize: 11 }}>{t('makeSureNoOneWatching', 'Make sure no one is watching your screen')}</p>
               </div>
             </div>
@@ -138,9 +138,9 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             onClick={handleCopy}
             style={{
               width: '100%', padding: '11px', marginBottom: 16,
-              borderRadius: 10, border: '1px solid rgba(99,102,241,0.4)',
-              background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.12)',
-              color: copied ? '#059669' : '#6366f1',
+              borderRadius: 10, border: '1px solid rgba(var(--brand-1-rgb),0.4)',
+              background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(var(--brand-1-rgb),0.12)',
+              color: copied ? '#059669' : 'var(--brand-1)',
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               transition: 'all 0.25s'
@@ -156,7 +156,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             type="checkbox"
             checked={acknowledged}
             onChange={e => setAcknowledged(e.target.checked)}
-            style={{ width: 18, height: 18, marginTop: 2, accentColor: '#6366f1', flexShrink: 0 }}
+            style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--brand-1)', flexShrink: 0 }}
           />
           <span style={{ fontSize: 13, color: ackTextColor, lineHeight: 1.5 }}>
             {t('recoveryAcknowledgeCheckbox', 'I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages.')}
@@ -172,12 +172,12 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             width: '100%', padding: '14px',
             borderRadius: 12, border: 'none',
             background: acknowledged && revealed
-              ? 'linear-gradient(135deg, #6366f1, #a855f7)'
+              ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'
               : btnDisabledBg,
             color: acknowledged && revealed ? '#fff' : btnDisabledColor,
             fontSize: 15, fontWeight: 700, cursor: acknowledged && revealed ? 'pointer' : 'not-allowed',
             transition: 'all 0.25s',
-            boxShadow: acknowledged && revealed ? '0 4px 20px rgba(99,102,241,0.4)' : 'none'
+            boxShadow: acknowledged && revealed ? '0 4px 20px rgba(var(--brand-1-rgb),0.4)' : 'none'
           }}
         >
           {!revealed ? t('revealPhraseFirst', 'Reveal phrase first') : !acknowledged ? t('pleaseAcknowledge', 'Please acknowledge above') : t('savedContinue', "I've saved it — Continue →")}

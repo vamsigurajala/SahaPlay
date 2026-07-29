@@ -37,7 +37,7 @@ export default function MediaPolicyBanner({ isLight }) {
     fontWeight: 600,
     cursor: 'pointer',
     border: 'none',
-    background: '#6366f1',
+    background: 'var(--brand-1)',
     color: '#ffffff',
     fontFamily: 'inherit',
     whiteSpace: 'nowrap',
@@ -47,11 +47,11 @@ export default function MediaPolicyBanner({ isLight }) {
     <div style={{
       margin: '0 10px 8px',
       padding: '12px 14px',
-      background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(20,20,40,0.7)',
-      border: `1px solid ${isLight ? 'rgba(99,102,241,0.22)' : 'rgba(99,102,241,0.28)'}`,
+      background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(20,20,40,0.7)',
+      border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.22)' : 'rgba(var(--brand-1-rgb),0.28)'}`,
       borderRadius: 10,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 12, color: isLight ? '#4f46e5' : '#c4b5fd', marginBottom: 5 }}>
+      <div style={{ fontWeight: 700, fontSize: 12, color: isLight ? 'var(--brand-1-dark)' : '#c4b5fd', marginBottom: 5 }}>
         {t('mediaStoragePolicy', 'Media Storage Policy')}
       </div>
       <div style={{ fontSize: 11, color: isLight ? '#6b7280' : '#9ca3af', lineHeight: 1.7, marginBottom: 10 }}>
@@ -64,7 +64,7 @@ export default function MediaPolicyBanner({ isLight }) {
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: '#6366f1',
+            color: 'var(--brand-1)',
             textDecoration: learnHover ? 'underline' : 'none',
           }}
         >

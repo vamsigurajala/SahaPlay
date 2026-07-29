@@ -9,15 +9,15 @@ function CodeDigit({ char, index, revealed }) {
       style={{
         width: 64, height: 80,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(99,102,241,0.12)',
-        border: `2px solid ${revealed ? '#6366f1' : 'rgba(99,102,241,0.25)'}`,
+        background: 'rgba(var(--brand-1-rgb),0.12)',
+        border: `2px solid ${revealed ? 'var(--brand-1)' : 'rgba(var(--brand-1-rgb),0.25)'}`,
         borderRadius: 16,
         fontSize: 42, fontWeight: 900, letterSpacing: 0,
         color: revealed ? '#c7d2fe' : 'transparent',
         fontFamily: "'Courier New', monospace",
         transition: `all 0.4s cubic-bezier(0.34,1.56,0.64,1) ${index * 80}ms`,
         transform: revealed ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.85)',
-        boxShadow: revealed ? '0 0 20px rgba(99,102,241,0.3), inset 0 1px 0 rgba(255,255,255,0.1)' : 'none',
+        boxShadow: revealed ? '0 0 20px rgba(var(--brand-1-rgb),0.3), inset 0 1px 0 rgba(255,255,255,0.1)' : 'none',
       }}
     >
       {char}
@@ -26,7 +26,7 @@ function CodeDigit({ char, index, revealed }) {
 }
 
 // ─── Pulsing ring animation ───────────────────────────────────────────────────
-function PulsingRing({ color = '#6366f1', size = 120 }) {
+function PulsingRing({ color = 'var(--brand-1)', size = 120 }) {
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       {[0, 1, 2].map(i => (
@@ -47,7 +47,7 @@ function PulsingRing({ color = '#6366f1', size = 120 }) {
   );
 }
 
-function TvIcon({ size = 40, color = '#6366f1' }) {
+function TvIcon({ size = 40, color = 'var(--brand-1)' }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2"/>
@@ -56,7 +56,7 @@ function TvIcon({ size = 40, color = '#6366f1' }) {
   );
 }
 
-function SpinnerIcon({ size = 36, color = '#6366f1' }) {
+function SpinnerIcon({ size = 36, color = 'var(--brand-1)' }) {
   const spinStyle = {
     animation: 'tvSpin 1s linear infinite',
     display: 'block',
@@ -228,8 +228,8 @@ export default function TvPairing() {
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes tvGlow {
-          0%, 100% { box-shadow: 0 0 30px rgba(99,102,241,0.3); }
-          50% { box-shadow: 0 0 60px rgba(99,102,241,0.6); }
+          0%, 100% { box-shadow: 0 0 30px rgba(var(--brand-1-rgb),0.3); }
+          50% { box-shadow: 0 0 60px rgba(var(--brand-1-rgb),0.6); }
         }
         @keyframes successBounce {
           0% { transform: scale(0); opacity: 0; }
@@ -246,7 +246,7 @@ export default function TvPairing() {
           against this page's own always-dark background. */}
       <div className="gcw-force-dark" style={{
         width: '100vw', height: '100vh',
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.15) 0%, #060714 60%)',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(var(--brand-1-rgb),0.15) 0%, #060714 60%)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         fontFamily: "'Inter', system-ui, sans-serif",
@@ -260,7 +260,7 @@ export default function TvPairing() {
               position: 'absolute',
               width: 300 + i * 80, height: 300 + i * 80,
               borderRadius: '50%',
-              border: '1px solid rgba(99,102,241,0.05)',
+              border: '1px solid rgba(var(--brand-1-rgb),0.05)',
               top: `${20 + i * 8}%`, left: `${10 + i * 12}%`,
               transform: 'translate(-50%, -50%)',
             }} />
@@ -269,7 +269,7 @@ export default function TvPairing() {
 
         {/* Branding */}
         <div style={{ position: 'absolute', top: 32, left: 40, display: 'flex', alignItems: 'center', gap: 10, zIndex: 2 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <TvIcon size={20} color="#fff" />
           </div>
           <span style={{ color: '#fff', fontSize: 18, fontWeight: 800, letterSpacing: '-0.3px' }}>SahaPlay</span>
@@ -294,17 +294,17 @@ export default function TvPairing() {
               onClick={startPairing}
               autoFocus
               style={{
-                background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+                background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
                 border: '2px solid transparent', borderRadius: 16, padding: '18px 48px',
                 color: '#fff', fontSize: 20, fontWeight: 800, cursor: 'pointer',
-                boxShadow: '0 8px 30px rgba(99,102,241,0.4)',
+                boxShadow: '0 8px 30px rgba(var(--brand-1-rgb),0.4)',
                 outline: 'none',
                 transition: 'all 0.2s',
               }}
               onFocus={e => { e.currentTarget.style.borderColor = '#c7d2fe'; e.currentTarget.style.transform = 'scale(1.05)'; }}
               onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)'; }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(99,102,241,0.6)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(99,102,241,0.4)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(var(--brand-1-rgb),0.6)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(var(--brand-1-rgb),0.4)'; }}
             >
               Start Pairing
             </button>
@@ -360,7 +360,7 @@ export default function TvPairing() {
 
             {/* Instruction footer */}
             <p style={{ color: '#475569', fontSize: 14, lineHeight: 1.6 }}>
-              You can also open <span style={{ color: '#818cf8', fontWeight: 700 }}>{window.location.origin}/tv</span> in any browser on your device
+              You can also open <span style={{ color: 'var(--brand-1-light)', fontWeight: 700 }}>{window.location.origin}/tv</span> in any browser on your device
             </p>
           </div>
         )}
@@ -385,14 +385,14 @@ export default function TvPairing() {
             <h1 style={{ fontSize: 40, fontWeight: 900, color: '#f8fafc', marginBottom: 12 }}>Code Expired</h1>
             <p style={{ color: '#94a3b8', fontSize: 18, marginBottom: 36 }}>Your pairing code expired after 10 minutes.</p>
             <button onClick={requestNewCode} style={{
-              background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+              background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
               border: 'none', borderRadius: 14, padding: '16px 36px',
               color: '#fff', fontSize: 17, fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
+              boxShadow: '0 8px 24px rgba(var(--brand-1-rgb),0.4)',
               transition: 'transform 0.2s, box-shadow 0.2s',
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(99,102,241,0.5)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.4)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 32px rgba(var(--brand-1-rgb),0.5)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(var(--brand-1-rgb),0.4)'; }}
             >
               Get New Code
             </button>
@@ -408,10 +408,10 @@ export default function TvPairing() {
               Could not connect to the SahaPlay server.<br/>Check your internet connection and try again.
             </p>
             <button onClick={() => window.location.reload()} style={{
-              background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+              background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
               border: 'none', borderRadius: 14, padding: '14px 32px',
               color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
+              boxShadow: '0 8px 24px rgba(var(--brand-1-rgb),0.4)',
             }}>
               Try Again
             </button>

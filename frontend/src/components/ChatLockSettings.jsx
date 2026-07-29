@@ -16,7 +16,7 @@ const AUTO_LOCK_OPTIONS = [
 
 function Toggle({ on, onToggle, disabled }) {
   return (
-    <button onClick={onToggle} disabled={disabled} style={{ width: 46, height: 25, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: on ? 'linear-gradient(135deg,#6366f1,#a855f7)' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.25s', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
+    <button onClick={onToggle} disabled={disabled} style={{ width: 46, height: 25, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: on ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.25s', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
       <div style={{ width: 19, height: 19, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: on ? 24 : 3, transition: 'left 0.22s cubic-bezier(0.4,0,0.2,1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
     </button>
   );
@@ -85,7 +85,7 @@ export default function ChatLockSettings({ onRefresh }) {
   const selectedAutoLabel = AUTO_LOCK_OPTIONS.find(o => o.value === autoLockMinutes)?.label || '5 minutes';
   const selectedAutoLabelKey = AUTO_LOCK_OPTIONS.find(o => o.value === autoLockMinutes)?.labelKey || 'autoLock5Min';
 
-  const row = (icon, title, desc, right, accent = '#818cf8') => (
+  const row = (icon, title, desc, right, accent = 'var(--brand-1-light)') => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</div>
@@ -106,7 +106,7 @@ export default function ChatLockSettings({ onRefresh }) {
     <div>
       {/* Enable / Disable toggle row */}
       {row(
-        lockEnabled ? <Lock size={17} color="#818cf8" /> : <Unlock size={17} color="#818cf8" />,
+        lockEnabled ? <Lock size={17} color="var(--brand-1-light)" /> : <Unlock size={17} color="var(--brand-1-light)" />,
         t('chatLockTitle', 'Chat Lock'),
         lockEnabled ? t('pinProtectionActive', 'PIN protection is active') : t('pinProtectionDesc', 'Protect specific chats with a PIN'),
         <Toggle on={lockEnabled} onToggle={() => lockEnabled ? setShowDisableConfirm(true) : setShowSetup(true)} />
@@ -127,7 +127,7 @@ export default function ChatLockSettings({ onRefresh }) {
               {showAutoLockDrop && (
                 <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 4, zIndex: 9999, minWidth: 140, boxShadow: '0 12px 40px rgba(0,0,0,0.7)' }}>
                   {AUTO_LOCK_OPTIONS.map(opt => (
-                    <button key={opt.value} onClick={() => handleAutoLockChange(opt.value)} style={{ display: 'block', width: '100%', padding: '9px 14px', background: autoLockMinutes === opt.value ? 'rgba(129,140,248,0.12)' : 'transparent', border: 'none', color: autoLockMinutes === opt.value ? '#818cf8' : '#ccc', fontSize: 13, fontWeight: autoLockMinutes === opt.value ? 700 : 500, cursor: 'pointer', textAlign: 'left', borderRadius: 9 }}>
+                    <button key={opt.value} onClick={() => handleAutoLockChange(opt.value)} style={{ display: 'block', width: '100%', padding: '9px 14px', background: autoLockMinutes === opt.value ? 'rgba(129,140,248,0.12)' : 'transparent', border: 'none', color: autoLockMinutes === opt.value ? 'var(--brand-1-light)' : '#ccc', fontSize: 13, fontWeight: autoLockMinutes === opt.value ? 700 : 500, cursor: 'pointer', textAlign: 'left', borderRadius: 9 }}>
                       {t(opt.labelKey, opt.label)}
                     </button>
                   ))}
@@ -138,8 +138,8 @@ export default function ChatLockSettings({ onRefresh }) {
           )}
 
           {/* Security info */}
-          <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.12)', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <Shield size={15} color="#6366f1" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ marginTop: 12, padding: '12px 14px', background: 'rgba(var(--brand-1-rgb),0.06)', border: '1px solid rgba(var(--brand-1-rgb),0.12)', borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Shield size={15} color="var(--brand-1)" style={{ flexShrink: 0, marginTop: 1 }} />
             <p style={{ margin: 0, fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
               {t('chatLockSecurityInfo', 'Locked chats are hidden from the conversation list. Only your PIN or recovery key can reveal them.')}
             </p>

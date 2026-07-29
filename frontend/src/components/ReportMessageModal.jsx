@@ -177,7 +177,7 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
               className: "stay-white",
               style: {
                 padding: "10px 28px", borderRadius: 12, border: "none",
-                background: "linear-gradient(135deg, #6366f1, #a855f7)",
+                background: "linear-gradient(135deg, var(--brand-1), var(--brand-2))",
                 color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
               }
             }, "Done")
@@ -250,11 +250,11 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
                     style: {
                       padding: "10px 14px", cursor: "pointer", fontSize: 14,
                       color: isLight ? "#1e293b" : "#e2e8f0",
-                      background: reason === opt.value ? (isLight ? "#f0f4ff" : "rgba(99,102,241,0.18)") : "transparent",
+                      background: reason === opt.value ? (isLight ? "#f0f4ff" : "rgba(var(--brand-1-rgb),0.18)") : "transparent",
                       fontWeight: reason === opt.value ? 700 : 400,
                     },
                     onMouseEnter: e => { e.currentTarget.style.background = isLight ? "#f1f5f9" : "rgba(255,255,255,0.08)"; },
-                    onMouseLeave: e => { e.currentTarget.style.background = reason === opt.value ? (isLight ? "#f0f4ff" : "rgba(99,102,241,0.18)") : "transparent"; },
+                    onMouseLeave: e => { e.currentTarget.style.background = reason === opt.value ? (isLight ? "#f0f4ff" : "rgba(var(--brand-1-rgb),0.18)") : "transparent"; },
                   }, opt.label)
                 ))
               )
@@ -290,15 +290,15 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
                 onDragEnter, onDragLeave, onDragOver, onDrop,
                 onClick: () => fileInputRef.current?.click(),
                 style: {
-                  border: "2px dashed " + (dragging ? "#6366f1" : (imgErr && images.length === 0 ? "#ef4444" : (isLight ? "#94a3b8" : "rgba(255,255,255,0.2)"))),
+                  border: "2px dashed " + (dragging ? "var(--brand-1)" : (imgErr && images.length === 0 ? "#ef4444" : (isLight ? "#94a3b8" : "rgba(255,255,255,0.2)"))),
                   borderRadius: 12, padding: "20px 16px", textAlign: "center",
-                  cursor: "pointer", background: dragging ? (isLight ? "rgba(99,102,241,0.06)" : "rgba(99,102,241,0.1)") : "transparent",
+                  cursor: "pointer", background: dragging ? (isLight ? "rgba(var(--brand-1-rgb),0.06)" : "rgba(var(--brand-1-rgb),0.1)") : "transparent",
                   transition: "all 0.15s",
                 }
               },
-                React.createElement(Upload, { size: 22, style: { color: "#6366f1", marginBottom: 8 } }),
+                React.createElement(Upload, { size: 22, style: { color: "var(--brand-1)", marginBottom: 8 } }),
                 React.createElement("div", { style: { fontSize: 13, color: textPrimary, fontWeight: 600, marginBottom: 2 } },
-                  React.createElement("span", { style: { color: "#818cf8" } }, "Click to attach"), " or drag and drop"
+                  React.createElement("span", { style: { color: "var(--brand-1-light)" } }, "Click to attach"), " or drag and drop"
                 ),
                 React.createElement("div", { style: { fontSize: 12, color: textSecondary } }, "JPG, PNG, GIF, WEBP \u2014 up to 5 MB each"),
                 React.createElement("input", {

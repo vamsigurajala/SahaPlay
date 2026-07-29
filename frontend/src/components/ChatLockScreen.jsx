@@ -286,7 +286,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
       >
         {/* Glow Effect - Hidden in Light Mode */}
         {!isLight && (
-          <div style={{ position: 'absolute', top: '-10%', left: '10%', width: '80%', height: '40%', background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: '-10%', left: '10%', width: '80%', height: '40%', background: 'radial-gradient(ellipse at center, rgba(var(--brand-1-rgb), 0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
         )}
 
         {onClose && (
@@ -308,11 +308,11 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
 
         <div style={{ 
           width: 'clamp(60px, 15vw, 80px)', height: 'clamp(60px, 15vw, 80px)', borderRadius: 28, margin: '0 auto clamp(16px, 4vh, 28px)', 
-          background: isLight ? '#f8fafc' : 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(99,102,241,0.02))', 
-          border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(99,102,241,0.2)', 
+          background: isLight ? '#f8fafc' : 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.1), rgba(var(--brand-1-rgb),0.02))', 
+          border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-1-rgb),0.2)', 
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          {mode === 'pin' ? <Lock size={36} color="#818cf8" strokeWidth={2.5} /> : <Key size={36} color="#a855f7" strokeWidth={2.5} />}
+          {mode === 'pin' ? <Lock size={36} color="var(--brand-1-light)" strokeWidth={2.5} /> : <Key size={36} color="var(--brand-2)" strokeWidth={2.5} />}
         </div>
 
         <h2 style={{ margin: 0, fontWeight: 800, fontSize: 'clamp(1.4rem, 5vw, 1.8rem)', color: isLight ? '#1e293b' : '#fff', letterSpacing: '-0.03em' }}>
@@ -363,7 +363,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   style={{
                     width: '100%', padding: 'clamp(14px, 4vw, 24px)', borderRadius: 24, 
                     background: isLight ? '#f8fafc' : 'rgba(0, 0, 0, 0.3)',
-                    border: `2px solid ${error ? '#ef4444' : (pin.length > 0 ? 'rgba(99,102,241,0.4)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)'))}`,
+                    border: `2px solid ${error ? '#ef4444' : (pin.length > 0 ? 'rgba(var(--brand-1-rgb),0.4)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)'))}`,
                     color: isLight ? '#1e293b' : '#fff', fontSize: 'clamp(24px, 7vw, 36px)', fontWeight: 900, textAlign: 'center', 
                     letterSpacing: '0.4em', outline: 'none', transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
                     boxSizing: 'border-box',
@@ -375,7 +375,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                     onClick={() => setShowPin(!showPin)}
                     style={{
                       position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)',
-                      background: 'transparent', border: 'none', color: showPin ? '#818cf8' : (isLight ? '#94a3b8' : '#4b5563'),
+                      background: 'transparent', border: 'none', color: showPin ? 'var(--brand-1-light)' : (isLight ? '#94a3b8' : '#4b5563'),
                       cursor: 'pointer', display: 'flex', padding: 8, transition: 'color 0.3s'
                     }}
                   >
@@ -394,7 +394,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
                   style={{
                     width: '100%', padding: 'clamp(12px, 3.5vw, 20px)', borderRadius: 20, 
                     background: isLight ? '#f8fafc' : 'rgba(0, 0, 0, 0.3)',
-                    border: `2px solid ${error ? '#ef4444' : (isLight ? '#e2e8f0' : 'rgba(168,85,247,0.4)')}`,
+                    border: `2px solid ${error ? '#ef4444' : (isLight ? '#e2e8f0' : 'rgba(var(--brand-2-rgb),0.4)')}`,
                     color: isLight ? '#1e293b' : '#fff', fontSize: 'clamp(14px, 3.5vw, 16px)', fontWeight: 600, textAlign: 'center', 
                     letterSpacing: '0.1em', outline: 'none', transition: 'all 0.3s',
                     boxSizing: 'border-box',
@@ -424,7 +424,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
               style={{
                 width: '100%', padding: 'clamp(12px, 3.5vw, 20px)', borderRadius: 20, border: 'none',
                 background: isEnabled
-                  ? (mode === 'pin' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'linear-gradient(135deg, #a855f7, #9333ea)')
+                  ? (mode === 'pin' ? 'linear-gradient(135deg, var(--brand-1), var(--brand-1-dark))' : 'linear-gradient(135deg, var(--brand-2), #9333ea)')
                   : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.03)'),
                 color: isEnabled ? '#ffffff' : (isLight ? '#94a3b8' : '#4b5563'),
                 fontSize: 'clamp(0.95rem, 3.5vw, 1.1rem)', fontWeight: 800, cursor: isEnabled ? 'pointer' : 'not-allowed',
@@ -449,9 +449,9 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
               {mode === 'pin' && attempts >= 2 && (
                 <button 
                   onClick={() => { setMode('recovery'); setRecoveryKey(''); setPin(''); setError(false); setErrorMsg(''); }}
-                  style={{ background: 'transparent', border: 'none', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px 0', transition: 'color 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.color = isLight ? '#4f46e5' : '#fff'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#818cf8'}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px 0', transition: 'color 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.color = isLight ? 'var(--brand-1-dark)' : '#fff'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--brand-1-light)'}
                 >
                   {t('useMasterKey', 'Use Master Key')}
                 </button>

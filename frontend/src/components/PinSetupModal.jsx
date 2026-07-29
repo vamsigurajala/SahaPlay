@@ -43,7 +43,7 @@ function SimplePinDisplay({ value, secret, active, error }) {
           left: '20%',
           right: '20%',
           height: 2,
-          background: 'linear-gradient(90deg, transparent, #818cf8, transparent)',
+          background: 'linear-gradient(90deg, transparent, var(--brand-1-light), transparent)',
           animation: 'pulse 1.5s infinite'
         }} />
       )}
@@ -158,12 +158,12 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         <div style={{ textAlign: 'center', marginBottom: 'clamp(16px, 4vh, 32px)' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '22px', margin: '0 auto 16px',
-            background: 'linear-gradient(135deg, rgba(129,140,248,0.15), rgba(168,85,247,0.1))',
+            background: 'linear-gradient(135deg, rgba(129,140,248,0.15), rgba(var(--brand-2-rgb),0.1))',
             border: '1px solid rgba(129,140,248,0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 32px rgba(129,140,248,0.1)',
           }}>
-            {step === 2 ? <Shield size={28} color="#818cf8" /> : <Lock size={28} color="#818cf8" />}
+            {step === 2 ? <Shield size={28} color="var(--brand-1-light)" /> : <Lock size={28} color="var(--brand-1-light)" />}
           </div>
           <h2 style={{ margin: 0, fontWeight: 800, fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', color: '#fff', letterSpacing: '-0.02em' }}>
             {step === 1 ? (action === 'reset' ? t('changeVaultPin', 'Change Vault PIN') : t('secureVault', 'Secure Your Vault')) : t('newRecoveryKey', 'New Master Recovery Key')}
@@ -180,7 +180,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
             <div style={{ 
               height: '100%', 
               width: activeField === 'confirm' ? '100%' : '50%', 
-              background: 'linear-gradient(90deg, #6366f1, #a855f7)',
+              background: 'linear-gradient(90deg, var(--brand-1), var(--brand-2))',
               transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
             }} />
           </div>
@@ -266,7 +266,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
               className={(pin.length === 6 && confirmPin.length === 6) ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
               style={{
                 marginTop: 12, padding: 'clamp(10px, 3vw, 16px)', borderRadius: 16, border: 'none',
-                background: (pin.length === 6 && confirmPin.length === 6) ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'rgba(255,255,255,0.05)',
+                background: (pin.length === 6 && confirmPin.length === 6) ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))' : 'rgba(255,255,255,0.05)',
                 color: (pin.length === 6 && confirmPin.length === 6) ? '#fff' : '#444',
                 fontSize: 'clamp(13px, 3.5vw, 15px)', fontWeight: 800, cursor: (pin.length === 6 && confirmPin.length === 6) ? 'pointer' : 'not-allowed',
                 transition: 'all 0.3s',
@@ -288,7 +288,7 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Key size={14} color="#818cf8" />
+                  <Key size={14} color="var(--brand-1-light)" />
                   <span style={{ fontSize: 11, color: '#555', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('recoveryKeyLabel', 'Recovery Key')}</span>
                 </div>
                 <button onClick={handleCopy} style={{
@@ -296,10 +296,10 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                   background: copied ? 'rgba(16,185,129,0.15)' : 'rgba(129,140,248,0.1)',
                   border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(129,140,248,0.2)'}`,
                   borderRadius: 10, padding: '6px 12px',
-                  color: copied ? '#10b981' : '#4f46e5', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  color: copied ? '#10b981' : 'var(--brand-1-dark)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
-                  {copied ? <Check size={14} /> : <Copy size={14} color="#4f46e5" />}
+                  {copied ? <Check size={14} /> : <Copy size={14} color="var(--brand-1-dark)" />}
                   {copied ? t('copiedLabel', 'Copied') : t('copy', 'Copy')}
                 </button>
               </div>
@@ -327,10 +327,10 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
                 className={hasCopied ? 'pin-submit-btn enabled' : 'pin-submit-btn'}
                 style={{
                 padding: 'clamp(10px, 3.5vw, 16px) 0', borderRadius: 16, border: 'none',
-                background: !hasCopied ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #6366f1, #a855f7)',
+                background: !hasCopied ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                 color: !hasCopied ? '#444' : '#fff', fontSize: 'clamp(0.85rem, 3.5vw, 1rem)', fontWeight: 800,
                 cursor: !hasCopied ? 'not-allowed' : 'pointer',
-                boxShadow: !hasCopied ? 'none' : '0 12px 32px rgba(99,102,241,0.3)',
+                boxShadow: !hasCopied ? 'none' : '0 12px 32px rgba(var(--brand-1-rgb),0.3)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 boxSizing: 'border-box'

@@ -76,7 +76,7 @@ export default function TimerActivity({ isLight = false }) {
     : 1;
   const dashOffset = CIRC * (1 - Math.max(0, Math.min(1, progressRatio)));
   const isDone = phase === 'done';
-  const ringColor = isDone ? '#ef4444' : mode === 'countdown' ? '#a855f7' : '#6366f1';
+  const ringColor = isDone ? '#ef4444' : mode === 'countdown' ? 'var(--brand-2)' : 'var(--brand-1)';
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const numInput = (setter) => (e) => {
@@ -87,8 +87,8 @@ export default function TimerActivity({ isLight = false }) {
 
   // Theme tokens
   const bg = isLight
-    ? 'radial-gradient(ellipse at 50% 25%, rgba(99,102,241,0.06) 0%, #f8fafc 70%)'
-    : 'radial-gradient(ellipse at 50% 25%, rgba(99,102,241,0.14) 0%, #050508 65%)';
+    ? 'radial-gradient(ellipse at 50% 25%, rgba(var(--brand-1-rgb),0.06) 0%, #f8fafc 70%)'
+    : 'radial-gradient(ellipse at 50% 25%, rgba(var(--brand-1-rgb),0.14) 0%, #050508 65%)';
   const timeColor = isDone ? '#ef4444' : (isLight ? '#0f172a' : '#ffffff');
   const timeShadow = isDone
     ? '0 0 32px rgba(239,68,68,0.35)'
@@ -146,7 +146,7 @@ export default function TimerActivity({ isLight = false }) {
             <span style={{ fontSize: 11, color: subColor, fontWeight: 600, letterSpacing: '1.5px' }}>READY</span>
           )}
           {!isDone && phase === 'running' && (
-            <span style={{ fontSize: 10, color: mode === 'countdown' ? '#a855f7' : '#6366f1', fontWeight: 700, letterSpacing: '1.5px' }}>
+            <span style={{ fontSize: 10, color: mode === 'countdown' ? 'var(--brand-2)' : 'var(--brand-1)', fontWeight: 700, letterSpacing: '1.5px' }}>
               {mode === 'countdown' ? 'COUNTING' : 'RUNNING'}
             </span>
           )}
@@ -170,10 +170,10 @@ export default function TimerActivity({ isLight = false }) {
               style={{
                 padding: '9px 28px', borderRadius: 10, border: 'none',
                 cursor: phase === 'running' ? 'not-allowed' : 'pointer',
-                background: mode === m ? 'linear-gradient(135deg,#6366f1,#a855f7)' : 'transparent',
+                background: mode === m ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : 'transparent',
                 color: mode === m ? '#ffffff' : toggleInactiveColor,
                 fontSize: 13, fontWeight: 800, transition: 'all 0.22s',
-                boxShadow: mode === m ? '0 4px 16px rgba(99,102,241,0.35)' : 'none',
+                boxShadow: mode === m ? '0 4px 16px rgba(var(--brand-1-rgb),0.35)' : 'none',
                 opacity: phase === 'running' && mode !== m ? 0.35 : 1,
               }}
             >
@@ -199,7 +199,7 @@ export default function TimerActivity({ isLight = false }) {
                       border: inputBorder,
                       color: phase === 'paused' ? subColor : inputColor,
                     }}
-                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)'; }}
+                    onFocus={e => { e.currentTarget.style.borderColor = 'rgba(var(--brand-1-rgb),0.5)'; }}
                     onBlur={e => { e.currentTarget.style.borderColor = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'; }}
                   />
                 </div>
@@ -240,13 +240,13 @@ export default function TimerActivity({ isLight = false }) {
                 ? (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)')
                 : phase === 'running'
                   ? (isLight ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.15)')
-                  : 'linear-gradient(135deg,#6366f1,#a855f7)',
+                  : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
               cursor: (mode === 'countdown' && phase === 'idle' && getTotalMs() === 0) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: phase === 'running'
                 ? '0 0 0 2px rgba(245,158,11,0.4), 0 8px 28px rgba(245,158,11,0.15)'
                 : isDone ? 'none'
-                : '0 8px 32px rgba(99,102,241,0.45)',
+                : '0 8px 32px rgba(var(--brand-1-rgb),0.45)',
               transition: 'all 0.22s',
               opacity: (mode === 'countdown' && phase === 'idle' && getTotalMs() === 0) ? 0.3 : 1,
             }}

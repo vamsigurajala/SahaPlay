@@ -22,8 +22,8 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
     document.documentElement.getAttribute('data-theme') === 'light';
 
   const card = isLight
-    ? { background: '#ffffff', border: '1px solid rgba(99,102,241,0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12)' }
-    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(168,85,247,0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9)' };
+    ? { background: '#ffffff', border: '1px solid rgba(var(--brand-1-rgb),0.25)', boxShadow: '0 20px 60px rgba(0,0,0,0.12)' }
+    : { background: 'linear-gradient(145deg, #0f0a23, #1a0f35)', border: '1px solid rgba(var(--brand-2-rgb),0.35)', boxShadow: '0 32px 80px rgba(0,0,0,0.9)' };
 
   const titleColor = isLight ? '#1a1a2e' : '#ffffff';
   const descColor  = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)';
@@ -91,7 +91,7 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
             style={{
               flex: 1.4, padding: '13px', borderRadius: 12, border: 'none',
               background: hasRecoveryKey
-                ? 'linear-gradient(135deg, #6366f1, #a855f7)'
+                ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'
                 : 'linear-gradient(135deg, #dc2626, #ef4444)',
               color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer'
             }}

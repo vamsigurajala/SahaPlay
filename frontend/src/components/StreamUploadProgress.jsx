@@ -37,7 +37,7 @@ export default function StreamUploadProgress({ uploadState, onCancel }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
               Uploading: {filename}
             </span>
-            <span style={{ flexShrink: 0, fontWeight: 700, color: '#a78bfa' }}>{progress}%</span>
+            <span style={{ flexShrink: 0, fontWeight: 700, color: 'var(--brand-1-light)' }}>{progress}%</span>
           </div>
 
           <div style={{
@@ -48,7 +48,7 @@ export default function StreamUploadProgress({ uploadState, onCancel }) {
             marginBottom: '10px'
           }}>
             <div style={{
-              background: 'linear-gradient(90deg, #7c3aed, #a78bfa)',
+              background: 'linear-gradient(90deg, var(--brand-2-dark), var(--brand-1-light))',
               height: '100%',
               width: `${progress}%`,
               borderRadius: '999px',

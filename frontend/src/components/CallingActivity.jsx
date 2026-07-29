@@ -209,7 +209,7 @@ export default function CallingActivity({
         ) : (
           <div className={`avatar-circle-mid ${!p.isMuted ? 'active-pulse' : ''}`} style={{
             background: p.isLocal
-              ? 'linear-gradient(135deg, #6366f1, #a855f7)'
+              ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'
               : 'linear-gradient(135deg, #ec4899, #8b5cf6)'
           }}>
             {getInitials(p.username)}
@@ -269,7 +269,7 @@ export default function CallingActivity({
                       className="avatar-img-large"
                     />
                   ) : (
-                    <div className="avatar-circle-large" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
+                    <div className="avatar-circle-large" style={{ background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))' }}>
                       {getInitials(username)}
                     </div>
                   )}
@@ -360,7 +360,7 @@ export default function CallingActivity({
               onClick={toggleMic}
               title={isMicOn ? 'Mute Mic' : 'Unmute Mic'}
               className={`dock-btn ${isMicOn ? 'active' : ''}`}
-              style={{ background: isMicOn ? 'rgba(99, 102, 241, 0.18)' : 'rgba(239, 68, 68, 0.18)', color: isMicOn ? '#818cf8' : '#ef4444' }}
+              style={{ background: isMicOn ? 'rgba(var(--brand-1-rgb), 0.18)' : 'rgba(239, 68, 68, 0.18)', color: isMicOn ? 'var(--brand-1-light)' : '#ef4444' }}
             >
               {isMicOn ? <Mic size={20} /> : <MicOff size={20} />}
             </button>
@@ -370,7 +370,7 @@ export default function CallingActivity({
                 onClick={toggleCamera}
                 title={isCamOn ? 'Turn Camera Off' : 'Turn Camera On'}
                 className={`dock-btn ${isCamOn ? 'active' : ''}`}
-                style={{ background: isCamOn ? 'rgba(99, 102, 241, 0.18)' : 'rgba(239, 68, 68, 0.18)', color: isCamOn ? '#818cf8' : '#ef4444' }}
+                style={{ background: isCamOn ? 'rgba(var(--brand-1-rgb), 0.18)' : 'rgba(239, 68, 68, 0.18)', color: isCamOn ? 'var(--brand-1-light)' : '#ef4444' }}
               >
                 {isCamOn ? <Video size={20} /> : <VideoOff size={20} />}
               </button>
@@ -490,7 +490,7 @@ export default function CallingActivity({
           font-size: 28px;
           font-weight: 800;
           color: #fff;
-          box-shadow: 0 8px 24px rgba(99,102,241,0.3);
+          box-shadow: 0 8px 24px rgba(var(--brand-1-rgb),0.3);
         }
 
         .avatar-img-large {
@@ -512,7 +512,7 @@ export default function CallingActivity({
         }
 
         .join-call-btn {
-          background: linear-gradient(135deg, #6366f1, #a855f7);
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           border: none;
           color: white;
           padding: 12px 36px;
@@ -520,13 +520,13 @@ export default function CallingActivity({
           font-weight: 800;
           font-size: 14px;
           cursor: pointer;
-          box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+          box-shadow: 0 8px 24px rgba(var(--brand-1-rgb),0.35);
           transition: all 0.2s;
         }
 
         .join-call-btn:hover {
           transform: translateY(-2px);
-          box-shadow: 0 12px 28px rgba(99,102,241,0.5);
+          box-shadow: 0 12px 28px rgba(var(--brand-1-rgb),0.5);
         }
 
         .call-grid-container {
@@ -639,8 +639,8 @@ export default function CallingActivity({
         }
 
         @keyframes active-pulse-anim {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
-          50% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(99,102,241,0); }
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--brand-1-rgb),0.4); }
+          50% { transform: scale(1.08); box-shadow: 0 0 0 12px rgba(var(--brand-1-rgb),0); }
         }
 
         .voice-indicator {

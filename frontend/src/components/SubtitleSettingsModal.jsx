@@ -189,7 +189,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
               <input
                 type="range" min={-10} max={10} step={0.1} value={s.delay}
                 onChange={e => onChange({ ...s, delay: parseFloat(e.target.value) })}
-                style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                style={{ width: '100%', accentColor: 'var(--brand-2)', cursor: 'pointer' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                 <span>-10s (earlier)</span>
@@ -234,10 +234,10 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
                     width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
                     background: c.hex,
                     border: s.textColor === c.value
-                      ? '3px solid #8b5cf6'
+                      ? '3px solid var(--brand-2)'
                       : isLight ? '2px solid #d1d5db' : '2px solid rgba(255,255,255,0.2)',
                     outline: 'none', padding: 0, flexShrink: 0,
-                    boxShadow: s.textColor === c.value ? '0 0 0 2px rgba(139,92,246,0.3)' : 'none',
+                    boxShadow: s.textColor === c.value ? '0 0 0 2px rgba(var(--brand-2-rgb),0.3)' : 'none',
                     transition: 'all 0.15s',
                   }}
                 />
@@ -260,7 +260,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
                       ? (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.05)')
                       : c.previewBg,
                     border: s.bgColor === c.value
-                      ? '1.5px solid #8b5cf6'
+                      ? '1.5px solid var(--brand-2)'
                       : isLight ? '1.5px solid #e5e7eb' : '1.5px solid rgba(255,255,255,0.15)',
                     color: c.value === 'transparent'
                       ? (isLight ? '#374151' : '#9ca3af')
@@ -295,7 +295,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
               <input
                 type="range" min={0.1} max={1} step={0.05} value={s.opacity}
                 onChange={e => onChange({ ...s, opacity: parseFloat(e.target.value) })}
-                style={{ width: '100%', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                style={{ width: '100%', accentColor: 'var(--brand-2)', cursor: 'pointer' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                 <span>10%</span>
@@ -348,7 +348,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
             style={{
               padding: '9px 24px', borderRadius: 8,
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
               border: 'none', color: '#fff', cursor: 'pointer',
               fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
               transition: 'transform 0.12s ease',
@@ -455,7 +455,7 @@ function Stepper({ value, onDecrement, onIncrement, isLight }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <button type="button" onClick={onDecrement} style={btnStyle}>−</button>
-      <span style={{ fontSize: 13, fontWeight: 700, color: '#8b5cf6', minWidth: 44, textAlign: 'center' }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-2)', minWidth: 44, textAlign: 'center' }}>{value}</span>
       <button type="button" onClick={onIncrement} style={btnStyle}>+</button>
     </div>
   );
@@ -466,7 +466,7 @@ function SettingRow({ label, hint, isLight, children }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: isLight ? '#111827' : '#d1d5db' }}>{label}</span>
-        {hint && <span style={{ fontSize: 13, color: '#8b5cf6', fontWeight: 700 }}>{hint}</span>}
+        {hint && <span style={{ fontSize: 13, color: 'var(--brand-2)', fontWeight: 700 }}>{hint}</span>}
       </div>
       {children}
     </div>
@@ -482,13 +482,13 @@ function Chip({ active, onClick, isLight, children }) {
         padding: '5px 12px', borderRadius: 8, cursor: 'pointer',
         fontSize: 12, fontWeight: 500,
         background: active
-          ? (isLight ? '#7c3aed' : 'rgba(139,92,246,0.22)')
+          ? (isLight ? 'var(--brand-2-dark)' : 'rgba(var(--brand-2-rgb),0.22)')
           : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.07)'),
         border: active
-          ? (isLight ? '1.5px solid #7c3aed' : '1.5px solid rgba(139,92,246,0.6)')
+          ? (isLight ? '1.5px solid var(--brand-2-dark)' : '1.5px solid rgba(var(--brand-2-rgb),0.6)')
           : (isLight ? '1.5px solid #e5e7eb' : '1.5px solid rgba(255,255,255,0.1)'),
         color: active
-          ? (isLight ? '#ffffff' : '#c084fc')
+          ? (isLight ? '#ffffff' : 'var(--brand-2-light)')
           : (isLight ? '#374151' : '#9ca3af'),
         fontFamily: 'inherit',
         outline: 'none',

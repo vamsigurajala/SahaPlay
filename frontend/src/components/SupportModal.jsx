@@ -44,7 +44,7 @@ const SupportModal = ({ isOpen, onClose }) => {
       title: t('supportModalGeneralTitle', 'General Questions'),
       email: 'contact@sahaplay.com',
       Icon: MessageSquare,
-      color: '#6366f1',
+      color: 'var(--brand-1)',
       useFor: [
         t('supportModalGeneralUse1', 'Account questions'),
         t('supportModalGeneralUse2', 'Room issues'),
@@ -87,7 +87,7 @@ const SupportModal = ({ isOpen, onClose }) => {
       title: t('supportModalFoundersTitle', 'Founders / Admin Contact'),
       email: 'founders@sahaplay.com',
       Icon: User,
-      color: '#a855f7',
+      color: 'var(--brand-2)',
       useFor: [
         t('supportModalFoundersUse1', 'Founder/admin contact'),
         t('supportModalFoundersUse2', 'Business inquiries'),
@@ -236,7 +236,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                         padding: '8px 16px',
                         borderRadius: '10px',
                         border: 'none',
-                        background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                        background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                         color: '#ffffff',
                         fontSize: '13px',
                         fontWeight: 700,
@@ -246,7 +246,7 @@ const SupportModal = ({ isOpen, onClose }) => {
                         justifyContent: 'center',
                         gap: '6px',
                         textDecoration: 'none',
-                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+                        boxShadow: '0 4px 12px rgba(var(--brand-1-rgb), 0.25)',
                         transition: 'opacity 0.2s'
                       }}
                       onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; }}
@@ -337,20 +337,20 @@ const SupportModal = ({ isOpen, onClose }) => {
           box-shadow: 0 24px 64px rgba(15, 23, 42, 0.15) !important;
         }
         .support-note {
-          background-color: rgba(99, 102, 241, 0.05) !important;
-          border: 1px solid rgba(99, 102, 241, 0.15) !important;
+          background-color: rgba(var(--brand-1-rgb), 0.05) !important;
+          border: 1px solid rgba(var(--brand-1-rgb), 0.15) !important;
           border-radius: 14px;
           padding: 12px 16px;
           font-size: 12px;
-          color: #a5b4fc !important;
-          -webkit-text-fill-color: #a5b4fc !important;
+          color: var(--brand-1-light) !important;
+          -webkit-text-fill-color: var(--brand-1-light) !important;
           line-height: 1.5;
         }
         html[data-theme='light'] .support-note {
-          background-color: rgba(99, 102, 241, 0.08) !important;
+          background-color: rgba(var(--brand-1-rgb), 0.08) !important;
           backdrop-filter: blur(4px);
           -webkit-backdrop-filter: blur(4px);
-          border: 1px solid rgba(99, 102, 241, 0.22) !important;
+          border: 1px solid rgba(var(--brand-1-rgb), 0.22) !important;
           color: #1e1b4b !important;
           -webkit-text-fill-color: #1e1b4b !important;
         }

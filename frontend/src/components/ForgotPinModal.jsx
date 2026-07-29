@@ -85,8 +85,8 @@ export default function ForgotPinModal({ onClose, onSuccess }) {
         <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', display: 'flex', padding: 4 }}><X size={18} /></button>
 
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 10px', background: 'linear-gradient(135deg,rgba(99,102,241,0.2),rgba(168,85,247,0.1))', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Key size={22} color="#818cf8" />
+          <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 10px', background: 'linear-gradient(135deg,rgba(var(--brand-1-rgb),0.2),rgba(var(--brand-2-rgb),0.1))', border: '1px solid rgba(var(--brand-1-rgb),0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Key size={22} color="var(--brand-1-light)" />
           </div>
           <h2 style={{ margin: 0, fontWeight: 800, fontSize: '1.2rem', color: '#fff' }}>{t('resetPinTitle', 'Reset PIN')}</h2>
           <p style={{ margin: '5px 0 0', fontSize: '0.82rem', color: '#475569' }}>{t('chooseRecoveryMethod', 'Choose a recovery method')}</p>
@@ -97,16 +97,16 @@ export default function ForgotPinModal({ onClose, onSuccess }) {
             <button onClick={() => setMode('recovery-key')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.15)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(129,140,248,0.12)'}
               onMouseLeave={e => e.currentTarget.style.background = 'rgba(129,140,248,0.06)'}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(129,140,248,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Key size={18} color="#818cf8" /></div>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(129,140,248,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Key size={18} color="var(--brand-1-light)" /></div>
               <div>
                 <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{t('recoveryKeyMethod', 'Recovery Key')}</div>
                 <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>{t('recoveryKeyDesc', 'Use the 32-character key you saved during setup')}</div>
               </div>
             </button>
-            <button onClick={() => setMode('email')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.12)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'rgba(99,102,241,0.06)'}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Mail size={18} color="#6366f1" /></div>
+            <button onClick={() => setMode('email')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', background: 'rgba(var(--brand-1-rgb),0.06)', border: '1px solid rgba(var(--brand-1-rgb),0.15)', borderRadius: 14, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.12)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.06)'}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Mail size={18} color="var(--brand-1)" /></div>
               <div>
                 <div style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{t('emailResetMethod', 'Email Reset')}</div>
                 <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>{t('emailResetDesc', 'Get a one-time code sent to your account email')}</div>
@@ -117,7 +117,7 @@ export default function ForgotPinModal({ onClose, onSuccess }) {
 
         {mode === 'recovery-key' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button onClick={() => setMode('choose')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 4 }}><ArrowLeft size={14} /> {t('back', 'Back')}</button>
+            <button onClick={() => setMode('choose')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 4 }}><ArrowLeft size={14} /> {t('back', 'Back')}</button>
             <div>
               <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('recoveryKeyFormat', 'Recovery Key (XXXX-XXXX-XXXX-XXXX)')}</label>
               <input value={recoveryKey} onChange={e => setRecoveryKey(e.target.value)} placeholder="E.g. A1B2-C3D4-E5F6-G7H8" style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '0.05em' }} onFocus={e => e.target.style.borderColor = 'rgba(129,140,248,0.5)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
@@ -130,17 +130,17 @@ export default function ForgotPinModal({ onClose, onSuccess }) {
               <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('confirmNewPinLabel', 'Confirm New PIN')}</label>
               <input type="password" inputMode="numeric" maxLength={6} value={confirmPin} onChange={e => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0,6))} placeholder="••••••" style={inputStyle} onFocus={e => e.target.style.borderColor = 'rgba(129,140,248,0.5)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
             </div>
-            <button onClick={handleRecoveryKeyReset} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}>{loading ? t('resetting', 'Resetting…') : t('resetPinBtn', 'Reset PIN')}</button>
+            <button onClick={handleRecoveryKeyReset} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}>{loading ? t('resetting', 'Resetting…') : t('resetPinBtn', 'Reset PIN')}</button>
           </div>
         )}
 
         {mode === 'email' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button onClick={() => setMode('choose')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: '#818cf8', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 4 }}><ArrowLeft size={14} /> {t('back', 'Back')}</button>
+            <button onClick={() => setMode('choose')} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginBottom: 4 }}><ArrowLeft size={14} /> {t('back', 'Back')}</button>
             {!emailSent ? (
               <>
                 <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>{t('emailResetInfo', 'A one-time reset code will be sent to your registered email address.')}</p>
-                <button onClick={handleSendEmailToken} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? t('sending', 'Sending…') : t('sendResetCodeBtn', 'Send Reset Code')}</button>
+                <button onClick={handleSendEmailToken} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? t('sending', 'Sending…') : t('sendResetCodeBtn', 'Send Reset Code')}</button>
               </>
             ) : (
               <>
@@ -159,7 +159,7 @@ export default function ForgotPinModal({ onClose, onSuccess }) {
                   <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('confirmNewPinLabel', 'Confirm New PIN')}</label>
                   <input type="password" inputMode="numeric" maxLength={6} value={confirmPin} onChange={e => setConfirmPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="••••••" style={inputStyle} onFocus={e => e.target.style.borderColor = 'rgba(129,140,248,0.5)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'} />
                 </div>
-                <button onClick={handleEmailReset} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#a855f7)', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? t('resetting', 'Resetting…') : t('resetPinBtn', 'Reset PIN')}</button>
+                <button onClick={handleEmailReset} disabled={loading} style={{ padding: '13px 0', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', color: '#fff', fontSize: '0.9rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? t('resetting', 'Resetting…') : t('resetPinBtn', 'Reset PIN')}</button>
               </>
             )}
           </div>
