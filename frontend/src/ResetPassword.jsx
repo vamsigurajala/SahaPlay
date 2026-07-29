@@ -142,12 +142,12 @@ const ResetPassword = () => {
         }
         .login-left::before {
           content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-1-rgb),0.15) 0%, rgba(var(--brand-1-rgb),0) 70%);
           filter: blur(60px);
         }
         .login-left::after {
           content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-2-rgb),0.15) 0%, rgba(var(--brand-2-rgb),0) 70%);
           filter: blur(60px);
         }
 
@@ -180,7 +180,7 @@ const ResetPassword = () => {
           font-family: 'Outfit', sans-serif;
         }
         .login-input::placeholder { color: #444; }
-        .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+        .login-input:focus { border-color: var(--brand-1); background: #1f1f26; }
         .login-input:-webkit-autofill,
         .login-input:-webkit-autofill:hover, 
         .login-input:-webkit-autofill:focus {
@@ -191,14 +191,14 @@ const ResetPassword = () => {
 
         .login-submit-btn {
           width: 100%; padding: 16px; border-radius: 14px; border: none;
-          background: linear-gradient(135deg, #6366f1, #a855f7);
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           color: #fff !important; font-size: 16px; font-weight: 700;
           font-family: 'Outfit', sans-serif;
           cursor: pointer; display: flex; align-items: center; justify-content: center;
-          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(var(--brand-1-rgb),0.3);
         }
         .login-submit-btn * { color: #fff !important; fill: #fff !important; }
-        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(var(--brand-1-rgb),0.4); }
         .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
         .rp-spinner {
@@ -212,7 +212,7 @@ const ResetPassword = () => {
 
         /* Light Mode */
         html[data-theme='light'] .login-layout { background: #f8fafc; }
-        html[data-theme='light'] .login-left { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+        html[data-theme='light'] .login-left { background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%); }
         html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
         html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
         html[data-theme='light'] .login-left-text { color: #fff !important; }
@@ -229,7 +229,7 @@ const ResetPassword = () => {
         }
         html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
         html[data-theme='light'] .login-input:focus {
-          background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+          background: #ffffff !important; border-color: var(--brand-1) !important; box-shadow: 0 0 0 4px rgba(var(--brand-1-rgb),0.1) !important;
         }
         html[data-theme='light'] .login-input:-webkit-autofill,
         html[data-theme='light'] .login-input:-webkit-autofill:hover, 
@@ -249,7 +249,7 @@ const ResetPassword = () => {
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
             {t('createNewPassword', 'Create your new password.')}<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('staySecure', 'Stay secure.')}</span>
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('staySecure', 'Stay secure.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
             {t('resetPasswordLeftDesc', 'Choose a strong password with at least 8 characters, one uppercase letter, and one number.')}
@@ -288,7 +288,7 @@ const ResetPassword = () => {
                   {globalError}
                   {globalError.includes('expired') && (
                     <div style={{ marginTop: '10px' }}>
-                      <Link to="/forgot-password" style={{ color: '#6366f1', fontWeight: 700, textDecoration: 'none' }}>
+                      <Link to="/forgot-password" style={{ color: 'var(--brand-1)', fontWeight: 700, textDecoration: 'none' }}>
                         {t('requestNewResetLink', 'Request a new reset link →')}
                       </Link>
                     </div>
@@ -360,9 +360,9 @@ const ResetPassword = () => {
                       onChange={e => setRecoveryKey(e.target.value)}
                     />
                   </div>
-                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(99,102,241,0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(99,102,241,0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#a5b4fc', lineHeight: 1.5 }}>
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(var(--brand-1-rgb),0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(var(--brand-1-rgb),0.2)' }}>
+                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--brand-1-light)', lineHeight: 1.5 }}>
                       {t('recoveryKeyInfoText', 'If you enter your recovery key, your password will be updated without losing any data. If you leave this blank, your old encrypted messages will be permanently erased for your security.')}
                     </p>
                   </div>
@@ -376,7 +376,7 @@ const ResetPassword = () => {
               </form>
 
               <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
-                <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('backToLoginArrow', '← Back to Login')}</Link>
+                <Link to="/login" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('backToLoginArrow', '← Back to Login')}</Link>
               </p>
             </>
           )}

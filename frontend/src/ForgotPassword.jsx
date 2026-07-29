@@ -66,12 +66,12 @@ const ForgotPassword = () => {
         }
         .login-left::before {
           content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-1-rgb),0.15) 0%, rgba(var(--brand-1-rgb),0) 70%);
           filter: blur(60px);
         }
         .login-left::after {
           content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-2-rgb),0.15) 0%, rgba(var(--brand-2-rgb),0) 70%);
           filter: blur(60px);
         }
 
@@ -104,7 +104,7 @@ const ForgotPassword = () => {
           font-family: 'Outfit', sans-serif;
         }
         .login-input::placeholder { color: #444; }
-        .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+        .login-input:focus { border-color: var(--brand-1); background: #1f1f26; }
         .login-input:-webkit-autofill,
         .login-input:-webkit-autofill:hover, 
         .login-input:-webkit-autofill:focus {
@@ -115,14 +115,14 @@ const ForgotPassword = () => {
 
         .login-submit-btn {
           width: 100%; padding: 16px; border-radius: 14px; border: none;
-          background: linear-gradient(135deg, #6366f1, #a855f7);
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           color: #fff !important; font-size: 16px; font-weight: 700;
           font-family: 'Outfit', sans-serif;
           cursor: pointer; display: flex; align-items: center; justify-content: center;
-          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(var(--brand-1-rgb),0.3);
         }
         .login-submit-btn * { color: #fff !important; fill: #fff !important; }
-        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(var(--brand-1-rgb),0.4); }
         .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
         .fp-spinner {
@@ -137,7 +137,7 @@ const ForgotPassword = () => {
         /* Light Mode */
         html[data-theme='light'] .login-layout { background: #f8fafc; }
         html[data-theme='light'] .login-left {
-          background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+          background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         }
         html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
         html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
@@ -157,7 +157,7 @@ const ForgotPassword = () => {
         }
         html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
         html[data-theme='light'] .login-input:focus {
-          background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+          background: #ffffff !important; border-color: var(--brand-1) !important; box-shadow: 0 0 0 4px rgba(var(--brand-1-rgb),0.1) !important;
         }
         html[data-theme='light'] .login-input:-webkit-autofill,
         html[data-theme='light'] .login-input:-webkit-autofill:hover, 
@@ -172,12 +172,12 @@ const ForgotPassword = () => {
           border-color: rgba(0,0,0,0.1) !important;
         }
         html[data-theme='light'] .fp-link { color: #64748b !important; }
-        html[data-theme='light'] .fp-link:hover { color: #6366f1 !important; }
+        html[data-theme='light'] .fp-link:hover { color: var(--brand-1) !important; }
         html[data-theme='light'] .fp-success-note {
           background: rgba(16,185,129,0.08) !important;
           color: #059669 !important;
         }
-        html[data-theme='light'] .fp-success-email { color: #6366f1 !important; }
+        html[data-theme='light'] .fp-success-email { color: var(--brand-1) !important; }
       `}</style>
 
       {/* ── Back Button (same as Login) ── */}
@@ -201,7 +201,7 @@ const ForgotPassword = () => {
           </div>
           <h1 className="login-left-text" style={{ fontSize: '52px', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: '24px', letterSpacing: '-1px' }}>
             {t('forgotPasswordTitle', 'Forgot your password?')}<br />
-            <span style={{ background: 'linear-gradient(135deg, #a78bfa, #818cf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('noProblem', 'No problem.')}</span>
+            <span style={{ background: 'linear-gradient(135deg, #a78bfa, var(--brand-1-light))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('noProblem', 'No problem.')}</span>
           </h1>
           <p className="login-left-text" style={{ fontSize: '17px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.65, maxWidth: '440px' }}>
             {t('forgotPasswordLeftDesc', "Enter your email and we'll send you a secure link to reset your password. Takes less than a minute.")}
@@ -274,7 +274,7 @@ const ForgotPassword = () => {
 
               <p style={{ color: '#888', fontSize: '15px', marginTop: '28px', textAlign: 'center' }}>
                 {t('rememberPassword', 'Remember your password?')}{' '}
-                <Link to="/login" className="fp-link" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
+                <Link to="/login" className="fp-link" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
               </p>
             </>
           )}

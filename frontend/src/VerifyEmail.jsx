@@ -57,7 +57,7 @@ export default function VerifyEmail() {
       }}>
         {status === 'verifying' && (
           <>
-            <Loader2 className="spinner" size={48} color="#6366f1" style={{ margin: '0 auto 20px', animation: 'spin 1s linear infinite' }} />
+            <Loader2 className="spinner" size={48} color="var(--brand-1)" style={{ margin: '0 auto 20px', animation: 'spin 1s linear infinite' }} />
             <h2 style={{ margin: '0 0 10px', fontSize: '24px', fontWeight: 'bold' }}>Verifying Email</h2>
             <p style={{ color: 'var(--text-muted)', margin: 0 }}>Please wait while we verify your email address...</p>
           </>
@@ -73,7 +73,7 @@ export default function VerifyEmail() {
               style={{
                 width: '100%',
                 padding: '14px',
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '12px',

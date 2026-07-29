@@ -471,12 +471,12 @@ const Login = () => {
         }
         .login-left::before {
           content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-1-rgb),0.15) 0%, rgba(var(--brand-1-rgb),0) 70%);
           filter: blur(60px);
         }
         .login-left::after {
           content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
-          border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+          border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-2-rgb),0.15) 0%, rgba(var(--brand-2-rgb),0) 70%);
           filter: blur(60px);
         }
 
@@ -507,7 +507,7 @@ const Login = () => {
           border-radius: 14px; color: #fff; font-size: 15px; padding: 14px 16px 14px 46px;
           outline: none; box-sizing: border-box; transition: all 0.2s;
         }
-        .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+        .login-input:focus { border-color: var(--brand-1); background: #1f1f26; }
         .login-input:-webkit-autofill,
         .login-input:-webkit-autofill:hover,
         .login-input:-webkit-autofill:focus {
@@ -528,19 +528,19 @@ const Login = () => {
 
         .login-submit-btn {
           width: 100%; padding: 16px; border-radius: 14px; border: none;
-          background: linear-gradient(135deg, #6366f1, #a855f7);
+          background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           color: #fff !important; font-size: 16px; font-weight: 700;
           cursor: pointer; display: flex; align-items: center; justify-content: center;
-          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+          gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(var(--brand-1-rgb),0.3);
         }
         .login-submit-btn * { color: #fff !important; fill: #fff !important; }
-        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+        .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(var(--brand-1-rgb),0.4); }
         .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
         /* Light Mode */
         html[data-theme='light'] .login-layout { background: #f8fafc; }
         html[data-theme='light'] .login-left {
-          background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+          background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         }
         html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
         html[data-theme='light'] .login-left::after { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
@@ -557,7 +557,7 @@ const Login = () => {
           background: #ffffff !important; border: 1px solid rgba(0,0,0,0.15) !important; color: #0f172a !important;
         }
         html[data-theme='light'] .login-input:focus {
-          background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+          background: #ffffff !important; border-color: var(--brand-1) !important; box-shadow: 0 0 0 4px rgba(var(--brand-1-rgb),0.1) !important;
         }
         html[data-theme='light'] .login-input:-webkit-autofill,
         html[data-theme='light'] .login-input:-webkit-autofill:hover,
@@ -802,7 +802,7 @@ const Login = () => {
                       }
                     }}
                     disabled={resendStatus === 'sending' || resendStatus === 'sent'}
-                    style={{ fontSize: 12, color: '#818cf8', background: 'none', border: 'none', cursor: resendStatus === 'sent' ? 'default' : 'pointer', padding: 0, fontWeight: 700 }}
+                    style={{ fontSize: 12, color: 'var(--brand-1-light)', background: 'none', border: 'none', cursor: resendStatus === 'sent' ? 'default' : 'pointer', padding: 0, fontWeight: 700 }}
                   >
                     {resendStatus === 'sending' ? 'Sending…' : resendStatus === 'sent' ? '✓ Sent! Check your inbox' : resendStatus === 'error' ? 'Failed — try again' : 'Resend verification email'}
                   </button>
@@ -832,7 +832,7 @@ const Login = () => {
               </div>
               {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <Link to="/forgot-password" style={{ fontSize: '13px', color: '#6366f1', textDecoration: 'none', fontWeight: 600 }}>{t('forgotPassword', 'Forgot Password?')}</Link>
+                <Link to="/forgot-password" style={{ fontSize: '13px', color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 600 }}>{t('forgotPassword', 'Forgot Password?')}</Link>
               </div>
             </div>
 
@@ -876,7 +876,7 @@ const Login = () => {
 
           <p style={{ color: '#888', fontSize: '15px', marginBottom: '24px', textAlign: 'center' }}>
             {t('dontHaveAccount', "Don't have an account?")}{' '}
-            <Link to="/signup" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('signUp', 'Sign Up')}</Link>
+            <Link to="/signup" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('signUp', 'Sign Up')}</Link>
           </p>
 
           {!showGuestInput ? (

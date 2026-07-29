@@ -369,12 +369,12 @@ const Signup = () => {
           }
           .login-left::before {
             content: ''; position: absolute; top: -20%; left: -20%; width: 70%; height: 70%;
-            border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0) 70%);
+            border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-1-rgb),0.15) 0%, rgba(var(--brand-1-rgb),0) 70%);
             filter: blur(60px);
           }
           .login-left::after {
             content: ''; position: absolute; bottom: -10%; right: -10%; width: 60%; height: 60%;
-            border-radius: 50%; background: radial-gradient(circle, rgba(168,85,247,0.15) 0%, rgba(168,85,247,0) 70%);
+            border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-2-rgb),0.15) 0%, rgba(var(--brand-2-rgb),0) 70%);
             filter: blur(60px);
           }
 
@@ -407,7 +407,7 @@ const Signup = () => {
             font-family: 'Outfit', sans-serif;
           }
           .login-input::placeholder { color: #444; }
-          .login-input:focus { border-color: #6366f1; background: #1f1f26; }
+          .login-input:focus { border-color: var(--brand-1); background: #1f1f26; }
           .login-input:-webkit-autofill,
           .login-input:-webkit-autofill:hover, 
           .login-input:-webkit-autofill:focus {
@@ -418,14 +418,14 @@ const Signup = () => {
 
           .login-submit-btn {
             width: 100%; padding: 16px; border-radius: 14px; border: none;
-            background: linear-gradient(135deg, #6366f1, #a855f7);
+            background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
             color: #fff !important; font-size: 16px; font-weight: 700;
             font-family: 'Outfit', sans-serif;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
-            gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(99,102,241,0.3);
+            gap: 8px; transition: all 0.2s; box-shadow: 0 8px 20px rgba(var(--brand-1-rgb),0.3);
           }
           .login-submit-btn * { color: #fff !important; fill: #fff !important; }
-          .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(99,102,241,0.4); }
+          .login-submit-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(var(--brand-1-rgb),0.4); }
           .login-submit-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
           .social-btn {
@@ -445,7 +445,7 @@ const Signup = () => {
 
           /* Light Mode */
           html[data-theme='light'] .login-layout { background: #f8fafc; }
-          html[data-theme='light'] .login-left { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
+          html[data-theme='light'] .login-left { background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%); }
           html[data-theme='light'] .login-left::before { background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%); }
           html[data-theme='light'] .login-left::after  { background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%); }
           html[data-theme='light'] .login-left-text { color: #fff !important; }
@@ -462,7 +462,7 @@ const Signup = () => {
           }
           html[data-theme='light'] .login-input::placeholder { color: #94a3b8; }
           html[data-theme='light'] .login-input:focus {
-            background: #ffffff !important; border-color: #6366f1 !important; box-shadow: 0 0 0 4px rgba(99,102,241,0.1) !important;
+            background: #ffffff !important; border-color: var(--brand-1) !important; box-shadow: 0 0 0 4px rgba(var(--brand-1-rgb),0.1) !important;
           }
           html[data-theme='light'] .login-input:-webkit-autofill,
           html[data-theme='light'] .login-input:-webkit-autofill:hover, 
@@ -486,14 +486,14 @@ const Signup = () => {
             border-color: rgba(0,0,0,0.1) !important;
           }
           html[data-theme='light'] .su-e2ee {
-            background: rgba(99,102,241,0.06) !important;
-            border-color: rgba(99,102,241,0.15) !important;
+            background: rgba(var(--brand-1-rgb),0.06) !important;
+            border-color: rgba(var(--brand-1-rgb),0.15) !important;
           }
-          html[data-theme='light'] .su-e2ee-label { color: #4338ca !important; }
+          html[data-theme='light'] .su-e2ee-label { color: var(--brand-1-darker) !important; }
           html[data-theme='light'] .su-e2ee-label strong { color: #3730a3 !important; }
           html[data-theme='light'] .su-e2ee .tooltip-container {
-            background: rgba(99, 102, 241, 0.15) !important;
-            color: #4338ca !important;
+            background: rgba(var(--brand-1-rgb), 0.15) !important;
+            color: var(--brand-1-darker) !important;
           }
           .apple-btn { background: #fff !important; color: #000 !important; border: none !important; }
           .apple-btn:hover { background: #f0f0f0 !important; }
@@ -507,7 +507,7 @@ const Signup = () => {
             text-align: center; border-radius: 8px; padding: 10px; position: absolute;
             z-index: 100; bottom: 125%; left: 50%; transform: translateX(-50%);
             opacity: 0; transition: opacity 0.3s; font-size: 11px; font-weight: normal;
-            border: 1px solid rgba(99,102,241,0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(var(--brand-1-rgb),0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.5);
           }
           .tooltip-container .tooltip-text::after {
             content: ""; position: absolute; top: 100%; left: 50%;
@@ -516,7 +516,7 @@ const Signup = () => {
           }
           .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
           html[data-theme='light'] .tooltip-container .tooltip-text {
-            background-color: #ffffff !important; color: #1e293b !important; border: 1px solid rgba(99,102,241,0.2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+            background-color: #ffffff !important; color: #1e293b !important; border: 1px solid rgba(var(--brand-1-rgb),0.2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
           }
           html[data-theme='light'] .tooltip-container .tooltip-text::after {
             border-color: #ffffff transparent transparent transparent !important;
@@ -557,7 +557,7 @@ const Signup = () => {
             <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('createAccount', 'Create Account')}</h1>
             <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
               {t('alreadyHaveOne', 'Already have one?')}{' '}
-              <Link to="/login" style={{ color: '#6366f1', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
+              <Link to="/login" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
             </p>
 
             {globalError && (
@@ -634,12 +634,12 @@ const Signup = () => {
               </div>
 
               {/* E2EE notice */}
-              <div className="su-e2ee" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '12px', padding: '10px 14px', marginBottom: '24px' }}>
+              <div className="su-e2ee" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(var(--brand-1-rgb),0.08)', border: '1px solid rgba(var(--brand-1-rgb),0.2)', borderRadius: '12px', padding: '10px 14px', marginBottom: '24px' }}>
                 <span style={{ fontSize: '16px', flexShrink: 0 }}>🔐</span>
-                <span className="su-e2ee-label" style={{ fontSize: '12px', color: '#a5b4fc', flex: 1 }}>
+                <span className="su-e2ee-label" style={{ fontSize: '12px', color: 'var(--brand-1-light)', flex: 1 }}>
                   <strong style={{ color: '#c7d2fe' }}>{t('saveRecoveryPhrase', 'Save Recovery Phrase')}</strong>
                 </span>
-                <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
+                <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
                   i
                   <span className="tooltip-text">
                     {t('recoveryTooltip', "After signup you'll receive a 24-letter recovery key. It's the only way to recover your encrypted messages if you forget your password or change your device. The server never sees your messages.")}
@@ -654,11 +654,11 @@ const Signup = () => {
                     checked={agreeTerms}
                     onChange={e => setAgreeTerms(e.target.checked)}
                     required
-                    style={{ width: '16px', height: '16px', accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }}
                   />
                   <span>
                     {t('agreeTermsPrefix', 'I agree to the')}{' '}
-                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-1)', fontWeight: 600, textDecoration: 'underline' }}>
                       {t('termsAndConditions', 'Terms & Conditions')}
                     </a>
                   </span>
@@ -669,11 +669,11 @@ const Signup = () => {
                     checked={agreePrivacy}
                     onChange={e => setAgreePrivacy(e.target.checked)}
                     required
-                    style={{ width: '16px', height: '16px', accentColor: '#6366f1', cursor: 'pointer', flexShrink: 0 }}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }}
                   />
                   <span>
                     {t('agreePrivacyPrefix', 'I agree to the')}{' '}
-                    <a href="https://www.iubenda.com/privacy-policy/25516226" target="_blank" rel="noopener noreferrer" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'underline' }}>
+                    <a href="https://www.iubenda.com/privacy-policy/25516226" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-1)', fontWeight: 600, textDecoration: 'underline' }}>
                       {t('privacyPolicy', 'Privacy Policy')}
                     </a>
                   </span>
