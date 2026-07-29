@@ -367,8 +367,8 @@ const PublicRooms = () => {
         html[data-theme='light'] .pinned-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
         html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(var(--brand-1-rgb),0.3); }
         html[data-theme='light'] .footer-layer { background: #fff !important; border-top: 1px solid rgba(0,0,0,0.04) !important; }
-        html[data-theme='light'] .join-btn { background: linear-gradient(135deg, #8b5cf6, #d946ef); color: #fff !important; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25); }
-        html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 6px 15px rgba(139, 92, 246, 0.4); }
+        html[data-theme='light'] .join-btn { background: var(--brand-gradient); color: #fff !important; box-shadow: 0 4px 12px rgba(var(--brand-1-rgb), 0.25); }
+        html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, var(--brand-1-dark), var(--brand-2-dark)); box-shadow: 0 6px 15px rgba(var(--brand-1-rgb), 0.4); }
         html[data-theme='light'] .pinned-card h3 { color: #000 !important; }
         html[data-theme='light'] .profile-pill { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #111 !important; }
 

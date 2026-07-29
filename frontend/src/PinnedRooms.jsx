@@ -102,7 +102,7 @@ const PinnedRooms = () => {
         html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
         .join-btn { background:linear-gradient(135deg,var(--brand-1),var(--brand-2));border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
         .pinned-card:hover .join-btn { transform:translateY(-2px); }
-        html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
+        html[data-theme='light'] .join-btn { background:var(--brand-gradient);color:#fff !important; }
 
         .rooms-grid { display:grid;grid-template-columns:repeat(3, 1fr);gap:20px;margin-bottom:40px; }
 

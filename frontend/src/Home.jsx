@@ -437,7 +437,7 @@ const Home = () => {
         html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(var(--brand-1-rgb),0.08);box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 16px -6px rgba(0, 0, 0, 0.03); }
         html[data-theme='light'] .pinned-card:hover { border-color:var(--brand-1);box-shadow:0 20px 35px -5px rgba(var(--brand-1-rgb), 0.18), 0 10px 20px -10px rgba(0, 0, 0, 0.06); }
 
-        html[data-theme='light'] .join-btn { background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff !important; }
+        html[data-theme='light'] .join-btn { background:var(--brand-gradient);color:#fff !important; }
         html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
         html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
         html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:var(--brand-1-dark) !important;color:var(--brand-1-dark) !important; }

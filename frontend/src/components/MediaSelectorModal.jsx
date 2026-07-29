@@ -532,14 +532,14 @@ export default function MediaSelectorModal({
         {/* Custom URL Input Bar */}
         {showUrlInput && (
           <div style={{
-            background: 'rgba(99,102,241,0.08)', borderBottom: '1px solid rgba(99,102,241,0.15)',
+            background: 'rgba(var(--brand-1-rgb),0.08)', borderBottom: '1px solid rgba(var(--brand-1-rgb),0.15)',
             padding: '16px 28px', display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0
           }}>
             <div style={{
               flex: 1, display: 'flex', alignItems: 'center', background: isLight ? '#fff' : '#07070b',
-              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(99,102,241,0.25)', borderRadius: 12, padding: '8px 16px',
+              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 12, padding: '8px 16px',
             }}>
-              <LinkIcon size={16} color="#6366f1" style={{ marginRight: 12 }} />
+              <LinkIcon size={16} color="var(--brand-1)" style={{ marginRight: 12 }} />
               <input 
                 autoFocus
                 value={customUrl}
@@ -557,11 +557,11 @@ export default function MediaSelectorModal({
               onClick={handleUrlSubmit}
               disabled={!customUrl.trim()}
               style={{
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                background: 'var(--brand-gradient)',
                 border: 'none', borderRadius: 12, padding: '10px 20px', color: '#ffffff',
                 fontSize: 14, fontWeight: 700, cursor: customUrl.trim() ? 'pointer' : 'not-allowed',
                 opacity: customUrl.trim() ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: '0 4px 12px rgba(99,102,241,0.3)'
+                boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.3)'
               }}
             >
               <span>Launch</span> <ChevronRight size={16} />
@@ -588,8 +588,8 @@ export default function MediaSelectorModal({
                     onClick={() => { setActiveCategory(cat); setSearchQuery(''); }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10,
-                      border: 'none', background: isActive ? (isLight ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.1)') : 'transparent',
-                      color: isActive ? (isLight ? '#4f46e5' : '#818cf8') : (isLight ? '#475569' : '#94a3b8'), fontSize: 13, fontWeight: 700,
+                      border: 'none', background: isActive ? (isLight ? 'rgba(var(--brand-1-rgb), 0.08)' : 'rgba(var(--brand-1-rgb), 0.1)') : 'transparent',
+                      color: isActive ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#475569' : '#94a3b8'), fontSize: 13, fontWeight: 700,
                       cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left'
                     }}
                     onMouseEnter={e => { if(!isActive) e.currentTarget.style.color = isLight ? '#0f172a' : '#fff'; }}
@@ -625,7 +625,7 @@ export default function MediaSelectorModal({
                     className={isActive ? 'stay-white' : ''}
                     style={{
                       padding: '8px 16px', borderRadius: 20, border: 'none',
-                      background: isActive ? (isLight ? '#4f46e5' : '#6366f1') : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.05)'),
+                      background: isActive ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1)') : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.05)'),
                       color: isActive ? '#fff' : (isLight ? '#475569' : '#fff'), fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer'
                     }}
                   >
