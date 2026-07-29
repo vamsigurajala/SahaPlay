@@ -127,11 +127,11 @@ const Pricing = () => {
           style={{
             width: '100%',
             maxWidth: 600,
-            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+            background: 'linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%)',
             borderRadius: 20,
             padding: '40px 48px',
             marginBottom: 72,
-            boxShadow: '0 24px 60px rgba(99,102,241,0.38)',
+            boxShadow: '0 24px 60px rgba(var(--brand-1-rgb),0.38)',
             position: 'relative',
             overflow: 'hidden',
           }}
@@ -157,7 +157,7 @@ const Pricing = () => {
             textAlign: 'center',
             fontSize: 11,
             fontWeight: 800,
-            color: isLight ? '#6366f1' : '#818cf8',
+            color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)',
             letterSpacing: '1.5px',
             textTransform: 'uppercase',
             marginBottom: 32,
@@ -181,13 +181,13 @@ const Pricing = () => {
                     filter: 'blur(4px)',
                     opacity: 0.5,
                     background: plan.highlight
-                      ? 'linear-gradient(135deg, #6366f1, #a855f7)'
+                      ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'
                       : isLight ? '#fff' : '#111',
                     border: plan.highlight
                       ? 'none'
                       : `1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.07)'}`,
                     boxShadow: plan.highlight
-                      ? '0 20px 60px rgba(99,102,241,0.35)'
+                      ? '0 20px 60px rgba(var(--brand-1-rgb),0.35)'
                       : isLight
                         ? '0 4px 20px rgba(0,0,0,0.06)'
                         : '0 4px 20px rgba(0,0,0,0.3)',
@@ -201,7 +201,7 @@ const Pricing = () => {
                   )}
 
                   {/* Plan name */}
-                  <div style={{ fontSize: 12, fontWeight: 800, color: plan.highlight ? 'rgba(255,255,255,0.7)' : isLight ? '#6366f1' : '#818cf8', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: plan.highlight ? 'rgba(255,255,255,0.7)' : isLight ? 'var(--brand-1)' : 'var(--brand-1-light)', textTransform: 'uppercase', letterSpacing: '1.2px', marginBottom: 14 }}>
                     {plan.name}
                   </div>
 
@@ -224,8 +224,8 @@ const Pricing = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
                     {plan.features.map((f, fi) => (
                       <div key={fi} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13, color: plan.highlight ? 'rgba(255,255,255,0.85)' : isLight ? '#374151' : '#ccc' }}>
-                        <div style={{ width: 17, height: 17, borderRadius: '50%', background: plan.highlight ? 'rgba(255,255,255,0.18)' : 'rgba(99,102,241,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <Check size={9} color={plan.highlight ? '#fff' : '#818cf8'} />
+                        <div style={{ width: 17, height: 17, borderRadius: '50%', background: plan.highlight ? 'rgba(255,255,255,0.18)' : 'rgba(var(--brand-1-rgb),0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Check size={9} color={plan.highlight ? '#fff' : 'var(--brand-1-light)'} />
                         </div>
                         {f}
                       </div>
@@ -233,7 +233,7 @@ const Pricing = () => {
                   </div>
 
                   {/* CTA button (static) */}
-                  <button style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: plan.highlight ? 'rgba(255,255,255,0.2)' : isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.1)', color: plan.highlight ? '#fff' : isLight ? '#6366f1' : '#818cf8', fontWeight: 700, fontSize: 13, cursor: 'default' }}>
+                  <button style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: plan.highlight ? 'rgba(255,255,255,0.2)' : isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.1)', color: plan.highlight ? '#fff' : isLight ? 'var(--brand-1)' : 'var(--brand-1-light)', fontWeight: 700, fontSize: 13, cursor: 'default' }}>
                     {plan.name === 'Free' ? 'Current Plan' : 'Get Started'}
                   </button>
                 </div>
@@ -247,12 +247,12 @@ const Pricing = () => {
                   background: isLight ? 'rgba(255,255,255,0.9)' : 'rgba(14,14,22,0.88)',
                   backdropFilter: 'blur(6px)',
                   WebkitBackdropFilter: 'blur(6px)',
-                  border: `1px solid ${isLight ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.3)'}`,
+                  border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.25)' : 'rgba(var(--brand-1-rgb),0.3)'}`,
                   borderRadius: 100,
                   padding: '9px 22px',
                   fontSize: 12,
                   fontWeight: 800,
-                  color: isLight ? '#4f46e5' : '#818cf8',
+                  color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)',
                   letterSpacing: '0.5px',
                   whiteSpace: 'nowrap',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
@@ -280,8 +280,8 @@ const Pricing = () => {
           textAlign: 'center',
         }}>
           {/* Mail icon */}
-          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(99,102,241,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-            <Mail size={22} color="#818cf8" />
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(var(--brand-1-rgb),0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <Mail size={22} color="var(--brand-1-light)" />
           </div>
 
           <h3 style={{ fontSize: 20, fontWeight: 800, color: isLight ? '#111827' : '#fff', margin: '0 0 8px' }}>
@@ -338,7 +338,7 @@ const Pricing = () => {
                   padding: '13px 24px',
                   borderRadius: 12,
                   border: 'none',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   color: '#fff',
                   fontSize: 14,
                   fontWeight: 700,
@@ -360,7 +360,7 @@ const Pricing = () => {
           Questions? Contact us at{' '}
           <a
             href="mailto:support@watchtogether.com"
-            style={{ color: isLight ? '#6366f1' : '#818cf8', fontWeight: 600, textDecoration: 'none' }}
+            style={{ color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)', fontWeight: 600, textDecoration: 'none' }}
             onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
             onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
           >
