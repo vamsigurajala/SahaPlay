@@ -43,10 +43,10 @@ export default function Cookies() {
 
   const cardStyle = {
     background: isLight ? '#ffffff' : '#1e1e30',
-    border: `1px solid ${isLight ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.08)'}`,
+    border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.22)' : 'rgba(255,255,255,0.08)'}`,
     borderRadius: 16,
     padding: 28,
-    boxShadow: isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none',
+    boxShadow: isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none',
     transition: 'transform 0.2s, box-shadow 0.2s',
   };
 
@@ -67,8 +67,8 @@ export default function Cookies() {
           <div className="hiw-container" style={{ textAlign: 'center' }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)',
-              color: '#818cf8', borderRadius: 99, padding: '6px 16px',
+              background: 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.3)',
+              color: 'var(--brand-1-light)', borderRadius: 99, padding: '6px 16px',
               fontSize: 13, fontWeight: 600, marginBottom: 28,
             }}>
               <Cookie size={14} style={{ marginRight: 2 }} /> {t('cookiePageBadge', 'Security & Storage')}
@@ -82,7 +82,7 @@ export default function Cookies() {
             }}>
               {t('cookiePolicyTitle', 'Cookie Policy').split(' ').slice(0, -1).join(' ')}{' '}
               <span style={{
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -100,8 +100,8 @@ export default function Cookies() {
 
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.08)'}`,
+              background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.08)'}`,
               borderRadius: 8, padding: '6px 16px',
               fontSize: 12, fontWeight: 500, color: textMuted,
             }}>
@@ -126,11 +126,11 @@ export default function Cookies() {
             }}>
               <div style={{
                 width: 64, height: 64, borderRadius: '50%',
-                background: 'rgba(168,85,247,0.15)',
-                border: '1px solid rgba(168,85,247,0.25)',
+                background: 'rgba(var(--brand-2-rgb),0.15)',
+                border: '1px solid rgba(var(--brand-2-rgb),0.25)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
-                <Cookie size={32} color="#c084fc" />
+                <Cookie size={32} color="var(--brand-2-light)" />
               </div>
               <div style={{ textAlign: isMobile ? 'center' : 'left' }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 12, color: textPrimary }}>{t('cookieWhatTitle', 'What are Cookies?')}</h2>
@@ -210,20 +210,20 @@ export default function Cookies() {
                   style={{ ...cardStyle, borderTop: `3px solid ${item.accent}` }}
                   onMouseEnter={e => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)';
+                    e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)';
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none';
+                    e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none';
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 10,
-                      background: 'rgba(99,102,241,0.1)',
+                      background: 'rgba(var(--brand-1-rgb),0.1)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <item.Icon size={18} color="#818cf8" />
+                      <item.Icon size={18} color="var(--brand-1-light)" />
                     </div>
                     <h3 style={{ fontSize: 18, fontWeight: 700, color: textPrimary, margin: 0 }}>{item.title}</h3>
                   </div>
@@ -299,20 +299,20 @@ export default function Cookies() {
                   style={{ ...cardStyle, display: 'flex', flexDirection: 'column', height: '100%' }}
                   onMouseEnter={e => {
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)';
+                    e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)';
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = 'none';
-                    e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none';
+                    e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none';
                   }}
                 >
                   <div style={{
                     width: 44, height: 44, borderRadius: '50%',
-                    background: 'rgba(168,85,247,0.12)',
+                    background: 'rgba(var(--brand-2-rgb),0.12)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     marginBottom: 16,
                   }}>
-                    <item.Icon size={20} color="#c084fc" />
+                    <item.Icon size={20} color="var(--brand-2-light)" />
                   </div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: textPrimary }}>{item.title}</h3>
                   <p style={{ color: textMuted, fontSize: 13, lineHeight: 1.6, marginBottom: 16, flexGrow: 1 }}>{item.desc}</p>
@@ -323,7 +323,7 @@ export default function Cookies() {
                     </div>
                     {item.uses.map((use, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: isLight ? '#374151' : 'rgba(255,255,255,0.7)', marginBottom: 6 }}>
-                        <span style={{ color: '#c084fc', fontWeight: 'bold' }}>•</span>
+                        <span style={{ color: 'var(--brand-2-light)', fontWeight: 'bold' }}>•</span>
                         <span>{use}</span>
                       </div>
                     ))}
@@ -343,16 +343,16 @@ export default function Cookies() {
               ...cardStyle,
               maxWidth: 800,
               margin: '0 auto',
-              borderLeft: '4px solid #a855f7',
-              background: isLight ? 'rgba(168,85,247,0.02)' : 'rgba(168,85,247,0.04)',
+              borderLeft: '4px solid var(--brand-2)',
+              background: isLight ? 'rgba(var(--brand-2-rgb),0.02)' : 'rgba(var(--brand-2-rgb),0.04)',
             }}>
               <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row' }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 12,
-                  background: 'rgba(168,85,247,0.15)',
+                  background: 'rgba(var(--brand-2-rgb),0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <Lock size={22} color="#c084fc" />
+                  <Lock size={22} color="var(--brand-2-light)" />
                 </div>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 700, color: textPrimary, marginBottom: 8 }}>{t('cookieChatLockTitle', 'Chat Lock & Security Storage')}</h3>
@@ -448,10 +448,10 @@ export default function Cookies() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                   <div style={{
                     width: 38, height: 38, borderRadius: 10,
-                    background: 'rgba(99,102,241,0.12)',
+                    background: 'rgba(var(--brand-1-rgb),0.12)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Terminal size={18} color="#818cf8" />
+                    <Terminal size={18} color="var(--brand-1-light)" />
                   </div>
                   <h3 style={{ fontSize: 18, fontWeight: 700, color: textPrimary, margin: 0 }}>{t('cookieFutureTitle', 'Future Integrations')}</h3>
                 </div>
@@ -465,8 +465,8 @@ export default function Cookies() {
                     t('cookieFutureItem3', 'Error Reports'),
                   ].map((badge, idx) => (
                     <span key={idx} style={{
-                      background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)',
-                      color: '#818cf8', borderRadius: 4, padding: '3px 8px', fontSize: 11, fontWeight: 600
+                      background: 'rgba(var(--brand-1-rgb),0.06)', border: '1px solid rgba(var(--brand-1-rgb),0.2)',
+                      color: 'var(--brand-1-light)', borderRadius: 4, padding: '3px 8px', fontSize: 11, fontWeight: 600
                     }}>{badge}</span>
                   ))}
                 </div>
@@ -600,11 +600,11 @@ export default function Cookies() {
               margin: '0 auto',
               borderRadius: 20,
               overflow: 'hidden',
-              boxShadow: isLight ? '0 8px 40px rgba(99,102,241,0.18)' : '0 8px 40px rgba(0,0,0,0.4)',
+              boxShadow: isLight ? '0 8px 40px rgba(var(--brand-1-rgb),0.18)' : '0 8px 40px rgba(0,0,0,0.4)',
             }}>
               {/* Top gradient band */}
               <div className="gcw-force-dark" style={{
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
+                background: 'linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 50%, #ec4899 100%)',
                 padding: '28px 36px',
                 display: 'flex',
                 alignItems: 'center',
@@ -632,7 +632,7 @@ export default function Cookies() {
               {/* Body */}
               <div style={{
                 background: isLight ? '#fff' : '#1e1e30',
-                border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.06)'}`,
+                border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.06)'}`,
                 borderTop: 'none',
                 padding: '28px 36px',
               }}>
@@ -649,19 +649,19 @@ export default function Cookies() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 8,
                       padding: '12px 24px', borderRadius: 50,
-                      background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                      background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                       color: '#fff', fontSize: 14, fontWeight: 700,
                       textDecoration: 'none',
-                      boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
+                      boxShadow: '0 2px 8px rgba(var(--brand-1-rgb),0.25)',
                       transition: 'transform 0.2s, box-shadow 0.2s',
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
+                      e.currentTarget.style.boxShadow = '0 4px 14px rgba(var(--brand-1-rgb),0.35)';
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(99,102,241,0.25)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(var(--brand-1-rgb),0.25)';
                     }}
                   >
                     <Shield size={15} color="#fff" />
@@ -678,7 +678,7 @@ export default function Cookies() {
         ══════════════════════════════════════════ */}
         <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)', padding: '80px 0' }}>
           <div className="hiw-container" style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto' }}>
-            <Mail size={44} color="#818cf8" style={{ marginBottom: 20 }} />
+            <Mail size={44} color="var(--brand-1-light)" style={{ marginBottom: 20 }} />
 
             <h2 className="stay-white" style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 800, marginBottom: 12, color: '#fff' }}>
               {t('cookieContactTitle', 'Questions About Our Cookie Policy?')}
@@ -722,21 +722,21 @@ export default function Cookies() {
             position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
             zIndex: 999,
             padding: '10px 22px', borderRadius: 50,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
             color: '#fff', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            boxShadow: '0 4px 20px rgba(var(--brand-1-rgb),0.5)',
             whiteSpace: 'nowrap',
             transition: 'transform 0.2s, box-shadow 0.2s',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(var(--brand-1-rgb),0.65)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateX(-50%)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(var(--brand-1-rgb),0.5)';
           }}
         >
           <ChevronUp size={18} color="#fff" />
