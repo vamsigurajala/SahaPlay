@@ -989,7 +989,7 @@ const HowItWorks = () => {
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 8,
             padding: '6px 16px', borderRadius: 20,
-            background: 'rgba(108,99,255,0.18)', border: '1px solid rgba(108,99,255,0.4)',
+            background: 'rgba(var(--brand-1-rgb),0.18)', border: '1px solid rgba(var(--brand-1-rgb),0.4)',
             color: 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, marginBottom: 24,
           }}>
             <Check size={13} /> {t('readGuideBadge', "You've read the guide")}
@@ -1009,7 +1009,7 @@ const HowItWorks = () => {
               onClick={createRoom}
               style={{
                 padding: '14px 36px',
-                background: '#6C63FF',
+                background: 'var(--brand-1)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: 12,
@@ -1020,10 +1020,10 @@ const HowItWorks = () => {
                 alignItems: 'center',
                 gap: 8,
                 transition: 'all 0.2s',
-                boxShadow: '0 4px 24px rgba(108,99,255,0.4)',
+                boxShadow: '0 4px 24px rgba(var(--brand-1-rgb),0.4)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(108,99,255,0.55)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(108,99,255,0.4)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(var(--brand-1-rgb),0.55)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(var(--brand-1-rgb),0.4)'; }}
             >
               {t('createYourFirstRoom', 'Create Your First Room')} <ArrowRight size={16} color="#ffffff" />
             </button>
@@ -1043,7 +1043,7 @@ const HowItWorks = () => {
                   color: 'rgba(255,255,255,0.78)', fontSize: 14,
                 }}
               >
-                <Check size={14} color="#6C63FF" />
+                <Check size={14} color="var(--brand-1)" />
                 {t(item.key, item.val)}
               </span>
             ))}

@@ -19,6 +19,37 @@ import { isTauriApp } from './lib/platform';
 // has time to actually be perceived instead of flashing by on fast (local) connections.
 const MIN_SKELETON_MS = 500;
 
+// ─── Accent theme swatch ──────────────────────────────────────────────────
+// Square tile (not a circle) with the theme's name always visible underneath,
+// so picking one of 30 themes doesn't rely on a hover tooltip to tell them apart.
+function ThemeSwatch({ themeOpt, isActive, onSelect }) {
+  return (
+    <button
+      onClick={() => onSelect(themeOpt.id)}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+    >
+      <div
+        style={{
+          position: 'relative', width: '100%', aspectRatio: '1 / 1', borderRadius: 10,
+          border: isActive ? '3px solid #fff' : '3px solid transparent',
+          outline: isActive ? `2px solid ${themeOpt.accent1}` : '1px solid rgba(255,255,255,0.1)',
+          boxShadow: isActive ? `0 0 0 4px rgba(${themeOpt.accent1Rgb},0.25)` : '0 2px 6px rgba(0,0,0,0.25)',
+          background: themeOpt.previewCss, transition: 'transform 0.15s',
+        }}
+        onMouseEnter={e => { if (!isActive) e.currentTarget.style.transform = 'scale(1.05)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+      >
+        {isActive && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Check size={18} color="#fff" strokeWidth={3} />
+          </div>
+        )}
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#fff' : '#9ca3af', textAlign: 'center', lineHeight: 1.25 }}>{themeOpt.name}</span>
+    </button>
+  );
+}
+
 // ─── Isolated camera preview ─────────────────────────────────────────────────
 // Owns its own stream + video ref so parent re-renders never blank the preview.
 function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice }) {
@@ -1313,34 +1344,24 @@ const AppSettings = () => {
           </div>
           {openSection === 'themes' && (
             <div className="acc-body">
-              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('themesDesc', 'Pick an accent color for the whole app. Choose Default to go back to the original colors.')}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-                {APP_THEMES.map(themeOpt => {
-                  const isActive = accentTheme === themeOpt.id;
-                  return (
-                    <button
-                      key={themeOpt.id}
-                      onClick={() => handleAccentThemeSelect(themeOpt.id)}
-                      title={themeOpt.name}
-                      style={{
-                        position: 'relative', width: 40, height: 40, borderRadius: '50%',
-                        border: isActive ? '3px solid #fff' : '3px solid transparent',
-                        outline: isActive ? `2px solid ${themeOpt.accent1}` : 'none',
-                        boxShadow: isActive ? `0 0 0 4px rgba(${themeOpt.accent1Rgb},0.25)` : '0 2px 6px rgba(0,0,0,0.25)',
-                        background: themeOpt.previewCss, cursor: 'pointer', padding: 0,
-                        transition: 'transform 0.15s', flexShrink: 0,
-                      }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.transform = 'scale(1.08)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-                    >
-                      {isActive && (
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Check size={16} color="#fff" strokeWidth={3} />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+              <p style={{ color: '#888', fontSize: 13, margin: '0 0 20px' }}>{t('themesDesc', 'Pick an accent color for the whole app. Choose Default to go back to the original colors.')}</p>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                {t('duotoneThemes', 'Duotone — 2 Colors')}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 16, marginBottom: 26 }}>
+                {APP_THEMES.filter(themeOpt => themeOpt.category === 'duotone').map(themeOpt => (
+                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
+                ))}
+              </div>
+
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '0 0 12px' }}>
+                {t('tritoneThemes', 'Tritone — 3 Colors')}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 16 }}>
+                {APP_THEMES.filter(themeOpt => themeOpt.category === 'tritone').map(themeOpt => (
+                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
+                ))}
               </div>
             </div>
           )}

@@ -1100,11 +1100,28 @@ function App() {
       root.setProperty('--brand-2-dark', theme.accent2Dark);
       root.setProperty('--brand-1-darker', theme.accent1Darker);
       root.setProperty('--brand-2-darker', theme.accent2Darker);
+      // theme.previewCss is already the theme's own gradient string (2 or 3
+      // stops), so tritone themes show all 3 colors wherever CSS reads
+      // var(--brand-gradient) instead of collapsing to just brand-1/brand-2.
+      root.setProperty('--brand-gradient', theme.previewCss);
+
+      // Flowing body-background tint (index.css's animated gradientPan) —
+      // has separate dark/light values per theme, so pick based on the
+      // current light/dark axis (independent of this accent axis).
+      const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
+      root.setProperty('--bg-gradient-1', isLightMode ? theme.bgGradient1Light : theme.bgGradient1);
+      root.setProperty('--bg-gradient-2', isLightMode ? theme.bgGradient2Light : theme.bgGradient2);
     };
 
     applyAccentTheme();
     window.addEventListener('accent_theme_changed', applyAccentTheme);
-    return () => window.removeEventListener('accent_theme_changed', applyAccentTheme);
+    // Light/dark toggling needs the accent theme's bg-gradient re-applied,
+    // since the dark/light tint values differ.
+    window.addEventListener('theme_changed', applyAccentTheme);
+    return () => {
+      window.removeEventListener('accent_theme_changed', applyAccentTheme);
+      window.removeEventListener('theme_changed', applyAccentTheme);
+    };
   }, []);
 
   // ── Desktop (Tauri) chrome: hide scrollbars everywhere (scrolling itself is
