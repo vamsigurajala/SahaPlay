@@ -738,7 +738,7 @@ const CrazyGamesCard = ({ game, onSelectGame }) => {
       ) : (
         <div style={{
           position: 'absolute', inset: 0,
-          background: `radial-gradient(circle at top right, ${game.color || '#6366f1'}33 0%, rgba(9,9,14,0.95) 75%)`,
+          background: `radial-gradient(circle at top right, ${game.color || 'var(--brand-1)'}33 0%, rgba(9,9,14,0.95) 75%)`,
           zIndex: 0,
           display: 'flex',
           alignItems: 'center',
@@ -881,7 +881,7 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
         {activeTab === 'multiplayer' ? (
           <>
             {/* Kosmi Picks */}
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--brand-1-light)', letterSpacing: '0.5px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#fbbf24' }}>★</span> Kosmi Picks
             </div>
             <div style={{
@@ -900,7 +900,7 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
             </div>
 
             {/* All Games */}
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--brand-1-light)', letterSpacing: '0.5px', marginBottom: 12 }}>
               All Games
             </div>
             <div style={{
@@ -920,7 +920,7 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
         ) : (
           <>
             {/* Singleplayer Games */}
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#a5b4fc', letterSpacing: '0.5px', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--brand-1-light)', letterSpacing: '0.5px', marginBottom: 12 }}>
               Singleplayer Games
             </div>
             <div style={{
@@ -1347,9 +1347,9 @@ const Room = () => {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 14,
               background: isLightMode ? '#ffffff' : 'linear-gradient(135deg, rgba(15, 10, 35, 0.99), rgba(25, 15, 50, 0.99))',
-              border: isLightMode ? '1px solid #e2e8f0' : '1px solid rgba(168, 85, 247, 0.4)',
+              border: isLightMode ? '1px solid #e2e8f0' : '1px solid rgba(var(--brand-2-rgb), 0.4)',
               borderRadius: 20, padding: '18px 20px',
-              boxShadow: isLightMode ? '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' : '0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(168,85,247,0.1)',
+              boxShadow: isLightMode ? '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)' : '0 24px 64px rgba(0,0,0,0.85), 0 0 0 1px rgba(var(--brand-2-rgb),0.1)',
               backdropFilter: 'blur(12px)',
               minWidth: 340, maxWidth: 420,
               animation: toastState.visible ? 'slideInDown 0.35s cubic-bezier(0.21,1.02,0.73,1)' : 'slideOutUp 0.3s ease forwards',
@@ -1357,22 +1357,22 @@ const Room = () => {
               overflow: 'hidden',
             }}>
               {/* Purple glow accent top bar */}
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)', borderRadius: '20px 20px 0 0' }} />
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, var(--brand-1), var(--brand-2), #ec4899)', borderRadius: '20px 20px 0 0' }} />
               
               {/* Avatar */}
               {requesterAvatar ? (
                 <img src={getAvatarUrl(requesterAvatar)} alt={requesterName} style={{
                   width: 48, height: 48, borderRadius: '50%', objectFit: 'cover',
-                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(99,102,241,0.2)' : '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
+                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(var(--brand-1-rgb),0.2)' : '0 0 0 3px rgba(var(--brand-2-rgb),0.25), 0 4px 12px rgba(var(--brand-1-rgb),0.4)',
                   animation: 'joinPulse 2s infinite', flexShrink: 0
                 }} />
               ) : (
                 <div style={{
                   width: 48, height: 48, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontWeight: 800, fontSize: 20, flexShrink: 0,
-                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(99,102,241,0.2)' : '0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(99,102,241,0.4)',
+                  boxShadow: isLightMode ? '0 0 0 2px #fff, 0 2px 8px rgba(var(--brand-1-rgb),0.2)' : '0 0 0 3px rgba(var(--brand-2-rgb),0.25), 0 4px 12px rgba(var(--brand-1-rgb),0.4)',
                   animation: 'joinPulse 2s infinite',
                 }}>
                   {requesterName ? requesterName[0].toUpperCase() : '?'}
@@ -1382,7 +1382,7 @@ const Room = () => {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <p style={{ margin: 0, color: isLightMode ? '#0f172a' : '#fff', fontSize: 15, fontWeight: 700, letterSpacing: '-0.2px' }}>{requesterName}</p>
-                  <span style={{ fontSize: 10, background: isLightMode ? '#f3e8ff' : 'rgba(168,85,247,0.2)', color: isLightMode ? '#9333ea' : '#c084fc', borderRadius: 6, padding: '2px 7px', fontWeight: 600, border: isLightMode ? '1px solid #e9d5ff' : '1px solid rgba(168,85,247,0.3)' }}>{t('joinRequest', 'JOIN REQUEST')}</span>
+                  <span style={{ fontSize: 10, background: isLightMode ? '#f3e8ff' : 'rgba(var(--brand-2-rgb),0.2)', color: isLightMode ? '#9333ea' : 'var(--brand-2-light)', borderRadius: 6, padding: '2px 7px', fontWeight: 600, border: isLightMode ? '1px solid #e9d5ff' : '1px solid rgba(var(--brand-2-rgb),0.3)' }}>{t('joinRequest', 'JOIN REQUEST')}</span>
                 </div>
                 <p style={{ margin: '0 0 12px', color: isLightMode ? '#64748b' : 'rgba(255,255,255,0.5)', fontSize: 13 }}>{t('wantsToJoinThisRoom', 'wants to join this room')}</p>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -7677,7 +7677,7 @@ const Room = () => {
                 <span style={{"--i":3}} className="cube-span"></span>
               </div>
             </div>
-            <p style={{ marginTop: 24, padding: '8px 16px', background: 'rgba(99,102,241,0.1)', borderRadius: 20, border: '1px solid rgba(99,102,241,0.2)', color: '#6366f1', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Verifying Security...</p>
+            <p style={{ marginTop: 24, padding: '8px 16px', background: 'rgba(var(--brand-1-rgb),0.1)', borderRadius: 20, border: '1px solid rgba(var(--brand-1-rgb),0.2)', color: 'var(--brand-1)', fontSize: 13, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Verifying Security...</p>
          </div>
       </div>
     );
@@ -7701,11 +7701,11 @@ const Room = () => {
     const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
     return (
       <div style={{ position: 'fixed', inset: 0, background: isLightMode ? '#f8fafc' : 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <div style={{ maxWidth: 440, width: '90%', padding: '48px 40px', background: isLightMode ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 40, border: isLightMode ? '1px solid rgba(168,85,247,0.2)' : '1px solid rgba(168,85,247,0.15)', boxShadow: isLightMode ? '0 20px 40px rgba(0,0,0,0.05)' : '0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.05)', backdropFilter: 'blur(20px)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ maxWidth: 440, width: '90%', padding: '48px 40px', background: isLightMode ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 40, border: isLightMode ? '1px solid rgba(var(--brand-2-rgb),0.2)' : '1px solid rgba(var(--brand-2-rgb),0.15)', boxShadow: isLightMode ? '0 20px 40px rgba(0,0,0,0.05)' : '0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--brand-2-rgb),0.05)', backdropFilter: 'blur(20px)', position: 'relative', overflow: 'hidden' }}>
           {/* Top gradient accent */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)', borderRadius: '40px 40px 0 0' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, var(--brand-1), var(--brand-2), #ec4899)', borderRadius: '40px 40px 0 0' }} />
           {/* Icon - steady glow */}
-          <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', color: '#a855f7', border: '1px solid rgba(168,85,247,0.25)', boxShadow: '0 0 40px rgba(168,85,247,0.2)' }}>
+          <div style={{ width: 96, height: 96, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.15), rgba(var(--brand-2-rgb),0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', color: 'var(--brand-2)', border: '1px solid rgba(var(--brand-2-rgb),0.25)', boxShadow: '0 0 40px rgba(var(--brand-2-rgb),0.2)' }}>
             <Lock size={44} />
           </div>
           <h2 style={{ color: isLightMode ? '#1e293b' : '#fff', fontSize: 28, fontWeight: 900, margin: '0 0 10px', letterSpacing: '-0.5px' }}>You're in the Lobby</h2>
@@ -7742,8 +7742,8 @@ const Room = () => {
 
     return (
       <div style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(255, 255, 255, 0.95)' : 'linear-gradient(135deg, #0f0a23 0%, #05030a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }} className="room-modals-overlay">
-        <div style={{ textAlign: 'center', padding: 48, background: isLight ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 48, border: isLight ? '1px solid rgba(99, 102, 241, 0.15)' : '1px solid rgba(255,255,255,0.05)', maxWidth: 500, width: '90%', boxShadow: isLight ? '0 32px 80px rgba(99, 102, 241, 0.08)' : '0 40px 100px rgba(0,0,0,0.8)' }}>
-          <div style={{ width: 120, height: 120, borderRadius: '35%', background: isLight ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 40px', color: '#6366f1', transform: 'rotate(-8deg)', border: isLight ? '1px solid rgba(99, 102, 241, 0.15)' : '1px solid rgba(99,102,241,0.2)', position: 'relative' }}>
+        <div style={{ textAlign: 'center', padding: 48, background: isLight ? '#ffffff' : 'rgba(255,255,255,0.02)', borderRadius: 48, border: isLight ? '1px solid rgba(var(--brand-1-rgb), 0.15)' : '1px solid rgba(255,255,255,0.05)', maxWidth: 500, width: '90%', boxShadow: isLight ? '0 32px 80px rgba(var(--brand-1-rgb), 0.08)' : '0 40px 100px rgba(0,0,0,0.8)' }}>
+          <div style={{ width: 120, height: 120, borderRadius: '35%', background: isLight ? 'rgba(var(--brand-1-rgb), 0.08)' : 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 40px', color: 'var(--brand-1)', transform: 'rotate(-8deg)', border: isLight ? '1px solid rgba(var(--brand-1-rgb), 0.15)' : '1px solid rgba(var(--brand-1-rgb),0.2)', position: 'relative' }}>
             {isBanned ? <Ban size={56} /> : (isDenied || isMembersOnly) ? <Lock size={56} /> : (isDeleted || roomNotFound ? <Hash size={56} /> : <LogOut size={56} />)}
             <div className="stay-white" style={{ position: 'absolute', top: -8, right: -8, width: 42, height: 42, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff', border: isLight ? '6px solid #ffffff' : '6px solid #0f0a23', transform: 'rotate(8deg)', boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)' }}>
               <X size={24} />
@@ -7767,9 +7767,9 @@ const Room = () => {
 
           <button
             onClick={() => { socket?.emit('leave_room', { roomId }); navigate('/'); }}
-            style={{ width: '100%', padding: '20px 0', borderRadius: 24, border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fffffe', fontSize: 17, fontWeight: 900, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? '0 8px 25px rgba(99, 102, 241, 0.2)' : '0 8px 25px rgba(99, 102, 241, 0.4)' }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = isLight ? '0 12px 30px rgba(99, 102, 241, 0.35)' : '0 12px 30px rgba(99, 102, 241, 0.5)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 25px rgba(99, 102, 241, 0.2)' : '0 8px 25px rgba(99, 102, 241, 0.4)'; }}
+            style={{ width: '100%', padding: '20px 0', borderRadius: 24, border: 'none', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', color: '#fffffe', fontSize: 17, fontWeight: 900, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: isLight ? '0 8px 25px rgba(var(--brand-1-rgb), 0.2)' : '0 8px 25px rgba(var(--brand-1-rgb), 0.4)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = isLight ? '0 12px 30px rgba(var(--brand-1-rgb), 0.35)' : '0 12px 30px rgba(var(--brand-1-rgb), 0.5)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 25px rgba(var(--brand-1-rgb), 0.2)' : '0 8px 25px rgba(var(--brand-1-rgb), 0.4)'; }}
           >
             <span style={{ color: '#fffffe' }}>Back to Home</span>
           </button>
@@ -7868,7 +7868,7 @@ const Room = () => {
             position: 'relative', borderRadius: 12, overflow: 'hidden',
             background: '#000', flexShrink: 0, height: tileHeight,
             border: isFocused
-              ? '2px solid #818cf8'
+              ? '2px solid var(--brand-1-light)'
               : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'),
             boxShadow: isFocused
               ? '0 0 0 3px rgba(129,140,248,0.25), 0 4px 20px rgba(0,0,0,0.5)'
@@ -7897,7 +7897,7 @@ const Room = () => {
               ) : (
                 <div style={{
                   width: isGrid ? 36 : 56, height: isGrid ? 36 : 56, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontWeight: 800, fontSize: isGrid ? 13 : 20
                 }}>{cam.username?.substring(0, 2).toUpperCase()}</div>
@@ -7909,7 +7909,7 @@ const Room = () => {
           {isFocused && (
             <div className="stay-white" style={{
               position: 'absolute', top: 6, right: 6,
-              background: 'rgba(99,102,241,0.92)', borderRadius: 6,
+              background: 'rgba(var(--brand-1-rgb),0.92)', borderRadius: 6,
               padding: '2px 7px', fontSize: 10, fontWeight: 800, color: '#fff',
               pointerEvents: 'none', letterSpacing: '0.5px'
             }}>FOCUSED</div>
@@ -7922,7 +7922,7 @@ const Room = () => {
               background: 'rgba(0,0,0,0)', transition: 'background 0.15s',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.15)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0)'}
             />
           )}
@@ -8287,7 +8287,7 @@ const Room = () => {
                       {avatarSrc ? (
                         <img src={avatarSrc} style={{ width: currentWidth * 0.55, height: currentWidth * 0.55, borderRadius: '50%', objectFit: 'cover', border: 'none' }} alt="" />
                       ) : (
-                        <div className="stay-white" style={{ width: currentWidth * 0.55, height: currentWidth * 0.55, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: Math.max(12, currentWidth * 0.18) }}>{cam.username?.substring(0, 2).toUpperCase()}</div>
+                        <div className="stay-white" style={{ width: currentWidth * 0.55, height: currentWidth * 0.55, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: Math.max(12, currentWidth * 0.18) }}>{cam.username?.substring(0, 2).toUpperCase()}</div>
                       )}
                     </div>
                   </div>
@@ -8415,7 +8415,7 @@ const Room = () => {
         @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
         @keyframes fadeInScale { from{opacity:0;transform:scale(0.88) translateY(8px);} to{opacity:1;transform:scale(1) translateY(0);} }
         @keyframes bounce { 0%,80%,100%{transform:scale(0);} 40%{transform:scale(1);} }
-        @keyframes joinPulse { 0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0.4);} 50%{box-shadow:0 0 0 8px rgba(168,85,247,0);} }
+        @keyframes joinPulse { 0%,100%{box-shadow:0 0 0 0 rgba(var(--brand-2-rgb),0.4);} 50%{box-shadow:0 0 0 8px rgba(var(--brand-2-rgb),0);} }
         .msg-enter{animation:slideIn 0.2s ease;}
         .typing-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#888;animation:bounce 1.4s infinite ease-in-out;}
         .typing-dot:nth-child(1){animation-delay:-0.32s;} .typing-dot:nth-child(2){animation-delay:-0.16s;}
@@ -8430,25 +8430,25 @@ const Room = () => {
         .player-ctrl-btn{background:transparent;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:7px;border-radius:8px;transition:all 0.15s;}
         .player-ctrl-btn:hover{background:rgba(255,255,255,0.15);transform:scale(1.05);}
         .player-scrubber{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
-        .player-scrubber::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#6366f1;cursor:pointer;box-shadow:0 0 4px rgba(99,102,241,0.8);transition:transform 0.1s;}
+        .player-scrubber::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--brand-1);cursor:pointer;box-shadow:0 0 4px rgba(var(--brand-1-rgb),0.8);transition:transform 0.1s;}
         .player-scrubber::-webkit-slider-thumb:hover{transform:scale(1.3);}
         .player-vol-slider{-webkit-appearance:none;appearance:none;width:70px;height:3px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
-        .join-req-approve-btn { flex: 1; padding: 7px 16px; background: linear-gradient(135deg, #6366f1, #a855f7); border: none; border-radius: 10px; color: #ffffff !important; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 4px 12px rgba(99,102,241,0.2); }
+        .join-req-approve-btn { flex: 1; padding: 7px 16px; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); border: none; border-radius: 10px; color: #ffffff !important; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 4px 12px rgba(var(--brand-1-rgb),0.2); }
         .join-req-deny-btn { flex: 1; padding: 7px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: #ffffff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; text-align: center; }
         .stay-white { color: #ffffff !important; }
-        .join-req-approve-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); filter: brightness(1.1); }
+        .join-req-approve-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(var(--brand-1-rgb),0.4); filter: brightness(1.1); }
         .join-req-approve-btn:active { transform: translateY(0); scale: 0.98; }
         .join-req-deny-btn:hover { background: rgba(239, 68, 68, 0.2) !important; color: #ff4b4b !important; border-color: rgba(239, 68, 68, 0.4) !important; transform: scale(1.03); }
         .join-badge { 
-          position: absolute; top: -6px; right: -6px; background: #8b5cf6; color: #ffffff !important; 
-          border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; 
-          font-size: 10px; font-weight: 900; border: 2px solid #000; box-shadow: 0 0 10px rgba(139, 92, 246, 0.4); 
+          position: absolute; top: -6px; right: -6px; background: var(--brand-2); color: #ffffff !important;
+          border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+          font-size: 10px; font-weight: 900; border: 2px solid #000; box-shadow: 0 0 10px rgba(var(--brand-2-rgb), 0.4);
           animation: badgePulse 2s infinite; 
         }
         @keyframes badgePulse {
-          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); }
-          70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(139, 92, 246, 0); }
-          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+          0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--brand-2-rgb), 0.7); }
+          70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(var(--brand-2-rgb), 0); }
+          100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--brand-2-rgb), 0); }
         }
         @keyframes waterWave {
           0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
@@ -8458,18 +8458,18 @@ const Room = () => {
         .pulse-orange-dot { animation: waterWave 2s infinite; }
         .nav-icon-btn { position: relative; width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
         .nav-icon-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff; }
-        .nav-icon-btn.active { background: rgba(99,102,241,0.12) !important; border-color: rgba(99,102,241,0.4) !important; color: #818cf8 !important; }
+        .nav-icon-btn.active { background: rgba(var(--brand-1-rgb),0.12) !important; border-color: rgba(var(--brand-1-rgb),0.4) !important; color: var(--brand-1-light) !important; }
         html[data-theme='light'] .forced-white, .forced-white { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
 
         /* ── Light Mode Overrides ── */
-        html[data-theme='light'] .nav-icon-btn.active { color: #6366f1 !important; background: rgba(99,102,241,0.1) !important; }
+        html[data-theme='light'] .nav-icon-btn.active { color: var(--brand-1) !important; background: rgba(var(--brand-1-rgb),0.1) !important; }
         
         html[data-theme='light'] .room-header { background: #fff !important; border-bottom-color: rgba(0,0,0,0.08) !important; }
         html[data-theme='light'] .back-btn-room { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #666 !important; }
         html[data-theme='light'] .back-btn-room:hover { background: rgba(0,0,0,0.08) !important; color: #111 !important; }
         
-        html[data-theme='light'] .join-req-approve-btn { background: #8b5cf6; box-shadow: 0 2px 8px rgba(139,92,246,0.3); }
-        html[data-theme='light'] .join-req-approve-btn:hover { background: #7c3aed; box-shadow: 0 4px 12px rgba(139,92,246,0.4); }
+        html[data-theme='light'] .join-req-approve-btn { background: var(--brand-2); box-shadow: 0 2px 8px rgba(var(--brand-2-rgb),0.3); }
+        html[data-theme='light'] .join-req-approve-btn:hover { background: var(--brand-2-dark); box-shadow: 0 4px 12px rgba(var(--brand-2-rgb),0.4); }
         html[data-theme='light'] .join-req-deny-btn { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
         html[data-theme='light'] .join-req-deny-btn:hover { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fecaca !important; }
         html[data-theme='light'] .join-badge { border-color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
@@ -8553,7 +8553,7 @@ const Room = () => {
             <h2 style={{ margin: '0 0 20px', fontSize: 20, fontWeight: 800, color: isLight ? '#1e293b' : '#fff' }}>{t('inviteFriends', 'Invite Friends')}</h2>
             <div style={{ background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.05)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <span style={{ flex: 1, fontSize: 13, color: isLight ? '#475569' : '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{window.location.href}</span>
-              <button onClick={copyRoomLink} style={{ background: copied ? '#10b981' : 'linear-gradient(135deg,#6366f1,#a855f7)', border: 'none', borderRadius: 8, padding: '6px 14px', color: '#ffffff', WebkitTextFillColor: '#ffffff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={copyRoomLink} style={{ background: copied ? '#10b981' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 8, padding: '6px 14px', color: '#ffffff', WebkitTextFillColor: '#ffffff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>{copied ? t('copied', 'Copied!') : t('copyBtn', 'Copy')}</span>
               </button>
             </div>
@@ -8642,7 +8642,7 @@ const Room = () => {
                 <div style={{ fontSize: 11, color: isLight ? '#64748b' : '#94a3b8', fontWeight: 900, letterSpacing: '1.5px', marginBottom: 20, padding: '0 12px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{t('roomMembers', 'Room Members')}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="stay-white" style={{ background: '#6366f1', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 900 }}>{userCount}</span>
+                    <span className="stay-white" style={{ background: 'var(--brand-1)', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 10, fontWeight: 900 }}>{userCount}</span>
                     {isEffectiveHost && userList.some(u => !u.isMuted) && (
                       <button 
                         className="usr-btn mod-btn" 
@@ -8683,8 +8683,8 @@ const Room = () => {
                         transition: 'all 0.2s'
                       }}
                       onFocus={e => {
-                        e.target.style.borderColor = '#6366f1';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.15)';
+                        e.target.style.borderColor = 'var(--brand-1)';
+                        e.target.style.boxShadow = '0 0 0 3px rgba(var(--brand-1-rgb), 0.15)';
                       }}
                       onBlur={e => {
                         e.target.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)';
@@ -8764,7 +8764,7 @@ const Room = () => {
                                     toast.success(t('approvedUser', '{{username}} approved!', { username: req.username }));
                                   }
                                 }} 
-                                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', color: '#ffffff', padding: '6px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
+                                style={{ background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', color: '#ffffff', padding: '6px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
                                 onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                                 className="stay-white"
@@ -8823,7 +8823,7 @@ const Room = () => {
                                   </span>
                                 ) : uIsAdmin ? (
                                   <span title="Admin" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                    <Shield size={12} color={isLight ? "#4f46e5" : "#818cf8"} fill={isLight ? "#4f46e5" : "#818cf8"} />
+                                    <Shield size={12} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} fill={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} />
                                   </span>
                                 ) : null}
                                 {(getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)) && (
@@ -8858,7 +8858,7 @@ const Room = () => {
                                   setModMenuTarget(modMenuTarget === u.socketId ? null : u.socketId); 
                                   setShowHeaderModMenu(false);
                                 }}
-                                style={{ width: 32, height: 32, borderRadius: 10, background: modMenuTarget === u.socketId ? 'rgba(99,102,241,0.2)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'), border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: modMenuTarget === u.socketId ? '#4f46e5' : (isLight ? '#64748b' : '#888') }}
+                                style={{ width: 32, height: 32, borderRadius: 10, background: modMenuTarget === u.socketId ? 'rgba(var(--brand-1-rgb),0.2)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'), border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: modMenuTarget === u.socketId ? 'var(--brand-1-dark)' : (isLight ? '#64748b' : '#888') }}
                               >
                                 <MoreVertical size={14} />
                               </button>
@@ -8887,7 +8887,7 @@ const Room = () => {
                             <UserMinus size={15} color={isLight ? "#d97706" : "#f59e0b"} /> {t('kickUser', 'Kick User')}
                           </button>
                           <button onClick={() => { socket.emit('mod_toggle_admin', { roomId, targetSocketId: modMenuTarget }); setModMenuTarget(null); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 10, fontSize: 13, display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.05)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                            {targetUser.isAdmin ? <ShieldOff size={15} color={isLight ? "#4f46e5" : "#818cf8"} /> : <Shield size={15} color={isLight ? "#4f46e5" : "#818cf8"} />}
+                            {targetUser.isAdmin ? <ShieldOff size={15} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} /> : <Shield size={15} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} />}
                             {targetUser.isAdmin ? t('removeAdmin', 'Remove Admin') : t('makeAdmin', 'Make Admin')}
                           </button>
                           <button onClick={() => { setBanConfirmTarget(targetUser); setModMenuTarget(null); setShowUserPanel(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 14px', background: 'transparent', border: 'none', borderTop: isLight ? '1px solid rgba(0,0,0,0.2)' : '1px solid rgba(255,255,255,0.1)', marginTop: 6, paddingTop: 14, color: isLight ? '#000' : '#f87171', cursor: 'pointer', borderRadius: '0 0 10px 10px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = isLight ? '#000' : '#f87171' }}>
@@ -8981,12 +8981,12 @@ const Room = () => {
               style={{
                 width: 38, height: 38, borderRadius: 12,
                 background: areCamerasHidden
-                  ? (isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)')
+                  ? (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.15)')
                   : 'var(--room-card-bg)',
                 border: areCamerasHidden
-                  ? '1px solid rgba(99,102,241,0.4)'
+                  ? '1px solid rgba(var(--brand-1-rgb),0.4)'
                   : '1px solid var(--room-border)',
-                color: areCamerasHidden ? '#818cf8' : (isLight ? '#000' : '#fff'),
+                color: areCamerasHidden ? 'var(--brand-1-light)' : (isLight ? '#000' : '#fff'),
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', transition: 'all 0.2s', position: 'relative'
               }}
@@ -9027,7 +9027,7 @@ const Room = () => {
                   await togglePinRoom();
                   setShowSettings(false);
                 }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Pin size={16} color={isLight ? '#4f46e5' : '#888'} /> {pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}
+                  <Pin size={16} color={isLight ? 'var(--brand-1-dark)' : '#888'} /> {pinnedRooms.includes(roomId) ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}
                 </button>
                 <button className="settings-menu-btn" disabled={!isEffectiveHost} onClick={() => {
                   if (!isEffectiveHost) return;
@@ -9039,7 +9039,7 @@ const Room = () => {
                 </button>
                 {isEffectiveHost && (
                   <button className="settings-menu-btn" onClick={() => { setRoomSettingsModalOpen(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#fff', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Settings2 size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('roomSettings', 'Room Settings')}
+                    <Settings2 size={16} color={isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)'} /> {t('roomSettings', 'Room Settings')}
                   </button>
                 )}
                 {!isEffectiveHost && (
@@ -9048,7 +9048,7 @@ const Room = () => {
                   </button>
                 )}
                 <button className="settings-menu-btn" onClick={() => { setShowNotificationSettings(true); setShowSettings(false); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#000' : '#eee', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <Bell size={16} color={isLight ? '#4f46e5' : '#818cf8'} /> {t('notifications', 'Notifications')}
+                  <Bell size={16} color={isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)'} /> {t('notifications', 'Notifications')}
                 </button>
                 <div style={{ height: 1, background: isLight ? '#e2e8f0' : 'rgba(255,255,255,0.06)', margin: '6px 0' }} />
                 <button className="settings-menu-btn-danger" onClick={() => { socket?.emit('leave_room', { roomId }); setShowSettings(false); navigate('/'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: isLight ? '#ef4444' : '#f87171', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -9206,13 +9206,13 @@ const Room = () => {
               onClick={() => setShowCustomizeModal(true)}
               title="Customize Room"
               className="room-theme-btn"
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.75)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--brand-2-rgb),0.75)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)'; e.currentTarget.style.transform = 'scale(1)'; }}
               style={{
                 position: 'absolute',
                 top: 8, left: 8,
                 zIndex: 100, width: 34, height: 34, borderRadius: '50%',
-                background: roomTheme !== 'default' ? 'rgba(124,58,237,0.55)' : 'rgba(0,0,0,0.45)',
+                background: roomTheme !== 'default' ? 'rgba(var(--brand-2-rgb),0.55)' : 'rgba(0,0,0,0.45)',
                 border: '1px solid rgba(255,255,255,0.18)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', backdropFilter: 'blur(8px)',
@@ -9292,7 +9292,7 @@ const Room = () => {
                     e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
                   }}
                 >
-                  <Gamepad2 size={14} color="#818cf8" />
+                  <Gamepad2 size={14} color="var(--brand-1-light)" />
                   {!isMobile && <span className="stay-white">{getActiveMediaName(mediaUrl)}</span>}
                   <ChevronDown size={14} color="#ffffff" style={{ transform: showActivityMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </button>
@@ -9400,7 +9400,7 @@ const Room = () => {
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)';
+                  e.currentTarget.style.background = 'rgba(var(--brand-1-rgb), 0.65)';
                   e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)';
                 }}
                 onMouseLeave={e => {
@@ -9441,7 +9441,7 @@ const Room = () => {
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)';
+                  e.currentTarget.style.background = 'rgba(var(--brand-1-rgb), 0.65)';
                   e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)';
                 }}
                 onMouseLeave={e => {
@@ -9464,7 +9464,7 @@ const Room = () => {
                   width: 280,
                   background: 'rgba(15, 15, 25, 0.98)',
                   backdropFilter: 'blur(16px)',
-                  border: '1px solid rgba(99, 102, 241, 0.65)',
+                  border: '1px solid rgba(var(--brand-1-rgb), 0.65)',
                   borderRadius: 12,
                   padding: 16,
                   color: '#fff',
@@ -9484,7 +9484,7 @@ const Room = () => {
                   height: 0,
                   borderLeft: '6px solid transparent',
                   borderRight: '6px solid transparent',
-                  borderBottom: '6px solid rgba(99, 102, 241, 0.65)',
+                  borderBottom: '6px solid rgba(var(--brand-1-rgb), 0.65)',
                 }} />
                 
                 <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#e0e7ff', fontWeight: 600 }}>
@@ -9497,7 +9497,7 @@ const Room = () => {
                   onClick={dismissGlobeInstruction}
                   className="stay-white"
                   style={{
-                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                     border: 'none',
                     borderRadius: 6,
                     padding: '8px 12px',
@@ -9505,7 +9505,7 @@ const Room = () => {
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                    boxShadow: '0 4px 12px rgba(var(--brand-1-rgb), 0.3)',
                     transition: 'opacity 0.2s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
@@ -9539,12 +9539,12 @@ const Room = () => {
                       title="Open Chats"
                       style={{
                         width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: showRecentChats ? 'rgba(99,102,241,0.85)' : 'rgba(15,15,20,0.8)',
+                        background: showRecentChats ? 'rgba(var(--brand-1-rgb),0.85)' : 'rgba(15,15,20,0.8)',
                         borderRadius: '50%', border: '1px solid rgba(255,255,255,0.1)',
                         backdropFilter: 'blur(12px)', transition: 'all 0.2s', cursor: 'pointer'
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.background = showRecentChats ? 'rgba(99,102,241,0.95)' : 'rgba(25,25,35,0.9)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = showRecentChats ? 'rgba(99,102,241,0.85)' : 'rgba(15,15,20,0.8)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                      onMouseEnter={e => { e.currentTarget.style.background = showRecentChats ? 'rgba(var(--brand-1-rgb),0.95)' : 'rgba(25,25,35,0.9)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = showRecentChats ? 'rgba(var(--brand-1-rgb),0.85)' : 'rgba(15,15,20,0.8)'; e.currentTarget.style.transform = 'scale(1)'; }}
                     >
                       <MessageSquare size={18} color="#fff" />
                     </button>
@@ -9672,7 +9672,7 @@ const Room = () => {
                           transition: 'background 0.18s, border-color 0.18s',
                           boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99, 102, 241, 0.65)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--brand-1-rgb), 0.65)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.28)'; }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(15, 15, 25, 0.75)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)'; }}
                       >
                         {(isFullscreen || isMobileFsMode)
@@ -9685,7 +9685,7 @@ const Room = () => {
                         onClick={isScreensharing ? stopScreenshare : leaveScreenshareView}
                         style={{
                           padding: '7px 16px',
-                          background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                          background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                           border: 'none',
                           borderRadius: 10,
                           color: '#fff',
@@ -9693,7 +9693,7 @@ const Room = () => {
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer',
                           transition: 'transform 0.15s',
-                          boxShadow: '0 8px 24px rgba(99,102,241,0.4)'
+                          boxShadow: '0 8px 24px rgba(var(--brand-1-rgb),0.4)'
                         }}
                         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; }}
                         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
@@ -9792,16 +9792,16 @@ const Room = () => {
                           background: 'linear-gradient(135deg, #0a0a0f 0%, #111128 100%)'
                         }}>
                           <div style={{ position: 'relative', width: 64, height: 64 }}>
-                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid rgba(99,102,241,0.15)' }} />
-                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid transparent', borderTopColor: '#6366f1', borderRightColor: '#a855f7', animation: 'spin 0.9s linear infinite' }} />
-                            <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#a855f7', animation: 'spin 1.4s linear infinite reverse' }} />
+                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid rgba(var(--brand-1-rgb),0.15)' }} />
+                            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid transparent', borderTopColor: 'var(--brand-1)', borderRightColor: 'var(--brand-2)', animation: 'spin 0.9s linear infinite' }} />
+                            <div style={{ position: 'absolute', inset: 8, borderRadius: '50%', border: '2px solid transparent', borderTopColor: 'var(--brand-2)', animation: 'spin 1.4s linear infinite reverse' }} />
                           </div>
                           <div style={{ textAlign: 'center' }}>
                             <div style={{ color: '#fff', fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Loading page…</div>
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                             {[0,1,2].map(i => (
-                              <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#6366f1', animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+                              <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand-1)', animation: `bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
                             ))}
                           </div>
                           <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,80%,100%{transform:scale(0.6);opacity:0.4}40%{transform:scale(1);opacity:1}}`}</style>
@@ -9838,13 +9838,13 @@ const Room = () => {
                                 gap: (iframeHintExpanded || hoveringIframeHint) ? 8 : 0,
                                 background: 'rgba(15, 15, 25, 0.95)',
                                 backdropFilter: 'blur(12px)',
-                                border: '1px solid rgba(99, 102, 241, 0.45)',
+                                border: '1px solid rgba(var(--brand-1-rgb), 0.45)',
                                 borderRadius: (iframeHintExpanded || hoveringIframeHint) ? 20 : '50%',
                                 padding: (iframeHintExpanded || hoveringIframeHint) ? '8px 18px' : '11px',
                                 width: (iframeHintExpanded || hoveringIframeHint) ? 'auto' : 40,
                                 height: 40,
                                 justifyContent: 'center',
-                                color: '#a5b4fc',
+                                color: 'var(--brand-1-light)',
                                 cursor: 'pointer',
                                 boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
                                 transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
@@ -9927,21 +9927,21 @@ const Room = () => {
                           <button
                             onClick={() => handleOpenCloudBrowser()}
                             style={{
-                              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                              background: 'linear-gradient(135deg, var(--brand-2-dark), var(--brand-2))',
                               border: 'none', borderRadius: 14,
                               padding: '13px 28px', fontSize: 15, fontWeight: 700,
                               color: '#fff', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', gap: 10,
-                              boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
+                              boxShadow: '0 8px 30px rgba(var(--brand-2-rgb),0.45)',
                               transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(var(--brand-2-rgb),0.6)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(var(--brand-2-rgb),0.45)'; }}
                           >
                             🌐 Open in Virtual Browser
                           </button>
                         ) : (
-                          <div style={{ color: '#a855f7', fontSize: 13, fontWeight: 600 }}>
+                          <div style={{ color: 'var(--brand-2)', fontSize: 13, fontWeight: 600 }}>
                             Waiting for the host to launch Virtual Browser...
                           </div>
                         )}
@@ -9999,10 +9999,10 @@ const Room = () => {
                             position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
                             zIndex: 65, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
                             borderRadius: 20, padding: '6px 14px',
-                            color: '#a5b4fc', fontSize: 12, fontWeight: 600,
+                            color: 'var(--brand-1-light)', fontSize: 12, fontWeight: 600,
                             display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none'
                           }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid var(--brand-1)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
                             Connecting to Cloud Browser…
                           </div>
                         )}
@@ -10273,13 +10273,13 @@ const Room = () => {
                               display: 'flex', alignItems: 'center', gap: 8, zIndex: 40
                             }}>
                               <div style={{
-                                background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.45)',
+                                background: 'rgba(var(--brand-2-rgb),0.18)', border: '1px solid rgba(var(--brand-2-rgb),0.45)',
                                 backdropFilter: 'blur(10px)', borderRadius: 20,
                                 padding: '5px 12px', fontSize: 12, fontWeight: 700,
                                 color: '#d8b4fe', display: 'flex', alignItems: 'center', gap: 6,
-                                boxShadow: '0 4px 20px rgba(168,85,247,0.2)'
+                                boxShadow: '0 4px 20px rgba(var(--brand-2-rgb),0.2)'
                               }}>
-                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7', display: 'inline-block', animation: 'prepPulse 2s infinite' }} />
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brand-2)', display: 'inline-block', animation: 'prepPulse 2s infinite' }} />
                                 Cloud Browser
                               </div>
                               {isEffectiveHost && (
@@ -10307,10 +10307,10 @@ const Room = () => {
                                 position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
                                 zIndex: 45, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
                                 borderRadius: 20, padding: '6px 14px',
-                                color: '#a5b4fc', fontSize: 12, fontWeight: 600,
+                                color: 'var(--brand-1-light)', fontSize: 12, fontWeight: 600,
                                 display: 'flex', alignItems: 'center', gap: 7, pointerEvents: 'none'
                               }}>
-                                <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #6366f1', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid var(--brand-1)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
                                 Connecting to Cloud Browser…
                               </div>
                             )}
@@ -10344,11 +10344,11 @@ const Room = () => {
                                     <button
                                       onClick={() => handleOpenCloudBrowser()}
                                       style={{
-                                        background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                                        background: 'linear-gradient(135deg, var(--brand-2-dark), var(--brand-2))',
                                         border: 'none', borderRadius: 12,
                                         padding: '11px 22px', fontSize: 13, fontWeight: 700,
                                         color: '#fff', cursor: 'pointer',
-                                        boxShadow: '0 8px 24px rgba(168,85,247,0.3)',
+                                        boxShadow: '0 8px 24px rgba(var(--brand-2-rgb),0.3)',
                                         transition: 'all 0.2s'
                                       }}
                                     >
@@ -10406,16 +10406,16 @@ const Room = () => {
                                     onClick={handleOpenCloudBrowser}
                                     className="stay-white"
                                     style={{
-                                      background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                                      background: 'linear-gradient(135deg, var(--brand-2-dark), var(--brand-2))',
                                       border: 'none', borderRadius: 14,
                                       padding: '13px 28px', fontSize: 15, fontWeight: 700,
                                       color: '#fff', cursor: 'pointer',
                                       display: 'flex', alignItems: 'center', gap: 10,
-                                      boxShadow: '0 8px 30px rgba(168,85,247,0.45)',
+                                      boxShadow: '0 8px 30px rgba(var(--brand-2-rgb),0.45)',
                                       transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
                                     }}
-                                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(168,85,247,0.6)'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(168,85,247,0.45)'; }}
+                                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(var(--brand-2-rgb),0.6)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(var(--brand-2-rgb),0.45)'; }}
                                   >
                                     🌐 Open in Cloud Browser
                                   </button>
@@ -10454,7 +10454,7 @@ const Room = () => {
                             {[0, 1, 2, 3, 4].map(i => (
                               <div key={i} style={{
                                 width: 'clamp(4px, 1.2vh, 7px)', borderRadius: 4,
-                                background: 'linear-gradient(180deg,#a855f7,#ec4899)',
+                                background: 'linear-gradient(180deg,var(--brand-2),#ec4899)',
                                 animation: 'prepWaveBar 1s ease-in-out infinite',
                                 animationDelay: `${i * 0.12}s`
                               }} />
@@ -10483,7 +10483,7 @@ const Room = () => {
                         }}>
                           <div style={{
                             width: 40, height: 40, borderRadius: '50%',
-                            border: '3px solid rgba(255,255,255,0.25)', borderTopColor: '#a855f7',
+                            border: '3px solid rgba(255,255,255,0.25)', borderTopColor: 'var(--brand-2)',
                             animation: 'sp-buffer-spin 0.8s linear infinite',
                           }} />
                           <span className="stay-white" style={{ color: '#fff', fontSize: 13, fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
@@ -10651,20 +10651,20 @@ const Room = () => {
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
                 <div style={{
                   width: 86, height: 86, borderRadius: 28,
-                  background: isLight ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.05)',
+                  background: isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(255,255,255,0.05)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginBottom: 24,
-                  boxShadow: isLight ? '0 12px 36px rgba(99,102,241,0.12)' : '0 10px 40px rgba(0,0,0,0.4)',
-                  border: isLight ? '1px solid rgba(99,102,241,0.1)' : '1px solid rgba(255,255,255,0.08)'
+                  boxShadow: isLight ? '0 12px 36px rgba(var(--brand-1-rgb),0.12)' : '0 10px 40px rgba(0,0,0,0.4)',
+                  border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.1)' : '1px solid rgba(255,255,255,0.08)'
                 }}>
-                  <MonitorPlay size={44} color={isLight ? '#6366f1' : '#fff'} strokeWidth={2} />
+                  <MonitorPlay size={44} color={isLight ? 'var(--brand-1)' : '#fff'} strokeWidth={2} />
                 </div>
                 <h3 className={`no-media-title${(isFullscreen || isTvMode) ? ' stay-white' : ''}`} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
                 {!isTvMode && hasPlayerPrivileges && (
                 <button
                   onClick={() => setShowMediaSelector(true)}
                   style={{
-                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                     border: 'none',
                     borderRadius: 14,
                     padding: '14px 28px',
@@ -10675,11 +10675,11 @@ const Room = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
-                    boxShadow: isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)',
+                    boxShadow: isLight ? '0 10px 25px rgba(var(--brand-1-rgb),0.3)' : '0 10px 25px rgba(0,0,0,0.5)',
                     transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 15px 30px rgba(99,102,241,0.4)' : '0 15px 30px rgba(0,0,0,0.6)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 10px 25px rgba(99,102,241,0.3)' : '0 10px 25px rgba(0,0,0,0.5)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05) translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 15px 30px rgba(var(--brand-1-rgb),0.4)' : '0 15px 30px rgba(0,0,0,0.6)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = isLight ? '0 10px 25px rgba(var(--brand-1-rgb),0.3)' : '0 10px 25px rgba(0,0,0,0.5)'; }}
                 >
                   <LayoutGrid size={20} color="#ffffff" />
                   <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
@@ -10826,7 +10826,7 @@ const Room = () => {
                       <div style={{
                         position: 'absolute', left: 0, height: 4, borderRadius: 2,
                         width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-                        background: 'linear-gradient(90deg,#6366f1,#a855f7)',
+                        background: 'linear-gradient(90deg,var(--brand-1),var(--brand-2))',
                         pointerEvents: 'none', zIndex: 1
                       }} />
                       <div style={{
@@ -10902,12 +10902,12 @@ const Room = () => {
                         value={playerMuted ? 0 : playerVolume}
                         onChange={handleVolumeChange}
                         style={{
-                          background: `linear-gradient(to right, #a5b4fc ${(playerMuted ? 0 : playerVolume) * 100}%, rgba(255,255,255,0.2) ${(playerMuted ? 0 : playerVolume) * 100}%)`
+                          background: `linear-gradient(to right, var(--brand-1-light) ${(playerMuted ? 0 : playerVolume) * 100}%, rgba(255,255,255,0.2) ${(playerMuted ? 0 : playerVolume) * 100}%)`
                         }}
                       />
                     </div>
                     {isDucked && (
-                      <div className="player-ducked-badge" title={`Audio ducked — ${duckingNotice} is speaking`} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 10, padding: '2px 7px', fontSize: 10, color: '#a5b4fc', fontWeight: 700, userSelect: 'none' }}>
+                      <div className="player-ducked-badge" title={`Audio ducked — ${duckingNotice} is speaking`} style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(var(--brand-1-rgb),0.2)', border: '1px solid rgba(var(--brand-1-rgb),0.4)', borderRadius: 10, padding: '2px 7px', fontSize: 10, color: 'var(--brand-1-light)', fontWeight: 700, userSelect: 'none' }}>
                         <Mic size={10} /> DUCKED
                       </div>
                     )}
@@ -10944,7 +10944,7 @@ const Room = () => {
                         border: '1px solid rgba(255, 255, 255, 0.15)',
                         borderRadius: '20px',
                         padding: '6px 14px',
-                        color: '#a5b4fc',
+                        color: 'var(--brand-1-light)',
                         fontSize: '11px',
                         fontWeight: '600',
                         cursor: 'pointer',
@@ -10953,22 +10953,22 @@ const Room = () => {
                         pointerEvents: 'auto'
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.18)';
-                        e.currentTarget.style.border = '1px solid rgba(99, 102, 241, 0.45)';
+                        e.currentTarget.style.background = 'rgba(var(--brand-1-rgb), 0.18)';
+                        e.currentTarget.style.border = '1px solid rgba(var(--brand-1-rgb), 0.45)';
                         e.currentTarget.style.color = '#fff';
                         e.currentTarget.style.transform = 'translateY(-1px)';
-                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(99, 102, 241, 0.25)';
+                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(var(--brand-1-rgb), 0.25)';
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                         e.currentTarget.style.border = '1px solid rgba(255, 255, 255, 0.15)';
-                        e.currentTarget.style.color = '#a5b4fc';
+                        e.currentTarget.style.color = 'var(--brand-1-light)';
                         e.currentTarget.style.transform = 'none';
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
                       }}
                       title="Hide custom controls and use native player controls"
                     >
-                      <ChevronDown size={14} color="#a5b4fc" />
+                      <ChevronDown size={14} color="var(--brand-1-light)" />
                       <span>Use Native Player</span>
                     </button>
 
@@ -10989,7 +10989,7 @@ const Room = () => {
                           cursor: 'pointer',
                           position: 'relative',
                           transition: 'opacity 0.3s, box-shadow 0.3s',
-                          boxShadow: (iframeBlockSuspected || iframeError) ? '0 0 10px rgba(99,102,241,0.5)' : 'none',
+                          boxShadow: (iframeBlockSuspected || iframeError) ? '0 0 10px rgba(var(--brand-1-rgb),0.5)' : 'none',
                           animation: (iframeBlockSuspected || iframeError) ? 'globePing 1.8s ease-out 2' : 'none',
                         }}
                       >
@@ -11015,15 +11015,15 @@ const Room = () => {
                           left: '50%',
                           transform: 'translateX(-50%)',
                           background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(10,10,22,0.97)',
-                          border: isLight ? '1px solid rgba(99,102,241,0.2)' : '1px solid rgba(99,102,241,0.35)',
+                          border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.2)' : '1px solid rgba(var(--brand-1-rgb),0.35)',
                           borderRadius: 14,
                           padding: '14px 16px',
                           minWidth: 240,
                           maxWidth: 280,
                           zIndex: 9999,
                           boxShadow: isLight
-                            ? '0 -4px 24px rgba(0,0,0,0.12), 0 8px 32px rgba(99,102,241,0.1), 0 0 0 1px rgba(99,102,241,0.08)'
-                            : '0 -8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15)',
+                            ? '0 -4px 24px rgba(0,0,0,0.12), 0 8px 32px rgba(var(--brand-1-rgb),0.1), 0 0 0 1px rgba(var(--brand-1-rgb),0.08)'
+                            : '0 -8px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(var(--brand-1-rgb),0.15)',
                           backdropFilter: 'blur(18px)',
                           animation: 'slideUpFade 0.2s ease-out',
                         }}>
@@ -11034,7 +11034,7 @@ const Room = () => {
                             width: 0, height: 0,
                             borderLeft: '8px solid transparent',
                             borderRight: '8px solid transparent',
-                            borderTop: isLight ? '8px solid rgba(99,102,241,0.2)' : '8px solid rgba(99,102,241,0.35)',
+                            borderTop: isLight ? '8px solid rgba(var(--brand-1-rgb),0.2)' : '8px solid rgba(var(--brand-1-rgb),0.35)',
                           }} />
                           {/* Arrow — fill layer */}
                           <div style={{
@@ -11051,13 +11051,13 @@ const Room = () => {
                             <div style={{
                               width: 34, height: 34, borderRadius: 10,
                               background: isLight
-                                ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.1))'
-                                : 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.25))',
-                              border: isLight ? '1px solid rgba(99,102,241,0.25)' : '1px solid rgba(99,102,241,0.4)',
+                                ? 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.12), rgba(var(--brand-2-rgb),0.1))'
+                                : 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.3), rgba(var(--brand-2-rgb),0.25))',
+                              border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.25)' : '1px solid rgba(var(--brand-1-rgb),0.4)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               flexShrink: 0,
                             }}>
-                              <Globe size={17} color={isLight ? '#6366f1' : '#818cf8'} />
+                              <Globe size={17} color={isLight ? 'var(--brand-1)' : 'var(--brand-1-light)'} />
                             </div>
                             <div>
                               <div style={{ color: isLight ? '#111827' : '#fff', fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>Page Blocked?</div>
@@ -11067,23 +11067,23 @@ const Room = () => {
 
                           <div style={{ color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)', fontSize: 12, lineHeight: 1.6, marginBottom: 12 }}>
                             The page may be blocked by your network or doesn't allow embedding.
-                            Open it in a <strong style={{ color: isLight ? '#4f46e5' : '#a5b4fc' }}>Virtual Browser</strong> to watch together.
+                            Open it in a <strong style={{ color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)' }}>Virtual Browser</strong> to watch together.
                           </div>
 
                           <button
                             onClick={() => { setShowGlobePopup(false); handleOpenCloudBrowser(); }}
                             style={{
                               width: '100%', padding: '9px 14px',
-                              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                              background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                               border: 'none', borderRadius: 10,
                               color: '#fff', fontSize: 13, fontWeight: 700,
                               cursor: 'pointer', display: 'flex', alignItems: 'center',
                               justifyContent: 'center', gap: 7,
-                              boxShadow: '0 4px 18px rgba(99,102,241,0.45)',
+                              boxShadow: '0 4px 18px rgba(var(--brand-1-rgb),0.45)',
                               transition: 'all 0.2s',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(99,102,241,0.65)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(99,102,241,0.45)'; }}
+                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(var(--brand-1-rgb),0.65)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(var(--brand-1-rgb),0.45)'; }}
                           >
                             <Globe size={14} />
                             Open in Virtual Browser
@@ -11107,9 +11107,9 @@ const Room = () => {
 
                           <style>{`
                             @keyframes globePing {
-                              0%   { box-shadow: 0 0 0 0 rgba(99,102,241,0.6); }
-                              70%  { box-shadow: 0 0 0 10px rgba(99,102,241,0); }
-                              100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+                              0%   { box-shadow: 0 0 0 0 rgba(var(--brand-1-rgb),0.6); }
+                              70%  { box-shadow: 0 0 0 10px rgba(var(--brand-1-rgb),0); }
+                              100% { box-shadow: 0 0 0 0 rgba(var(--brand-1-rgb),0); }
                             }
                             @keyframes slideUpFade {
                               from { opacity: 0; transform: translateX(-50%) translateY(8px); }
@@ -11136,11 +11136,11 @@ const Room = () => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 5,
-                          background: subtitlesUrl && subtitlesVisible ? 'rgba(139,92,246,0.3)' : 'rgba(99,102,241,0.15)',
-                          border: subtitlesUrl && subtitlesVisible ? '1px solid rgba(139,92,246,0.55)' : '1px solid rgba(99,102,241,0.35)',
+                          background: subtitlesUrl && subtitlesVisible ? 'rgba(var(--brand-2-rgb),0.3)' : 'rgba(var(--brand-1-rgb),0.15)',
+                          border: subtitlesUrl && subtitlesVisible ? '1px solid rgba(var(--brand-2-rgb),0.55)' : '1px solid rgba(var(--brand-1-rgb),0.35)',
                           padding: '6px 13px',
                           borderRadius: 8,
-                          color: subtitlesUrl && subtitlesVisible ? '#c084fc' : '#a5b4fc',
+                          color: subtitlesUrl && subtitlesVisible ? 'var(--brand-2-light)' : 'var(--brand-1-light)',
                           transition: 'all 0.2s',
                           letterSpacing: '0.5px',
                         }}
@@ -11163,14 +11163,14 @@ const Room = () => {
                         }}>
                           {/* Web iframe (regular webpage) note */}
                           {isWebIframe(mediaUrl) && (
-                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(var(--brand-1-rgb),0.12)', margin: '4px 2px', border: '1px solid rgba(var(--brand-1-rgb),0.2)' }}>
                               <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
                               <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
                             </div>
                           )}
                           {/* YouTube / embed platform note */}
                           {isEmbedPlatform(mediaUrl) && (
-                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)' }}>
+                            <div className="subtitle-menu-info" style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(var(--brand-1-rgb),0.12)', margin: '4px 2px', border: '1px solid rgba(var(--brand-1-rgb),0.2)' }}>
                               <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
                               <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
                             </div>
@@ -11184,7 +11184,7 @@ const Room = () => {
                                     display: 'flex', alignItems: 'center', gap: 10,
                                     width: '100%', padding: '9px 12px',
                                     background: 'none', border: 'none',
-                                    color: subtitlesVisible ? '#c084fc' : '#9ca3af',
+                                    color: subtitlesVisible ? 'var(--brand-2-light)' : '#9ca3af',
                                     fontSize: 13, cursor: 'pointer', borderRadius: 8,
                                     textAlign: 'left', fontFamily: 'inherit',
                                     transition: 'background 0.15s',
@@ -11195,7 +11195,7 @@ const Room = () => {
                                 >
                                   <div style={{
                                     width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                                    background: subtitlesVisible ? '#c084fc' : 'transparent',
+                                    background: subtitlesVisible ? 'var(--brand-2-light)' : 'transparent',
                                     border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
                                   }} />
                                   {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
@@ -11250,13 +11250,13 @@ const Room = () => {
                         const content = (
                           <>
                             {isWebIframe(mediaUrl) && (
-                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(var(--brand-1-rgb),0.12)', margin: '4px 2px', border: '1px solid rgba(var(--brand-1-rgb),0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
                                 <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Subtitles not available</div>
                                 <div style={{ fontSize: 11, lineHeight: 1.5 }}>This page is loaded as a browser view. Subtitles work for uploaded video files and direct video links.</div>
                               </div>
                             )}
                             {isEmbedPlatform(mediaUrl) && (
-                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(99,102,241,0.12)', margin: '4px 2px', border: '1px solid rgba(99,102,241,0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
+                              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(var(--brand-1-rgb),0.12)', margin: '4px 2px', border: '1px solid rgba(var(--brand-1-rgb),0.2)', color: isLight ? '#374151' : '#d1d5db' }}>
                                 <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Custom subtitles unavailable</div>
                                 <div style={{ fontSize: 11, lineHeight: 1.5 }}>Use the CC / subtitles button built into the {mediaUrl.includes('youtube') || mediaUrl.includes('youtu.be') ? 'YouTube' : mediaUrl.includes('twitch') ? 'Twitch' : mediaUrl.includes('vimeo') ? 'Vimeo' : 'platform'} player instead.</div>
                               </div>
@@ -11269,7 +11269,7 @@ const Room = () => {
                                       display: 'flex', alignItems: 'center', gap: 10,
                                       width: '100%', padding: '9px 12px',
                                       background: 'none', border: 'none',
-                                      color: subtitlesVisible ? '#c084fc' : (isLight ? '#374151' : '#9ca3af'),
+                                      color: subtitlesVisible ? 'var(--brand-2-light)' : (isLight ? '#374151' : '#9ca3af'),
                                       fontSize: 13, cursor: 'pointer', borderRadius: 8,
                                       textAlign: 'left', fontFamily: 'inherit',
                                     }}
@@ -11277,7 +11277,7 @@ const Room = () => {
                                   >
                                     <div style={{
                                       width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                                      background: subtitlesVisible ? '#c084fc' : 'transparent',
+                                      background: subtitlesVisible ? 'var(--brand-2-light)' : 'transparent',
                                       border: subtitlesVisible ? 'none' : '1.5px solid #6b7280',
                                     }} />
                                     {subtitlesVisible ? 'Hide Subtitles' : 'Show Subtitles'}
@@ -11359,16 +11359,16 @@ const Room = () => {
                       title="Visual quality"
                       style={isTouchPlayer ? {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
-                        border: showQualityMenu ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(99,102,241,0.35)',
-                        padding: 7, borderRadius: 8, color: '#a5b4fc', transition: 'all 0.2s',
+                        background: showQualityMenu ? 'rgba(var(--brand-1-rgb),0.25)' : 'rgba(var(--brand-1-rgb),0.15)',
+                        border: showQualityMenu ? '1px solid rgba(var(--brand-1-rgb),0.55)' : '1px solid rgba(var(--brand-1-rgb),0.35)',
+                        padding: 7, borderRadius: 8, color: 'var(--brand-1-light)', transition: 'all 0.2s',
                       } : {
                         fontSize: '11px', fontWeight: 700,
                         display: 'flex', alignItems: 'center', gap: 4,
-                        background: showQualityMenu ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.15)',
-                        border: showQualityMenu ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(99,102,241,0.35)',
+                        background: showQualityMenu ? 'rgba(var(--brand-1-rgb),0.25)' : 'rgba(var(--brand-1-rgb),0.15)',
+                        border: showQualityMenu ? '1px solid rgba(var(--brand-1-rgb),0.55)' : '1px solid rgba(var(--brand-1-rgb),0.35)',
                         padding: '6px 10px', borderRadius: 8,
-                        color: '#a5b4fc', transition: 'all 0.2s',
+                        color: 'var(--brand-1-light)', transition: 'all 0.2s',
                         letterSpacing: '0.3px', minWidth: 42, justifyContent: 'center',
                       }}
                     >
@@ -11399,9 +11399,9 @@ const Room = () => {
                             style={{
                               display: 'flex', alignItems: 'center', gap: 10,
                               width: '100%', padding: '9px 12px',
-                              background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'none',
+                              background: videoQuality === key ? 'rgba(var(--brand-1-rgb),0.18)' : 'none',
                               border: 'none',
-                              color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
+                              color: videoQuality === key ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#374151' : '#d1d5db'),
                               fontSize: 13, cursor: 'pointer', borderRadius: 8,
                               textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.15s',
                             }}
@@ -11410,7 +11410,7 @@ const Room = () => {
                           >
                             <div style={{
                               width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                              background: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : 'transparent',
+                              background: videoQuality === key ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : 'transparent',
                               border: videoQuality === key ? 'none' : (isLight ? '1.5px solid #9ca3af' : '1.5px solid #6b7280'),
                             }} />
                             <div style={{ flex: 1 }}>
@@ -11456,8 +11456,8 @@ const Room = () => {
                               style={{
                                 display: 'block', width: '100%', padding: '9px 10px',
                                 borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left',
-                                background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'transparent',
-                                color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
+                                background: videoQuality === key ? 'rgba(var(--brand-1-rgb),0.18)' : 'transparent',
+                                color: videoQuality === key ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#374151' : '#d1d5db'),
                                 fontSize: 13, fontWeight: videoQuality === key ? 700 : 500, fontFamily: 'inherit',
                               }}
                             >
@@ -11487,8 +11487,8 @@ const Room = () => {
                           style={{
                             display: 'block', width: '100%', padding: '9px 10px',
                             borderRadius: 8, border: 'none', cursor: 'pointer', textAlign: 'left',
-                            background: videoQuality === key ? 'rgba(99,102,241,0.18)' : 'transparent',
-                            color: videoQuality === key ? (isLight ? '#4f46e5' : '#a5b4fc') : (isLight ? '#374151' : '#d1d5db'),
+                            background: videoQuality === key ? 'rgba(var(--brand-1-rgb),0.18)' : 'transparent',
+                            color: videoQuality === key ? (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)') : (isLight ? '#374151' : '#d1d5db'),
                             fontSize: 13, fontWeight: videoQuality === key ? 700 : 500, fontFamily: 'inherit',
                           }}
                         >
@@ -11526,7 +11526,7 @@ const Room = () => {
                   zIndex: 35,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: 36, height: 36, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(168, 85, 247, 0.9))',
+                  background: 'linear-gradient(135deg, rgba(var(--brand-1-rgb), 0.9), rgba(var(--brand-2-rgb), 0.9))',
                   border: '1px solid rgba(255, 255, 255, 0.25)',
                   cursor: 'pointer',
                   backdropFilter: 'blur(8px)',
@@ -11541,7 +11541,7 @@ const Room = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.9), rgba(168, 85, 247, 0.9))',
+                  background: 'linear-gradient(135deg, rgba(var(--brand-1-rgb), 0.9), rgba(var(--brand-2-rgb), 0.9))',
                   border: '1px solid rgba(255, 255, 255, 0.25)',
                   borderRadius: '24px',
                   padding: '10px 20px',
@@ -11688,7 +11688,7 @@ const Room = () => {
               it true while the Quick Controls/Cast-to-TV box (width-gated only) stayed
               visible too, showing both stacked/overlapping at once. */}
           {!mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
-            <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
+            <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
               <LayoutGrid size={18} color="#fff" />
               <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
             </button>
@@ -11717,16 +11717,16 @@ const Room = () => {
                   onClick={handleCast}
                   style={{
                     width: '100%', padding: '16px', borderRadius: 16,
-                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                     border: '1px solid rgba(255,255,255,0.1)',
                     color: '#fff',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
                     cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+                    boxShadow: '0 4px 16px rgba(var(--brand-1-rgb),0.3)',
                     fontWeight: 800, fontSize: 14
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(99,102,241,0.45)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.3)'; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(var(--brand-1-rgb),0.45)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(var(--brand-1-rgb),0.3)'; }}
                 >
                   <Cast size={20} className="stay-white" />
                   <span className="stay-white">{t('castToTv', 'Cast to TV')}</span>
@@ -11745,14 +11745,14 @@ const Room = () => {
                         title={canUseCam ? (isCamOn ? 'Turn off camera' : 'Turn on camera') : camReason}
                         style={{
                           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 8px', borderRadius: 12,
-                          border: `1px solid ${canUseCam ? (isCamOn ? '#6366f1' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')) : 'rgba(239,68,68,0.2)'}`,
-                          background: canUseCam ? (isCamOn ? 'rgba(99,102,241,0.08)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)')) : 'rgba(239,68,68,0.05)',
-                          color: canUseCam ? (isCamOn ? '#6366f1' : (isLight ? '#475569' : '#888')) : '#ef4444',
+                          border: `1px solid ${canUseCam ? (isCamOn ? 'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')) : 'rgba(239,68,68,0.2)'}`,
+                          background: canUseCam ? (isCamOn ? 'rgba(var(--brand-1-rgb),0.08)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)')) : 'rgba(239,68,68,0.05)',
+                          color: canUseCam ? (isCamOn ? 'var(--brand-1)' : (isLight ? '#475569' : '#888')) : '#ef4444',
                           cursor: canUseCam ? 'pointer' : 'not-allowed',
                           fontSize: 11, fontWeight: 700, transition: 'all 0.2s',
                         }}
-                        onMouseEnter={e => { if(canUseCam) { e.currentTarget.style.background = isCamOn ? 'rgba(99,102,241,0.12)' : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.06)'); } }}
-                        onMouseLeave={e => { if(canUseCam) { e.currentTarget.style.background = isCamOn ? 'rgba(99,102,241,0.08)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'); } }}
+                        onMouseEnter={e => { if(canUseCam) { e.currentTarget.style.background = isCamOn ? 'rgba(var(--brand-1-rgb),0.12)' : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.06)'); } }}
+                        onMouseLeave={e => { if(canUseCam) { e.currentTarget.style.background = isCamOn ? 'rgba(var(--brand-1-rgb),0.08)' : (isLight ? '#fff' : 'rgba(255,255,255,0.03)'); } }}
                       >
                         {isCamOn ? <Video size={18} /> : <VideoOff size={18} />}
                         <span>{t('cameraControl', 'Camera')}</span>
@@ -11819,9 +11819,9 @@ const Room = () => {
                 width: isMobile ? 'min(calc(100vw - 32px), 440px)' : 340,
                 borderRadius: 16,
                 background: isLight ? '#ffffff' : '#0d0d14',
-                border: isLight ? '1px solid rgba(99,102,241,0.25)' : '1px solid rgba(129,140,248,0.4)',
+                border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.25)' : '1px solid rgba(129,140,248,0.4)',
                 boxShadow: isLight
-                  ? '0 16px 48px rgba(0,0,0,0.22), 0 0 0 1px rgba(99,102,241,0.12)'
+                  ? '0 16px 48px rgba(0,0,0,0.22), 0 0 0 1px rgba(var(--brand-1-rgb),0.12)'
                   : '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(129,140,248,0.2)',
                 overflow: 'hidden',
                 animation: 'fadeInScale 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
@@ -11831,7 +11831,7 @@ const Room = () => {
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '12px 14px',
                   borderBottom: isLight ? '1px solid rgba(0,0,0,0.09)' : '1px solid rgba(255,255,255,0.08)',
-                  background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.12)',
+                  background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.12)',
                 }}>
                   <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: isLight ? '#111827' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -11842,7 +11842,7 @@ const Room = () => {
                       <MicOff size={11} color="#fff" />
                     </div>
                   )}
-                  <span className="stay-white" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: 'rgba(99,102,241,0.85)', borderRadius: 5, padding: '2px 8px', flexShrink: 0 }}>FOCUSED</span>
+                  <span className="stay-white" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: 'rgba(var(--brand-1-rgb),0.85)', borderRadius: 5, padding: '2px 8px', flexShrink: 0 }}>FOCUSED</span>
                   <button
                     onClick={() => setFocusedCameraUserId(null)}
                     title="Close"
@@ -11861,7 +11861,7 @@ const Room = () => {
                       style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
                   ) : (
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #312e81, #1e1b4b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
-                      <div className="stay-white" style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 24 }}>
+                      <div className="stay-white" style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 24 }}>
                         {focusedCam.username?.substring(0, 2).toUpperCase()}
                       </div>
                       <span className="stay-white" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>Camera off</span>
@@ -11932,10 +11932,10 @@ const Room = () => {
                       background: 'transparent', border: 'none', cursor: 'pointer',
                       fontSize: 12, fontWeight: 700,
                       color: rightPanelTab === tab.id
-                        ? (isLight ? '#6366f1' : '#818cf8')
+                        ? (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)')
                         : (isLight ? '#94a3b8' : '#555'),
                       borderBottom: rightPanelTab === tab.id
-                        ? `2px solid ${isLight ? '#6366f1' : '#818cf8'}`
+                        ? `2px solid ${isLight ? 'var(--brand-1)' : 'var(--brand-1-light)'}`
                         : '2px solid transparent',
                       transition: 'all 0.2s',
                       marginBottom: -1,
@@ -12038,12 +12038,12 @@ const Room = () => {
                           style={{
                             width: 28, height: 28, borderRadius: 8,
                             background: showCameraMenu
-                              ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)')
+                              ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)')
                               : 'transparent',
                             border: showCameraMenu
-                              ? '1px solid rgba(99,102,241,0.35)'
+                              ? '1px solid rgba(var(--brand-1-rgb),0.35)'
                               : '1px solid transparent',
-                            color: showCameraMenu ? '#818cf8' : (isLight ? '#94a3b8' : '#555'),
+                            color: showCameraMenu ? 'var(--brand-1-light)' : (isLight ? '#94a3b8' : '#555'),
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             cursor: 'pointer', transition: 'all 0.15s',
                           }}
@@ -12084,21 +12084,21 @@ const Room = () => {
                                 style={{
                                   width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                                   padding: '9px 14px', background: cameraLayoutMode === item.id
-                                    ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)')
+                                    ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.12)')
                                     : 'transparent',
                                   border: 'none', cursor: 'pointer', textAlign: 'left',
                                   fontSize: 13, fontWeight: cameraLayoutMode === item.id ? 700 : 500,
                                   color: cameraLayoutMode === item.id
-                                    ? (isLight ? '#6366f1' : '#818cf8')
+                                    ? (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)')
                                     : (isLight ? '#334155' : '#ccc'),
                                   transition: 'background 0.12s',
                                 }}
                                 onMouseEnter={e => { if (cameraLayoutMode !== item.id) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
                                 onMouseLeave={e => { if (cameraLayoutMode !== item.id) e.currentTarget.style.background = 'transparent'; }}
                               >
-                                <span style={{ color: cameraLayoutMode === item.id ? (isLight ? '#6366f1' : '#818cf8') : (isLight ? '#94a3b8' : '#555') }}>{item.icon}</span>
+                                <span style={{ color: cameraLayoutMode === item.id ? (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)') : (isLight ? '#94a3b8' : '#555') }}>{item.icon}</span>
                                 {item.label}
-                                {cameraLayoutMode === item.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? '#6366f1' : '#818cf8' }}>✓</span>}
+                                {cameraLayoutMode === item.id && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)' }}>✓</span>}
                               </button>
                             ))}
 
@@ -12119,21 +12119,21 @@ const Room = () => {
                               style={{
                                 width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                                 padding: '9px 14px', background: focusVideoEnabled
-                                  ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)')
+                                  ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.12)')
                                   : 'transparent',
                                 border: 'none', cursor: 'pointer', textAlign: 'left',
                                 fontSize: 13, fontWeight: focusVideoEnabled ? 700 : 500,
                                 color: focusVideoEnabled
-                                  ? (isLight ? '#6366f1' : '#818cf8')
+                                  ? (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)')
                                   : (isLight ? '#334155' : '#ccc'),
                                 transition: 'background 0.12s',
                               }}
                               onMouseEnter={e => { if (!focusVideoEnabled) e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'; }}
                               onMouseLeave={e => { if (!focusVideoEnabled) e.currentTarget.style.background = 'transparent'; }}
                             >
-                              <Maximize size={13} style={{ color: focusVideoEnabled ? (isLight ? '#6366f1' : '#818cf8') : (isLight ? '#94a3b8' : '#555') }} />
+                              <Maximize size={13} style={{ color: focusVideoEnabled ? (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)') : (isLight ? '#94a3b8' : '#555') }} />
                               {focusVideoEnabled ? 'Disable Focus Mode' : 'Enable Focus Mode'}
-                              {focusVideoEnabled && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? '#6366f1' : '#818cf8' }}>ON</span>}
+                              {focusVideoEnabled && <span style={{ marginLeft: 'auto', fontSize: 11, color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)' }}>ON</span>}
                             </button>
 
                             {/* Divider */}
@@ -12176,11 +12176,11 @@ const Room = () => {
                       <div style={{
                         margin: '0 10px 4px',
                         padding: '5px 12px',
-                        background: isLight ? 'rgba(67,56,202,0.12)' : 'rgba(99,102,241,0.18)',
+                        background: isLight ? 'rgba(67,56,202,0.12)' : 'rgba(var(--brand-1-rgb),0.18)',
                         border: `1px solid ${isLight ? 'rgba(67,56,202,0.3)' : 'rgba(129,140,248,0.35)'}`,
                         borderRadius: 8, flexShrink: 0,
                         fontSize: 11,
-                        color: isLight ? '#4338ca' : '#c7d2fe',
+                        color: isLight ? 'var(--brand-1-darker)' : '#c7d2fe',
                         fontWeight: 700,
                         display: 'flex', alignItems: 'center', gap: 6
                       }}>
@@ -12198,16 +12198,16 @@ const Room = () => {
                         padding: 28, flex: 1, justifyContent: 'center',
                         background: 'rgba(0,0,0,0.22)', borderRadius: 10, margin: '6px 8px',
                       }}>
-                        <EyeOff size={28} color="#818cf8" />
+                        <EyeOff size={28} color="var(--brand-1-light)" />
                         <span className="stay-white" style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Cameras hidden</span>
                         <button
                           className="stay-white"
                           onClick={() => { setAreCamerasHidden(false); localStorage.setItem('sahaplay_hide_camera_tiles', 'false'); }}
                           style={{
-                            padding: '7px 20px', background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                            padding: '7px 20px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                             border: 'none', borderRadius: 10, color: '#fff',
                             fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(99,102,241,0.35)'
+                            boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.35)'
                           }}
                         >
                           Show Cameras
@@ -12491,7 +12491,7 @@ const Room = () => {
             </button>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-1)' }}>
                   <Bell size={20} />
                 </div>
                 <div>
@@ -12531,7 +12531,7 @@ const Room = () => {
                     />
                     <span style={{
                       position: 'absolute', inset: 0,
-                      backgroundColor: muteRoomJoinLeave ? '#6366f1' : (isLight ? '#cbd5e1' : '#334155'),
+                      backgroundColor: muteRoomJoinLeave ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#334155'),
                       borderRadius: 24, transition: 'background-color 0.2s',
                       boxShadow: isLight ? 'inset 0 1px 3px rgba(0,0,0,0.1)' : 'none'
                     }} />
@@ -12567,7 +12567,7 @@ const Room = () => {
                     />
                     <span style={{
                       position: 'absolute', inset: 0,
-                      backgroundColor: muteAllNotifSounds ? '#6366f1' : (isLight ? '#cbd5e1' : '#334155'),
+                      backgroundColor: muteAllNotifSounds ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#334155'),
                       borderRadius: 24, transition: 'background-color 0.2s',
                       boxShadow: isLight ? 'inset 0 1px 3px rgba(0,0,0,0.1)' : 'none'
                     }} />
@@ -12586,12 +12586,12 @@ const Room = () => {
                 onClick={() => setShowNotificationSettings(false)}
                 className="stay-white"
                 style={{
-                  width: '100%', padding: '12px 16px', background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+                  width: '100%', padding: '12px 16px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
                   border: 'none', color: '#fff', borderRadius: 14, fontSize: 14, fontWeight: 800,
-                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
+                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(99,102,241,0.3)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(99,102,241,0.2)'; }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(var(--brand-1-rgb),0.3)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; }}
               >
                 {t('done', 'Done')}
               </button>
