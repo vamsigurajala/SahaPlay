@@ -114,7 +114,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px',
             boxShadow: '0 0 0 8px rgba(99,102,241,0.15), 0 8px 24px rgba(99,102,241,0.4)'
@@ -233,7 +233,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
               {isSubmitting ? t('encUnlocking', 'Unlocking...') : t('encUnlockBtn', 'Unlock')}
             </button>
             <button type="button" onClick={() => { setError(''); setView('forgot'); }}
-              style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+              style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
               {t('encForgotPassphrase', 'Forgot passphrase?')}
             </button>
           </form>
@@ -282,7 +282,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
               {isSubmitting ? t('encRecovering', 'Recovering...') : t('encRecoverBtn', 'Recover & set new passphrase')}
             </button>
             <button type="button" onClick={() => { setError(''); setView('main'); }}
-              style={{ background: 'none', border: 'none', color: '#818cf8', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+              style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
               {t('encBackToUnlock', '← Back')}
             </button>
           </form>
@@ -295,7 +295,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
 function submitBtnStyle(isSubmitting) {
   return {
     width: '100%', padding: 13, borderRadius: 12, border: 'none',
-    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+    background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
     color: '#fff', fontSize: 14.5, fontWeight: 700,
     cursor: isSubmitting ? 'not-allowed' : 'pointer',
     opacity: isSubmitting ? 0.7 : 1,

@@ -65,10 +65,10 @@ export default function Safety() {
 
   const cardStyle = {
     background: isLight ? '#ffffff' : '#1e1e30',
-    border: `1px solid ${isLight ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.08)'}`,
+    border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.22)' : 'rgba(255,255,255,0.08)'}`,
     borderRadius: 16,
     padding: 28,
-    boxShadow: isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none',
+    boxShadow: isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none',
     transition: 'transform 0.2s, box-shadow 0.2s',
   };
 
@@ -105,8 +105,8 @@ export default function Safety() {
           <div className="hiw-container" style={{ textAlign: 'center' }}>
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)',
-              color: '#818cf8', borderRadius: 99, padding: '6px 16px',
+              background: 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.3)',
+              color: 'var(--brand-1-light)', borderRadius: 99, padding: '6px 16px',
               fontSize: 13, fontWeight: 600, marginBottom: 28,
             }}>
               {t('sfBadge')}
@@ -120,7 +120,7 @@ export default function Safety() {
             }}>
               {t('sfTitlePart1')}{' '}
               <span style={{
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -141,9 +141,9 @@ export default function Safety() {
                 <div key={i} style={{
                   display: 'inline-flex', alignItems: 'center',
                   padding: '8px 18px', borderRadius: 99,
-                  background: 'rgba(99,102,241,0.08)',
-                  border: `1px solid ${isLight ? 'rgba(99,102,241,0.25)' : 'rgba(99,102,241,0.3)'}`,
-                  color: isLight ? '#6366f1' : '#818cf8',
+                  background: 'rgba(var(--brand-1-rgb),0.08)',
+                  border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.25)' : 'rgba(var(--brand-1-rgb),0.3)'}`,
+                  color: isLight ? 'var(--brand-1)' : 'var(--brand-1-light)',
                   fontSize: 13, fontWeight: 600,
                 }}>
                   {pill}
@@ -177,7 +177,7 @@ export default function Safety() {
               {/* Block a User */}
               <ActionCard
                 cardStyle={cardStyle}
-                accent="#6366f1"
+                accent="var(--brand-1)"
                 emoji="🚫"
                 title={t('sfBlockUserTitle')}
                 desc={t('sfBlockUserDesc')}
@@ -190,7 +190,7 @@ export default function Safety() {
                   <Link
                     to="/profile"
                     state={{ openSection: 'blockedUsers' }}
-                    style={{ color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                    style={{ color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
                   >
                     {t('sfBlockUserLink')}
                   </Link>
@@ -200,7 +200,7 @@ export default function Safety() {
               {/* Lock Your Chats */}
               <ActionCard
                 cardStyle={cardStyle}
-                accent="#a855f7"
+                accent="var(--brand-2)"
                 emoji="🔒"
                 title={t('sfLockChatsTitle')}
                 desc={t('sfLockChatsDesc')}
@@ -214,7 +214,7 @@ export default function Safety() {
                     onClick={() => setShowChatLockModal(true)}
                     style={{
                       background: 'none', border: 'none', padding: 0,
-                      color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600,
+                      color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', fontSize: 13, fontWeight: 600,
                       cursor: 'pointer', textDecoration: 'none',
                     }}
                   >
@@ -226,15 +226,15 @@ export default function Safety() {
               {/* Report a Bug */}
               <div
                 style={{ ...cardStyle, borderTop: '3px solid #3b82f6' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none'; }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none'; }}
               >
                 <div style={{ fontSize: 24, marginBottom: 12 }}>🐛</div>
                 <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: textPrimary }}>{t('sfReportBugTitle')}</h3>
                 <p style={{ color: textMuted, fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
                   {t('sfReportBugDesc')}
                 </p>
-                <Link to="/report-bug" style={{ color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                <Link to="/report-bug" style={{ color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                   {t('sfReportBugLink')}
                 </Link>
               </div>
@@ -242,15 +242,15 @@ export default function Safety() {
               {/* Contact Support */}
               <div
                 style={{ ...cardStyle, borderTop: '3px solid #10b981' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none'; }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none'; }}
               >
                 <div style={{ fontSize: 24, marginBottom: 12 }}>📧</div>
                 <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, color: textPrimary }}>{t('sfContactSupportTitle')}</h3>
                 <p style={{ color: textMuted, fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
                   {t('sfContactSupportDesc')}
                 </p>
-                <Link to="/contact" style={{ color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                <Link to="/contact" style={{ color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                   {t('sfContactSupportLink')}
                 </Link>
               </div>
@@ -378,7 +378,7 @@ export default function Safety() {
                         onClick={() => setShowReportModal(true)}
                         style={{
                           background: 'none', border: 'none', padding: 0,
-                          color: isLight ? '#4338ca' : '#818cf8', fontSize: 13, fontWeight: 600,
+                          color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', fontSize: 13, fontWeight: 600,
                           cursor: 'pointer', display: 'inline',
                         }}
                       >
@@ -394,7 +394,7 @@ export default function Safety() {
                   bodyEl: (
                     <span style={{ fontSize: 14, lineHeight: 1.65 }}>
                       {t('sfReportStep2Desc').split('safety@sahaplay.com')[0]}
-                      <a href="mailto:safety@sahaplay.com" style={{ color: isLight ? '#4338ca' : '#818cf8', textDecoration: 'none', fontWeight: 600 }}>
+                      <a href="mailto:safety@sahaplay.com" style={{ color: isLight ? 'var(--brand-1-darker)' : 'var(--brand-1-light)', textDecoration: 'none', fontWeight: 600 }}>
                         safety@sahaplay.com
                       </a>
                       {t('sfReportStep2Desc').split('safety@sahaplay.com')[1]}
@@ -412,7 +412,7 @@ export default function Safety() {
                   <div style={{ flex: 1, textAlign: 'center', padding: isMobile ? '20px 0' : '24px 20px' }}>
                     <div className="stay-white" style={{
                       width: 48, height: 48, borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                      background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       margin: '0 auto 16px',
                       fontSize: 20, fontWeight: 900, color: '#fff',
@@ -420,7 +420,7 @@ export default function Safety() {
                       {step.num}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-                      <step.Icon size={24} color="#818cf8" />
+                      <step.Icon size={24} color="var(--brand-1-light)" />
                     </div>
                     <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: textPrimary }}>{step.title}</h3>
                     <div style={{ color: textMuted, fontSize: 14, lineHeight: 1.6 }}>
@@ -433,7 +433,7 @@ export default function Safety() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 24,
-                      color: isLight ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.5)',
+                      color: isLight ? 'rgba(var(--brand-1-rgb),0.4)' : 'rgba(var(--brand-1-rgb),0.5)',
                       padding: isMobile ? '0' : '48px 4px 0',
                       transform: isMobile ? 'rotate(90deg)' : 'none',
                       flexShrink: 0,
@@ -448,7 +448,7 @@ export default function Safety() {
 
             {/* Response time banner */}
             <div style={{
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+              background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
               borderRadius: 12,
               padding: '20px 32px',
               textAlign: 'center',
@@ -488,16 +488,16 @@ export default function Safety() {
                 <div
                   key={i}
                   style={{ ...cardStyle, textAlign: 'center' }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none'; }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none'; }}
                 >
                   <div style={{
                     width: 52, height: 52, borderRadius: '50%',
-                    background: 'rgba(99,102,241,0.12)',
+                    background: 'rgba(var(--brand-1-rgb),0.12)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     margin: '0 auto 16px',
                   }}>
-                    <card.Icon size={22} color="#818cf8" />
+                    <card.Icon size={22} color="var(--brand-1-light)" />
                   </div>
                   <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, color: textPrimary }}>{card.title}</h3>
                   <p style={{ color: textMuted, fontSize: 14, lineHeight: 1.6 }}>{card.body}</p>
@@ -512,7 +512,7 @@ export default function Safety() {
         ══════════════════════════════════════════ */}
         <section className="gcw-force-dark hiw-section" style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)' }}>
           <div className="hiw-container" style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto' }}>
-            <Shield size={48} color="#818cf8" style={{ marginBottom: 24 }} />
+            <Shield size={48} color="var(--brand-1-light)" style={{ marginBottom: 24 }} />
 
             <h2 className="stay-white" style={{ fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 800, marginBottom: 16, color: '#fff' }}>
               {t('sfHelpTitle')}
@@ -526,7 +526,7 @@ export default function Safety() {
                 to="/contact?subject=Safety+Report"
                 style={{
                   background: '#ffffff',
-                  color: '#4f46e5',
+                  color: 'var(--brand-1-dark)',
                   fontWeight: 700,
                   borderRadius: 50,
                   padding: '14px 28px',
@@ -605,21 +605,21 @@ export default function Safety() {
             position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
             zIndex: 999,
             padding: '10px 22px', borderRadius: 50,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
             color: '#fff', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            boxShadow: '0 4px 20px rgba(var(--brand-1-rgb),0.5)',
             whiteSpace: 'nowrap',
             transition: 'transform 0.2s, box-shadow 0.2s',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(var(--brand-1-rgb),0.65)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateX(-50%)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(var(--brand-1-rgb),0.5)';
           }}
         >
           <ChevronUp size={18} color="#fff" />
@@ -632,8 +632,8 @@ export default function Safety() {
 
 function ReportHowModal({ isLight, isMobile, onClose }) {
   const { t } = useTranslation();
-  const cardBg = isLight ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.05)';
-  const cardBorder = isLight ? '1px solid rgba(99,102,241,0.15)' : '1px solid rgba(255,255,255,0.08)';
+  const cardBg = isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(255,255,255,0.05)';
+  const cardBorder = isLight ? '1px solid rgba(var(--brand-1-rgb),0.15)' : '1px solid rgba(255,255,255,0.08)';
   const titleColor = isLight ? '#111827' : '#ffffff';
   const bodyColor = isLight ? '#374151' : 'rgba(255,255,255,0.7)';
   const strongColor = isLight ? '#111827' : '#ffffff';
@@ -685,7 +685,7 @@ function ReportHowModal({ isLight, isMobile, onClose }) {
         </button>
 
         {/* Header */}
-        <UserX size={28} color="#818cf8" style={{ marginBottom: 10 }} />
+        <UserX size={28} color="var(--brand-1-light)" style={{ marginBottom: 10 }} />
         <div style={{ fontSize: 20, fontWeight: 800, color: titleColor, marginBottom: 6 }}>
           {t('sfRepModalTitle')}
         </div>
@@ -699,10 +699,10 @@ function ReportHowModal({ isLight, isMobile, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{
               width: 34, height: 34, borderRadius: 10,
-              background: 'rgba(99,102,241,0.15)',
+              background: 'rgba(var(--brand-1-rgb),0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
-              <MessageSquare size={16} color="#818cf8" />
+              <MessageSquare size={16} color="var(--brand-1-light)" />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: titleColor }}>{t('sfRepModalHeader1')}</div>
           </div>
@@ -718,10 +718,10 @@ function ReportHowModal({ isLight, isMobile, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{
               width: 34, height: 34, borderRadius: 10,
-              background: 'rgba(99,102,241,0.15)',
+              background: 'rgba(var(--brand-1-rgb),0.15)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             }}>
-              <User size={16} color="#818cf8" />
+              <User size={16} color="var(--brand-1-light)" />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: titleColor }}>{t('sfRepModalHeader2')}</div>
           </div>
@@ -735,7 +735,7 @@ function ReportHowModal({ isLight, isMobile, onClose }) {
           onClick={onClose}
           style={{
             width: '100%', padding: '12px',
-            background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+            background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
             border: 'none', borderRadius: 12,
             color: '#fff', fontSize: 14, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'inherit',
@@ -769,7 +769,7 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
         
         html[data-theme='light'] .chatlock-modal {
           background: #ffffff !important;
-          border: 1px solid rgba(99, 102, 241, 0.25) !important;
+          border: 1px solid rgba(var(--brand-1-rgb), 0.25) !important;
         }
 
         /* ── Warning title "Important Recovery Warning" ── */
@@ -850,7 +850,7 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
             boxShadow: isLight
-              ? '0 24px 80px rgba(99,102,241,0.22)'
+              ? '0 24px 80px rgba(var(--brand-1-rgb),0.22)'
               : '0 24px 80px rgba(0,0,0,0.6)',
           }}
         >
@@ -886,11 +886,11 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8, paddingRight: 40 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 14, flexShrink: 0,
-                background: 'rgba(168,85,247,0.18)',
-                border: '1px solid rgba(168,85,247,0.28)',
+                background: 'rgba(var(--brand-2-rgb),0.18)',
+                border: '1px solid rgba(var(--brand-2-rgb),0.28)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Lock size={22} color="#c084fc" />
+                <Lock size={22} color="var(--brand-2-light)" />
               </div>
               <div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: isLight ? '#111' : '#ffffff', lineHeight: 1.2 }}>{t('sfLockModalTitle')}</div>
@@ -925,12 +925,12 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
           ].map((text, i) => <CLStep key={i} num={i + 1} text={text} isLight={isLight} />)}
 
           <div style={{
-            background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.07)'}`,
+            background: isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.07)'}`,
             borderRadius: 10, padding: '14px 16px', marginBottom: 22, marginTop: 4,
             fontSize: 13, color: isLight ? '#374151' : 'rgba(255,255,255,0.75)', lineHeight: 1.8,
           }}>
-            <strong style={{ color: isLight ? '#4f46e5' : '#a78bfa' }}>{t('sfLockAttemptsTitle')}</strong>
+            <strong style={{ color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)' }}>{t('sfLockAttemptsTitle')}</strong>
             <br />
             • <strong style={{ color: isLight ? '#111' : '#fff' }}>{t('sfLockAttemptsBullet1')}</strong>
             <br />
@@ -944,14 +944,14 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
           {/* ── Section 3: Auto-Lock Feature ── */}
           <CLSection icon={<Clock size={15} />} label={t('sfLockSec3Title')} isLight={isLight} />
           <div style={{
-            background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.07)'}`,
+            background: isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(255,255,255,0.04)',
+            border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.07)'}`,
             borderRadius: 10, padding: '14px 16px', marginBottom: 22,
             fontSize: 13, color: isLight ? '#374151' : 'rgba(255,255,255,0.75)', lineHeight: 1.8,
           }}>
             {t('sfLockSec3Desc1')}
             <br /><br />
-            <span style={{ color: '#a78bfa', fontWeight: 600 }}>{t('sfLockSec3Desc2')}</span>
+            <span style={{ color: 'var(--brand-1-light)', fontWeight: 600 }}>{t('sfLockSec3Desc2')}</span>
             <br /><br />
             {t('sfLockSec3Desc3')}
             <br /><br />
@@ -963,15 +963,15 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
           {/* ── Section 4: Chat Lock Inside Rooms ── */}
           <CLSection icon={<MessageSquare size={15} />} label={t('sfLockSec4Title')} isLight={isLight} />
           <div style={{
-            background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(99,102,241,0.07)',
-            border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.18)'}`,
+            background: isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(var(--brand-1-rgb),0.07)',
+            border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(var(--brand-1-rgb),0.18)'}`,
             borderRadius: 10, padding: '14px 16px', marginBottom: 22,
             fontSize: 13, color: isLight ? '#374151' : 'rgba(255,255,255,0.75)', lineHeight: 1.8,
           }}>
             {t('sfLockSec4Desc1')}
             <br /><br />
             {t('sfLockSec4Desc2').split('lock indicator')[0]}
-            <strong style={{ color: '#a78bfa', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <strong style={{ color: 'var(--brand-1-light)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <Lock size={12} /> lock indicator
             </strong>
             {t('sfLockSec4Desc2').split('lock indicator')[1]}
@@ -1050,7 +1050,7 @@ function ChatLockInfoModal({ isLight, isMobile, onClose }) {
             style={{
               width: '100%', padding: '13px',
               marginTop: 24,
-              background: 'linear-gradient(135deg,#6366f1,#a855f7)',
+              background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
               border: 'none', borderRadius: 12,
               color: '#fff', fontSize: 14, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit',
@@ -1076,7 +1076,7 @@ function ActionCard({ cardStyle, accent, emoji, title, desc, steps, stepsHeader,
         borderTop: `3px solid ${accent}`,
         transform: hovered ? 'translateY(-2px)' : 'none',
         boxShadow: hovered
-          ? (isLight ? '0 8px 32px rgba(99,102,241,0.18)' : '0 8px 24px rgba(0,0,0,0.4)')
+          ? (isLight ? '0 8px 32px rgba(var(--brand-1-rgb),0.18)' : '0 8px 24px rgba(0,0,0,0.4)')
           : cardStyle.boxShadow,
       }}
       onMouseEnter={() => setHovered(true)}
@@ -1095,7 +1095,7 @@ function ActionCard({ cardStyle, accent, emoji, title, desc, steps, stepsHeader,
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: isLight ? '#4b5563' : '#9ca3af', marginBottom: 5 }}>
               <span style={{ color: accent, fontWeight: 700, fontSize: 11, flexShrink: 0 }}>{i + 1}.</span>
               <span>{step}</span>
-              {i < steps.length - 1 && <span style={{ color: '#a855f7', fontSize: 11, marginLeft: 2 }}>→</span>}
+              {i < steps.length - 1 && <span style={{ color: 'var(--brand-2)', fontSize: 11, marginLeft: 2 }}>→</span>}
             </div>
           ))}
         </div>
@@ -1107,7 +1107,7 @@ function ActionCard({ cardStyle, accent, emoji, title, desc, steps, stepsHeader,
 
 /* ── Helpers used only inside ChatLockInfoModal ── */
 function CLSection({ icon, label, isLight, color, className }) {
-  const iconColor = color || (isLight ? '#6366f1' : '#818cf8');
+  const iconColor = color || (isLight ? 'var(--brand-1)' : 'var(--brand-1-light)');
   return (
     <div
       className={className}
@@ -1132,9 +1132,9 @@ function CLStep({ num, text, isLight }) {
       <div style={{
         width: 22, height: 22, flexShrink: 0,
         borderRadius: '50%',
-        background: 'rgba(168,85,247,0.18)',
-        border: '1px solid rgba(168,85,247,0.3)',
-        color: '#c084fc',
+        background: 'rgba(var(--brand-2-rgb),0.18)',
+        border: '1px solid rgba(var(--brand-2-rgb),0.3)',
+        color: 'var(--brand-2-light)',
         fontSize: 11, fontWeight: 700,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>

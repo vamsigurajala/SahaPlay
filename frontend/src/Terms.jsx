@@ -103,10 +103,10 @@ export default function Terms() {
 
   const cardBase = {
     background:   isLight ? '#ffffff' : '#1e1e30',
-    border:       `1px solid ${isLight ? 'rgba(99,102,241,0.22)' : 'rgba(255,255,255,0.08)'}`,
+    border:       `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.22)' : 'rgba(255,255,255,0.08)'}`,
     borderRadius: 16,
     padding:      28,
-    boxShadow:    isLight ? '0 4px 24px rgba(99,102,241,0.12)' : 'none',
+    boxShadow:    isLight ? '0 4px 24px rgba(var(--brand-1-rgb),0.12)' : 'none',
     transition:   'transform 0.2s, box-shadow 0.2s',
   };
 
@@ -134,9 +134,9 @@ export default function Terms() {
     const isHighlighted = highlightedId === id;
 
     const highlightStyle = isHighlighted ? {
-      background: isLight ? 'rgba(168, 85, 247, 0.08)' : 'rgba(168, 85, 247, 0.16)',
-      borderColor: '#a855f7',
-      boxShadow: isLight ? '0 0 28px rgba(168, 85, 247, 0.4)' : '0 0 35px rgba(168, 85, 247, 0.55)',
+      background: isLight ? 'rgba(var(--brand-2-rgb), 0.08)' : 'rgba(var(--brand-2-rgb), 0.16)',
+      borderColor: 'var(--brand-2)',
+      boxShadow: isLight ? '0 0 28px rgba(var(--brand-2-rgb), 0.4)' : '0 0 35px rgba(var(--brand-2-rgb), 0.55)',
       transform: 'scale(1.02) translateY(-2px)',
     } : {};
 
@@ -183,8 +183,8 @@ export default function Terms() {
 
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)',
-              color: '#818cf8', borderRadius: 99, padding: '6px 16px',
+              background: 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.3)',
+              color: 'var(--brand-1-light)', borderRadius: 99, padding: '6px 16px',
               fontSize: 13, fontWeight: 600, marginBottom: 28,
             }}>
               <FileText size={14} /> {t('termsLegalDocs', 'Legal Documents')}
@@ -197,7 +197,7 @@ export default function Terms() {
             }}>
               {t('termsTitlePart1', 'Terms &')}{' '}
               <span style={{
-                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                background: 'var(--brand-gradient)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
@@ -214,8 +214,8 @@ export default function Terms() {
 
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.08)'}`,
+              background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.08)'}`,
               borderRadius: 8, padding: '6px 16px',
               fontSize: 12, fontWeight: 500, color: textMuted,
             }}>
@@ -244,19 +244,19 @@ export default function Terms() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '8px 12px', borderRadius: 8,
-                      background: isLight ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.04)',
-                      border: `1px solid ${isLight ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.06)'}`,
-                      textDecoration: 'none', color: isLight ? '#5a5fcf' : '#818cf8',
+                      background: isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.06)'}`,
+                      textDecoration: 'none', color: isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)',
                       fontSize: 13, fontWeight: 500, transition: 'background 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = isLight ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.09)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isLight ? 'rgba(99,102,241,0.05)' : 'rgba(255,255,255,0.04)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(255,255,255,0.09)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isLight ? 'rgba(var(--brand-1-rgb),0.05)' : 'rgba(255,255,255,0.04)'; }}
                   >
                     <span style={{
                       width: 22, height: 22, borderRadius: 6,
-                      background: 'rgba(99,102,241,0.15)',
+                      background: 'rgba(var(--brand-1-rgb),0.15)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 10, fontWeight: 800, color: '#818cf8', flexShrink: 0,
+                      fontSize: 10, fontWeight: 800, color: 'var(--brand-1-light)', flexShrink: 0,
                     }}>{num}</span>
                     {t(titleKey, defaultTitle)}
                   </a>
@@ -351,12 +351,12 @@ export default function Terms() {
               <Bullet accent={ACCENTS[4]}>{t('termsUseBullet13', 'Use automated scripts, bots, or tools to interact with the service without permission.')}</Bullet>
               <div style={{
                 marginTop: 14, padding: '12px 16px',
-                background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.09)',
-                border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.22)'}`,
+                background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.09)',
+                border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(var(--brand-1-rgb),0.22)'}`,
                 borderRadius: 10, fontSize: 13, color: textBody,
               }}>
                 {t('termsUseSafetyGuidelines', 'We have a detailed Safety and Community Guidelines page at')}{' '}
-                <Link to="/safety" style={{ color: '#818cf8', textDecoration: 'none', fontWeight: 600 }}>
+                <Link to="/safety" style={{ color: 'var(--brand-1-light)', textDecoration: 'none', fontWeight: 600 }}>
                   www.sahaplay.com/safety
                 </Link>
               </div>
@@ -557,8 +557,8 @@ export default function Terms() {
               </Para>
               <div style={{
                 padding: '12px 16px',
-                background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.09)',
-                border: `1px solid ${isLight ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.22)'}`,
+                background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.09)',
+                border: `1px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(var(--brand-1-rgb),0.22)'}`,
                 borderRadius: 10, fontSize: 13, color: textBody,
               }}>
                 {t('termsGovEuUkConsumers', 'For EU/UK consumers: This does not affect your rights under the laws of your country of residence.')}
@@ -624,7 +624,7 @@ export default function Terms() {
           style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)', padding: '80px 0' }}
         >
           <div className="hiw-container" style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto' }}>
-            <FileText size={44} color="#818cf8" style={{ marginBottom: 20 }} />
+            <FileText size={44} color="var(--brand-1-light)" style={{ marginBottom: 20 }} />
             <h2 className="stay-white" style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 800, marginBottom: 12, color: '#fff' }}>
               {t('termsCtaTitle', 'Questions About Our Terms?')}
             </h2>
@@ -662,21 +662,21 @@ export default function Terms() {
             position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
             zIndex: 999,
             padding: '10px 22px', borderRadius: 50,
-            background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+            background: 'var(--brand-gradient)',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 8,
             color: '#fff', fontSize: 14, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(99,102,241,0.5)',
+            boxShadow: '0 4px 20px rgba(var(--brand-1-rgb),0.5)',
             whiteSpace: 'nowrap',
             transition: 'transform 0.2s, box-shadow 0.2s',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.transform = 'translateX(-50%) translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 8px 28px rgba(99,102,241,0.65)';
+            e.currentTarget.style.boxShadow = '0 8px 28px rgba(var(--brand-1-rgb),0.65)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.transform = 'translateX(-50%)';
-            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(var(--brand-1-rgb),0.5)';
           }}
         >
           <ChevronUp size={18} color="#fff" />
