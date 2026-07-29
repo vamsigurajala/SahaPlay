@@ -29,7 +29,7 @@ async function apiFetch(path, opts = {}) {
 const AdminThemeCtx = createContext(false); // false=dark, true=light
 
 // ─── Stat Card ───────────────────────────────────────────────────────────────
-function StatCard({ label, value, icon: Icon, color = '#6366f1', sub, onClick }) {
+function StatCard({ label, value, icon: Icon, color = 'var(--brand-1)', sub, onClick }) {
   const [hovered, setHovered] = useState(false);
   const clickable = !!onClick;
   const isLight = React.useContext(AdminThemeCtx);
@@ -248,9 +248,9 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
 
   const roomBadge = (isPublic) => ({
     fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-    background: isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)',
-    color: isPublic ? '#34d399' : '#818cf8',
-    border: `1px solid ${isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)'}`,
+    background: isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(var(--brand-1-rgb),0.15)',
+    color: isPublic ? '#34d399' : 'var(--brand-1-light)',
+    border: `1px solid ${isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(var(--brand-1-rgb),0.3)'}`,
   });
 
   return (
@@ -347,7 +347,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                     }}>
                       {u.avatarPath
                         ? <img src={getAvatarUrl(u.avatarPath)} alt="" loading="lazy" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                        : <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: isGuest ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        : <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: isGuest ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 14 }}>{(u.username || '?')[0].toUpperCase()}</span>
                           </div>
                       }
@@ -580,20 +580,20 @@ function OverviewPage({ onNavigate }) {
         <>
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Users</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
-            <StatCard label="Total Users" value={stats.totalUsers.toLocaleString()} icon={Users} color="#6366f1"
+            <StatCard label="Total Users" value={stats.totalUsers.toLocaleString()} icon={Users} color="var(--brand-1)"
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to manage all users" : undefined} />
             <StatCard label="New This Month" value={stats.newThisMonth.toLocaleString()} icon={UserCheck} color="#10b981"
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users', 'this_month') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
-            <StatCard label="New This Week" value={stats.newThisWeek.toLocaleString()} icon={UserCheck} color="#a855f7"
+            <StatCard label="New This Week" value={stats.newThisWeek.toLocaleString()} icon={UserCheck} color="var(--brand-2)"
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users', 'this_week') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to view in user list" : undefined} />
           </div>
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Online Now</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
-            <StatCard label="Logged-in Users" value={stats.loggedInOnline.toLocaleString()} icon={Activity} color="#6366f1"
+            <StatCard label="Logged-in Users" value={stats.loggedInOnline.toLocaleString()} icon={Activity} color="var(--brand-1)"
               sub={['super_admin', 'admin'].includes(watchRole) ? "Click to see who's online" : undefined}
               onClick={['super_admin', 'admin'].includes(watchRole) ? () => setDrawer({ type: 'online-users', title: 'Logged-in Users Online' }) : undefined} />
             <StatCard label="Guests" value={stats.guestsOnline.toLocaleString()} icon={Users} color="#f59e0b"
@@ -603,7 +603,7 @@ function OverviewPage({ onNavigate }) {
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Rooms</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
-            <StatCard label="Active Rooms Now" value={stats.activeRoomsNow.toLocaleString()} icon={LayoutDashboard} color="#6366f1"
+            <StatCard label="Active Rooms Now" value={stats.activeRoomsNow.toLocaleString()} icon={LayoutDashboard} color="var(--brand-1)"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Rooms', filter: 'all' }) : undefined} />
             <StatCard label="Active Public" value={stats.activePublicRooms.toLocaleString()} icon={LayoutDashboard} color="#10b981"
@@ -612,7 +612,7 @@ function OverviewPage({ onNavigate }) {
             <StatCard label="Active Private" value={stats.activePrivateRooms.toLocaleString()} icon={LayoutDashboard} color="#f59e0b"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active private rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Private Rooms', filter: 'private' }) : undefined} />
-            <StatCard label="Total Public Rooms (DB)" value={stats.totalPublicRooms.toLocaleString()} icon={LayoutDashboard} color="#a855f7"
+            <StatCard label="Total Public Rooms (DB)" value={stats.totalPublicRooms.toLocaleString()} icon={LayoutDashboard} color="var(--brand-2)"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to browse all public rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'db-rooms', title: 'All Public Rooms (DB)', filter: 'public' }) : undefined} />
           </div>
@@ -797,7 +797,7 @@ function BanModal({ user, onClose, onBanned }) {
               }}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={15} color="#818cf8" />
+                <Calendar size={15} color="var(--brand-1-light)" />
                 <span style={{ color: isLight ? '#000000' : '#ffffff' }}>{formatDateString(expiresAt)}</span>
               </span>
               <ChevronDown size={16} style={{ color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', transform: `rotate(${pickerOpen ? 180 : 0}deg)`, transition: 'transform 0.2s' }} />
@@ -850,8 +850,8 @@ function BanModal({ user, onClose, onBanned }) {
                         onClick={() => handleSelectDay(day)}
                         className={isSelected ? 'stay-white' : ''}
                         style={{
-                          background: isSelected ? '#6366f1' : 'transparent',
-                          border: isToday && !isSelected ? '1px solid rgba(99,102,241,0.5)' : 'none',
+                          background: isSelected ? 'var(--brand-1)' : 'transparent',
+                          border: isToday && !isSelected ? '1px solid rgba(var(--brand-1-rgb),0.5)' : 'none',
                           borderRadius: 8,
                           color: isSelected ? '#fff' : (isPast ? (isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)') : (isLight ? '#000000' : '#fff')),
                           fontSize: 12,
@@ -908,7 +908,7 @@ function BanModal({ user, onClose, onBanned }) {
                           onClick={() => handleSelectTime('ampm', ampm)}
                           className={ampmVal === ampm ? 'ampm-btn-selected stay-white' : ''}
                           style={{
-                            background: ampmVal === ampm ? '#6366f1' : 'transparent',
+                            background: ampmVal === ampm ? 'var(--brand-1)' : 'transparent',
                             border: 'none', borderRadius: 4, color: ampmVal === ampm ? '#fff' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.5)'),
                             fontSize: 10, fontWeight: 700, padding: '3px 7px', cursor: 'pointer'
                           }}
@@ -1005,8 +1005,8 @@ function Pagination({ page, pages, onPage }) {
     if (isLight) {
       return {
         padding: '6px 11px', minWidth: 36, borderRadius: 8,
-        border: active ? '1px solid #6366f1' : '1px solid #d1d5db',
-        background: active ? '#6366f1' : '#ffffff',
+        border: active ? '1px solid var(--brand-1)' : '1px solid #d1d5db',
+        background: active ? 'var(--brand-1)' : '#ffffff',
         color: disabled ? '#d1d5db' : active ? '#ffffff' : '#374151',
         cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'center',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1015,8 +1015,8 @@ function Pagination({ page, pages, onPage }) {
     }
     return {
       padding: '6px 11px', minWidth: 36, borderRadius: 8,
-      border: active ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
-      background: active ? '#6366f1' : 'rgba(255,255,255,0.06)',
+      border: active ? '1px solid var(--brand-1)' : '1px solid rgba(255,255,255,0.1)',
+      background: active ? 'var(--brand-1)' : 'rgba(255,255,255,0.06)',
       color: disabled ? 'rgba(255,255,255,0.2)' : active ? '#fff' : 'rgba(255,255,255,0.7)',
       cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'center',
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1214,14 +1214,14 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                     onClick={() => setShowJoinDropdown(v => !v)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px 2px 0',
-                      color: joinFilter !== 'all' ? '#6366f1' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.4)'),
+                      color: joinFilter !== 'all' ? 'var(--brand-1)' : (isLight ? '#4b5563' : 'rgba(255,255,255,0.4)'),
                       fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
                       borderRadius: 4, outline: 'none',
                     }}
                   >
                     JOINED
                     {joinFilter !== 'all' && (
-                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#6366f1', display: 'inline-block', flexShrink: 0, marginLeft: 1 }} />
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--brand-1)', display: 'inline-block', flexShrink: 0, marginLeft: 1 }} />
                     )}
                     <ChevronDown size={10} style={{
                       transform: showJoinDropdown ? 'rotate(180deg)' : 'rotate(0)',
@@ -1235,7 +1235,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                     <div style={{
                       position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 2000,
                       background: isLight ? '#f3f4f6' : '#161b27',
-                      border: isLight ? '1px solid #d1d5db' : '1px solid rgba(99,102,241,0.25)',
+                      border: isLight ? '1px solid #d1d5db' : '1px solid rgba(var(--brand-1-rgb),0.25)',
                       borderRadius: 10, padding: '4px 4px', minWidth: 170,
                       boxShadow: isLight
                         ? '0 8px 28px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)'
@@ -1258,11 +1258,11 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                               display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                               padding: '8px 10px', margin: '1px 0',
                               background: isActive
-                                ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)')
+                                ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)')
                                 : 'transparent',
                               border: 'none', borderRadius: 7, cursor: 'pointer', textAlign: 'left',
                               color: isActive
-                                ? '#6366f1'
+                                ? 'var(--brand-1)'
                                 : (isLight ? '#111827' : 'rgba(255,255,255,0.82)'),
                               fontSize: 13, fontWeight: isActive ? 600 : 500,
                               transition: 'background 0.12s, color 0.12s',
@@ -1285,10 +1285,10 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                               width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
                               flexShrink: 0, borderRadius: 4,
                               background: isActive
-                                ? (isLight ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.3)')
+                                ? (isLight ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(var(--brand-1-rgb),0.3)')
                                 : 'transparent',
                             }}>
-                              {isActive && <CheckCircle size={12} color="#6366f1" />}
+                              {isActive && <CheckCircle size={12} color="var(--brand-1)" />}
                             </span>
                             {f.label}
                           </button>
@@ -1321,7 +1321,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                       {u.avatarPath ? (
                         <img src={getAvatarUrl(u.avatarPath)} alt="" loading="lazy" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                       ) : (
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{(u.username || '?')[0].toUpperCase()}</span>
                         </div>
                       )}
@@ -1335,9 +1335,9 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{
                       display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                      background: ['super_admin','admin','moderator','support'].includes(u.role) ? (isLight ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.18)') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'),
-                      color: ['super_admin','admin','moderator','support'].includes(u.role) ? '#6366f1' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
-                      border: ['super_admin','admin','moderator','support'].includes(u.role) ? '1px solid rgba(99,102,241,0.25)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.08)'),
+                      background: ['super_admin','admin','moderator','support'].includes(u.role) ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)'),
+                      color: ['super_admin','admin','moderator','support'].includes(u.role) ? 'var(--brand-1)' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
+                      border: ['super_admin','admin','moderator','support'].includes(u.role) ? '1px solid rgba(var(--brand-1-rgb),0.25)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.08)'),
                     }}>
                       {['super_admin','admin','moderator','support'].includes(u.role) ? `⚡ ${u.role.replace(/_/g,' ')}` : 'user'}
                     </span>
@@ -1625,7 +1625,7 @@ function ActiveRoomsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ color: isLight ? '#111827' : '#fff', fontWeight: 700, fontSize: 15 }}>{room.roomName}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: room.isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(99,102,241,0.15)', color: room.isPublic ? '#34d399' : '#818cf8', border: `1px solid ${room.isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)'}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: room.isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(var(--brand-1-rgb),0.15)', color: room.isPublic ? '#34d399' : 'var(--brand-1-light)', border: `1px solid ${room.isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(var(--brand-1-rgb),0.3)'}` }}>
                       {room.isPublic ? 'Public' : 'Private'}
                     </span>
                   </div>
@@ -1672,7 +1672,7 @@ function ActiveRoomsPage() {
                         {m.avatarPath ? (
                           <img src={getAvatarUrl(m.avatarPath)} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         ) : (
-                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,#6366f1,#a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <div style={{ width: 30, height: 30, borderRadius: '50%', background: m.isHost ? 'linear-gradient(135deg,#f59e0b,#ef4444)' : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <span className="stay-white" style={{ color: '#fff', fontWeight: 700, fontSize: 12 }}>{(m.username || '?')[0].toUpperCase()}</span>
                           </div>
                         )}
@@ -2014,7 +2014,7 @@ function ReportsPage({ refreshBadges }) {
             {[['all','All'], ['unresolved','Unresolved'], ['in_review','In Review'], ['resolved','Resolved'], ['dismissed','Dismissed']].map(([f, label]) => {
               const active = filter === f;
               return (
-                <button key={f} onClick={() => handleFilter(f)} style={{ padding: '7px 13px', borderRadius: 9, border: active ? '1px solid #6366f1' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'), background: active ? 'rgba(99,102,241,0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'), color: active ? '#818cf8' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'), fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s' }}>
+                <button key={f} onClick={() => handleFilter(f)} style={{ padding: '7px 13px', borderRadius: 9, border: active ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'), background: active ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'), color: active ? 'var(--brand-1-light)' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'), fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s' }}>
                   {label}
                 </button>
               );
@@ -2044,9 +2044,9 @@ function ReportsPage({ refreshBadges }) {
               ) : reports.map(r => (
                 <tr key={r.id}
                   onClick={() => selectReport(r)}
-                  style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s', cursor: 'pointer', background: selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.1)') : 'transparent' }}
+                  style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)', transition: 'background 0.1s', cursor: 'pointer', background: selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(var(--brand-1-rgb),0.1)') : 'transparent' }}
                   onMouseEnter={e => { if (selected?.id !== r.id) e.currentTarget.style.background = isLight ? '#f9fafb' : 'rgba(255,255,255,0.02)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(99,102,241,0.1)') : 'transparent'; }}>
+                  onMouseLeave={e => { e.currentTarget.style.background = selected?.id === r.id ? (isLight ? '#f0f4ff' : 'rgba(var(--brand-1-rgb),0.1)') : 'transparent'; }}>
                   <td style={{ padding: '10px 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)', fontSize: 12, whiteSpace: 'nowrap' }}>
                     {r.createdAt ? new Date(r.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
                   </td>
@@ -2057,7 +2057,7 @@ function ReportsPage({ refreshBadges }) {
                   </td>
                   <td style={{ padding: '10px 16px' }}>
                     {Array.isArray(r.attachments) && r.attachments.length > 0 ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.2)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.3)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.2)', color: 'var(--brand-1-light)', border: '1px solid rgba(var(--brand-1-rgb),0.3)' }}>
                         🖼 {r.attachments.length}
                       </span>
                     ) : <span style={{ color: isLight ? '#d1d5db' : 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
@@ -2197,7 +2197,7 @@ function ReportsPage({ refreshBadges }) {
                         <button
                           onClick={() => setShowAssignDropdown(p => !p)}
                           disabled={!!actionLoading}
-                          style={{ padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.1)', color: '#7c3aed', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          style={{ padding: '8px 14px', borderRadius: 9, border: '1px solid rgba(var(--brand-2-rgb),0.4)', background: 'rgba(var(--brand-2-rgb),0.1)', color: 'var(--brand-2-dark)', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                           {actionLoading === 'assign' ? '…' : <><span>Assign</span><ChevronDown size={11}/></>}
                         </button>
                         {showAssignDropdown && (
@@ -2213,7 +2213,7 @@ function ReportsPage({ refreshBadges }) {
                               style={{
                                 width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none',
                                 borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.06)',
-                                color: '#6366f1', fontWeight: 700, fontSize: 12, cursor: 'pointer'
+                                color: 'var(--brand-1)', fontWeight: 700, fontSize: 12, cursor: 'pointer'
                               }}
                             >
                               Assign to Me
@@ -2246,8 +2246,8 @@ function ReportsPage({ refreshBadges }) {
                     <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Admin Notes</div>
                     {displayData.admin_notes ? (
                       <div style={{
-                        background: isLight ? '#f3f4f6' : 'rgba(99,102,241,0.07)',
-                        border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(99,102,241,0.15)',
+                        background: isLight ? '#f3f4f6' : 'rgba(var(--brand-1-rgb),0.07)',
+                        border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(var(--brand-1-rgb),0.15)',
                         borderRadius: 10, padding: '10px 14px', fontSize: 12,
                         color: isLight ? '#374151' : 'rgba(255,255,255,0.65)',
                         lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 10
@@ -2270,7 +2270,7 @@ function ReportsPage({ refreshBadges }) {
                           color: isLight ? '#111827' : '#fff', fontSize: 13, outline: 'none'
                         }}
                       />
-                      <button onClick={() => addNote(displayData.id)} disabled={noteLoading || !noteText.trim()} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)', color: '#6366f1', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                      <button onClick={() => addNote(displayData.id)} disabled={noteLoading || !noteText.trim()} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(var(--brand-1-rgb),0.4)', background: 'rgba(var(--brand-1-rgb),0.12)', color: 'var(--brand-1)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                         {noteLoading ? '…' : 'Add'}
                       </button>
                     </div>
@@ -2566,9 +2566,9 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                 onClick={() => handleFilter(f)}
                 style={{
                   padding: '6px 13px', borderRadius: 8,
-                  border: active ? '1px solid #6366f1' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
-                  background: active ? 'rgba(99,102,241,0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'),
-                  color: active ? '#818cf8' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
+                  border: active ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
+                  background: active ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'),
+                  color: active ? 'var(--brand-1-light)' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
                   fontWeight: 700, fontSize: 12, cursor: 'pointer',
                   transition: 'all 0.15s'
                 }}
@@ -2602,7 +2602,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                     style={{
                       borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)',
                       cursor: 'pointer', transition: 'background 0.1s',
-                      background: isSel ? (isLight ? '#f3f4f6' : 'rgba(99,102,241,0.07)') : 'transparent'
+                      background: isSel ? (isLight ? '#f3f4f6' : 'rgba(var(--brand-1-rgb),0.07)') : 'transparent'
                     }}
                     onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = isLight ? '#f9fafb' : 'rgba(255,255,255,0.03)'; }}
                     onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}>
@@ -2628,7 +2628,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                     <td style={{ padding: '10px 14px' }}>{pill(r.status || 'open', STATUS_COLORS[r.status] || STATUS_COLORS.open)}</td>
                     <td style={{ padding: '10px 14px' }}>
                       {(r.attachment_count > 0) ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8', fontSize: 11, fontWeight: 700 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 6, background: 'rgba(var(--brand-1-rgb),0.12)', border: '1px solid rgba(var(--brand-1-rgb),0.2)', color: 'var(--brand-1-light)', fontSize: 11, fontWeight: 700 }}>
                           <Paperclip size={10} />{r.attachment_count}
                         </span>
                       ) : <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.2)', fontSize: 12 }}>—</span>}
@@ -2731,7 +2731,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                     <button
                       onClick={() => setShowAssignDropdown(p => !p)}
                       disabled={!!actionLoading}
-                      style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid rgba(168,85,247,0.4)', background: 'rgba(168,85,247,0.1)', color: '#7c3aed', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid rgba(var(--brand-2-rgb),0.4)', background: 'rgba(var(--brand-2-rgb),0.1)', color: 'var(--brand-2-dark)', fontWeight: 700, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                       {actionLoading === 'assign' ? '…' : <><span>Assign</span><ChevronDown size={11}/></>}
                     </button>
                     {showAssignDropdown && (
@@ -2747,7 +2747,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                           style={{
                             width: '100%', textAlign: 'left', padding: '9px 14px', background: 'none', border: 'none',
                             borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.06)',
-                            color: '#6366f1', fontWeight: 700, fontSize: 12, cursor: 'pointer'
+                            color: 'var(--brand-1)', fontWeight: 700, fontSize: 12, cursor: 'pointer'
                           }}
                         >
                           Assign to Me
@@ -2801,8 +2801,8 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                 <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Admin Notes</div>
                 {detailData.admin_notes ? (
                   <div style={{
-                    background: isLight ? '#f3f4f6' : 'rgba(99,102,241,0.07)',
-                    border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(99,102,241,0.15)',
+                    background: isLight ? '#f3f4f6' : 'rgba(var(--brand-1-rgb),0.07)',
+                    border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(var(--brand-1-rgb),0.15)',
                     borderRadius: 10, padding: '10px 14px', fontSize: 12,
                     color: isLight ? '#374151' : 'rgba(255,255,255,0.65)',
                     lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: 10
@@ -2825,7 +2825,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                       color: isLight ? '#111827' : '#fff', fontSize: 13, outline: 'none'
                     }}
                   />
-                  <button onClick={() => addNote(detailData.id)} disabled={noteLoading || !noteText.trim()} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.12)', color: '#6366f1', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  <button onClick={() => addNote(detailData.id)} disabled={noteLoading || !noteText.trim()} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(var(--brand-1-rgb),0.4)', background: 'rgba(var(--brand-1-rgb),0.12)', color: 'var(--brand-1)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
                     {noteLoading ? '…' : 'Add'}
                   </button>
                 </div>
@@ -2935,7 +2935,7 @@ function ConfirmModal({ title, message, confirmWord, destructive, onConfirm, onC
         {confirmWord && (
           <div style={{ marginBottom: 18 }}>
             <p style={{ margin: '0 0 8px', fontSize: 12, color: muted }}>
-              Type <code style={{ color: destructive ? '#ef4444' : '#6366f1', background: destructive ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)', padding: '1px 7px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>{confirmWord}</code> to confirm
+              Type <code style={{ color: destructive ? '#ef4444' : 'var(--brand-1)', background: destructive ? 'rgba(239,68,68,0.1)' : 'rgba(var(--brand-1-rgb),0.1)', padding: '1px 7px', borderRadius: 4, fontSize: 12, fontWeight: 700 }}>{confirmWord}</code> to confirm
             </p>
             <input autoFocus value={typed} onChange={e => setTyped(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && canConfirm && !loading && onConfirm()}
@@ -2952,7 +2952,7 @@ function ConfirmModal({ title, message, confirmWord, destructive, onConfirm, onC
             style={{
               padding: '9px 20px', borderRadius: 9, border: 'none', fontWeight: 700, fontSize: 13,
               cursor: canConfirm && !loading ? 'pointer' : 'not-allowed',
-              background: canConfirm && !loading ? (destructive ? '#dc2626' : '#6366f1') : (isLight ? '#e2e8f0' : (destructive ? 'rgba(220,38,38,0.25)' : 'rgba(99,102,241,0.25)')),
+              background: canConfirm && !loading ? (destructive ? '#dc2626' : 'var(--brand-1)') : (isLight ? '#e2e8f0' : (destructive ? 'rgba(220,38,38,0.25)' : 'rgba(var(--brand-1-rgb),0.25)')),
               color: isLight ? (canConfirm && !loading ? '#fff' : '#000') : '#fff',
               transition: 'all 0.15s'
             }}
@@ -3224,8 +3224,8 @@ function AdminTeamPage({ onOpenTicket }) {
                         }}
                         style={{
                           width: '100%', padding: '8px 10px', borderRadius: 6, border: 'none',
-                          background: active ? (isLight ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.15)') : 'transparent',
-                          color: active ? '#6366f1' : T.text, fontSize: 13, cursor: 'pointer',
+                          background: active ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(var(--brand-1-rgb),0.15)') : 'transparent',
+                          color: active ? 'var(--brand-1)' : T.text, fontSize: 13, cursor: 'pointer',
                           textAlign: 'left', fontWeight: active ? 700 : 500, transition: 'all 0.1s'
                         }}
                         onMouseEnter={e => { if (!active) e.currentTarget.style.background = isLight ? '#f3f4f6' : 'rgba(255,255,255,0.04)'; }}
@@ -3239,7 +3239,7 @@ function AdminTeamPage({ onOpenTicket }) {
               )}
             </div>
             <button onClick={sendInvite} disabled={inviteSending || !inviteEmail.trim()}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(99,102,241,0.4)', background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 700, fontSize: 13, cursor: inviteSending || !inviteEmail.trim() ? 'not-allowed' : 'pointer', opacity: inviteSending || !inviteEmail.trim() ? 0.6 : 1 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 9, border: '1px solid rgba(var(--brand-1-rgb),0.4)', background: 'rgba(var(--brand-1-rgb),0.15)', color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 13, cursor: inviteSending || !inviteEmail.trim() ? 'not-allowed' : 'pointer', opacity: inviteSending || !inviteEmail.trim() ? 0.6 : 1 }}>
               <Mail size={13} />{inviteSending ? 'Sending…' : 'Send Invite'}
             </button>
           </div>
@@ -3298,7 +3298,7 @@ function AdminTeamPage({ onOpenTicket }) {
                   <td style={{ padding: '12px 16px', fontWeight: 700, color: T.text }}>
                     @{m.username}
                     {String(m.id) === String(currentUserId) && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: '#818cf8', fontWeight: 700, background: 'rgba(99,102,241,0.12)', padding: '1px 7px', borderRadius: 99 }}>you</span>
+                      <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--brand-1-light)', fontWeight: 700, background: 'rgba(var(--brand-1-rgb),0.12)', padding: '1px 7px', borderRadius: 99 }}>you</span>
                     )}
                   </td>
                   <td style={{ padding: '12px 16px', color: T.muted, fontSize: 12 }}>{m.email || '—'}</td>
@@ -3307,7 +3307,7 @@ function AdminTeamPage({ onOpenTicket }) {
                   <td style={{ padding: '12px 16px', color: T.faint, fontSize: 12 }}>{m.created_at ? new Date(m.created_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '12px 16px' }}>
                     {(m.open_ticket_count > 0) ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 99, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 800, fontSize: 12 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 99, background: 'rgba(var(--brand-1-rgb),0.12)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', color: 'var(--brand-1-light)', fontWeight: 800, fontSize: 12 }}>
                         {m.open_ticket_count}
                       </span>
                     ) : (
@@ -3375,7 +3375,7 @@ function AdminTeamPage({ onOpenTicket }) {
                         <div style={{ display: 'flex', gap: 5 }}>
                           {(st === 'pending' || st === 'expired') && (
                             <button onClick={() => resendInvite(inv)}
-                              style={{ ...btnS, background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.25)' }}>
+                              style={{ ...btnS, background: 'rgba(var(--brand-1-rgb),0.12)', color: 'var(--brand-1-light)', border: '1px solid rgba(var(--brand-1-rgb),0.25)' }}>
                               Resend
                             </button>
                           )}
@@ -3414,14 +3414,14 @@ function AdminTeamPage({ onOpenTicket }) {
           <div onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#111827', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 0, maxWidth: 520, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: isLight ? '0 20px 48px rgba(0,0,0,0.08)' : '0 24px 64px rgba(0,0,0,0.5)' }}>
             {/* Header */}
             <div style={{ padding: '24px 28px 20px', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 46, height: 46, borderRadius: '50%', background: ROLE_COLORS[selectedMember.role]?.bg || 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: `1px solid ${ROLE_COLORS[selectedMember.role]?.border || 'rgba(99,102,241,0.3)'}` }}>
-                <UserCog size={20} color={ROLE_COLORS[selectedMember.role]?.color || '#818cf8'} />
+              <div style={{ width: 46, height: 46, borderRadius: '50%', background: ROLE_COLORS[selectedMember.role]?.bg || 'rgba(var(--brand-1-rgb),0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: `1px solid ${ROLE_COLORS[selectedMember.role]?.border || 'rgba(var(--brand-1-rgb),0.3)'}` }}>
+                <UserCog size={20} color={ROLE_COLORS[selectedMember.role]?.color || 'var(--brand-1-light)'} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ color: isLight ? '#111827' : '#fff', fontWeight: 800, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}>
                   @{selectedMember.username}
                   {String(selectedMember.id) === String(currentUserId) && (
-                    <span style={{ fontSize: 10, color: '#6366f1', fontWeight: 800, background: 'rgba(99,102,241,0.12)', padding: '1px 7px', borderRadius: 99 }}>you</span>
+                    <span style={{ fontSize: 10, color: 'var(--brand-1)', fontWeight: 800, background: 'rgba(var(--brand-1-rgb),0.12)', padding: '1px 7px', borderRadius: 99 }}>you</span>
                   )}
                 </div>
                 <div style={{ color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedMember.email}</div>
@@ -3616,14 +3616,14 @@ export default function Admin() {
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 2,
-                  background: active ? (isLight ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)') : 'transparent',
-                  color: active ? '#6366f1' : isLight ? '#374151' : 'rgba(255,255,255,0.55)',
+                  background: active ? (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.15)') : 'transparent',
+                  color: active ? 'var(--brand-1)' : isLight ? '#374151' : 'rgba(255,255,255,0.55)',
                   fontWeight: active ? 800 : 600, fontSize: 13, textAlign: 'left', transition: 'all 0.15s',
                 }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = isLight ? '#f3f4f6' : 'rgba(255,255,255,0.04)'; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
               >
-                <Icon size={16} color={active ? '#6366f1' : isLight ? '#374151' : 'rgba(255,255,255,0.55)'} />
+                <Icon size={16} color={active ? 'var(--brand-1)' : isLight ? '#374151' : 'rgba(255,255,255,0.55)'} />
                 <span style={{ flex: 1 }}>{label}</span>
                 {badge > 0 && (
                   <span className="stay-white" style={{ background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 800, borderRadius: 99, padding: '1px 6px', minWidth: 18, textAlign: 'center' }}>
