@@ -328,6 +328,114 @@ const GENERATED_DUOTONE = [
   { id: 'jade-stone', name: 'Jade Stone', base1: '#059669', base2: '#34d399' },
   { id: 'plum-wine', name: 'Plum Wine', base1: '#86198f', base2: '#c026d3' },
   { id: 'turquoise-tide', name: 'Turquoise Tide', base1: '#0d9488', base2: '#5eead4' },
+
+  // Royal & Jewel
+  { id: 'royal-purple', name: 'Royal Purple', base1: '#6d28d9', base2: '#9333ea' },
+  { id: 'sapphire-blue', name: 'Sapphire Blue', base1: '#1e40af', base2: '#3b82f6' },
+  { id: 'emerald-court', name: 'Emerald Court', base1: '#065f46', base2: '#10b981' },
+  { id: 'ruby-regal', name: 'Ruby Regal', base1: '#9f1239', base2: '#e11d48' },
+  { id: 'amethyst-crown', name: 'Amethyst Crown', base1: '#6b21a8', base2: '#c026d3' },
+  { id: 'golden-throne', name: 'Golden Throne', base1: '#92400e', base2: '#f59e0b' },
+  { id: 'imperial-violet', name: 'Imperial Violet', base1: '#4c1d95', base2: '#7c3aed' },
+  { id: 'royal-teal', name: 'Royal Teal', base1: '#115e59', base2: '#14b8a6' },
+  { id: 'burgundy-majesty', name: 'Burgundy Majesty', base1: '#7f1d1d', base2: '#b91c1c' },
+  { id: 'onyx-gold', name: 'Onyx Gold', base1: '#44403c', base2: '#eab308' },
+
+  // Pastel Dreams
+  { id: 'cotton-candy', name: 'Cotton Candy', base1: '#f9a8d4', base2: '#7dd3fc' },
+  { id: 'lavender-mist', name: 'Lavender Mist', base1: '#c4b5fd', base2: '#a5b4fc' },
+  { id: 'peach-cream', name: 'Peach Cream', base1: '#fdba74', base2: '#fde68a' },
+  { id: 'baby-blue', name: 'Baby Blue', base1: '#7dd3fc', base2: '#93c5fd' },
+  { id: 'mint-cream', name: 'Mint Cream', base1: '#6ee7b7', base2: '#99f6e4' },
+  { id: 'blush-rose', name: 'Blush Rose', base1: '#fda4af', base2: '#f9a8d4' },
+  { id: 'lilac-haze', name: 'Lilac Haze', base1: '#d8b4fe', base2: '#c4b5fd' },
+  { id: 'buttercream', name: 'Buttercream', base1: '#fde68a', base2: '#fef08a' },
+  { id: 'powder-sky', name: 'Powder Sky', base1: '#bae6fd', base2: '#a5f3fc' },
+  { id: 'seafoam', name: 'Seafoam', base1: '#99f6e4', base2: '#a7f3d0' },
+
+  // Vibrant Neon
+  { id: 'neon-lime', name: 'Neon Lime', base1: '#a3e635', base2: '#4ade80' },
+  { id: 'electric-blue', name: 'Electric Blue', base1: '#38bdf8', base2: '#2563eb' },
+  { id: 'hot-pink-blast', name: 'Hot Pink Blast', base1: '#f472b6', base2: '#e11d48' },
+  { id: 'cyber-yellow', name: 'Cyber Yellow', base1: '#fde047', base2: '#fb923c' },
+  { id: 'neon-orange', name: 'Neon Orange', base1: '#fb923c', base2: '#dc2626' },
+  { id: 'laser-purple', name: 'Laser Purple', base1: '#c026d3', base2: '#7c3aed' },
+  { id: 'radioactive-green', name: 'Radioactive Green', base1: '#84cc16', base2: '#22c55e' },
+  { id: 'neon-coral', name: 'Neon Coral', base1: '#fb7185', base2: '#f97316' },
+  { id: 'ultraviolet', name: 'Ultraviolet', base1: '#8b5cf6', base2: '#d946ef' },
+  { id: 'flash-cyan', name: 'Flash Cyan', base1: '#22d3ee', base2: '#0ea5e9' },
+
+  // Earth & Autumn
+  { id: 'autumn-rust', name: 'Autumn Rust', base1: '#9a3412', base2: '#c2410c' },
+  { id: 'terracotta', name: 'Terracotta', base1: '#c2410c', base2: '#ea580c' },
+  { id: 'cinnamon-spice', name: 'Cinnamon Spice', base1: '#92400e', base2: '#b45309' },
+  { id: 'harvest-gold', name: 'Harvest Gold', base1: '#b45309', base2: '#d97706' },
+  { id: 'maple-leaf', name: 'Maple Leaf', base1: '#c2410c', base2: '#dc2626' },
+  { id: 'chestnut', name: 'Chestnut', base1: '#7c2d12', base2: '#9a3412' },
+  { id: 'clay-earth', name: 'Clay Earth', base1: '#a16207', base2: '#854d0e' },
+  { id: 'amber-wood', name: 'Amber Wood', base1: '#78350f', base2: '#b45309' },
+  { id: 'copper-field', name: 'Copper Field', base1: '#c2410c', base2: '#f59e0b' },
+  { id: 'mustard-field', name: 'Mustard Field', base1: '#a16207', base2: '#eab308' },
+
+  // Ocean & Aqua
+  { id: 'deep-sea', name: 'Deep Sea', base1: '#0c4a6e', base2: '#0369a1' },
+  { id: 'aqua-marine', name: 'Aqua Marine', base1: '#06b6d4', base2: '#67e8f9' },
+  { id: 'lagoon-blue', name: 'Lagoon Blue', base1: '#0891b2', base2: '#38bdf8' },
+  { id: 'tidal-wave', name: 'Tidal Wave', base1: '#0e7490', base2: '#22d3ee' },
+  { id: 'coral-reef-blue', name: 'Coral Reef Blue', base1: '#0284c7', base2: '#f472b6' },
+  { id: 'arctic-ocean', name: 'Arctic Ocean', base1: '#164e63', base2: '#67e8f9' },
+  { id: 'caribbean-blue', name: 'Caribbean Blue', base1: '#0ea5e9', base2: '#2dd4bf' },
+  { id: 'marine-teal', name: 'Marine Teal', base1: '#115e59', base2: '#2dd4bf' },
+  { id: 'abyss-blue', name: 'Abyss Blue', base1: '#172554', base2: '#1e40af' },
+  { id: 'seaglass', name: 'Seaglass', base1: '#5eead4', base2: '#a7f3d0' },
+
+  // Nature & Botanical
+  { id: 'forest-canopy', name: 'Forest Canopy', base1: '#14532d', base2: '#15803d' },
+  { id: 'moss-green', name: 'Moss Green', base1: '#365314', base2: '#4d7c0f' },
+  { id: 'bamboo-leaf', name: 'Bamboo Leaf', base1: '#3f6212', base2: '#65a30d' },
+  { id: 'fern-green', name: 'Fern Green', base1: '#166534', base2: '#22c55e' },
+  { id: 'olive-grove', name: 'Olive Grove', base1: '#3f6212', base2: '#84cc16' },
+  { id: 'sage-meadow', name: 'Sage Meadow', base1: '#5b7553', base2: '#8ba888' },
+  { id: 'pine-forest', name: 'Pine Forest', base1: '#052e16', base2: '#166534' },
+  { id: 'basil-green', name: 'Basil Green', base1: '#166534', base2: '#16a34a' },
+  { id: 'eucalyptus', name: 'Eucalyptus', base1: '#0f766e', base2: '#5eead4' },
+  { id: 'jungle-vine', name: 'Jungle Vine', base1: '#14532d', base2: '#4ade80' },
+
+  // Fire & Sunset
+  { id: 'blazing-sunset', name: 'Blazing Sunset', base1: '#dc2626', base2: '#f59e0b' },
+  { id: 'molten-lava', name: 'Molten Lava', base1: '#7f1d1d', base2: '#ea580c' },
+  { id: 'wildfire', name: 'Wildfire', base1: '#991b1b', base2: '#f97316' },
+  { id: 'desert-heat', name: 'Desert Heat', base1: '#ea580c', base2: '#fbbf24' },
+  { id: 'solar-flare', name: 'Solar Flare', base1: '#f59e0b', base2: '#facc15' },
+  { id: 'ember-glow', name: 'Ember Glow', base1: '#b91c1c', base2: '#f97316' },
+  { id: 'phoenix-fire', name: 'Phoenix Fire', base1: '#7c2d12', base2: '#dc2626' },
+  { id: 'tequila-sunrise', name: 'Tequila Sunrise', base1: '#f97316', base2: '#ec4899' },
+  { id: 'volcano', name: 'Volcano', base1: '#450a0a', base2: '#b91c1c' },
+  { id: 'dragon-fire', name: 'Dragon Fire', base1: '#991b1b', base2: '#eab308' },
+
+  // Ice & Frost
+  { id: 'frosted-glass', name: 'Frosted Glass', base1: '#94a3b8', base2: '#e2e8f0' },
+  { id: 'glacier-blue', name: 'Glacier Blue', base1: '#38bdf8', base2: '#bae6fd' },
+  { id: 'winter-frost', name: 'Winter Frost', base1: '#64748b', base2: '#cbd5e1' },
+  { id: 'arctic-chill', name: 'Arctic Chill', base1: '#0ea5e9', base2: '#a5f3fc' },
+  { id: 'icy-mint', name: 'Icy Mint', base1: '#2dd4bf', base2: '#99f6e4' },
+  { id: 'snowfall', name: 'Snowfall', base1: '#94a3b8', base2: '#f1f5f9' },
+  { id: 'crystal-blue', name: 'Crystal Blue', base1: '#0284c7', base2: '#7dd3fc' },
+  { id: 'polar-night', name: 'Polar Night', base1: '#1e293b', base2: '#334155' },
+  { id: 'frozen-lake', name: 'Frozen Lake', base1: '#0e7490', base2: '#a5f3fc' },
+  { id: 'silver-frost', name: 'Silver Frost', base1: '#64748b', base2: '#94a3b8' },
+
+  // Gemstone
+  { id: 'sapphire', name: 'Sapphire', base1: '#1e3a8a', base2: '#3b82f6' },
+  { id: 'emerald', name: 'Emerald', base1: '#064e3b', base2: '#10b981' },
+  { id: 'ruby', name: 'Ruby', base1: '#881337', base2: '#e11d48' },
+  { id: 'amethyst', name: 'Amethyst', base1: '#581c87', base2: '#a855f7' },
+  { id: 'topaz', name: 'Topaz', base1: '#78350f', base2: '#fbbf24' },
+  { id: 'garnet', name: 'Garnet', base1: '#7f1d1d', base2: '#b91c1c' },
+  { id: 'peridot', name: 'Peridot', base1: '#365314', base2: '#a3e635' },
+  { id: 'aquamarine', name: 'Aquamarine', base1: '#134e4a', base2: '#2dd4bf' },
+  { id: 'citrine', name: 'Citrine', base1: '#713f12', base2: '#facc15' },
+  { id: 'rose-quartz', name: 'Rose Quartz', base1: '#9d174d', base2: '#f9a8d4' },
 ].map(duotone);
 
 const GENERATED_TRITONE = [
@@ -341,6 +449,42 @@ const GENERATED_TRITONE = [
   { id: 'cherry-blossom', name: 'Cherry Blossom', base1: '#fda4af', base2: '#f472b6', base3: '#c026d3' },
   { id: 'neon-nights', name: 'Neon Nights', base1: '#22d3ee', base2: '#4f46e5', base3: '#db2777' },
   { id: 'autumn-blaze', name: 'Autumn Blaze', base1: '#eab308', base2: '#f97316', base3: '#dc2626' },
+
+  // Cosmic & Galaxy
+  { id: 'nebula', name: 'Nebula', base1: '#4c1d95', base2: '#db2777', base3: '#0ea5e9' },
+  { id: 'supernova', name: 'Supernova', base1: '#f59e0b', base2: '#ec4899', base3: '#7c3aed' },
+  { id: 'milky-way', name: 'Milky Way', base1: '#312e81', base2: '#6366f1', base3: '#c084fc' },
+  { id: 'stardust', name: 'Stardust', base1: '#312e81', base2: '#818cf8', base3: '#f0abfc' },
+  { id: 'cosmic-dust', name: 'Cosmic Dust', base1: '#4c1d95', base2: '#9333ea', base3: '#38bdf8' },
+  { id: 'andromeda', name: 'Andromeda', base1: '#1e3a8a', base2: '#7c3aed', base3: '#ec4899' },
+  { id: 'solar-wind', name: 'Solar Wind', base1: '#f97316', base2: '#eab308', base3: '#22d3ee' },
+  { id: 'meteor-shower', name: 'Meteor Shower', base1: '#1e293b', base2: '#6366f1', base3: '#22d3ee' },
+  { id: 'northern-lights', name: 'Northern Lights', base1: '#10b981', base2: '#22d3ee', base3: '#a855f7' },
+  { id: 'celestial', name: 'Celestial', base1: '#4338ca', base2: '#a855f7', base3: '#38bdf8' },
+
+  // Candy & Sweets
+  { id: 'bubblegum', name: 'Bubblegum', base1: '#f472b6', base2: '#c084fc', base3: '#7dd3fc' },
+  { id: 'rainbow-sherbet', name: 'Rainbow Sherbet', base1: '#fb923c', base2: '#f472b6', base3: '#93c5fd' },
+  { id: 'cotton-candy-swirl', name: 'Cotton Candy Swirl', base1: '#f9a8d4', base2: '#c4b5fd', base3: '#7dd3fc' },
+  { id: 'fruit-punch', name: 'Fruit Punch', base1: '#ef4444', base2: '#ec4899', base3: '#f59e0b' },
+  { id: 'berry-blast', name: 'Berry Blast', base1: '#7c3aed', base2: '#db2777', base3: '#3b82f6' },
+  { id: 'tropical-punch', name: 'Tropical Punch', base1: '#f97316', base2: '#ec4899', base3: '#eab308' },
+  { id: 'rainbow-sorbet', name: 'Rainbow Sorbet', base1: '#fb7185', base2: '#fbbf24', base3: '#4ade80' },
+  { id: 'gummy-bear', name: 'Gummy Bear', base1: '#ef4444', base2: '#22c55e', base3: '#eab308' },
+  { id: 'popsicle', name: 'Popsicle', base1: '#f43f5e', base2: '#fb923c', base3: '#22d3ee' },
+  { id: 'sour-candy', name: 'Sour Candy', base1: '#84cc16', base2: '#22d3ee', base3: '#f472b6' },
+
+  // Vintage & Retro
+  { id: 'retro-sunset', name: 'Retro Sunset', base1: '#f97316', base2: '#ec4899', base3: '#7c3aed' },
+  { id: 'vintage-rose', name: 'Vintage Rose', base1: '#9f1239', base2: '#db2777', base3: '#d97706' },
+  { id: 'miami-nights', name: 'Miami Nights', base1: '#06b6d4', base2: '#ec4899', base3: '#eab308' },
+  { id: 'disco-fever', name: 'Disco Fever', base1: '#a855f7', base2: '#ec4899', base3: '#facc15' },
+  { id: 'retro-arcade', name: 'Retro Arcade', base1: '#4338ca', base2: '#ec4899', base3: '#22d3ee' },
+  { id: 'vaporwave', name: 'Vaporwave', base1: '#a78bfa', base2: '#f472b6', base3: '#38bdf8' },
+  { id: 'synthwave', name: 'Synthwave', base1: '#7c3aed', base2: '#db2777', base3: '#0ea5e9' },
+  { id: 'old-hollywood', name: 'Old Hollywood', base1: '#78350f', base2: '#b45309', base3: '#7c2d12' },
+  { id: 'art-deco', name: 'Art Deco', base1: '#713f12', base2: '#eab308', base3: '#1e293b' },
+  { id: 'boho-chic', name: 'Boho Chic', base1: '#92400e', base2: '#c2410c', base3: '#365314' },
 ].map(tritone);
 
 export const APP_THEMES = [...HAND_PICKED, ...GENERATED_DUOTONE, ...GENERATED_TRITONE];
