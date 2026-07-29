@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -21,7 +21,7 @@ const MIN_SKELETON_MS = 500;
 
 // ─── Isolated camera preview ─────────────────────────────────────────────────
 // Owns its own stream + video ref so parent re-renders never blank the preview.
-function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
+function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice }) {
   const [active, setActive] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [camInfo, setCamInfo] = useState(null);
@@ -75,9 +75,23 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
     if (isStarting || active) return;
     setIsStarting(true);
     try {
-      const constraints = { video: selectedCam ? { deviceId: { exact: selectedCam } } : true };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
+      let stream;
+      try {
+        const constraints = { video: selectedCam ? { deviceId: { exact: selectedCam } } : true };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // A remembered device ID can go stale (unplugged, browser profile
+        // reset, etc.) and throws OverconstrainedError/NotFoundError rather
+        // than a real permission denial — fall back to the default device
+        // instead of surfacing a misleading "access denied" error.
+        if (selectedCam && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          onStaleDevice?.();
+        } else {
+          throw err;
+        }
+      }
+
       // Stop any existing stream just in case
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(tr => tr.stop());
@@ -129,8 +143,16 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [] }) {
       }
 
       setActive(true);
-    } catch {
-      toast.error('Camera access denied');
+    } catch (err) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+        toast.error(t ? t('camAccessDenied', "Camera access denied — allow it in your browser's site settings") : "Camera access denied — allow it in your browser's site settings");
+      } else if (err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError') {
+        toast.error(t ? t('camNotFound', 'No camera found') : 'No camera found');
+      } else if (err?.name === 'NotReadableError') {
+        toast.error(t ? t('camInUse', 'Camera is already in use by another app') : 'Camera is already in use by another app');
+      } else {
+        toast.error(t ? t('camGenericError', 'Could not start camera') : 'Could not start camera');
+      }
     } finally {
       setIsStarting(false);
     }
@@ -653,8 +675,23 @@ const AppSettings = () => {
   // Mic test
   const startMicTest = async () => {
     try {
-      const constraints = { audio: selectedMic ? { deviceId: { exact: selectedMic } } : true };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream;
+      try {
+        const constraints = { audio: selectedMic ? { deviceId: { exact: selectedMic } } : true };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // A remembered device ID can go stale (unplugged, browser profile
+        // reset, etc.) and throws OverconstrainedError/NotFoundError rather
+        // than a real permission denial — fall back to the default device
+        // instead of surfacing a misleading "access denied" error.
+        if (selectedMic && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setSelectedMic('');
+          localStorage.removeItem('watch_selected_mic');
+        } else {
+          throw err;
+        }
+      }
       setMicStream(stream);
       setMicTesting(true);
       
@@ -714,7 +751,17 @@ const AppSettings = () => {
         animFrameRef.current = requestAnimationFrame(tick);
       };
       tick();
-    } catch { toast.error('Microphone access denied'); }
+    } catch (err) {
+      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+        toast.error(t ? t('micAccessDenied', "Microphone access denied — allow it in your browser's site settings") : "Microphone access denied — allow it in your browser's site settings");
+      } else if (err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError') {
+        toast.error(t ? t('micNotFound', 'No microphone found') : 'No microphone found');
+      } else if (err?.name === 'NotReadableError') {
+        toast.error(t ? t('micInUse', 'Microphone is already in use by another app') : 'Microphone is already in use by another app');
+      } else {
+        toast.error(t ? t('micGenericError', 'Could not start microphone') : 'Could not start microphone');
+      }
+    }
   };
 
   const stopMicTest = () => {
@@ -1254,10 +1301,19 @@ const AppSettings = () => {
                   <Toggle on={theme === 'light'} onToggle={handleThemeToggle} />
                 </div>
               </div>
+            </div>
+          )}
+        </div>
 
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', letterSpacing: '1px', textTransform: 'uppercase', margin: '18px 0 12px' }}>
-                {t('accentColor', 'Accent Color')}
-              </div>
+        {/* Themes */}
+        <div className="settings-card">
+          <div className="acc-header" onClick={() => toggleSection('themes')}>
+            <h3><Palette size={18} color="var(--brand-2)" /> {t('themes', 'Themes')}</h3>
+            <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'themes' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </div>
+          {openSection === 'themes' && (
+            <div className="acc-body">
+              <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('themesDesc', 'Pick an accent color for the whole app. Choose Default to go back to the original colors.')}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
                 {APP_THEMES.map(themeOpt => {
                   const isActive = accentTheme === themeOpt.id;
@@ -1426,7 +1482,7 @@ const AppSettings = () => {
               </select>
 
               {/* Fully isolated — parent re-renders never affect this component */}
-              <CameraPreview selectedCam={selectedCam} t={t} isLight={theme === 'light'} micDevices={micDevices} />
+              <CameraPreview selectedCam={selectedCam} t={t} isLight={theme === 'light'} micDevices={micDevices} onStaleDevice={() => { setSelectedCam(''); localStorage.removeItem('watch_selected_cam'); }} />
             </div>
           )}
         </div>
