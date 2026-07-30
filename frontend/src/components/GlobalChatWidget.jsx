@@ -117,20 +117,22 @@ function getFileIconBg(mimeType) {
   return 'var(--brand-1)';
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
   const sizeLabel = formatFileSize(fileSize);
   const iconBg = getFileIconBg(type);
   const subtitle = isLoading ? (isMe ? 'Sending…' : 'Loading…') : (isExpired ? 'Expired' : [typeLabel, sizeLabel].filter(Boolean).join(' • '));
+  // Same color as the expiry line below — no background pill, just muted text
+  // matching the existing "Expires in X days" color pattern in both themes.
+  const infoColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
 
   let expiryLine = null;
   if (expiresAt && !isExpired) {
     const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
     if (daysLeft > 0) {
-      const expiryColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
-      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: expiryColor, WebkitTextFillColor: expiryColor, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={expiryColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
+      expiryLine = <div className="fc-expiry" style={{ fontSize: 9, color: infoColor, WebkitTextFillColor: infoColor, display: 'flex', alignItems: 'center', gap: 3 }}><Clock size={8} color={infoColor} style={{ flexShrink: 0 }} />Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''}</div>;
     }
   }
 
@@ -156,6 +158,11 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 
   return (
     <div style={{ background: cardBg, borderRadius: 10, padding: '10px 12px', minWidth: 200, maxWidth: 250, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
+      {forwarded && (
+        <div className="fc-expiry" style={{ fontSize: 9, color: infoColor, WebkitTextFillColor: infoColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
+          <Forward size={8} color={infoColor} style={{ flexShrink: 0 }} />Forwarded
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 38, height: 42, borderRadius: 8, background: iconCircleBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: (isExpired || isLoading) ? 0.5 : 1 }}>
           {isLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: iconColor }} /> : <FileTypeIcon mimeType={type} size={18} color={iconColor} />}
@@ -186,7 +193,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 
 const _vnReg_gcw = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -338,6 +345,11 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick }) {
 
   return (
     <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2 }}>
+      {forwarded && (
+        <div className="rcp-vn-expiry" style={{ fontSize: 9, color: timeColor, WebkitTextFillColor: timeColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
+          <Forward size={8} color={timeColor} style={{ flexShrink: 0 }} />Forwarded
+        </div>
+      )}
       <audio ref={audioRef} src={url} preload="auto"
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded} />
@@ -397,9 +409,9 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
   // surface in light mode only — dark mode keeps the original white tick unchanged.
   const voiceTick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
 
-  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} />;
+  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
 
-  if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} />;
+  if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
   if (!url) {
     if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
@@ -762,6 +774,16 @@ const typingCss = `
   html[data-theme='light'] .msg-bubble .rcp-vn-expiry * {
     color: rgba(0,0,0,0.6) !important;
     -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+  }
+
+  /* Document card text: .fc-name/.fc-sub are already forced dark globally
+     (App.jsx LIGHT_CSS), but .fc-expiry has no such global rule — on a sent
+     (msg-sent/stay-white) bubble it was inheriting the white-text-forcing
+     behavior those classes apply, rendering invisible white-on-white. */
+  html[data-theme='light'] .msg-bubble .fc-expiry,
+  html[data-theme='light'] .msg-bubble .fc-expiry * {
+    color: rgba(0,0,0,0.62) !important;
+    -webkit-text-fill-color: rgba(0,0,0,0.62) !important;
   }
 
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
@@ -6347,11 +6369,6 @@ const GlobalChatWidget = forwardRef(({
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
-                          )}
-                          {msg.forwarded && msg.mediaType && !msg.mediaType.startsWith('image/') && !msg.mediaType.startsWith('video/') && (
-                            <div style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:9, color:'#fff', WebkitTextFillColor:'#fff', background:'rgba(0,0,0,0.5)', borderRadius:4, padding:'2px 5px', backdropFilter:'blur(4px)', marginBottom:4 }}>
-                              <Forward size={8} color="#fff" style={{flexShrink:0}} />Forwarded
-                            </div>
                           )}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)}
