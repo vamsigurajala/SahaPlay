@@ -776,10 +776,20 @@ const typingCss = `
     -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
   }
 
-  /* Document card text: .fc-name/.fc-sub are already forced dark globally
-     (App.jsx LIGHT_CSS), but .fc-expiry has no such global rule — on a sent
-     (msg-sent/stay-white) bubble it was inheriting the white-text-forcing
-     behavior those classes apply, rendering invisible white-on-white. */
+  /* Document card text overrides — on a sent (msg-sent/stay-white) bubble in
+     light mode, App.jsx's global .fc-name/.fc-sub rule alone wasn't winning
+     against the white-text-forcing those classes apply here, so pin all three
+     locally the same way RoomChatPanel.jsx already does. */
+  html[data-theme='light'] .msg-bubble .fc-name,
+  html[data-theme='light'] .msg-bubble .fc-name * {
+    color: #111111 !important;
+    -webkit-text-fill-color: #111111 !important;
+  }
+  html[data-theme='light'] .msg-bubble .fc-sub,
+  html[data-theme='light'] .msg-bubble .fc-sub * {
+    color: rgba(0,0,0,0.65) !important;
+    -webkit-text-fill-color: rgba(0,0,0,0.65) !important;
+  }
   html[data-theme='light'] .msg-bubble .fc-expiry,
   html[data-theme='light'] .msg-bubble .fc-expiry * {
     color: rgba(0,0,0,0.62) !important;
