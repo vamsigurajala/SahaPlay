@@ -27,7 +27,7 @@ function escapeHtml(str) {
 }
 
 function buildHead(template, route, meta) {
-  const url = `${SITE_URL}${route === '/' ? '' : route}`;
+  const url = `${SITE_URL}${route === '/' ? '/' : route}`;
   const title = escapeHtml(meta.title);
   const description = escapeHtml(meta.description);
   const image = meta.ogImage || DEFAULT_OG_IMAGE;

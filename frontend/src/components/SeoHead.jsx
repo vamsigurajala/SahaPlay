@@ -10,7 +10,7 @@ const SeoHead = ({ path }) => {
   const meta = getPageMeta(path);
   if (!meta) return null;
 
-  const url = `${SITE_URL}${path === '/' ? '' : path}`;
+  const url = `${SITE_URL}${path === '/' ? '/' : path}`;
 
   return (
     <Helmet>
