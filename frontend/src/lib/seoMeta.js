@@ -8,22 +8,49 @@ export const SITE_URL = 'https://sahaplay.com';
 export const SITE_NAME = 'SahaPlay';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/logos/trans_webl.png`;
 
-const HOME_DESCRIPTION = 'Watch YouTube, Twitch, movies and more together with friends in perfect sync — free watch parties with live chat, screen sharing, and end-to-end encrypted messaging.';
+const HOME_DESCRIPTION = 'Watch YouTube, Twitch, movies and more together with friends in perfect sync — free watch parties with live chat, screen sharing, and encrypted messaging.';
+const HOME_TITLE = 'SahaPlay — Watch Together Online, Free Video Chat Rooms';
+
+// Referenced by @id from the WebPage entry below so it reads as "SahaPlay
+// (the organization) publishes this WebPage", per schema.org convention.
+const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+const ORGANIZATION_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  '@id': ORGANIZATION_ID,
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: DEFAULT_OG_IMAGE,
+};
 
 export const PAGE_META = {
   '/': {
-    title: 'SahaPlay — Watch Together Online with Friends, Free Video Chat Rooms',
+    title: HOME_TITLE,
     description: HOME_DESCRIPTION,
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type': 'WebApplication',
-      name: SITE_NAME,
-      url: SITE_URL,
-      description: HOME_DESCRIPTION,
-      applicationCategory: 'MultimediaApplication',
-      operatingSystem: 'Web, Windows',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    },
+    // A single <script type="application/ld+json"> tag may contain a top-level
+    // JSON array of schema objects (no @graph wrapper needed) — Google and Bing
+    // both parse each entry independently.
+    jsonLd: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebApplication',
+        name: SITE_NAME,
+        url: SITE_URL,
+        description: HOME_DESCRIPTION,
+        applicationCategory: 'MultimediaApplication',
+        operatingSystem: 'Web, Windows',
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        url: SITE_URL,
+        name: HOME_TITLE,
+        description: HOME_DESCRIPTION,
+        publisher: { '@id': ORGANIZATION_ID },
+      },
+      ORGANIZATION_SCHEMA,
+    ],
   },
   '/login': {
     title: 'Log In — SahaPlay',

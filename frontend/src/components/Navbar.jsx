@@ -395,7 +395,7 @@ const Navbar = () => {
             {/* Left: Logo */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigateAndCloseMenu('/')}>
               <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
-              <h1 className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</h1>
+              <span className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
             </div>
 
             {/* Right: Actions & Hamburger */}
@@ -594,7 +594,7 @@ const Navbar = () => {
             {/* Left: Logo */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
               <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
-              <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</h1>
+              <span style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
             </div>
 
             {/* Center: Nav Links */}

@@ -559,7 +559,8 @@ const Home = () => {
               <span style={{ background: 'var(--brand-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('anywhere', 'ANYWHERE.')}</span>
             </h1>
             <p className="hero-desc" style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 500, margin: '0 0 40px' }}>
-              {t('heroMainDesc', 'Synchronize YouTube, Twitch, and more with friends in real time. Live chat, P2P screen sharing, and perfect media sync — 100% free.')}
+              {t('heroMainDesc', 'Synchronize YouTube, Twitch, and more with friends in real time. Live chat, P2P screen sharing, and perfect media sync — 100% free.')}{' '}
+              <Link to="/pricing" className="hero-link-btn">Compare plans →</Link>
             </p>
             <div className="hero-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
               <button onClick={createRoom} className="create-room-hero-btn"
@@ -721,7 +722,10 @@ const Home = () => {
           <div style={{ textAlign: 'center', marginBottom: 64 }}>
             <div className="hero-badge" style={{ marginBottom: 20 }}>⚡ {t('quickSetup', 'Quick Setup')}</div>
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,48px)', letterSpacing: '-1px' }}>{t('threeStepsSubtitle', "Three steps. That's it.")}</h2>
-            <p className="section-desc" style={{ fontSize: 17, marginTop: 16, maxWidth: 520, margin: '16px auto 0', lineHeight: 1.6 }}>{t('threeStepsNoSignup', 'No signup needed for guests. No downloads. No plugins. Just watch.')}</p>
+            <p className="section-desc" style={{ fontSize: 17, marginTop: 16, maxWidth: 520, margin: '16px auto 0', lineHeight: 1.6 }}>
+              {t('threeStepsNoSignup', 'No signup needed for guests. No downloads. No plugins. Just watch.')}{' '}
+              <Link to="/how-it-works" className="hero-link-btn">See exactly how it works →</Link>
+            </p>
           </div>
           <div className="steps-row" style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative' }}>
             {[
@@ -920,7 +924,10 @@ const Home = () => {
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,46px)', letterSpacing: '-1px', marginBottom: 14 }}>{t('everythingYouNeedTitle', 'Everything you need to watch together.')}</h2>
-            <p className="section-desc" style={{ fontSize: 17, lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>{t('cuttingEdgeDesc', 'Built with cutting-edge technology for the ultimate viewing experience.')}</p>
+            <p className="section-desc" style={{ fontSize: 17, lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>
+              {t('cuttingEdgeDesc', 'Built with cutting-edge technology for the ultimate viewing experience.')}{' '}
+              <Link to="/features" className="hero-link-btn">See the full feature list →</Link>
+            </p>
           </div>
           <div className="feat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
             {features.map(f => (
