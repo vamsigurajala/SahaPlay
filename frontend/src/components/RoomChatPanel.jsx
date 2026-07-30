@@ -2503,6 +2503,11 @@ export default function RoomChatPanel({ p }) {
                             })()}
                           </div>
                       )}
+                      {msg.forwarded && (
+                        <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
+                          <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                        </div>
+                      )}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}
                         onTouchStart={gestureHandlers.onTouchStart}
                         onTouchMove={gestureHandlers.onTouchMove}
@@ -3087,6 +3092,11 @@ export default function RoomChatPanel({ p }) {
                             return <span onClick={() => !isSenderBlocked && navigate(`/profile/${rName}`)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
+                            {msg.forwarded && (
+                              <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
+                                <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                              </div>
+                            )}
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
                               onTouchStart={gestureHandlers.onTouchStart}
                               onTouchMove={gestureHandlers.onTouchMove}

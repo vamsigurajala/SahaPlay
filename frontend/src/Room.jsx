@@ -5538,6 +5538,7 @@ const Room = () => {
             mediaFileName: msg.mediaFileName || null,
             mediaFileSize: msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
+            forwarded: true,
           };
           const kp = myKeyPair.current;
           if (isMedia) {

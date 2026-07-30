@@ -1106,6 +1106,11 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at BIGINT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] edited_at:', e.message);
   });
+  // forwarded: Forward Message feature — set once at send-time on the new copy created in
+  // the destination chat, never on the original message being forwarded.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded BOOLEAN DEFAULT FALSE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] forwarded:', e.message);
+  });
   // delivered_at: WhatsApp-style delivery ticks — epoch-ms recorded the moment at
   // least one other participant (DM target, or any other room member) was reachable,
   // either at send time or via the connect-time DM backfill. NULL = not yet delivered.
@@ -3679,7 +3684,10 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null,
-          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
+          edited: !!r.edited,
+          editedAt: r.edited_at ? Number(r.edited_at) : null,
+          forwarded: !!r.forwarded
         }));
       const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
       const seenMap = {};
@@ -3760,7 +3768,10 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           timestamp: r.timestamp,
           reactions: r.reactions ? JSON.parse(r.reactions) : {},
           replyTo: r.replyTo ? JSON.parse(r.replyTo) : null,
-          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
+          edited: !!r.edited,
+          editedAt: r.edited_at ? Number(r.edited_at) : null,
+          forwarded: !!r.forwarded
         };
       });
       const msgIds = mapped.map(r => Number(r.id)).filter(Boolean);
@@ -3889,7 +3900,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const username = req.user.username.toLowerCase();
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
-          mediaFileName, mediaFileSize, mediaDuration } = req.body;
+          mediaFileName, mediaFileSize, mediaDuration, forwarded } = req.body;
+  const isForwarded = !!forwarded;
   const partner = rawPartner ? rawPartner.toLowerCase() : '';
   // message can be empty if there's a media attachment
   if (!type || !partner || (!message && !mediaUrl)) return res.status(400).json({ error: 'invalid payload' });
@@ -3940,8 +3952,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -3950,7 +3962,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt]
+         deliveredAt, isForwarded]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -3981,7 +3993,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         nonce: nonce || null,
         ephemeralPublicKey: ephemeralPublicKey || null,
         seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }],
-        deliveredAt
+        deliveredAt,
+        forwarded: isForwarded
       };
 
       emitToUser(partner, 'private_message', payload);
@@ -4026,8 +4039,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId: partner, senderUsername: username });
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
@@ -4036,7 +4049,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt]
+         deliveredAt, isForwarded]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
@@ -4070,6 +4083,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         nonce: nonce || null,
         e2ee: e2eeBroadcast,
         deliveredAt,
+        forwarded: isForwarded,
       };
 
       const ioRoom = rooms.get(partner);

@@ -4766,6 +4766,7 @@ const GlobalChatWidget = forwardRef(({
             mediaFileName: msg.mediaFileName || null,
             mediaFileSize: msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
+            forwarded: true,
           };
           if (isMedia) {
             let mediaKeyB64 = null;
@@ -6344,6 +6345,11 @@ const GlobalChatWidget = forwardRef(({
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
+                          )}
+                          {msg.forwarded && (
+                            <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
+                              <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                            </div>
                           )}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)}
