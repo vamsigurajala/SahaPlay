@@ -422,6 +422,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
               e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
             }}
           />
+          {msg?.forwarded && <div style={{ position: 'absolute', top: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded</div>}
           {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
           {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
         </>
@@ -433,6 +434,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
               <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
             </div>
           </div>
+          {msg?.forwarded && <div style={{ position: 'absolute', top: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded</div>}
           {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
           {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
         </div>
@@ -4763,8 +4765,8 @@ const GlobalChatWidget = forwardRef(({
             message: null,
             mediaUrl: isMedia ? msg.mediaUrl : null,
             mediaType: isMedia ? msg.mediaType : null,
-            mediaFileName: msg.mediaFileName || null,
-            mediaFileSize: msg.mediaFileSize || null,
+            mediaFileName: msg._fileName || msg.mediaFileName || null,
+            mediaFileSize: msg._fileSize || msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
           };
@@ -6346,9 +6348,9 @@ const GlobalChatWidget = forwardRef(({
                               title={`View ${msg.senderName || msg.username}'s profile`}
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
                           )}
-                          {msg.forwarded && (
-                            <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
-                              <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                          {msg.forwarded && msg.mediaType && !msg.mediaType.startsWith('image/') && !msg.mediaType.startsWith('video/') && (
+                            <div style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:9, color:'#fff', WebkitTextFillColor:'#fff', background:'rgba(0,0,0,0.5)', borderRadius:4, padding:'2px 5px', backdropFilter:'blur(4px)', marginBottom:4 }}>
+                              <Forward size={8} color="#fff" style={{flexShrink:0}} />Forwarded
                             </div>
                           )}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
@@ -6390,6 +6392,11 @@ const GlobalChatWidget = forwardRef(({
                               }}
                             >
                               <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                                {!msg.mediaType && msg.forwarded && (
+                                  <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
+                                    <Forward size={11} /> Forwarded
+                                  </div>
+                                )}
                                 {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                   <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
                                 ) : msg.decryptedText !== null ? (

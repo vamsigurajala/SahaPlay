@@ -4069,7 +4069,14 @@ const Room = () => {
     // per-recipient e2ee key map) is present to tell group edits from DM edits —
     // group and DM both always carry a nonce now, so "nonce absent" only means a
     // legacy pre-upgrade group message being edited while still in plaintext.
-    sock.on('message:edited', ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, keys, editedAt }) => {
+    // Registered under BOTH event names: 'message:edited' is what the socket
+    // edit path (this file's own editGroupMessage/editDmMessage) emits back, but
+    // GlobalChatWidget.jsx's edit path goes over REST and the server echoes that
+    // one as 'chat:message_edited' instead — same payload shape either way. This
+    // file used to only listen for 'message:edited', so an edit made via the
+    // widget (e.g. while the other participant is inside a room, viewing the DM
+    // through here) never reached them live; they had to refresh to see it.
+    const handleMessageEdited = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, keys, editedAt }) => {
       const idStr = String(messageId);
       const decryptFor = (existing) => {
         if (!nonce) return newMessage;
@@ -4106,7 +4113,9 @@ const Room = () => {
         }
         return next;
       });
-    });
+    };
+    sock.on('message:edited', handleMessageEdited);
+    sock.on('chat:message_edited', handleMessageEdited);
 
     sock.on('message:edit_failed', ({ error }) => {
       toast.error(error || 'Could not edit this message.');
@@ -5535,8 +5544,8 @@ const Room = () => {
             message: null,
             mediaUrl: isMedia ? msg.mediaUrl : null,
             mediaType: isMedia ? msg.mediaType : null,
-            mediaFileName: msg.mediaFileName || null,
-            mediaFileSize: msg.mediaFileSize || null,
+            mediaFileName: msg._fileName || msg.mediaFileName || null,
+            mediaFileSize: msg._fileSize || msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
           };

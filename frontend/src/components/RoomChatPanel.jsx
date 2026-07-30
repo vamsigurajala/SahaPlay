@@ -1926,6 +1926,7 @@ export default function RoomChatPanel({ p }) {
                 e.target.parentNode.innerHTML = '<div style="color:#666;font-size:11px;padding:16px;text-align:center">Failed to load image</div>';
               }}
             />
+            {msg?.forwarded && <div style={{ position: 'absolute', top: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded</div>}
             {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
             {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
           </>
@@ -1937,6 +1938,7 @@ export default function RoomChatPanel({ p }) {
                 <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
               </div>
             </div>
+            {msg?.forwarded && <div style={{ position: 'absolute', top: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded</div>}
             {expiresAt && (() => { const dL = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24)); if (dL <= 0) return null; return <div style={{ position: 'absolute', bottom: 5, left: 6, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}><Clock size={8} color="rgba(255,255,255,0.9)" style={{ flexShrink: 0 }} />Expires in {dL} day{dL !== 1 ? 's' : ''}</div>; })()}
             {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
           </div>
@@ -2503,9 +2505,9 @@ export default function RoomChatPanel({ p }) {
                             })()}
                           </div>
                       )}
-                      {msg.forwarded && (
-                        <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
-                          <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                      {msg.forwarded && msg.mediaType && !msg.mediaType.startsWith('image/') && !msg.mediaType.startsWith('video/') && (
+                        <div style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:9, color:'#fff', WebkitTextFillColor:'#fff', background:'rgba(0,0,0,0.5)', borderRadius:4, padding:'2px 5px', backdropFilter:'blur(4px)', marginBottom:4 }}>
+                          <Forward size={8} color="#fff" style={{flexShrink:0}} />Forwarded
                         </div>
                       )}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}
@@ -2541,6 +2543,11 @@ export default function RoomChatPanel({ p }) {
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}>
                           <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                            {!msg.mediaType && msg.forwarded && (
+                              <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
+                                <Forward size={11} /> Forwarded
+                              </div>
+                            )}
                             {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                               <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
                             ) : msg.decryptedText !== null ? (
@@ -3092,9 +3099,9 @@ export default function RoomChatPanel({ p }) {
                             return <span onClick={() => !isSenderBlocked && navigate(`/profile/${rName}`)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
-                            {msg.forwarded && (
-                              <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', color: isLight ? 'rgba(0,0,0,0.45)' : '#888', padding:'0 2px' }}>
-                                <Forward size={11} /> {t('forwarded', 'Forwarded')}
+                            {msg.forwarded && msg.mediaType && !msg.mediaType.startsWith('image/') && !msg.mediaType.startsWith('video/') && (
+                              <div style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:9, color:'#fff', WebkitTextFillColor:'#fff', background:'rgba(0,0,0,0.5)', borderRadius:4, padding:'2px 5px', backdropFilter:'blur(4px)', marginBottom:4 }}>
+                                <Forward size={8} color="#fff" style={{flexShrink:0}} />Forwarded
                               </div>
                             )}
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
@@ -3130,6 +3137,11 @@ export default function RoomChatPanel({ p }) {
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}>
                                 <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
+                                  {!msg.mediaType && msg.forwarded && (
+                                    <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
+                                      <Forward size={11} /> Forwarded
+                                    </div>
+                                  )}
                                   {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
                                   ) : msg.decryptedText !== null ? (
