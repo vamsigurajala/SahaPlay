@@ -546,7 +546,7 @@
   "groupRoomChatDesc": "रूममधील सर्वजण इमोजी प्रतिक्रिया, उत्तरे आणि मीडिया शेअरिंगसह रिअल-टाइममध्ये एकत्र चॅट करतात.",
   "groupRoomChatTitle": "ग्रुप रूम चॅट",
   "guestDisplayName": "अतिथी नाव",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "अतिथी म्हणून सामील होण्यासाठी कृपया एक नाव प्रविष्ट करा",
   "guestsCannotChat": "पाहुणे चॅट करू शकत नाहीत",
   "hdStreaming": "कुरकुरीत एचडी गुणवत्ता",

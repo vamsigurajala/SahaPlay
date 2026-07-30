@@ -46,7 +46,7 @@ const HOME_FAQ_SCHEMA = {
     {
       '@type': 'Question',
       name: 'Is SahaPlay chat encrypted?',
-      acceptedAnswer: { '@type': 'Answer', text: 'Private one-on-one messages in SahaPlay are end-to-end encrypted, so only the two people in that conversation can read them.' },
+      acceptedAnswer: { '@type': 'Answer', text: 'Yes. Private and group chats in SahaPlay are end-to-end encrypted, including supported messages, images, files, and voice notes. Content is encrypted before it leaves your device, so only the intended recipients can decrypt it.' },
     },
     {
       '@type': 'Question',

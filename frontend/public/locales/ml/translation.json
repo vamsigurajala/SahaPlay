@@ -549,7 +549,7 @@
   "groupRoomChatDesc": "റൂമിലുള്ള എല്ലാവരും ഇമോജി പ്രതികരണങ്ങൾ, മറുപടികൾ, മീഡിയ ഷെയറിംഗ് എന്നിവയോടൊടെ റിയൽ-ടൈമിൽ ഒരുമിച്ച് ചാറ്റ് ചെയ്യുന്നു.",
   "groupRoomChatTitle": "ഗ്രൂപ്പ് റൂം ചാറ്റ്",
   "guestDisplayName": "അതിഥി പേര്",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "അതിഥിയായി ചേരാൻ ദയവായി ഒരു പേര് നൽകുക",
   "guestsCannotChat": "അതിഥികൾക്ക് ചാറ്റ് ചെയ്യാൻ കഴിയില്ല",
   "hdStreaming": "ക്രിസ്പ് HD ഗുണനിലവാരം",

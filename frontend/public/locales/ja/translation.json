@@ -549,7 +549,7 @@
   "groupRoomChatDesc": "ルーム内の全員が絵文字リアクション、返信、メディア共有でリアルタイムにチャット。",
   "groupRoomChatTitle": "グループルームチャット",
   "guestDisplayName": "ゲストの表示名",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "ゲストとして参加するには表示名を入力してください",
   "guestsCannotChat": "ゲストはチャットできません",
   "hdStreaming": "鮮明な HD 品質",

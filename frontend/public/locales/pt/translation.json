@@ -549,7 +549,7 @@
   "groupRoomChatDesc": "Todos na sala conversam juntos em tempo real com reações emoji, respostas e compartilhamento de mídia.",
   "groupRoomChatTitle": "Chat da Sala em Grupo",
   "guestDisplayName": "Nome de Visitante",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "Por favor, insira um nome para entrar como visitante",
   "guestsCannotChat": "Convidados não podem conversar",
   "hdStreaming": "Qualidade HD nítida",

@@ -549,7 +549,7 @@
   "groupRoomChatDesc": "रूम में सभी लोग इमोजी रिएक्शन, रिप्लाई और मीडिया शेयरिंग के साथ रियल-टाइम में चैट करते हैं।",
   "groupRoomChatTitle": "ग्रुप रूम चैट",
   "guestDisplayName": "अतिथि प्रदर्शन नाम",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "कृपया अतिथि के रूप में जुड़ने के लिए एक प्रदर्शन नाम दर्ज करें",
   "guestsCannotChat": "अतिथि चैट नहीं कर सकते",
   "hdStreaming": "कुरकुरा एचडी गुणवत्ता",

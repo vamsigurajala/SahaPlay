@@ -549,7 +549,7 @@
   "groupRoomChatDesc": "房间里的每个人都能实时聊天，包括表情回应、回复和媒体分享。",
   "groupRoomChatTitle": "群组房间聊天",
   "guestDisplayName": "访客显示名称",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "请输入显示名称以作为访客加入",
   "guestsCannotChat": "游客无法聊天",
   "hdStreaming": "清晰的高清画质",

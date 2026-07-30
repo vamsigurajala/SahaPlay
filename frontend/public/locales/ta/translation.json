@@ -539,7 +539,7 @@
   "groupRoomChatDesc": "அறையில் உள்ள அனைவரும் எமோஜி எதிர்வினைகள், பதில்கள் மற்றும் மீடியா பகிர்வுடன் நிகழ்நேரத்தில் ஒன்றாக அரட்டையடிக்கிறார்கள்.",
   "groupRoomChatTitle": "குழு அறை அரட்டை",
   "guestDisplayName": "விருந்தினர் பெயர்",
-  "guestLimitations": "You are currently browsing as a Guest. Guest permissions are limited: Cannot create rooms • Camera and Microphone are disabled • Real-time chat is disabled • Cannot join \"Members Only\" rooms. Sign Up for a free account to unlock all features!",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "விருந்தினராக சேர ஒரு பெயரை உள்ளிடவும்",
   "guestsCannotChat": "விருந்தினர்கள் அரட்டையடிக்க முடியாது",
   "hdStreaming": "மிருதுவான HD தரம்",
