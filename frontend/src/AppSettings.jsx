@@ -22,7 +22,13 @@ const MIN_SKELETON_MS = 500;
 // ─── Accent theme swatch ──────────────────────────────────────────────────
 // Square tile (not a circle) with the theme's name always visible underneath,
 // so picking one of 30 themes doesn't rely on a hover tooltip to tell them apart.
-function ThemeSwatch({ themeOpt, isActive, onSelect }) {
+// Converts a kebab-case theme id (e.g. "ocean-blue") into its i18n key (e.g. "themeOceanBlue").
+function themeNameKey(id) {
+  return 'theme' + id.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('');
+}
+
+function ThemeSwatch({ themeOpt, isActive, onSelect, t }) {
+  const displayName = t ? t(themeNameKey(themeOpt.id), themeOpt.name) : themeOpt.name;
   return (
     <button
       onClick={() => onSelect(themeOpt.id)}
@@ -45,7 +51,7 @@ function ThemeSwatch({ themeOpt, isActive, onSelect }) {
           </div>
         )}
       </div>
-      <span style={{ fontSize: 9.5, fontWeight: 600, color: isActive ? '#fff' : '#9ca3af', textAlign: 'center', lineHeight: 1.2, maxWidth: 60 }}>{themeOpt.name}</span>
+      <span style={{ fontSize: 9.5, fontWeight: 600, color: isActive ? '#fff' : '#9ca3af', textAlign: 'center', lineHeight: 1.2, maxWidth: 60 }}>{displayName}</span>
     </button>
   );
 }
@@ -662,7 +668,12 @@ const AppSettings = () => {
     i18n.changeLanguage(normalized);
     localStorage.setItem('watch_language', normalized);
     saveSetting('language', normalized);
-    window.dispatchEvent(new Event('settings_changed'));
+    // Do NOT dispatch 'settings_changed' here — App.jsx's listener re-fetches
+    // /api/settings and re-applies whatever language it finds. Since the PUT
+    // above is fire-and-forget, that GET can race ahead of it and read back the
+    // pre-change language, silently reverting the switch the user just made
+    // (this was the "have to click twice" bug). The language is already fully
+    // applied locally above, so no resync is needed.
     toast.success('Language updated!');
   };
 
@@ -1351,7 +1362,7 @@ const AppSettings = () => {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 52px)', gap: 10, marginBottom: 22 }}>
                 {APP_THEMES.filter(themeOpt => themeOpt.category === 'duotone').map(themeOpt => (
-                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
+                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} t={t} />
                 ))}
               </div>
 
@@ -1360,7 +1371,7 @@ const AppSettings = () => {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 52px)', gap: 10 }}>
                 {APP_THEMES.filter(themeOpt => themeOpt.category === 'tritone').map(themeOpt => (
-                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} />
+                  <ThemeSwatch key={themeOpt.id} themeOpt={themeOpt} isActive={accentTheme === themeOpt.id} onSelect={handleAccentThemeSelect} t={t} />
                 ))}
               </div>
             </div>

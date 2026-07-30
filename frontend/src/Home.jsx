@@ -561,8 +561,7 @@ const Home = () => {
             <p className="hero-desc" style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 500, margin: '0 0 40px' }}>
               {t('heroMainDesc', "SahaPlay is a free watch party app for friends, families, and long-distance couples — you all watch the same video together in sync, wherever you are. Stream")}{' '}
               <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="hero-link-btn" style={{ padding: '0 2px' }}>YouTube</a>
-              {t('heroMainDesc2', ", Twitch, or your own videos with live chat and encrypted messaging built in — perfect for movie nights with friends across the country or a video call while something plays in the background.")}{' '}
-              <Link to="/pricing" className="hero-link-btn">Compare plans →</Link>
+              {t('heroMainDesc2', ", Twitch, or your own videos with live chat and encrypted messaging built in — perfect for movie nights with friends across the country or a video call while something plays in the background.")}
             </p>
             <div className="hero-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
               <button onClick={createRoom} className="create-room-hero-btn"
