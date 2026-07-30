@@ -9,7 +9,7 @@ export const SITE_NAME = 'SahaPlay';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/logos/trans_webl.png`;
 
 const HOME_DESCRIPTION = 'Watch YouTube, Twitch, movies and more together with friends in perfect sync — free watch parties with live chat, screen sharing, and encrypted messaging.';
-const HOME_TITLE = 'SahaPlay — Watch Together Online, Free Video Chat Rooms';
+const HOME_TITLE = 'SahaPlay — Watch Together From Anywhere, Free Video Chat Rooms';
 
 // Referenced by @id from the WebPage entry below so it reads as "SahaPlay
 // (the organization) publishes this WebPage", per schema.org convention.
@@ -36,7 +36,7 @@ const HOME_FAQ_SCHEMA = {
     {
       '@type': 'Question',
       name: 'Do I need to download anything to use SahaPlay?',
-      acceptedAnswer: { '@type': 'Answer', text: "No. SahaPlay runs entirely in your browser — there's nothing to install for you or the friends you invite. Just open a room link and start watching." },
+      acceptedAnswer: { '@type': 'Answer', text: "No, you don't need to download anything — SahaPlay runs entirely in your browser, so there's nothing to install for you or the friends you invite. Just open a room link and start watching." },
     },
     {
       '@type': 'Question',
@@ -51,7 +51,7 @@ const HOME_FAQ_SCHEMA = {
     {
       '@type': 'Question',
       name: 'What can I watch together on SahaPlay?',
-      acceptedAnswer: { '@type': 'Answer', text: 'You can stream Twitch directly inside a room, share your screen to watch Netflix, Prime Video, or any other platform, or upload your own video files — all perfectly synced for everyone in the room, including live streams on YouTube.' },
+      acceptedAnswer: { '@type': 'Answer', text: 'You can watch almost anything together: Twitch and YouTube streams directly in the room, Netflix or Prime Video via screenshare, or your own uploaded video files — all perfectly synced for everyone.' },
     },
     {
       '@type': 'Question',
@@ -61,7 +61,7 @@ const HOME_FAQ_SCHEMA = {
     {
       '@type': 'Question',
       name: "Can I hide other people's videos when streaming in a room?",
-      acceptedAnswer: { '@type': 'Answer', text: 'Yes! When you are in a room and another member has their camera turned on, you can hide or unhide their video at any time. Simply click on their video feed and select "Hide Video". This only affects your own view — others in the room are not affected.' },
+      acceptedAnswer: { '@type': 'Answer', text: 'Yes — you can hide or unhide anyone\'s camera video at any time. Just click their video feed and select "Hide Video"; this only affects your own view, not what others in the room see.' },
     },
     {
       '@type': 'Question',

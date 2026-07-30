@@ -559,9 +559,9 @@ const Home = () => {
               <span style={{ background: 'var(--brand-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{t('anywhere', 'ANYWHERE.')}</span>
             </h1>
             <p className="hero-desc" style={{ fontSize: 18, lineHeight: 1.65, maxWidth: 500, margin: '0 0 40px' }}>
-              {t('heroMainDesc', 'SahaPlay is a free watch-together and watch party app that lets you stream')}{' '}
+              {t('heroMainDesc', "SahaPlay is a free watch party app for friends, families, and long-distance couples — you all watch the same video together in sync, wherever you are. Stream")}{' '}
               <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer" className="hero-link-btn" style={{ padding: '0 2px' }}>YouTube</a>
-              {t('heroMainDesc2', ", Twitch, or your own videos in sync with friends, with live chat and encrypted messaging built in. It's great for long-distance movie nights, online watch parties, or keeping a video call open while something plays in the background.")}{' '}
+              {t('heroMainDesc2', ", Twitch, or your own videos with live chat and encrypted messaging built in — perfect for movie nights with friends across the country or a video call while something plays in the background.")}{' '}
               <Link to="/pricing" className="hero-link-btn">Compare plans →</Link>
             </p>
             <div className="hero-ctas" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 24 }}>
@@ -1021,12 +1021,12 @@ const Home = () => {
           </div>
           {[
             { q: t('homeFaqQ5', 'Is SahaPlay free?'), a: t('homeFaqA5', "Yes — SahaPlay is completely free to use, with no download required. There's also an optional Pro plan for extras like larger file uploads, but every core watch-together feature is free.") },
-            { q: t('homeFaqQ6', 'Do I need to download anything to use SahaPlay?'), a: t('homeFaqA6', "No. SahaPlay runs entirely in your browser — there's nothing to install for you or the friends you invite. Just open a room link and start watching.") },
+            { q: t('homeFaqQ6', 'Do I need to download anything to use SahaPlay?'), a: t('homeFaqA6', "No, you don't need to download anything — SahaPlay runs entirely in your browser, so there's nothing to install for you or the friends you invite. Just open a room link and start watching.") },
             { q: t('homeFaqQ7', 'How does watch-together video sync work?'), a: t('homeFaqA7', "SahaPlay uses real-time WebSocket connections to keep everyone's play, pause, and seek actions in sync within milliseconds, so the whole room sees the same moment at the same time.") },
             { q: t('homeFaqQ8', 'Is SahaPlay chat encrypted?'), a: t('homeFaqA8', 'Yes. Private and group chats in SahaPlay are end-to-end encrypted, including supported messages, images, files, and voice notes. Content is encrypted before it leaves your device, so only the intended recipients can decrypt it.') },
-            { q: t('homeFaqQ9', 'What can I watch together on SahaPlay?'), a: t('homeFaqA9', 'You can stream Twitch directly inside a room, share your screen to watch Netflix, Prime Video, or any other platform, or upload your own video files — all perfectly synced for everyone in the room, including live streams on YouTube.') },
+            { q: t('homeFaqQ9', 'What can I watch together on SahaPlay?'), a: t('homeFaqA9', 'You can watch almost anything together: Twitch and YouTube streams directly in the room, Netflix or Prime Video via screenshare, or your own uploaded video files — all perfectly synced for everyone.') },
             { q: t('homeFaqQ1', 'How many languages does SahaPlay support?'), a: t('homeFaqA1', 'SahaPlay currently supports 20 languages: English, Spanish, French, German, Japanese, Korean, Chinese, Hindi, Portuguese, Arabic, Russian, Italian, Telugu, Tamil, Bengali, Marathi, Gujarati, Malayalam, Kannada, and Punjabi. You can change your language anytime from the Settings menu.') },
-            { q: t('homeFaqQ2', "Can I hide other people's videos when streaming in a room?"), a: t('homeFaqA2', 'Yes! When you are in a room and another member has their camera turned on, you can hide or unhide their video at any time. Simply click on their video feed and select "Hide Video". This only affects your own view — others in the room are not affected.') },
+            { q: t('homeFaqQ2', "Can I hide other people's videos when streaming in a room?"), a: t('homeFaqA2', 'Yes — you can hide or unhide anyone\'s camera video at any time. Just click their video feed and select "Hide Video"; this only affects your own view, not what others in the room see.') },
             { q: t('homeFaqQ3', 'Can I watch Netflix or Prime Video with friends?'), a: t('homeFaqA3', 'Yes — using the Screenshare feature. The host shares their Netflix or Prime Video browser tab and everyone in the room sees it in real time. Only the host needs a subscription to those services. Screenshare works best in Chrome browser.') },
             { q: t('homeFaqQ4', 'What happens if my internet drops during a watch party?'), a: t('homeFaqA4', 'SahaPlay automatically tries to reconnect you to the room. Once you are back online, it jumps you to exactly where the video is currently playing — so you never miss anything. Your chat history also reloads automatically.') },
           ].map((item, i) => (
