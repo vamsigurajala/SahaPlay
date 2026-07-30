@@ -23,6 +23,59 @@ const ORGANIZATION_SCHEMA = {
   logo: DEFAULT_OG_IMAGE,
 };
 
+// Question/answer text here must match the visible homepage FAQ copy in Home.jsx exactly.
+const HOME_FAQ_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: [
+    {
+      '@type': 'Question',
+      name: 'Is SahaPlay free?',
+      acceptedAnswer: { '@type': 'Answer', text: "Yes — SahaPlay is completely free to use, with no download required. There's also an optional Pro plan for extras like larger file uploads, but every core watch-together feature is free." },
+    },
+    {
+      '@type': 'Question',
+      name: 'Do I need to download anything to use SahaPlay?',
+      acceptedAnswer: { '@type': 'Answer', text: "No. SahaPlay runs entirely in your browser — there's nothing to install for you or the friends you invite. Just open a room link and start watching." },
+    },
+    {
+      '@type': 'Question',
+      name: 'How does watch-together video sync work?',
+      acceptedAnswer: { '@type': 'Answer', text: "SahaPlay uses real-time WebSocket connections to keep everyone's play, pause, and seek actions in sync within milliseconds, so the whole room sees the same moment at the same time." },
+    },
+    {
+      '@type': 'Question',
+      name: 'Is SahaPlay chat encrypted?',
+      acceptedAnswer: { '@type': 'Answer', text: 'Private one-on-one messages in SahaPlay are end-to-end encrypted, so only the two people in that conversation can read them.' },
+    },
+    {
+      '@type': 'Question',
+      name: 'What can I watch together on SahaPlay?',
+      acceptedAnswer: { '@type': 'Answer', text: 'You can stream Twitch directly inside a room, share your screen to watch Netflix, Prime Video, or any other platform, or upload your own video files — all perfectly synced for everyone in the room, including live streams on YouTube.' },
+    },
+    {
+      '@type': 'Question',
+      name: 'How many languages does SahaPlay support?',
+      acceptedAnswer: { '@type': 'Answer', text: 'SahaPlay currently supports 20 languages: English, Spanish, French, German, Japanese, Korean, Chinese, Hindi, Portuguese, Arabic, Russian, Italian, Telugu, Tamil, Bengali, Marathi, Gujarati, Malayalam, Kannada, and Punjabi. You can change your language anytime from the Settings menu.' },
+    },
+    {
+      '@type': 'Question',
+      name: "Can I hide other people's videos when streaming in a room?",
+      acceptedAnswer: { '@type': 'Answer', text: 'Yes! When you are in a room and another member has their camera turned on, you can hide or unhide their video at any time. Simply click on their video feed and select "Hide Video". This only affects your own view — others in the room are not affected.' },
+    },
+    {
+      '@type': 'Question',
+      name: 'Can I watch Netflix or Prime Video with friends?',
+      acceptedAnswer: { '@type': 'Answer', text: 'Yes — using the Screenshare feature. The host shares their Netflix or Prime Video browser tab and everyone in the room sees it in real time. Only the host needs a subscription to those services. Screenshare works best in Chrome browser.' },
+    },
+    {
+      '@type': 'Question',
+      name: 'What happens if my internet drops during a watch party?',
+      acceptedAnswer: { '@type': 'Answer', text: 'SahaPlay automatically tries to reconnect you to the room. Once you are back online, it jumps you to exactly where the video is currently playing — so you never miss anything. Your chat history also reloads automatically.' },
+    },
+  ],
+};
+
 export const PAGE_META = {
   '/': {
     title: HOME_TITLE,
@@ -50,6 +103,7 @@ export const PAGE_META = {
         publisher: { '@id': ORGANIZATION_ID },
       },
       ORGANIZATION_SCHEMA,
+      HOME_FAQ_SCHEMA,
     ],
   },
   '/login': {
