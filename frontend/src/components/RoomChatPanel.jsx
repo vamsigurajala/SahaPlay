@@ -1711,14 +1711,30 @@ export default function RoomChatPanel({ p }) {
     p.chatTabRef.current = 'list';
     p.setDmTarget(null);
     if(p.dmTargetRef) p.dmTargetRef.current = null;
+    // Leaving the chat entirely should reset multi-select — reopening a chat
+    // should never resurface a stale selection from before it was closed.
+    exitMsgSelectMode();
   };
+
+  // Any transient overlay (forward picker, bulk-delete confirm, clear-chat
+  // confirm) open on top of the chat gets its own back-intercept level, so a
+  // swipe-back/hardware-back closes just that overlay instead of falling
+  // through and closing the whole chat. Message multi-select itself is NOT
+  // part of this stack — it should stay selected while the overlay above it
+  // closes, and only clears via its own Cancel/X or when the chat is left.
+  const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearGroupChatModalOpen);
 
   // Mobile/iPad swipe-back (and hardware back) should return to the chat
   // list instead of leaving the room. Without this, swiping back while a
   // group/DM chat is open falls through to the browser's real back
   // navigation and exits to the home page.
-  useBackIntercept(p.chatTab === 'list' ? 0 : 1, (newLevel) => {
+  useBackIntercept(p.chatTab === 'list' ? 0 : (anyChatOverlayOpen ? 2 : 1), (newLevel) => {
     if (newLevel === 0) handleBackToList();
+    else if (newLevel === 1) {
+      setForwardPickerOpen(false);
+      setBulkDeleteConfirm(false);
+      setClearGroupChatModalOpen(false);
+    }
   });
 
   useAutoResizeTextarea(p.groupInputRef, p.groupChatInput);
@@ -2600,10 +2616,20 @@ export default function RoomChatPanel({ p }) {
             )}
             {(() => {
               const effectiveGroupSeenMap = getEffectiveSeenBy(p.groupMessages, p.username);
-              const lastGroupMsg = p.groupMessages[p.groupMessages.length - 1];
-              const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
-              const renderGroupReceiptIndex = isLastGroupSentByMe ? p.groupMessages.length - 1 : -1;
               const groupMediaRunsInfo = groupMediaRuns(p.groupMessages);
+              // A media-batch's non-head rows render null, so the "last message" for
+              // read-receipt purposes must resolve to the batch's head row (the one
+              // that actually renders), not the raw last index.
+              let lastGroupRenderIdx = p.groupMessages.length - 1;
+              while (lastGroupRenderIdx >= 0) {
+                const lm = p.groupMessages[lastGroupRenderIdx];
+                const lrk = lm.tempId || lm.id || lastGroupRenderIdx;
+                if (!groupMediaRunsInfo.memberKeys.has(lrk)) break;
+                lastGroupRenderIdx--;
+              }
+              const lastGroupMsg = p.groupMessages[lastGroupRenderIdx];
+              const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
+              const renderGroupReceiptIndex = isLastGroupSentByMe ? lastGroupRenderIdx : -1;
               return p.groupMessages.map((msg,i)=>{
               const rowKey = msg.tempId || msg.id || i;
               if (groupMediaRunsInfo.memberKeys.has(rowKey)) return null;
@@ -3238,10 +3264,20 @@ export default function RoomChatPanel({ p }) {
                   {(() => {
                     const dmMessages = p.dmThreads[p.dmTarget?.toLowerCase()] || [];
                     const effectiveDmSeenMap = getEffectiveSeenBy(dmMessages, p.username);
-                    const lastDMMsg = dmMessages[dmMessages.length - 1];
-                    const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
-                    const renderDMReceiptIndex = isLastDMSentByMe ? dmMessages.length - 1 : -1;
                     const dmMediaRunsInfo = groupMediaRuns(dmMessages);
+                    // A media-batch's non-head rows render null, so the "last message" for
+                    // read-receipt purposes must resolve to the batch's head row (the one
+                    // that actually renders), not the raw last index.
+                    let lastDMRenderIdx = dmMessages.length - 1;
+                    while (lastDMRenderIdx >= 0) {
+                      const lm = dmMessages[lastDMRenderIdx];
+                      const lrk = lm.tempId || lm.id || lastDMRenderIdx;
+                      if (!dmMediaRunsInfo.memberKeys.has(lrk)) break;
+                      lastDMRenderIdx--;
+                    }
+                    const lastDMMsg = dmMessages[lastDMRenderIdx];
+                    const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
+                    const renderDMReceiptIndex = isLastDMSentByMe ? lastDMRenderIdx : -1;
                     return dmMessages.map((msg,i)=>{
                     const rowKey = msg.tempId || msg.id || i;
                     if (dmMediaRunsInfo.memberKeys.has(rowKey)) return null;

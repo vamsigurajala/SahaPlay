@@ -1769,19 +1769,13 @@ const GlobalChatWidget = forwardRef(({
       }
     }
     setView('list');
+    // Leaving the chat entirely should reset multi-select — reopening a chat
+    // should never resurface a stale selection from before it was closed.
+    exitMsgSelectMode();
   };
 
-  // Mobile/iPad swipe-back (and hardware back) should step back one level
-  // instead of leaving the page: closed -> list -> chat. Without this, a
-  // swipe-left gesture falls through to the browser's real back navigation
-  // and exits the whole site.
-  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(!isOpen ? 0 : (view === 'chat' ? 2 : 1), (newLevel) => {
-    if (newLevel === 0) {
-      onClose && onClose();
-    } else if (newLevel === 1) {
-      handleBackToList();
-    }
-  });
+  // useBackIntercept for the chat view + its transient overlays is set up
+  // further below, once forwardPickerOpen/bulkDeleteConfirm/etc. are declared.
 
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
@@ -1914,6 +1908,32 @@ const GlobalChatWidget = forwardRef(({
   const [blockUserPending, setBlockUserPending] = useState(null); // chat object pending block confirm
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameInput, setRenameInput] = useState('');
+
+  // Any transient overlay (forward picker, rename/clear-chat confirms, vault
+  // modals) open on top of the chat view gets its own back-intercept level,
+  // so a swipe-back/hardware-back closes just that overlay instead of
+  // falling through and closing the entire chat.
+  const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearChatModalOpen || clearGroupChatModalOpen || renameModalOpen || showMasterKeyModal || showChangePinModal);
+
+  // Mobile/iPad swipe-back (and hardware back) should step back one level
+  // instead of leaving the page: closed -> list -> chat -> overlay. Without
+  // this, a swipe-left gesture falls through to the browser's real back
+  // navigation and exits the whole site.
+  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(!isOpen ? 0 : (view === 'chat' ? (anyChatOverlayOpen ? 3 : 2) : 1), (newLevel) => {
+    if (newLevel === 0) {
+      onClose && onClose();
+    } else if (newLevel === 1) {
+      handleBackToList();
+    } else if (newLevel === 2) {
+      setForwardPickerOpen(false);
+      setBulkDeleteConfirm(false);
+      setClearChatModalOpen(false);
+      setClearGroupChatModalOpen(false);
+      setRenameModalOpen(false);
+      setShowMasterKeyModal(false);
+      setShowChangePinModal(false);
+    }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -6539,10 +6559,21 @@ const GlobalChatWidget = forwardRef(({
               ) : (
                 (() => {
                   const effectiveSeenMap = getEffectiveSeenBy(messages, myUsername);
-                  const lastMsg = messages[messages.length - 1];
-                  const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
-                  const renderReceiptIndex = isLastSentByMe ? messages.length - 1 : -1;
                   const mediaRuns = groupMediaRuns(messages);
+                  // A media-batch's non-head rows render null, so the "last message" for
+                  // read-receipt purposes must resolve to the batch's head row (the one
+                  // that actually renders), not the raw last index — otherwise the last
+                  // message being part of a batch silently hides the Seen indicator.
+                  let lastRenderIdx = messages.length - 1;
+                  while (lastRenderIdx >= 0) {
+                    const lm = messages[lastRenderIdx];
+                    const lrk = lm.tempId || lm.id || lastRenderIdx;
+                    if (!mediaRuns.memberKeys.has(lrk)) break;
+                    lastRenderIdx--;
+                  }
+                  const lastMsg = messages[lastRenderIdx];
+                  const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
+                  const renderReceiptIndex = isLastSentByMe ? lastRenderIdx : -1;
                   return messages.map((msg, i) => {
                     const mUserLower = myUsername?.toLowerCase();
                     const isMe = msg.isMe ||
@@ -7379,8 +7410,8 @@ const GlobalChatWidget = forwardRef(({
 
         {/* Forward picker — pick up to 5 destination chats for the selected messages */}
         {forwardPickerOpen && createPortal(
-          <div onMouseDown={e => e.stopPropagation()} className="chat-modal-overlay" style={{position:'fixed',inset:0,zIndex:999999,background: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0, 0, 0, 0.65)',backdropFilter:'blur(12px) saturate(180%)',WebkitBackdropFilter:'blur(12px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center', padding: 20}}>
-            <div className="chat-modal-box" style={{background: isLight ? '#fff' : 'rgba(20, 20, 25, 0.85)', backdropFilter: 'blur(10px)', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',borderRadius:32,padding:28,width:'100%',maxWidth:400, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.8)', animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'}}>
+          <div onMouseDown={e => e.stopPropagation()} className="chat-modal-overlay" style={{position:'fixed',inset:0,zIndex:999999,background: isLight ? 'rgba(15, 23, 42, 0.45)' : 'rgba(0, 0, 0, 0.75)',backdropFilter:'blur(12px) saturate(180%)',WebkitBackdropFilter:'blur(12px) saturate(180%)',display:'flex',alignItems:'center',justifyContent:'center', padding: 20}}>
+            <div className="chat-modal-box" style={{background: isLight ? '#fff' : '#1a1a2e', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',borderRadius:32,padding:28,width:'100%',maxWidth:400, maxHeight:'80vh', display:'flex', flexDirection:'column', boxShadow: isLight ? '0 32px 80px rgba(0,0,0,0.15)' : '0 40px 100px rgba(0,0,0,0.8)', animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'}}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontSize: 20, fontWeight: 900 }}>{t('forwardTo', 'Forward to')}</h3>
                 <button onClick={() => setForwardPickerOpen(false)} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#888',cursor:'pointer',display:'flex'}}><X size={20}/></button>

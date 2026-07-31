@@ -3332,7 +3332,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     // 1. Private chats: get latest message per partner
     const privateRows = await queryAll(`
       SELECT DISTINCT ON (partner)
-        m.timestamp as lastTimestamp,
+        m.timestamp as "lastTimestamp",
         CASE WHEN LOWER(m.senderName) = LOWER($1) THEN m.targetName ELSE m.senderName END as partner,
         m.roomId,
         m.message,
