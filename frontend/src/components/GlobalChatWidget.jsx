@@ -6560,6 +6560,20 @@ const GlobalChatWidget = forwardRef(({
                 (() => {
                   const effectiveSeenMap = getEffectiveSeenBy(messages, myUsername);
                   const mediaRuns = groupMediaRuns(messages);
+                  // A "seen" event can land on any message in a media batch (whichever one
+                  // the reader's client happened to report), not necessarily the head — but
+                  // only the head row ever renders a receipt. Merge readers from every
+                  // message in the run onto the head's own lookup key so none get lost.
+                  for (const [headKey, runMsgs] of mediaRuns.heads.entries()) {
+                    const headMsg = runMsgs[0];
+                    const headMapKey = String(headMsg.id || headMsg.timestamp);
+                    const merged = new Map();
+                    for (const rm of runMsgs) {
+                      const readers = effectiveSeenMap.get(String(rm.id || rm.timestamp)) || [];
+                      for (const r of readers) merged.set(r.username.toLowerCase(), r);
+                    }
+                    if (merged.size > 0) effectiveSeenMap.set(headMapKey, Array.from(merged.values()));
+                  }
                   // A media-batch's non-head rows render null, so the "last message" for
                   // read-receipt purposes must resolve to the batch's head row (the one
                   // that actually renders), not the raw last index — otherwise the last

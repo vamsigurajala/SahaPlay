@@ -2617,6 +2617,20 @@ export default function RoomChatPanel({ p }) {
             {(() => {
               const effectiveGroupSeenMap = getEffectiveSeenBy(p.groupMessages, p.username);
               const groupMediaRunsInfo = groupMediaRuns(p.groupMessages);
+              // A "seen" event can land on any message in a media batch (whichever one
+              // the reader's client happened to report), not necessarily the head — but
+              // only the head row ever renders a receipt. Merge readers from every
+              // message in the run onto the head's own lookup key so none get lost.
+              for (const [, runMsgs] of groupMediaRunsInfo.heads.entries()) {
+                const headMsg = runMsgs[0];
+                const headMapKey = String(headMsg.id || headMsg.timestamp);
+                const merged = new Map();
+                for (const rm of runMsgs) {
+                  const readers = effectiveGroupSeenMap.get(String(rm.id || rm.timestamp)) || [];
+                  for (const r of readers) merged.set(r.username.toLowerCase(), r);
+                }
+                if (merged.size > 0) effectiveGroupSeenMap.set(headMapKey, Array.from(merged.values()));
+              }
               // A media-batch's non-head rows render null, so the "last message" for
               // read-receipt purposes must resolve to the batch's head row (the one
               // that actually renders), not the raw last index.
@@ -3265,6 +3279,20 @@ export default function RoomChatPanel({ p }) {
                     const dmMessages = p.dmThreads[p.dmTarget?.toLowerCase()] || [];
                     const effectiveDmSeenMap = getEffectiveSeenBy(dmMessages, p.username);
                     const dmMediaRunsInfo = groupMediaRuns(dmMessages);
+                    // A "seen" event can land on any message in a media batch (whichever one
+                    // the reader's client happened to report), not necessarily the head — but
+                    // only the head row ever renders a receipt. Merge readers from every
+                    // message in the run onto the head's own lookup key so none get lost.
+                    for (const [, runMsgs] of dmMediaRunsInfo.heads.entries()) {
+                      const headMsg = runMsgs[0];
+                      const headMapKey = String(headMsg.id || headMsg.timestamp);
+                      const merged = new Map();
+                      for (const rm of runMsgs) {
+                        const readers = effectiveDmSeenMap.get(String(rm.id || rm.timestamp)) || [];
+                        for (const r of readers) merged.set(r.username.toLowerCase(), r);
+                      }
+                      if (merged.size > 0) effectiveDmSeenMap.set(headMapKey, Array.from(merged.values()));
+                    }
                     // A media-batch's non-head rows render null, so the "last message" for
                     // read-receipt purposes must resolve to the batch's head row (the one
                     // that actually renders), not the raw last index.
