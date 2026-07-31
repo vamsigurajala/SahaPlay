@@ -201,7 +201,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
                 onChange={e => setConfirmPassphrase(e.target.value)}
               />
             </div>
-            <button type="submit" disabled={isSubmitting} style={submitBtnStyle(isSubmitting)}>
+            <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encSaving', 'Saving...') : t('encSetContinue', 'Set passphrase & continue')}
             </button>
           </form>
@@ -229,7 +229,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
                 </button>
               </div>
             </div>
-            <button type="submit" disabled={isSubmitting} style={submitBtnStyle(isSubmitting)}>
+            <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encUnlocking', 'Unlocking...') : t('encUnlockBtn', 'Unlock')}
             </button>
             <button type="button" onClick={() => { setError(''); setView('forgot'); }}
@@ -278,7 +278,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
                 onChange={e => setNewConfirmPassphrase(e.target.value)}
               />
             </div>
-            <button type="submit" disabled={isSubmitting} style={submitBtnStyle(isSubmitting)}>
+            <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encRecovering', 'Recovering...') : t('encRecoverBtn', 'Recover & set new passphrase')}
             </button>
             <button type="button" onClick={() => { setError(''); setView('main'); }}
