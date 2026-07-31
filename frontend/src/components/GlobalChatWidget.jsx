@@ -3316,12 +3316,22 @@ const GlobalChatWidget = forwardRef(({
     prevMsgCountRef.current = messages.length;
   }, [messages, view, activeChat]);
 
-  // Autofocus input when opening a chat or replying
+  // Autofocus input when opening a chat, replying, or editing — for edit, also
+  // place the cursor at the end of the pre-filled text rather than leaving the
+  // user to click into the box themselves.
   useEffect(() => {
     if (view === 'chat') {
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        if (editingMsg) {
+          const len = el.value.length;
+          el.setSelectionRange?.(len, len);
+        }
+      }, 50);
     }
-  }, [view, activeChat, replyToMsg]);
+  }, [view, activeChat, replyToMsg, editingMsg]);
 
   const fetchConversations = async () => {
     if (!token) return true; // nothing to do — not a failure

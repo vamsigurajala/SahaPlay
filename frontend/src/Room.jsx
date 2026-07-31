@@ -2295,12 +2295,28 @@ const Room = () => {
   }, [showUserPanel, showSettings, showRecentChats, showSearch, showNotifications, showGroupMenu, showDmMenu, activeReactionMsg, showAllEmojis, modMenuTarget, showHeaderModMenu, showGroupEmojiPicker, showDmEmojiPicker, showCameraMenu]);
 
   useEffect(() => {
+    // Also fires on entering edit mode (groupEditingMessage/dmEditingMessage) so
+    // clicking "Edit" focuses the input with the cursor at the end of the
+    // pre-filled text, instead of leaving the user to click into the box
+    // themselves — matches Reply's existing focus-on-select behavior above.
     if (chatTab === 'group') {
-      setTimeout(() => groupInputRef.current?.focus(), 50);
+      setTimeout(() => {
+        const el = groupInputRef.current;
+        if (!el) return;
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange?.(len, len);
+      }, 50);
     } else if (chatTab === 'dm') {
-      setTimeout(() => dmInputRef.current?.focus(), 50);
+      setTimeout(() => {
+        const el = dmInputRef.current;
+        if (!el) return;
+        el.focus();
+        const len = el.value.length;
+        el.setSelectionRange?.(len, len);
+      }, 50);
     }
-  }, [chatTab, dmTarget, groupReplyTo, dmReplyTo]);
+  }, [chatTab, dmTarget, groupReplyTo, dmReplyTo, groupEditingMessage, dmEditingMessage]);
 
   useEffect(() => {
     const tkn = localStorage.getItem('watch_token');
