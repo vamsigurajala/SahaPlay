@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
@@ -447,13 +447,15 @@ function resolveDecryptedUrl(m, decryptedMediaUrlsRef) {
 
 // WhatsApp-style grid: 2 items side by side, 3 items as one tall tile + two stacked,
 // 4-5 items as a 2x2 grid with a "+N" overlay on the last visible tile when there are more.
-function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
+function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }) {
   const total = items.length;
   const visibleCount = Math.min(total, 4);
   const overflow = total - 4;
   const cell = 128;
   const gap = 3;
   const size = cell * 2 + gap;
+  const expiryDaysLeft = expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const showExpiry = expiryDaysLeft !== null && expiryDaysLeft > 0;
 
   return (
     <div style={{
@@ -468,6 +470,16 @@ function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
           <Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded
         </div>
       )}
+      {showExpiry && (
+        <div style={{ position: 'absolute', bottom: 5, left: 6, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          <Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {expiryDaysLeft} day{expiryDaysLeft !== 1 ? 's' : ''}
+        </div>
+      )}
+      {tick && (
+        <div style={{ position: 'absolute', bottom: 5, right: 6, zIndex: 3, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          {tick}
+        </div>
+      )}
       {items.slice(0, visibleCount).map((it, idx) => {
         const isLastVisible = idx === visibleCount - 1;
         const showOverlay = isLastVisible && overflow > 0;
@@ -480,9 +492,9 @@ function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
             style={{ position: 'relative', cursor: url ? 'pointer' : 'default', background: '#111', gridRow: tallLeft ? 'span 2' : undefined, overflow: 'hidden' }}>
             {url ? (
               isVid ? (
-                <video src={url} muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <video src={url} muted onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
               ) : (
-                <img src={url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                <img src={url} alt="" loading="lazy" draggable={false} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
               )
             ) : (
@@ -538,7 +550,9 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
             src={url}
             alt="Shared media"
             loading="lazy"
-            style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+            draggable={false}
+            onContextMenu={e => e.preventDefault()}
+            style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
             onClick={() => onOpenLightbox(url, type)}
             onError={(e) => {
               e.target.onerror = null;
@@ -552,7 +566,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
         </>
       ) : (
         <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} muted />
+          <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7, WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} muted onContextMenu={e => e.preventDefault()} />
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(var(--brand-1-rgb),0.5)' }}>
               <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
@@ -1272,13 +1286,21 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
 };
 
 // â”€â”€ Media Lightbox â”€â”€
-function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
+const LIGHTBOX_SWIPE_THRESHOLD = 50;
+
+// items: [{ url, type, filename?, expiresAt?, isMe?, id? }]
+// onDeleteItem?: (item, mode) => void — mode is 'global' (unsend/everyone) or 'local' (delete for me).
+function MediaLightbox({ items, index, onClose, onPrev, onNext, onDeleteItem }) {
   const item = items?.[index];
   const url = item?.url;
   const type = item?.type;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
   const hasMultiple = items?.length > 1;
+  const [showItemMenu, setShowItemMenu] = useState(false);
+  const touchRef = useRef({ x: 0, y: 0, active: false });
+
+  useEffect(() => { setShowItemMenu(false); }, [index]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -1302,6 +1324,27 @@ function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
       a.click();
     } catch {}
   };
+
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
+  };
+  const handleTouchEnd = (e) => {
+    const s = touchRef.current;
+    if (!s.active) return;
+    s.active = false;
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - s.x;
+    const deltaY = touch.clientY - s.y;
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical drag — ignore
+    if (deltaX > LIGHTBOX_SWIPE_THRESHOLD && hasMultiple && index > 0) onPrev?.();
+    else if (deltaX < -LIGHTBOX_SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) onNext?.();
+  };
+
+  const expiryDaysLeft = item?.expiresAt ? Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const showExpiry = expiryDaysLeft !== null && expiryDaysLeft > 0;
 
   if (!item) return null;
 
@@ -1330,23 +1373,50 @@ function MediaLightbox({ items, index, onClose, onPrev, onNext }) {
           <span style={{ color: '#ccc', fontSize: 13, fontWeight: 600 }}>
             {hasMultiple ? `${index + 1} / ${items.length}` : ''}
           </span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
             <button onClick={handleDownload} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 14px', color: '#111', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#111', display: 'flex' }}><Download size={14} /></span> Save
             </button>
+            {onDeleteItem && (
+              <button onClick={e => { e.stopPropagation(); setShowItemMenu(v => !v); }} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 8px', color: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                <span style={{ color: '#111', display: 'flex' }}><MoreVertical size={16} /></span>
+              </button>
+            )}
             <button onClick={onClose} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 10px', color: '#111', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <span style={{ color: '#111', display: 'flex' }}><X size={16} /></span>
             </button>
+            {showItemMenu && onDeleteItem && (
+              <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: '#1e1e1e', border: '1px solid #333', borderRadius: 10, padding: 6, minWidth: 150, zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                {item.isMe && (
+                  <button onClick={() => { setShowItemMenu(false); onDeleteItem(item, 'global'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px 10px', fontSize: 13, borderRadius: 6 }}>
+                    <Trash2 size={14} /> Unsend
+                  </button>
+                )}
+                <button onClick={() => { setShowItemMenu(false); onDeleteItem(item, 'local'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', color: '#eee', cursor: 'pointer', padding: '8px 10px', fontSize: 13, borderRadius: 6 }}>
+                  <Trash2 size={14} /> {item.isMe ? 'Delete for me' : 'Delete'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Media area */}
-        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}>
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}
+        >
           {isImg ? (
-            <img src={url} alt="Media" style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain' }} />
+            <img src={url} alt="Media" draggable={false} onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
           ) : isVid ? (
-            <video src={url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+            <video src={url} controls autoPlay onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
           ) : null}
+
+          {showExpiry && (
+            <div style={{ position: 'absolute', bottom: 10, left: 10, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '4px 8px', backdropFilter: 'blur(4px)' }}>
+              Expires in {expiryDaysLeft} day{expiryDaysLeft !== 1 ? 's' : ''}
+            </div>
+          )}
 
           {hasMultiple && index > 0 && (
             <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
@@ -1635,6 +1705,18 @@ const GlobalChatWidget = forwardRef(({
   });
   const [chatLockEnabled, setChatLockEnabled] = useState(false);
 
+  // The widget is a fixed, very-high-zIndex overlay — a page-level react-hot-toast
+  // (default zIndex much lower) renders BEHIND it, so errors like "too many files"
+  // fired while the widget is open were silently invisible. This banner lives inside
+  // the widget's own stacking context instead, guaranteeing it's seen.
+  const [inlineNotice, setInlineNotice] = useState(null);
+  const inlineNoticeTimerRef = useRef(null);
+  const showInlineNotice = useCallback((text) => {
+    setInlineNotice(text);
+    clearTimeout(inlineNoticeTimerRef.current);
+    inlineNoticeTimerRef.current = setTimeout(() => setInlineNotice(null), 3000);
+  }, []);
+
   const wrapperRef = useRef(null);
   useImperativeHandle(ref, () => ({
     get container() { return wrapperRef.current; },
@@ -1774,6 +1856,36 @@ const GlobalChatWidget = forwardRef(({
   // derived from the click's mouse Y.
   const [dropdownPlacement, setDropdownPlacement] = useState('down');
   const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+  // Close the long-press action menu / quick-reaction row / emoji pickers on any
+  // click outside them. The scroll container's own onClick already did this for
+  // clicks inside the message list, but tapping the header or the compose bar
+  // (outside that container) left them stuck open — a real bug on mobile/tablet
+  // where there's no hover-away to naturally dismiss them.
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      const t = e.target;
+      const closest = (sel) => !!(t.closest && t.closest(sel));
+      if (activeMessageMenu && !closest('.msg-hover-menu')) {
+        setActiveMessageMenu(null);
+      }
+      if (longPress.activeId && !closest('.long-press-menu')) {
+        longPress.close();
+      }
+      if ((activeReactionMsg || showAllEmojis) && !closest('.react-btn-container') && !closest('.emoji-picker-container')) {
+        setActiveReactionMsg(null);
+        setShowAllEmojis(false);
+      }
+      if (showEmojiPicker && !closest('.emoji-picker-container') && !closest('.emoji-toggle-btn')) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [activeMessageMenu, longPress.activeId, longPress, activeReactionMsg, showAllEmojis, showEmojiPicker]);
   const [activeConvMenu, setActiveConvMenu] = useState(null);
   const [hoveredConvId, setHoveredConvId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
@@ -4456,10 +4568,10 @@ const GlobalChatWidget = forwardRef(({
 
   const handleMediaUpload = async (file, mediaDuration = null, mediaGroupId = null) => {
     const validation = validateFile(file);
-    if (!validation.valid) { toast.error(validation.error); return; }
+    if (!validation.valid) { showInlineNotice(validation.error); return; }
 
     if (activeChat?.type === 'room' && activeChat.permissions?.allowMedia === false && !activeChat.isHost) {
-      toast.error('📷 Media sharing is not allowed in this room.');
+      showInlineNotice('📷 Media sharing is not allowed in this room.');
       return;
     }
 
@@ -4644,7 +4756,7 @@ const GlobalChatWidget = forwardRef(({
     if (!files.length) return;
 
     if (files.length > MAX_MEDIA_PER_SEND) {
-      toast.error(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
+      showInlineNotice(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
       return;
     }
 
@@ -5055,13 +5167,21 @@ const GlobalChatWidget = forwardRef(({
     const msgKey = String(m.id || m.timestamp);
     const url = decryptedMediaUrls.current[msgKey] || m._localMediaUrl ||
       ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
-    return url ? { url, type: mt } : null;
+    const mUserLower = myUsername?.toLowerCase();
+    const isMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
+    return url ? { url, type: mt, id: m.id || m.tempId, isMe, expiresAt: m.mediaExpiresAt, filename: m._fileName || m.mediaFileName || null } : null;
   }).filter(Boolean);
 
   const openLightbox = (url, type) => {
     const items = buildMediaItems(messages);
     const idx = items.findIndex(i => i.url === url);
     setLightbox({ items: items.length ? items : [{ url, type }], index: idx >= 0 ? idx : 0 });
+  };
+
+  const handleLightboxDelete = (item, mode) => {
+    if (!item?.id) return;
+    handleDeleteMessage(item.id, mode);
+    setLightbox(null);
   };
 
   const perms = activeChat?.permissions || roomPermissions;
@@ -5075,6 +5195,14 @@ const GlobalChatWidget = forwardRef(({
   return (
     <div ref={wrapperRef} style={{ display: 'contents' }}>
       <style>{typingCss}</style>
+    {/* In-widget notice banner — portalled above the widget's own high z-index so it's
+        never hidden behind it (unlike a page-level react-hot-toast). */}
+    {inlineNotice && createPortal(
+      <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 1000000, background: 'rgba(20,20,20,0.94)', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 6px 20px rgba(0,0,0,0.45)', maxWidth: '85%', textAlign: 'center', pointerEvents: 'none' }}>
+        {inlineNotice}
+      </div>,
+      document.body
+    )}
     {/* ── Chat Lock Screen overlay ── */}
     {showLockScreen && pendingLockedChat && (
       <ChatLockScreen
@@ -5264,6 +5392,7 @@ const GlobalChatWidget = forwardRef(({
             onClose={() => setLightbox(null)}
             onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
             onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+            onDeleteItem={handleLightboxDelete}
           />,
           document.body
         )}
@@ -6608,6 +6737,8 @@ const GlobalChatWidget = forwardRef(({
                                     <MediaGrid
                                       items={mediaGroupItems}
                                       forwarded={msg?.forwarded}
+                                      expiresAt={msg.mediaExpiresAt}
+                                      tick={isMe ? <MessageTick msg={msg} username={myUsername} isLight={isLight} /> : null}
                                       resolveUrl={(it) => resolveDecryptedUrl(it, decryptedMediaUrls)}
                                       onOpenItem={(it, url) => openLightbox(url, it.mediaType)}
                                     />

@@ -232,13 +232,15 @@ function resolveDecryptedUrl(m, decryptedUrlsRef) {
 
 // WhatsApp-style grid: 2 items side by side, 3 items as one tall tile + two stacked,
 // 4-5 items as a 2x2 grid with a "+N" overlay on the last visible tile when there are more.
-function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
+function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }) {
   const total = items.length;
   const visibleCount = Math.min(total, 4);
   const overflow = total - 4;
   const cell = 128;
   const gap = 3;
   const size = cell * 2 + gap;
+  const expiryDaysLeft = expiresAt ? Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+  const showExpiry = expiryDaysLeft !== null && expiryDaysLeft > 0;
 
   return (
     <div style={{
@@ -253,6 +255,16 @@ function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
           <Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded
         </div>
       )}
+      {showExpiry && (
+        <div style={{ position: 'absolute', bottom: 5, left: 6, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          <Clock size={8} color="#fff" style={{ flexShrink: 0 }} />Expires in {expiryDaysLeft} day{expiryDaysLeft !== 1 ? 's' : ''}
+        </div>
+      )}
+      {tick && (
+        <div style={{ position: 'absolute', bottom: 5, right: 6, zIndex: 3, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          {tick}
+        </div>
+      )}
       {items.slice(0, visibleCount).map((it, idx) => {
         const isLastVisible = idx === visibleCount - 1;
         const showOverlay = isLastVisible && overflow > 0;
@@ -265,9 +277,9 @@ function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
             style={{ position: 'relative', cursor: url ? 'pointer' : 'default', background: '#111', gridRow: tallLeft ? 'span 2' : undefined, overflow: 'hidden' }}>
             {url ? (
               isVid ? (
-                <video src={url} muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <video src={url} muted onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
               ) : (
-                <img src={url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                <img src={url} alt="" loading="lazy" draggable={false} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
               )
             ) : (
@@ -1440,21 +1452,46 @@ export default function RoomChatPanel({ p }) {
 
   React.useEffect(() => {
     const handleClickOutside = (e) => {
+      const t = e.target;
+      const closest = (sel) => !!(t.closest && t.closest(sel));
       // If clicking outside the active message menu
-      if (activeMessageMenu && messageMenuRef.current && !messageMenuRef.current.contains(e.target)) {
+      if (activeMessageMenu && messageMenuRef.current && !messageMenuRef.current.contains(t)) {
         setActiveMessageMenu(null);
       }
       // If clicking outside the header 3-dots menu
-      if (showHeaderMenu && headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
+      if (showHeaderMenu && headerMenuRef.current && !headerMenuRef.current.contains(t)) {
         setShowHeaderMenu(false);
       }
-      if (showHiddenMenu && hiddenMenuRef.current && !hiddenMenuRef.current.contains(e.target)) {
+      if (showHiddenMenu && hiddenMenuRef.current && !hiddenMenuRef.current.contains(t)) {
         setShowHiddenMenu(false);
+      }
+      // Long-press action menu (mobile/tablet: reactions/reply/edit/delete/report) —
+      // only reachable via the scroll container's own onClick before this fix, which
+      // meant tapping the header, compose bar, or anything outside the message list
+      // left it stuck open.
+      if (longPress.activeId && !closest('.long-press-menu')) {
+        longPress.close();
+      }
+      // Quick-reaction row + full emoji picker attached to a specific message
+      if ((p.activeReactionMsg || p.showAllEmojis) && !closest('.react-btn-container') && !closest('.emoji-picker-container')) {
+        p.setActiveReactionMsg(null);
+        p.setShowAllEmojis(false);
+      }
+      // Compose-bar emoji pickers (group/DM)
+      if (p.showGroupEmojiPicker && !closest('.emoji-picker-container') && !closest('.emoji-btn-group')) {
+        p.setShowGroupEmojiPicker(false);
+      }
+      if (p.showDmEmojiPicker && !closest('.emoji-picker-container') && !closest('.emoji-btn-dm')) {
+        p.setShowDmEmojiPicker(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeMessageMenu, showHeaderMenu, showHiddenMenu]);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [activeMessageMenu, showHeaderMenu, showHiddenMenu, longPress.activeId, longPress, p.activeReactionMsg, p.showAllEmojis, p.showGroupEmojiPicker, p.showDmEmojiPicker]);
   const dmTargetRef = React.useRef(p.dmTarget);
   const [dmRelation, setDmRelation] = React.useState(null);
   // 'loading' = fetching in progress (show nothing), null = not a private chat, object = resolved
@@ -1730,12 +1767,23 @@ export default function RoomChatPanel({ p }) {
 
   const MAX_MEDIA_PER_SEND = 5;
 
+  // A page-level react-hot-toast can end up hidden behind the room chat panel's own
+  // stacked overlays on mobile/tablet — this banner renders inside the panel's own
+  // tree instead, so file-selection errors are always visible.
+  const [inlineNotice, setInlineNotice] = React.useState(null);
+  const inlineNoticeTimerRef = React.useRef(null);
+  const showInlineNotice = React.useCallback((text) => {
+    setInlineNotice(text);
+    clearTimeout(inlineNoticeTimerRef.current);
+    inlineNoticeTimerRef.current = setTimeout(() => setInlineNotice(null), 3000);
+  }, []);
+
   const handleFileSelect = async (e, type) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
     if (files.length > MAX_MEDIA_PER_SEND) {
-      toast.error(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
+      showInlineNotice(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
       e.target.value = null;
       return;
     }
@@ -1743,7 +1791,7 @@ export default function RoomChatPanel({ p }) {
     for (const file of files) {
       const validation = validateFile(file);
       if (!validation.valid) {
-        toast.error(validation.error);
+        showInlineNotice(validation.error);
         e.target.value = null;
         return;
       }
@@ -1751,7 +1799,7 @@ export default function RoomChatPanel({ p }) {
 
     // Permission check for media in rooms
     if (type === 'group' && p.allowMedia === false) {
-      toast.error('Sharing media is disabled in this room');
+      showInlineNotice('Sharing media is disabled in this room');
       e.target.value = null;
       return;
     }
@@ -2023,6 +2071,7 @@ export default function RoomChatPanel({ p }) {
   };
 
   const buildMediaItems = (messages, decryptedUrlsRef) => {
+    const mUserLower = p.username?.toLowerCase();
     return (messages || []).map(m => {
       const mt = m.mediaType || '';
       if (!mt.startsWith('image/') && !mt.startsWith('video/')) return null;
@@ -2032,7 +2081,8 @@ export default function RoomChatPanel({ p }) {
         decryptedUrlsRef.current[String(m.timestamp)]
       );
       const url = decrypted || m._localMediaUrl || ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
-      return url ? { url, type: mt } : null;
+      const isMe = m.isMe || (m.username && m.username.toLowerCase() === mUserLower) || (m.senderName && m.senderName.toLowerCase() === mUserLower);
+      return url ? { url, type: mt, id: m.id || m.tempId, isMe, expiresAt: m.mediaExpiresAt, filename: m._fileName || m.mediaFileName || null } : null;
     }).filter(Boolean);
   };
 
@@ -2044,6 +2094,12 @@ export default function RoomChatPanel({ p }) {
     } else {
       setLightbox({ items, index: idx >= 0 ? idx : 0 });
     }
+  };
+
+  const handleLightboxDelete = (item, mode) => {
+    if (!item?.id) return;
+    p.handleDeleteMessage(item.id, mode);
+    setLightbox(null);
   };
 
   const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg) => {
@@ -2074,7 +2130,9 @@ export default function RoomChatPanel({ p }) {
             <img
               src={url}
               alt="Shared media"
-              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }}
+              draggable={false}
+              onContextMenu={e => e.preventDefault()}
+              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
               onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)}
               onError={(e) => {
                 e.target.onerror = null;
@@ -2088,7 +2146,7 @@ export default function RoomChatPanel({ p }) {
           </>
         ) : (
           <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7 }} muted />
+            <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7, WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} muted onContextMenu={e => e.preventDefault()} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(var(--brand-1-rgb),0.5)' }}>
                 <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />
@@ -2115,6 +2173,12 @@ export default function RoomChatPanel({ p }) {
   return (
     <>
       <MenuStyles />
+      {inlineNotice && createPortal(
+        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 1000000, background: 'rgba(20,20,20,0.94)', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 6px 20px rgba(0,0,0,0.45)', maxWidth: '85%', textAlign: 'center', pointerEvents: 'none' }}>
+          {inlineNotice}
+        </div>,
+        document.body
+      )}
       {lightbox && createPortal(
         <MediaLightbox
           items={lightbox.items}
@@ -2122,6 +2186,7 @@ export default function RoomChatPanel({ p }) {
           onClose={() => setLightbox(null)}
           onPrev={() => setLightbox(lb => lb ? { ...lb, index: Math.max(0, lb.index - 1) } : null)}
           onNext={() => setLightbox(lb => lb ? { ...lb, index: Math.min(lb.items.length - 1, lb.index + 1) } : null)}
+          onDeleteItem={handleLightboxDelete}
         />,
         document.body
       )}
@@ -2723,6 +2788,8 @@ export default function RoomChatPanel({ p }) {
                             <MediaGrid
                               items={mediaGroupItems}
                               forwarded={msg?.forwarded}
+                              expiresAt={msg.mediaExpiresAt}
+                              tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
                               resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                               onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                             />
@@ -3322,6 +3389,8 @@ export default function RoomChatPanel({ p }) {
                                   <MediaGrid
                                     items={mediaGroupItems}
                                     forwarded={msg?.forwarded}
+                                    expiresAt={msg.mediaExpiresAt}
+                                    tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
                                     resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                                     onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                                   />
