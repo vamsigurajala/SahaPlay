@@ -5,6 +5,7 @@ import {
   Cookie, Shield, Lock, Database, Key, Cpu, Layers, Settings,
   AlertTriangle, Mail, HelpCircle, Info, CheckCircle2, Terminal, ChevronUp
 } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
@@ -58,6 +59,7 @@ export default function Cookies() {
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
       <SeoHead path="/cookies" />
       <Navbar />
+      <Toaster position="top-center" />
       <div className="page-wrapper">
 
         {/* ══════════════════════════════════════════

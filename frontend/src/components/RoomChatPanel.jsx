@@ -1384,11 +1384,28 @@ export default function RoomChatPanel({ p }) {
       .finally(() => setForwardChatsLoading(false));
   };
   // Resolves the same rowKey used for checkbox selection back to the actual
-  // message object, searching whichever tab (group/DM) is currently active.
-  const getSelectedMessages = (activeList) => activeList
-    .map((m, i) => ({ m, rowKey: m.tempId || m.id || i }))
-    .filter(({ rowKey }) => selectedMsgIds.has(rowKey))
-    .map(({ m }) => m);
+  // message object, searching whichever tab (group/DM) is currently active. A
+  // media-group grid tile only ever exposes ONE checkbox (on its head message —
+  // the rest of the run renders nothing, see groupMediaRuns), so selecting it
+  // must expand back out to every message in that batch or only the first photo
+  // would be acted on (forwarded/deleted).
+  const getSelectedMessages = (activeList) => {
+    const runs = groupMediaRuns(activeList);
+    const result = [];
+    const seen = new Set();
+    activeList.forEach((m, i) => {
+      const rowKey = m.tempId || m.id || i;
+      if (!selectedMsgIds.has(rowKey)) return;
+      const group = runs.heads.get(rowKey) || [m];
+      for (const gm of group) {
+        const gid = gm.tempId || gm.id;
+        if (seen.has(gid)) continue;
+        seen.add(gid);
+        result.push(gm);
+      }
+    });
+    return result;
+  };
   const activeSelectionList = () => (p.chatTab === 'dm' ? dmMessages : (p.groupMessages || []));
   const handleBulkDelete = (mode) => {
     const ids = getSelectedMessages(activeSelectionList()).map(m => m.id || m.timestamp);

@@ -3413,7 +3413,20 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       };
     }));
 
-    // 2. Group chats — rooms where user sent messages or is in DB room_names with messages
+    // 2. Group chats — rooms where user sent messages, OR any room the user has ever
+    // joined (firstJoined map), so a "silent" member who never posted there still gets
+    // a live, accurate lastTimestamp from the server on every fetch. Without the
+    // firstJoined branch, such a room was entirely absent from this query — the
+    // frontend could only "preserve" it from whatever was already in memory/localStorage,
+    // which is empty or stale right after a logout/refresh, causing it to sort to the
+    // bottom (or vanish) instead of staying at its correct recent-activity position.
+    let joinedRoomIds = [];
+    try {
+      const userFjRow = await queryGet('SELECT "firstJoined" FROM users WHERE username = ?', [username]);
+      const fj = JSON.parse(userFjRow?.firstJoined || '{}');
+      joinedRoomIds = Object.keys(fj);
+    } catch (e) {}
+
     const groupRows = await queryAll(`
       SELECT DISTINCT ON (m."roomId")
         m.timestamp as "lastTimestamp",
@@ -3431,15 +3444,18 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         (m.senderName = $1) as "isMyLastMessage"
       FROM messages m
       LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
-      WHERE m.type IN ('room', 'group') 
+      WHERE m.type IN ('room', 'group')
         AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $2 || '%')
-        AND m."roomId" IN (
-          SELECT DISTINCT "roomId" FROM messages 
-          WHERE LOWER("senderName") = LOWER($3) AND type IN ('room', 'group')
-          AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $4 || '%')
+        AND (
+          LOWER(m."roomId") = ANY($3::text[])
+          OR m."roomId" IN (
+            SELECT DISTINCT "roomId" FROM messages
+            WHERE LOWER("senderName") = LOWER($4) AND type IN ('room', 'group')
+            AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $5 || '%')
+          )
         )
       ORDER BY m."roomId", m.timestamp DESC, m.id DESC
-    `, [username, `"${username}"`, username, `"${username}"`]);
+    `, [username, `"${username}"`, joinedRoomIds, username, `"${username}"`]);
     
     // A10-B2: Batch group unread counts — one query instead of N per-room queries
     const groupUnreadMap = new Map();

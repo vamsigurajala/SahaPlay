@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
@@ -67,6 +68,7 @@ const Pricing = () => {
     }}>
       <SeoHead path="/pricing" />
       <Navbar />
+      <Toaster position="top-center" />
 
       <main style={{
         flex: 1,

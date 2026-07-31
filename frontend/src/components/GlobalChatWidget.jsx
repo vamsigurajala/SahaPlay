@@ -4805,11 +4805,27 @@ const GlobalChatWidget = forwardRef(({
   };
 
   // Resolves the same rowKey used for checkbox selection (msg.tempId || msg.id || i)
-  // back to the actual message objects, for bulk delete/forward.
-  const getSelectedMessages = () => messages
-    .map((m, i) => ({ m, rowKey: m.tempId || m.id || i }))
-    .filter(({ rowKey }) => selectedMsgIds.has(rowKey))
-    .map(({ m }) => m);
+  // back to the actual message objects, for bulk delete/forward. A media-group grid
+  // tile only ever exposes ONE checkbox (on its head message — the rest of the run
+  // renders nothing, see groupMediaRuns), so selecting it must expand back out to
+  // every message in that batch or only the first photo would be acted on.
+  const getSelectedMessages = () => {
+    const runs = groupMediaRuns(messages);
+    const result = [];
+    const seen = new Set();
+    messages.forEach((m, i) => {
+      const rowKey = m.tempId || m.id || i;
+      if (!selectedMsgIds.has(rowKey)) return;
+      const group = runs.heads.get(rowKey) || [m];
+      for (const gm of group) {
+        const gid = gm.tempId || gm.id;
+        if (seen.has(gid)) continue;
+        seen.add(gid);
+        result.push(gm);
+      }
+    });
+    return result;
+  };
 
   const handleBulkDelete = async (mode) => {
     const ids = getSelectedMessages().map(m => m.id || m.timestamp);
@@ -4895,6 +4911,12 @@ const GlobalChatWidget = forwardRef(({
     if (selectedForwardChats.length === 0) return;
     setForwarding(true);
     const msgsToForward = getSelectedMessages().sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+    // Forwarding a multi-image/video batch (a grid tile the user selected as one
+    // unit) should reassemble as a grid at the destination too, not scatter into
+    // separate bubbles — tag every visual media item in this forward with one
+    // shared mediaGroupId, same as a fresh multi-file send.
+    const forwardVisualCount = msgsToForward.filter(m => (m.mediaType || '').startsWith('image/') || (m.mediaType || '').startsWith('video/')).length;
+    const forwardGroupId = forwardVisualCount > 1 ? `mg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` : null;
     let failCount = 0;
     for (const destKey of selectedForwardChats) {
       const dest = conversations.find(c => (c.id || c.partner) === destKey);
@@ -4936,6 +4958,7 @@ const GlobalChatWidget = forwardRef(({
             mediaFileSize: msg._fileSize || msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
+            mediaGroupId: (isMedia && forwardGroupId && ((msg.mediaType || '').startsWith('image/') || (msg.mediaType || '').startsWith('video/'))) ? forwardGroupId : null,
           };
           if (isMedia) {
             let mediaKeyB64 = null;

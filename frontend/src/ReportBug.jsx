@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import {
@@ -340,6 +341,7 @@ export default function ReportBug() {
     return (
       <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
         <Navbar />
+        <Toaster position="top-center" />
         <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '40px 12px' : '60px 24px' }}>
           <div style={{ ...cardSt, borderRadius: 20, padding: isMobile ? '40px 24px' : '60px 48px', textAlign: 'center', maxWidth: 540, width: '100%', animation: 'fadeInUp 0.4s ease' }}>
 
@@ -440,6 +442,7 @@ export default function ReportBug() {
   return (
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, display: 'flex', flexDirection: 'column' }}>
       <Navbar />
+      <Toaster position="top-center" />
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: isMobile ? '48px 12px 80px' : '72px 24px 100px' }}>
 

@@ -8,6 +8,7 @@ import {
   BookOpen, Clock, ClipboardList, HelpCircle, Users,
   Smartphone, List, Mic, Monitor, PhoneOff, Camera
 } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
@@ -249,6 +250,7 @@ const HowItWorks = () => {
         loggedInUsername={loggedInUsername}
       />
       <Navbar />
+      <Toaster position="top-center" />
 
       {/* Inline CSS for animations and step connectors */}
       <style>{`

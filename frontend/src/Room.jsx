@@ -5525,6 +5525,12 @@ const Room = () => {
     const token = localStorage.getItem('watch_token');
     if (!token) return { failCount: msgs.length * destinations.length };
     const sorted = [...msgs].sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+    // Forwarding a multi-image/video batch (a grid tile the user selected as one
+    // unit) should reassemble as a grid at the destination too, not scatter into
+    // separate bubbles — tag every visual media item in this forward with one
+    // shared mediaGroupId, same as a fresh multi-file send.
+    const forwardVisualCount = sorted.filter(m => (m.mediaType || '').startsWith('image/') || (m.mediaType || '').startsWith('video/')).length;
+    const forwardGroupId = forwardVisualCount > 1 ? `mg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` : null;
     let failCount = 0;
     for (const dest of destinations) {
       const destType = dest.type === 'room' ? 'room' : 'private';
@@ -5564,6 +5570,7 @@ const Room = () => {
             mediaFileSize: msg._fileSize || msg.mediaFileSize || null,
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
+            mediaGroupId: (isMedia && forwardGroupId && ((msg.mediaType || '').startsWith('image/') || (msg.mediaType || '').startsWith('video/'))) ? forwardGroupId : null,
           };
           const kp = myKeyPair.current;
           if (isMedia) {

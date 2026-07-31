@@ -4,6 +4,7 @@ import {
   Shield, Lock, EyeOff, Trash2, Mail, Bug, UserX, BookOpen, Zap, User,
   X, FolderOpen, MessageSquare, Clock, LockOpen, HelpCircle, Key, AlertTriangle, ChevronUp,
 } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
@@ -96,6 +97,7 @@ export default function Safety() {
         />
       )}
       <Navbar />
+      <Toaster position="top-center" />
       <div className="page-wrapper">
 
         {/* ══════════════════════════════════════════

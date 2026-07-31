@@ -7,6 +7,7 @@ import {
   Layers, Mail, Scale, Users, ChevronUp, Info, MessageSquare,
   Play, HardDrive, Flag, CreditCard,
 } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
@@ -175,6 +176,7 @@ export default function Terms() {
     <div className="page-enter" style={{ minHeight: '100vh', background: pageBg, color: textPrimary }}>
       <SeoHead path="/terms" />
       <Navbar />
+      <Toaster position="top-center" />
       <div className="page-wrapper">
 
         {/* ══ HERO ══════════════════════════════════════════════════════ */}

@@ -9,6 +9,7 @@ import {
 import { FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaWhatsapp, FaTelegramPlane, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP } from 'react-icons/fa';
 import { SiNetflix, SiAppletv, SiGmail } from 'react-icons/si';
 import { TbBrandAmazon, TbBrandDisney } from 'react-icons/tb';
+import { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -109,6 +110,7 @@ const Features = () => {
         loggedInUsername={loggedInUsername}
       />
       <Navbar />
+      <Toaster position="top-center" />
 
       <style>{`
         /* --- Glowing Mesh Animations --- */
