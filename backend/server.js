@@ -1111,6 +1111,13 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS forwarded BOOLEAN DEFAULT FALSE`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] forwarded:', e.message);
   });
+  // media_group_id: Multi-media send (album) feature — client generates one id per batch
+  // of up to 5 files and sends each file as its own message row tagged with this id, so
+  // the existing single-media-per-message pipeline (E2EE, expiry, forwarding, edit/delete)
+  // stays untouched; the frontend groups consecutive rows sharing this id into one grid tile.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_group_id TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] media_group_id:', e.message);
+  });
   // delivered_at: WhatsApp-style delivery ticks — epoch-ms recorded the moment at
   // least one other participant (DM target, or any other room member) was reachable,
   // either at send time or via the connect-time DM backfill. NULL = not yet delivered.
@@ -3687,7 +3694,8 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
           edited: !!r.edited,
           editedAt: r.edited_at ? Number(r.edited_at) : null,
-          forwarded: !!r.forwarded
+          forwarded: !!r.forwarded,
+          mediaGroupId: r.media_group_id || null
         }));
       const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
       const seenMap = {};
@@ -3771,7 +3779,8 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
           edited: !!r.edited,
           editedAt: r.edited_at ? Number(r.edited_at) : null,
-          forwarded: !!r.forwarded
+          forwarded: !!r.forwarded,
+          mediaGroupId: r.media_group_id || null
         };
       });
       const msgIds = mapped.map(r => Number(r.id)).filter(Boolean);
@@ -3900,7 +3909,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const username = req.user.username.toLowerCase();
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
-          mediaFileName, mediaFileSize, mediaDuration, forwarded } = req.body;
+          mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId } = req.body;
   const isForwarded = !!forwarded;
   const partner = rawPartner ? rawPartner.toLowerCase() : '';
   // message can be empty if there's a media attachment
@@ -3952,8 +3961,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -3962,7 +3971,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt, isForwarded]
+         deliveredAt, isForwarded, mediaGroupId || null]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -3994,7 +4003,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         ephemeralPublicKey: ephemeralPublicKey || null,
         seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }],
         deliveredAt,
-        forwarded: isForwarded
+        forwarded: isForwarded,
+        mediaGroupId: mediaGroupId || null
       };
 
       emitToUser(partner, 'private_message', payload);
@@ -4039,8 +4049,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId: partner, senderUsername: username });
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
@@ -4049,7 +4059,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt, isForwarded]
+         deliveredAt, isForwarded, mediaGroupId || null]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
@@ -4084,6 +4094,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         e2ee: e2eeBroadcast,
         deliveredAt,
         forwarded: isForwarded,
+        mediaGroupId: mediaGroupId || null,
       };
 
       const ioRoom = rooms.get(partner);
@@ -6134,7 +6145,7 @@ io.on('connection', (socket) => {
                m.message, m.nonce, m."ephemeralPublicKey",
                m.timestamp, m."replyTo", m."hiddenFor", m.reactions,
                m."mediaType", m."mediaUrl", m.media_expires_at, m.is_unsent,
-               m.media_file_name, m.media_file_size, m.media_duration,
+               m.media_file_name, m.media_file_size, m.media_duration, m.media_group_id,
                m.sender_public_key,
                u."avatarPath" as "senderAvatarPath"
         FROM messages m
@@ -6250,6 +6261,7 @@ io.on('connection', (socket) => {
           mediaFileSize: r.media_file_size || null,
           mediaExpiresAt: r.media_expires_at || null,
           mediaDuration: r.media_duration || null,
+          mediaGroupId: r.media_group_id || null,
           replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
           deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         }));
@@ -6336,6 +6348,7 @@ io.on('connection', (socket) => {
               mediaFileSize: row.media_file_size || null,
               mediaExpiresAt: row.media_expires_at || null,
               mediaDuration: row.media_duration || null,
+              mediaGroupId: row.media_group_id || null,
               reactions: (() => { try { return row.reactions ? JSON.parse(row.reactions) : {}; } catch { return {}; } })(),
               replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null,
               seenBy: seenMap[row.id.toString()] || [],
@@ -6560,7 +6573,7 @@ io.on('connection', (socket) => {
                m.message, m.nonce, m."ephemeralPublicKey",
                m.timestamp, m."replyTo", m.reactions, m."senderMessage",
                m."mediaType", m."mediaUrl", m.media_expires_at, m.is_unsent,
-               m.media_file_name, m.media_file_size, m.media_duration,
+               m.media_file_name, m.media_file_size, m.media_duration, m.media_group_id,
                m.sender_public_key,
                u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
@@ -6624,6 +6637,7 @@ io.on('connection', (socket) => {
             mediaFileSize: row.media_file_size || null,
             mediaExpiresAt: row.media_expires_at || null,
             mediaDuration: row.media_duration || null,
+            mediaGroupId: row.media_group_id || null,
             reactions: row.reactions ? JSON.parse(row.reactions) : {},
             replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
             seenBy: seenMap[row.id.toString()] || [],
@@ -6645,7 +6659,7 @@ io.on('connection', (socket) => {
                m.message, m.nonce, m."ephemeralPublicKey",
                m.timestamp, m."replyTo", m.reactions,
                m."mediaType", m."mediaUrl", m.media_expires_at,
-               m.media_file_name, m.media_file_size, m.media_duration,
+               m.media_file_name, m.media_file_size, m.media_duration, m.media_group_id,
                m.sender_public_key,
                u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
@@ -6740,6 +6754,7 @@ io.on('connection', (socket) => {
           mediaFileSize: r.media_file_size || null,
           mediaExpiresAt: r.media_expires_at || null,
           mediaDuration: r.media_duration || null,
+          mediaGroupId: r.media_group_id || null,
           replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
           deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
         }));
@@ -6753,7 +6768,7 @@ io.on('connection', (socket) => {
 
 
   // ─── Group chat message (saved in history) ───
-  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId }) => {
+  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId, mediaGroupId }) => {
     try {
     if (!checkChatRate(socket.id)) {
       socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
@@ -6840,7 +6855,8 @@ io.on('connection', (socket) => {
       type: 'group',
       roomId: roomId,
       e2ee: e2ee || null,
-      deliveredAt
+      deliveredAt,
+      mediaGroupId: mediaGroupId || null
     };
     room.groupMessages.push(msg);
     if (room.groupMessages.length > 200) room.groupMessages.shift();
@@ -6858,8 +6874,8 @@ io.on('connection', (socket) => {
       `INSERT INTO messages (
         "roomId", type, "senderId", "senderName", message, timestamp,
         "replyTo", "mediaUrl", "mediaType", nonce, "ephemeralPublicKey",
-        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key, delivered_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key, delivered_at, media_group_id
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
       [
         roomId, 'group', socket.id, socket.username, safeMessage, msg.timestamp,
         safeReplyTo ? JSON.stringify(safeReplyTo) : null,
@@ -6868,7 +6884,8 @@ io.on('connection', (socket) => {
         groupSocketExpiry ? groupSocketExpiry.toISOString() : null,
         mediaDuration ? Number(mediaDuration) : null,
         senderPubKeyText,
-        deliveredAt
+        deliveredAt,
+        mediaGroupId || null
       ]
     ).then(res => {
         const dbId = res.rows?.[0]?.id;

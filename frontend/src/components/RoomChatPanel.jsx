@@ -179,6 +179,121 @@ function getFileIconBg(mimeType) {
   return 'var(--brand-1)';
 }
 
+// Multi-media send (album) grouping: a batch of up to 5 files shares one client-generated
+// mediaGroupId, sent as separate messages (own E2EE, own expiry, own row) so the existing
+// single-media-per-message pipeline stays untouched. This scans a chronological message list
+// and collapses each run of consecutive image/video messages sharing a mediaGroupId into one
+// grid tile — the run's first message becomes the "head" (rendered as a grid), the rest are
+// hidden (their content already appears inside the head's grid).
+function groupMediaRuns(list) {
+  const heads = new Map();
+  const memberKeys = new Set();
+  let i = 0;
+  while (i < list.length) {
+    const m = list[i];
+    const rowKey = m.tempId || m.id || i;
+    const mt = m.mediaType || '';
+    const isVisual = mt.startsWith('image/') || mt.startsWith('video/');
+    const gid = m.mediaGroupId;
+    if (gid && isVisual) {
+      const run = [m];
+      const runKeys = [rowKey];
+      let j = i + 1;
+      while (j < list.length) {
+        const n = list[j];
+        const nmt = n.mediaType || '';
+        const nVisual = nmt.startsWith('image/') || nmt.startsWith('video/');
+        if (n.mediaGroupId === gid && nVisual) {
+          run.push(n);
+          runKeys.push(n.tempId || n.id || j);
+          j++;
+        } else break;
+      }
+      if (run.length > 1) {
+        heads.set(rowKey, run);
+        for (let k = 1; k < runKeys.length; k++) memberKeys.add(runKeys[k]);
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return { heads, memberKeys };
+}
+
+function resolveDecryptedUrl(m, decryptedUrlsRef) {
+  const decrypted = decryptedUrlsRef?.current && (
+    decryptedUrlsRef.current[m.id] ||
+    decryptedUrlsRef.current[m.tempId] ||
+    decryptedUrlsRef.current[String(m.timestamp)]
+  );
+  return decrypted || m._localMediaUrl || ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
+}
+
+// WhatsApp-style grid: 2 items side by side, 3 items as one tall tile + two stacked,
+// 4-5 items as a 2x2 grid with a "+N" overlay on the last visible tile when there are more.
+function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
+  const total = items.length;
+  const visibleCount = Math.min(total, 4);
+  const overflow = total - 4;
+  const cell = 128;
+  const gap = 3;
+  const size = cell * 2 + gap;
+
+  return (
+    <div style={{
+      width: size, borderRadius: 10, overflow: 'hidden', position: 'relative',
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gridTemplateRows: total === 2 ? `${cell}px` : `${cell}px ${cell}px`,
+      gap
+    }}>
+      {forwarded && (
+        <div style={{ position: 'absolute', top: 5, left: 6, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          <Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded
+        </div>
+      )}
+      {items.slice(0, visibleCount).map((it, idx) => {
+        const isLastVisible = idx === visibleCount - 1;
+        const showOverlay = isLastVisible && overflow > 0;
+        const tallLeft = total === 3 && idx === 0;
+        const url = resolveUrl(it);
+        const isVid = (it.mediaType || '').startsWith('video/');
+        return (
+          <div key={it.tempId || it.id || idx}
+            onClick={() => url && onOpenItem(it, url)}
+            style={{ position: 'relative', cursor: url ? 'pointer' : 'default', background: '#111', gridRow: tallLeft ? 'span 2' : undefined, overflow: 'hidden' }}>
+            {url ? (
+              isVid ? (
+                <video src={url} muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <img src={url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
+              )
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} />
+              </div>
+            )}
+            {isVid && url && !showOverlay && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Play size={13} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
+                </div>
+              </div>
+            )}
+            {showOverlay && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#fff', fontSize: 20, fontWeight: 700 }}>+{overflow}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
@@ -1596,15 +1711,25 @@ export default function RoomChatPanel({ p }) {
     }
   }, [p.dmTarget, p.username, p.SOCKET_SERVER_URL]);
 
-  const handleFileSelect = async (e, type) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const MAX_MEDIA_PER_SEND = 5;
 
-    const validation = validateFile(file);
-    if (!validation.valid) {
-      toast.error(validation.error);
+  const handleFileSelect = async (e, type) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    if (files.length > MAX_MEDIA_PER_SEND) {
+      toast.error(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
       e.target.value = null;
       return;
+    }
+
+    for (const file of files) {
+      const validation = validateFile(file);
+      if (!validation.valid) {
+        toast.error(validation.error);
+        e.target.value = null;
+        return;
+      }
     }
 
     // Permission check for media in rooms
@@ -1615,17 +1740,19 @@ export default function RoomChatPanel({ p }) {
     }
 
     setIsUploading(true);
-    const objectUrl = URL.createObjectURL(file);
+    const mediaGroupId = files.length > 1 ? `mg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` : null;
 
     try {
-      if (type === 'group') {
-        p.sendMediaGroupChat(objectUrl, getMediaType(file), p.groupReplyTo, file);
-        p.setGroupReplyTo(null);
-      } else {
-        p.sendMediaDmChat(objectUrl, getMediaType(file), p.dmReplyTo, file);
-        p.setDmReplyTo(null);
+      for (const file of files) {
+        const objectUrl = URL.createObjectURL(file);
+        if (type === 'group') {
+          await p.sendMediaGroupChat(objectUrl, getMediaType(file), p.groupReplyTo, file, null, mediaGroupId);
+        } else {
+          await p.sendMediaDmChat(objectUrl, getMediaType(file), p.dmReplyTo, file, null, mediaGroupId);
+        }
       }
-      toast.success('Sent!');
+      if (type === 'group') p.setGroupReplyTo(null); else p.setDmReplyTo(null);
+      toast.success(files.length > 1 ? `${files.length} files sent!` : 'Sent!');
     } catch (err) {
       console.error('File send error:', err);
       toast.error('Error sending file');
@@ -2394,7 +2521,11 @@ export default function RoomChatPanel({ p }) {
               const lastGroupMsg = p.groupMessages[p.groupMessages.length - 1];
               const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
               const renderGroupReceiptIndex = isLastGroupSentByMe ? p.groupMessages.length - 1 : -1;
+              const groupMediaRunsInfo = groupMediaRuns(p.groupMessages);
               return p.groupMessages.map((msg,i)=>{
+              const rowKey = msg.tempId || msg.id || i;
+              if (groupMediaRunsInfo.memberKeys.has(rowKey)) return null;
+              const mediaGroupItems = groupMediaRunsInfo.heads.get(rowKey) || null;
               const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
               const reactions = msg.reactions||{};
               const prevMsg = i > 0 ? p.groupMessages[i - 1] : null;
@@ -2406,7 +2537,6 @@ export default function RoomChatPanel({ p }) {
               )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
               const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
-              const rowKey = msg.tempId || msg.id || i;
               const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setGroupReplyTo(msg));
               const longPressHandlers = longPress.getHandlers(rowKey);
               const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -2572,7 +2702,14 @@ export default function RoomChatPanel({ p }) {
                               <MessageTick msg={msg} username={p.username} isLight={isLight} />
                             </div>
                           )}
-                          {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg)}
+                          {mediaGroupItems ? (
+                            <MediaGrid
+                              items={mediaGroupItems}
+                              forwarded={msg?.forwarded}
+                              resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
+                              onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
+                            />
+                          ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg)}
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -2828,7 +2965,7 @@ export default function RoomChatPanel({ p }) {
                     p.setShowGroupEmojiPicker(false); 
                   }} style={{display:'flex',gap:8, alignItems:'flex-end'}}>
                     <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
-                      <input type="file" ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
+                      <input type="file" multiple ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
                       <textarea
                         className="chat-msg-textarea no-scrollbar"
                         ref={p.groupInputRef}
@@ -3020,7 +3157,11 @@ export default function RoomChatPanel({ p }) {
                     const lastDMMsg = dmMessages[dmMessages.length - 1];
                     const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
                     const renderDMReceiptIndex = isLastDMSentByMe ? dmMessages.length - 1 : -1;
+                    const dmMediaRunsInfo = groupMediaRuns(dmMessages);
                     return dmMessages.map((msg,i)=>{
+                    const rowKey = msg.tempId || msg.id || i;
+                    if (dmMediaRunsInfo.memberKeys.has(rowKey)) return null;
+                    const mediaGroupItems = dmMediaRunsInfo.heads.get(rowKey) || null;
                     const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
                     const reactions = msg.reactions||{};
                     const prevMsg = i > 0 ? dmMessages[i - 1] : null;
@@ -3032,7 +3173,6 @@ export default function RoomChatPanel({ p }) {
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                     const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
-                    const rowKey = msg.tempId || msg.id || i;
                     const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setDmReplyTo(msg));
                     const longPressHandlers = longPress.getHandlers(rowKey);
                     const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -3161,7 +3301,14 @@ export default function RoomChatPanel({ p }) {
                                     <MessageTick msg={msg} username={p.username} isLight={isLight} />
                                   </div>
                                 )}
-                                {renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg)}
+                                {mediaGroupItems ? (
+                                  <MediaGrid
+                                    items={mediaGroupItems}
+                                    forwarded={msg?.forwarded}
+                                    resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
+                                    onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
+                                  />
+                                ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg)}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -3478,7 +3625,7 @@ export default function RoomChatPanel({ p }) {
                           p.setShowDmEmojiPicker(false);
                         }} style={{display:'flex',gap:8,alignItems:'flex-end'}}>
                         <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
-                          <input type="file" ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
+                          <input type="file" multiple ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
                           <textarea
                             className="chat-msg-textarea no-scrollbar"
                             ref={p.dmInputRef}

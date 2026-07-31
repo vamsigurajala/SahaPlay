@@ -5967,7 +5967,7 @@ const Room = () => {
     setGroupChatInput('');
   };
 
-  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
+  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null) => {
     if (!socket) return;
     if (rawFile && !myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
@@ -5993,7 +5993,8 @@ const Room = () => {
       _isOptimistic: true,
       _fileName: rawFile?.name || null,
       _fileSize: rawFile?.size || null,
-      mediaDuration: mediaDuration || null
+      mediaDuration: mediaDuration || null,
+      mediaGroupId: mediaGroupId || null
     };
 
     setGroupMessages(prev => {
@@ -6089,6 +6090,7 @@ const Room = () => {
       mediaFileName: rawFile?.name || null,
       mediaFileSize: rawFile?.size || null,
       mediaDuration: mediaDuration || null,
+      mediaGroupId: mediaGroupId || null,
       tempId,
       e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,
       replyTo: optimisticMsg.replyTo
@@ -6384,7 +6386,7 @@ const Room = () => {
     setDmChatInput('');
   };
 
-  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null) => {
+  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null) => {
     if (!socket || !dmTarget) return;
 
     const token = localStorage.getItem('watch_token');
@@ -6408,7 +6410,8 @@ const Room = () => {
       _isOptimistic: true,
       _fileName: rawFile?.name || null,
       _fileSize: rawFile?.size || null,
-      mediaDuration: mediaDuration || null
+      mediaDuration: mediaDuration || null,
+      mediaGroupId: mediaGroupId || null
     };
     setDmThreads(prev => {
       const next = { ...prev };
@@ -6502,6 +6505,7 @@ const Room = () => {
           mediaFileName: rawFile?.name || null,
           mediaFileSize: rawFile?.size || null,
           mediaDuration: mediaDuration || null,
+          mediaGroupId: mediaGroupId || null,
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: isEncrypted,

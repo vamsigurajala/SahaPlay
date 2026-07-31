@@ -397,6 +397,118 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   );
 }
 
+// Multi-media send (album) grouping: a batch of up to 5 files shares one client-generated
+// mediaGroupId, sent as separate messages (own E2EE, own expiry, own row) so the existing
+// single-media-per-message pipeline stays untouched. This scans a chronological message list
+// and collapses each run of consecutive image/video messages sharing a mediaGroupId into one
+// grid tile — the run's first message becomes the "head" (rendered as a grid), the rest are
+// hidden (their content already appears inside the head's grid).
+function groupMediaRuns(list) {
+  const heads = new Map();
+  const memberKeys = new Set();
+  let i = 0;
+  while (i < list.length) {
+    const m = list[i];
+    const rowKey = m.tempId || m.id || i;
+    const mt = m.mediaType || '';
+    const isVisual = mt.startsWith('image/') || mt.startsWith('video/');
+    const gid = m.mediaGroupId;
+    if (gid && isVisual) {
+      const run = [m];
+      const runKeys = [rowKey];
+      let j = i + 1;
+      while (j < list.length) {
+        const n = list[j];
+        const nmt = n.mediaType || '';
+        const nVisual = nmt.startsWith('image/') || nmt.startsWith('video/');
+        if (n.mediaGroupId === gid && nVisual) {
+          run.push(n);
+          runKeys.push(n.tempId || n.id || j);
+          j++;
+        } else break;
+      }
+      if (run.length > 1) {
+        heads.set(rowKey, run);
+        for (let k = 1; k < runKeys.length; k++) memberKeys.add(runKeys[k]);
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return { heads, memberKeys };
+}
+
+function resolveDecryptedUrl(m, decryptedMediaUrlsRef) {
+  const msgKey = String(m.id || m.timestamp);
+  return decryptedMediaUrlsRef.current[msgKey] || m._localMediaUrl ||
+    ((m.mediaUrl && m.mediaUrl.startsWith('blob:')) ? m.mediaUrl : (m.nonce ? null : m.mediaUrl));
+}
+
+// WhatsApp-style grid: 2 items side by side, 3 items as one tall tile + two stacked,
+// 4-5 items as a 2x2 grid with a "+N" overlay on the last visible tile when there are more.
+function MediaGrid({ items, forwarded, onOpenItem, resolveUrl }) {
+  const total = items.length;
+  const visibleCount = Math.min(total, 4);
+  const overflow = total - 4;
+  const cell = 128;
+  const gap = 3;
+  const size = cell * 2 + gap;
+
+  return (
+    <div style={{
+      width: size, borderRadius: 10, overflow: 'hidden', position: 'relative',
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gridTemplateRows: total === 2 ? `${cell}px` : `${cell}px ${cell}px`,
+      gap
+    }}>
+      {forwarded && (
+        <div style={{ position: 'absolute', top: 5, left: 6, zIndex: 3, display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#fff', WebkitTextFillColor: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>
+          <Forward size={8} color="#fff" style={{ flexShrink: 0 }} />Forwarded
+        </div>
+      )}
+      {items.slice(0, visibleCount).map((it, idx) => {
+        const isLastVisible = idx === visibleCount - 1;
+        const showOverlay = isLastVisible && overflow > 0;
+        const tallLeft = total === 3 && idx === 0;
+        const url = resolveUrl(it);
+        const isVid = (it.mediaType || '').startsWith('video/');
+        return (
+          <div key={it.tempId || it.id || idx}
+            onClick={() => url && onOpenItem(it, url)}
+            style={{ position: 'relative', cursor: url ? 'pointer' : 'default', background: '#111', gridRow: tallLeft ? 'span 2' : undefined, overflow: 'hidden' }}>
+            {url ? (
+              isVid ? (
+                <video src={url} muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              ) : (
+                <img src={url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
+              )
+            ) : (
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} />
+              </div>
+            )}
+            {isVid && url && !showOverlay && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Play size={13} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
+                </div>
+              </div>
+            )}
+            {showOverlay && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: '#fff', fontSize: 20, fontWeight: 700 }}>+{overflow}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username) => {
   if (!url && !type) return null;
   const isImg = type?.startsWith('image/');
@@ -4342,7 +4454,7 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
-  const handleMediaUpload = async (file, mediaDuration = null) => {
+  const handleMediaUpload = async (file, mediaDuration = null, mediaGroupId = null) => {
     const validation = validateFile(file);
     if (!validation.valid) { toast.error(validation.error); return; }
 
@@ -4365,7 +4477,8 @@ const GlobalChatWidget = forwardRef(({
       timestamp: ts,
       _isOptimistic: true,
       _fileName: file.name,
-      _fileSize: file.size
+      _fileSize: file.size,
+      mediaGroupId: mediaGroupId || null
     };
     setMessages(prev => [...prev, optimisticMsg]);
 
@@ -4503,7 +4616,8 @@ const GlobalChatWidget = forwardRef(({
           tempId: tempId,
           mediaFileName: file.name || null,
           mediaFileSize: file.size || null,
-          mediaDuration: mediaDuration ? Number(mediaDuration) : null
+          mediaDuration: mediaDuration ? Number(mediaDuration) : null,
+          mediaGroupId: mediaGroupId || null
         })
       });
       if (!sendResp.ok) {
@@ -4522,11 +4636,22 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
+  const MAX_MEDIA_PER_SEND = 5;
+
   const handleFileSelect = async (e) => {
-    const file = e.target.files[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = null;
-    if (!file) return;
-    await handleMediaUpload(file);
+    if (!files.length) return;
+
+    if (files.length > MAX_MEDIA_PER_SEND) {
+      toast.error(`You can only send up to ${MAX_MEDIA_PER_SEND} files at a time`);
+      return;
+    }
+
+    const mediaGroupId = files.length > 1 ? `mg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` : null;
+    for (const file of files) {
+      await handleMediaUpload(file, null, mediaGroupId);
+    }
   };
 
   function formatRecordingTime(seconds) {
@@ -6265,16 +6390,19 @@ const GlobalChatWidget = forwardRef(({
                   const lastMsg = messages[messages.length - 1];
                   const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
                   const renderReceiptIndex = isLastSentByMe ? messages.length - 1 : -1;
+                  const mediaRuns = groupMediaRuns(messages);
                   return messages.map((msg, i) => {
                     const mUserLower = myUsername?.toLowerCase();
                     const isMe = msg.isMe ||
                                  (msg.senderName && msg.senderName.toLowerCase() === mUserLower) ||
                                  (msg.username && msg.username.toLowerCase() === mUserLower);
+                  const rowKey = msg.tempId || msg.id || i;
+                  if (mediaRuns.memberKeys.has(rowKey)) return null;
+                  const mediaGroupItems = mediaRuns.heads.get(rowKey) || null;
                   const reactions = msg.reactions || {};
                   const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
                   const prevMsg = i > 0 ? messages[i - 1] : null;
                   const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
-                  const rowKey = msg.tempId || msg.id || i;
                   const canReport = activeChat?.type === 'room' && !isMe;
                   const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => setReplyToMsg(msg));
                   const longPressHandlers = longPress.getHandlers(rowKey);
@@ -6452,6 +6580,16 @@ const GlobalChatWidget = forwardRef(({
                                 </div>
                               )}
                               {(() => {
+                                if (mediaGroupItems) {
+                                  return (
+                                    <MediaGrid
+                                      items={mediaGroupItems}
+                                      forwarded={msg?.forwarded}
+                                      resolveUrl={(it) => resolveDecryptedUrl(it, decryptedMediaUrls)}
+                                      onOpenItem={(it, url) => openLightbox(url, it.mediaType)}
+                                    />
+                                  );
+                                }
                                 const msgKey = String(msg.id || msg.timestamp);
                                 const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                                 const mt = msg.mediaType || '';
@@ -6787,7 +6925,7 @@ const GlobalChatWidget = forwardRef(({
                 )}
                 
                 {/* Hidden file input — accepts all supported types; validateFile() enforces limits */}
-                <input type="file" ref={fileInputRef} style={{ display: 'none' }}
+                <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }}
                   accept="image/*,video/mp4,video/webm,video/quicktime,video/mov,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a,audio/webm"
                   onChange={handleFileSelect} />
 
