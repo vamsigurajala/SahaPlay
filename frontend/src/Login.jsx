@@ -6,7 +6,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { signInWithApple } from './lib/appleAuth';
 import { ArrowLeft, Mail, Lock, LogIn, Eye, EyeOff, User, Shield, Ban } from 'lucide-react';
 import { useCrypto } from './contexts/CryptoContext';
-import { decryptPrivateKey, encryptPrivateKey, generateKeyPair, secretKeyToMnemonic, mnemonicToSecretKey, hashRecoveryPhrase } from './lib/crypto.js';
+import { decryptPrivateKey, encryptPrivateKey, generateKeyPair, mnemonicToSecretKey, hashRecoveryPhrase } from './lib/crypto.js';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import RecoveryPhraseModal from './components/RecoveryPhraseModal';
@@ -236,20 +236,30 @@ const Login = () => {
   // migrating an existing legacy-wrapped key onto a passphrase.
   const handleOAuthSetPassphrase = async (passphrase) => {
     const { data, isMigration } = oauthModalCtx;
-    const keyPair = isMigration
-      ? nacl.box.keyPair.fromSecretKey(decodeBase64(data.migrationRawKeyB64))
-      : generateKeyPair();
+    let keyPair;
+    let phrase = null;
+    if (isMigration) {
+      // Migration reuses the account's existing key, so its original recovery
+      // phrase (if the user still has it) already recovers it — nothing new to
+      // generate or hash. Omitting recoveryKeyHash below relies on setup-keys'
+      // COALESCE to leave the previously-stored hash untouched.
+      keyPair = nacl.box.keyPair.fromSecretKey(decodeBase64(data.migrationRawKeyB64));
+    } else {
+      // Same compact 24-letter recovery key as password-account signup instead
+      // of the legacy 24-word BIP39 mnemonic — the phrase itself is the seed,
+      // hashed to derive the secret key.
+      const chars = 'abcdefghijklmnopqrstuvwxyz';
+      let phraseStr = '';
+      const randBytes = crypto.getRandomValues(new Uint8Array(24));
+      for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+      phrase = phraseStr.toUpperCase();
+      const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+      keyPair = nacl.box.keyPair.fromSecretKey(new Uint8Array(hashBuf));
+    }
 
     const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, passphrase);
     const body = { publicKey: encodeBase64(keyPair.publicKey), encryptedPrivateKey: encryptedPrivKey };
-
-    // Migration reuses the account's existing key, so its original recovery
-    // phrase (if the user still has it) already recovers it — nothing new to
-    // hash. Omitting recoveryKeyHash here relies on setup-keys' COALESCE to
-    // leave the previously-stored hash untouched.
-    let phrase = null;
-    if (!isMigration) {
-      phrase = await secretKeyToMnemonic(keyPair.secretKey);
+    if (phrase) {
       body.recoveryKeyHash = await hashRecoveryPhrase(phrase);
     }
 

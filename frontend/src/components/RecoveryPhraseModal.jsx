@@ -52,21 +52,22 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
   const btnDisabledColor = isLight ? 'rgba(0,0,0,0.3)'       : 'rgba(255,255,255,0.3)';
 
   return (
-    <div style={{
+    <div className="recovery-modal-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 99999,
       background: 'rgba(0,0,0,0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, backdropFilter: 'blur(12px)'
     }}>
-      <div style={{
+      <div className="recovery-modal-card" style={{
         maxWidth: 520, width: '100%',
+        maxHeight: '100%', overflowY: 'auto',
         ...card,
         borderRadius: 24, padding: '36px 32px',
         animation: 'slideInUp 0.4s cubic-bezier(0.21,1.02,0.73,1)'
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{
+        <div className="recovery-header" style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div className="recovery-icon" style={{
             width: 64, height: 64, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -75,11 +76,13 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
           }}>
             <Shield size={28} color="#fff" />
           </div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: titleColor, fontFamily: "'Outfit', sans-serif" }}>
+          <h2 className="recovery-title" style={{ margin: 0, fontSize: 22, fontWeight: 800, color: titleColor, fontFamily: "'Outfit', sans-serif" }}>
             {t('recoveryPhraseTitle', 'Your Recovery Phrase')}
           </h2>
-          <p style={{ margin: '8px 0 0', color: descColor, fontSize: 14, lineHeight: 1.5 }}>
-            {t('recoveryPhraseDesc', 'This 24-word phrase is the only way to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')}
+          <p className="recovery-desc" style={{ margin: '8px 0 0', color: descColor, fontSize: 14, lineHeight: 1.5 }}>
+            {isLetters
+              ? t('recoveryKeyDesc', 'This 24-letter key is the only way to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')
+              : t('recoveryPhraseDesc', 'This 24-word phrase is the only way to recover your encrypted messages if you forget your password. Store it somewhere safe — it will never be shown again.')}
           </p>
         </div>
 
@@ -97,21 +100,22 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
 
         {/* Phrase Grid */}
         <div style={{ position: 'relative', marginBottom: 16 }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: isLetters ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)', gap: 8,
+          <div className="recovery-phrase-grid" style={{
+            display: 'grid', gridTemplateColumns: isLetters ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: 8,
             filter: revealed ? 'none' : 'blur(8px)',
             transition: 'filter 0.3s',
             userSelect: revealed ? 'auto' : 'none',
             pointerEvents: revealed ? 'auto' : 'none'
           }}>
             {displayBlocks.map((block, i) => (
-              <div key={i} style={{
+              <div key={i} className="recovery-phrase-block" style={{
                 background: phraseBlockBg,
                 border: `1px solid ${phraseBlockBdr}`,
                 borderRadius: 8, padding: '10px',
+                minWidth: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
               }}>
-                <span style={{ fontSize: 16, letterSpacing: '2px', fontWeight: 700, color: phraseTextColor, fontFamily: 'monospace' }}>{block}</span>
+                <span className="recovery-phrase-word" style={{ fontSize: 16, letterSpacing: '2px', fontWeight: 700, color: phraseTextColor, fontFamily: 'monospace', overflowWrap: 'break-word', wordBreak: 'break-word', minWidth: 0 }}>{block}</span>
               </div>
             ))}
           </div>
@@ -188,6 +192,17 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
         @keyframes slideInUp {
           from { opacity: 0; transform: translateY(40px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @media (max-width: 480px) {
+          .recovery-modal-overlay { padding: 10px !important; }
+          .recovery-modal-card { padding: 22px 16px !important; border-radius: 18px !important; }
+          .recovery-icon { width: 48px !important; height: 48px !important; margin-bottom: 10px !important; }
+          .recovery-icon svg { width: 20px !important; height: 20px !important; }
+          .recovery-title { font-size: 18px !important; }
+          .recovery-desc { font-size: 12.5px !important; }
+          .recovery-phrase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 6px !important; }
+          .recovery-phrase-block { padding: 8px 4px !important; }
+          .recovery-phrase-word { font-size: 12.5px !important; letter-spacing: 0.5px !important; }
         }
       `}</style>
     </div>
