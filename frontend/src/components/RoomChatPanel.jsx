@@ -2845,7 +2845,13 @@ export default function RoomChatPanel({ p }) {
                                    position:'absolute',
                                    [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                    [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
-                                   [isMe?'right':'left']:0,
+                                   // The trigger button always sits at the bubble's own top-right
+                                   // corner (regardless of sender). For wide media bubbles that
+                                   // corner is near the panel's right edge, so expanding the menu
+                                   // further right (as narrow received text bubbles safely do)
+                                   // pushes it outside the chat box — anchor it to the right (grow
+                                   // leftward, into the bubble) for media the same as for isMe.
+                                   [(isMe || isMediaOnly) ? 'right' : 'left']:0,
                                    background: 'var(--dropdown-bg)',
                                    border: '1px solid var(--dropdown-border)',
                                    borderRadius:12, padding:6, zIndex:100,
@@ -3473,7 +3479,9 @@ export default function RoomChatPanel({ p }) {
                                         position:'absolute',
                                         [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                         [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
-                                        [isMe?'right':'left']:0,
+                                        // Same overflow fix as the group dropdown above — anchor to the
+                                        // right (grow leftward) for media bubbles too, not just isMe.
+                                        [(isMe || isMediaOnly) ? 'right' : 'left']:0,
                                         background: 'var(--dropdown-bg)',
                                         border: '1px solid var(--dropdown-border)',
                                         borderRadius:12, padding:6, zIndex:100,

@@ -6826,7 +6826,13 @@ const GlobalChatWidget = forwardRef(({
                                       position:'absolute',
                                       [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                       [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
-                                      [isMe?'right':'left']:0,
+                                      // The trigger button always sits at the bubble's own top-right
+                                      // corner (regardless of sender). For wide media bubbles that
+                                      // corner is near the panel's right edge, so expanding the menu
+                                      // further right (as narrow received text bubbles safely do)
+                                      // pushes it outside the chat box — anchor it to the right (grow
+                                      // leftward, into the bubble) for media the same as for isMe.
+                                      [(isMe || isMediaOnly) ? 'right' : 'left']:0,
                                       background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)',
                                       borderRadius:12, padding:6, zIndex:100,
                                       boxShadow:'var(--dropdown-shadow)', minWidth: 145,
@@ -6853,7 +6859,7 @@ const GlobalChatWidget = forwardRef(({
                                         </>
                                       ) : (
                                         <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                          <Trash2 size={12}/> {t('delete', 'Delete')}
+                                          <Trash2 size={12} color="#ef4444" style={{ color: '#ef4444' }}/> {t('delete', 'Delete')}
                                         </button>
                                       )}
                                     </div>
