@@ -3760,16 +3760,25 @@ const GlobalChatWidget = forwardRef(({
             return (typeof ref === 'object' && ref !== null) ? ref : {};
           } catch { return {}; }
         })();
+        // Case-insensitive lookup: private-chat clear entries are keyed by the partner's
+        // raw-case username (from the dm_cleared socket payload), which may not match the
+        // server's row.partner.toLowerCase() id used as chatKey below.
+        const clearedRoomsMapLower = {};
+        for (const k in clearedRoomsMap) clearedRoomsMapLower[k.toLowerCase()] = clearedRoomsMap[k];
 
         const finalFetched = decryptedFetched.map(c => {
           const chatKey = c.id || c.partner;
           const finalC = { ...c, targetId: c.partnerId || c.targetId };
 
-          // CLEARED ROOM OVERRIDE: zero out if no new messages arrived after the clear.
+          // CLEARED CHAT OVERRIDE: zero out if no new messages arrived after the clear.
           // Compare server's lastTimestamp against the moment the user cleared the chat.
           // Only show the preview if a truly NEW message (sent after the clear) exists.
-          if (c.type === 'room' && clearedRoomsMap[chatKey]) {
-            const clearTs = clearedRoomsMap[chatKey]?.clearedAt || 0;
+          // Applies to private chats too, not just rooms — otherwise a cleared DM's real
+          // last message (still in the DB) resurfaces the next time this list is fetched
+          // (e.g. reopening the widget), even though the chat was just cleared.
+          const clearedEntry = clearedRoomsMapLower[String(chatKey).toLowerCase()];
+          if (clearedEntry) {
+            const clearTs = clearedEntry?.clearedAt || 0;
             const serverTs = Number(finalC.lastTimestamp) || 0;
             if (!serverTs || (clearTs && serverTs <= clearTs)) {
               // Carry clearedAt forward so getSortTime keeps this chat at its cleared position
