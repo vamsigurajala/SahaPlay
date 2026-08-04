@@ -67,7 +67,18 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
 
       <div className="home-tab-hero">
         <div className="home-tab-hero-icon">
-          <Play size={24} color="#fff" fill="#fff" strokeWidth={0} />
+          {/* A small sketch-style "two friends watching a screen together" icon —
+              stands in for the plain play-button square, since a bare Play icon
+              doesn't communicate "join a room with people" the way this does. */}
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <rect x="6" y="4" width="28" height="18" rx="3" stroke="#fff" strokeWidth="1.8" fill="rgba(255,255,255,0.14)" />
+            <path d="M17 9.5L24 13L17 16.5V9.5Z" fill="#fff" />
+            <path d="M20 22V25" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+            <circle cx="13" cy="30" r="2.6" fill="#fff" />
+            <path d="M8 35c0-3 2.2-5 5-5s5 2 5 5" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+            <circle cx="27" cy="30" r="2.6" fill="#fff" />
+            <path d="M22 35c0-3 2.2-5 5-5s5 2 5 5" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+          </svg>
         </div>
         <h1>{t('watchTogether', 'Watch Together')}</h1>
         <p>{t('homeTabTagline', 'Create a room or join one with friends')}</p>

@@ -7249,18 +7249,21 @@ const Room = () => {
 
 
   const startScreenshare = async (videoConstraints = true, appWindow = null, appInfo = null) => {
-    // getDisplayMedia is a desktop-browser API. iOS Safari (all browsers on iOS use
-    // Safari's engine, including Chrome/Edge for iOS) has no screen-capture API at all
-    // for regular web pages — that's an Apple platform restriction, not something a
-    // website can work around. Android Chrome supports it from ~v105 with a native
-    // OS picker (which already gives the "entire screen / a window / a tab" choice —
-    // we don't need to build our own picker UI for that). Without this check the call
-    // below throws synchronously and was being swallowed by console.error with zero
-    // user-facing feedback, which is what made this look like "does nothing" on mobile.
+    // getDisplayMedia is effectively a desktop-only Web API. iOS Safari (all iOS
+    // browsers use Safari's engine) has no screen-capture API at all for regular web
+    // pages — an Apple platform restriction. Android Chrome never shipped a working
+    // getDisplayMedia() for the mobile web either — this is a longstanding Chromium
+    // limitation (see issues.chromium.org/issues/40666175), not something fixed by a
+    // newer Chrome version, and it's identical whether the page runs in a regular tab
+    // or as this installed PWA — same underlying browser engine either way, and there
+    // is no separate native screen-capture path this web app can fall back to. Without
+    // this check the call below throws synchronously and was being swallowed by
+    // console.error with zero user-facing feedback, which is what made this look like
+    // "does nothing" on mobile.
     if (!navigator.mediaDevices?.getDisplayMedia) {
       toast.error(
         isMobile
-          ? "Screen sharing isn't supported on this browser. iOS (Safari/Chrome/Edge) can't screen-share from a website at all — try a recent Chrome on Android, or share from a desktop browser instead."
+          ? "Screen sharing isn't supported on mobile browsers (iOS or Android) — this is a phone/OS limitation, not something this app can work around. Please share from a desktop browser (Chrome, Edge, or Firefox) instead."
           : "Screen sharing isn't supported on this browser. Try Chrome, Edge, or Firefox."
       );
       return;

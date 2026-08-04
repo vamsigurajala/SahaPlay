@@ -15,6 +15,16 @@ import { isStandalonePWA } from './lib/platform.js';
 // on every render — index.css keys its PWA-only font override off this class.
 if (isStandalonePWA()) {
   document.documentElement.classList.add('pwa-standalone');
+  // Regular mobile web keeps the browser's normal pinch-zoom (an accessibility
+  // feature users may rely on), but an installed app pinch-zooming its own
+  // chrome/UI reads as broken rather than intentional — native apps (and
+  // Instagram et al) don't let you zoom the interface itself. Patched here via
+  // JS rather than baked into index.html's static viewport meta so the two
+  // contexts can behave differently.
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta) {
+    viewportMeta.setAttribute('content', `${viewportMeta.getAttribute('content')}, maximum-scale=1, user-scalable=no`);
+  }
 }
 
 // Render's free tier spins the backend down when idle and takes ~30-60s to

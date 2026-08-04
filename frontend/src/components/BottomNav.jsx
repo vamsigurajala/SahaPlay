@@ -189,7 +189,6 @@ export default function BottomNav() {
                 compact
                 currentPath={location.pathname}
                 loggedInUsername={loggedInUsername}
-                avatarPath={avatarPath}
                 isGuest={isGuest}
                 isAdminRole={isAdminRole}
                 isDesktopApp={isDesktopApp}
