@@ -8,12 +8,12 @@ import { User, Settings, HelpCircle, Download, Sparkles, LogOut } from 'lucide-r
 // unchanged; the standalone-PWA bottom nav's Profile tab renders the same
 // component with its own (simpler) navigation callbacks.
 //
-// `compact` is reserved for hiding items that duplicate other bottom-nav
-// tabs (Pinned Rooms / Public Rooms, per the original ask) — as of this
-// extraction neither of those actually lives in this menu (they're only in
-// Navbar's separate isDesktopApp nav-links block, not this action list), so
-// `compact` currently has nothing to hide. Kept as a no-op prop rather than
-// removed, since a menu item that duplicates a bottom-nav tab is one edit away.
+// `compact`, when true, scopes the menu down to exactly Account / App
+// Settings / Contact Support / Logout (or Sign In+Sign Up for a guest, since
+// "Logout" doesn't apply to a guest session) — hiding Get Desktop App
+// (redundant inside an already-installed app) and Admin Dashboard, for the
+// standalone-PWA bottom nav's Profile tab. The hamburger drawer's call site
+// doesn't pass this, so it keeps showing everything exactly as before.
 export default function ProfileActionMenu({
   compact = false,
   currentPath,
@@ -48,14 +48,14 @@ export default function ProfileActionMenu({
         {t('contactSupport', 'Contact Support')}
       </button>
 
-      {!isDesktopApp && (
+      {!isDesktopApp && !compact && (
         <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onGetDesktopAppClick}>
           <Download size={16} />
           {t('getDesktopApp', 'Get Desktop App')}
         </button>
       )}
 
-      {isAdminRole && (
+      {isAdminRole && !compact && (
         <button className={`nav-link-btn${currentPath === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onAdminClick}>
           <Sparkles size={16} color="var(--brand-2)" />
           {t('adminDashboard', 'Admin Dashboard')}

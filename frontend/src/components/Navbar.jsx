@@ -15,10 +15,11 @@ import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
-import { isTauriApp } from '../lib/platform';
+import { isTauriApp, isStandalonePWA } from '../lib/platform';
 
 const Navbar = () => {
   const isDesktopApp = isTauriApp();
+  const standalone = isStandalonePWA();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -356,7 +357,7 @@ const Navbar = () => {
             {/* Right: Actions & Hamburger */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {isLoggedIn && (
+                {isLoggedIn && !standalone && (
                   /* Search */
                   <div style={{ position: 'relative' }}>
                     <button 
@@ -422,89 +423,99 @@ const Navbar = () => {
                   </div>
                 )}
 
-                {isLoggedIn && (
-                  <>
-                    {/* Chats Trigger */}
-                    <div style={{ position: 'relative' }}>
-                      <button 
-                        className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
-                        title={t('chats', 'Chats')}
-                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); }}
-                      >
-                        <MessageSquare size={18} />
-                        {totalUnread > 0 && (
-                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {totalUnread > 9 ? '9+' : totalUnread}
-                          </div>
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Notifications */}
-                    <div style={{ position: 'relative' }}>
-                      <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
-                        <Bell size={18} />
-                        {followRequests.filter(r => r.status === 'pending').length > 0 && (
-                          <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {followRequests.filter(r => r.status === 'pending').length}
-                          </div>
-                        )}
-                      </button>
-                      {showNotifications && (
-                        <div className="nav-dropdown" style={{
-                          position: 'fixed',
-                          top: '68px',
-                          left: '16px',
-                          right: '16px',
-                          width: 'auto',
-                          background: isLight ? '#ffffff' : '#111',
-                          border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
-                          borderRadius: 16,
-                          padding: '12px 6px',
-                          boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-                          zIndex: 100000
-                        }}>
-                          <NotificationsPanelContent
-                            followRequests={followRequests}
-                            onAllow={allowRequest}
-                            onFollowBack={followBack}
-                            onItemClick={(username) => { setShowNotifications(false); navigate(`/profile/${username}`); }}
-                            isLight={isLight}
-                            t={t}
-                          />
+                {isLoggedIn && !standalone && (
+                  /* Chats Trigger */
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
+                      title={t('chats', 'Chats')}
+                      onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); }}
+                    >
+                      <MessageSquare size={18} />
+                      {totalUnread > 0 && (
+                        <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {totalUnread > 9 ? '9+' : totalUnread}
                         </div>
                       )}
-                    </div>
-                  </>
+                    </button>
+                  </div>
                 )}
 
-                {/* Fullscreen Button */}
-                <button
-                  className={`nav-icon-btn${isAppFullscreen ? ' active' : ''}`}
-                  title={isAppFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                  onClick={() => {
-                    if (!document.fullscreenElement) {
-                      document.documentElement.requestFullscreen().catch(() => {});
-                    } else {
-                      document.exitFullscreen().catch(() => {});
-                    }
-                  }}
-                >
-                  {isAppFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-                </button>
+                {isLoggedIn && (
+                  /* Notifications — the only icon kept in the standalone top
+                     bar (item 2 of the mobile PWA UI pass); Chat/Search/
+                     Fullscreen/hamburger are all redundant there since the
+                     bottom nav (or, for fullscreen, the OS shell itself)
+                     already covers them. */
+                  <div style={{ position: 'relative' }}>
+                    <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                      <Bell size={18} />
+                      {followRequests.filter(r => r.status === 'pending').length > 0 && (
+                        <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {followRequests.filter(r => r.status === 'pending').length}
+                        </div>
+                      )}
+                    </button>
+                    {showNotifications && (
+                      <div className="nav-dropdown" style={{
+                        position: 'fixed',
+                        top: '68px',
+                        left: '16px',
+                        right: '16px',
+                        width: 'auto',
+                        background: isLight ? '#ffffff' : '#111',
+                        border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 16,
+                        padding: '12px 6px',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                        zIndex: 100000
+                      }}>
+                        <NotificationsPanelContent
+                          followRequests={followRequests}
+                          onAllow={allowRequest}
+                          onFollowBack={followBack}
+                          onItemClick={(username) => { setShowNotifications(false); navigate(`/profile/${username}`); }}
+                          isLight={isLight}
+                          t={t}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fullscreen Button — meaningless in standalone mode, since
+                    display:standalone already has no browser chrome to hide */}
+                {!standalone && (
+                  <button
+                    className={`nav-icon-btn${isAppFullscreen ? ' active' : ''}`}
+                    title={isAppFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                    onClick={() => {
+                      if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(() => {});
+                      } else {
+                        document.exitFullscreen().catch(() => {});
+                      }
+                    }}
+                  >
+                    {isAppFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                  </button>
+                )}
               </div>
 
-              {/* Hamburger Button */}
-              <button
-                className="nav-hamburger-btn"
-                onClick={() => setShowMobileMenu(m => !m)}
-                aria-label="Toggle menu"
-                style={{ display: 'flex' }}
-              >
-                <div className="ham-line" />
-                <div className="ham-line" />
-                <div className="ham-line" />
-              </button>
+              {/* Hamburger Button — redundant in standalone mode, its
+                  contents are now all reachable via the bottom nav */}
+              {!standalone && (
+                <button
+                  className="nav-hamburger-btn"
+                  onClick={() => setShowMobileMenu(m => !m)}
+                  aria-label="Toggle menu"
+                  style={{ display: 'flex' }}
+                >
+                  <div className="ham-line" />
+                  <div className="ham-line" />
+                  <div className="ham-line" />
+                </button>
+              )}
 
 
             </div>

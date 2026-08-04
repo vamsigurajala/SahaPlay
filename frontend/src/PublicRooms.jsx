@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { getRoomThumbnailUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
+import { isStandalonePWA } from './lib/platform';
 
 
 const catMap = {
@@ -459,7 +460,7 @@ const PublicRooms = () => {
         })()}
         </div>
       </section>
-      <Footer />
+      {!isStandalonePWA() && <Footer />}
     </div>
   );
 };

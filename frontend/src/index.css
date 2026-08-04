@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+/* Outfit itself is already loaded via the <link rel="stylesheet"> + preconnect
+   hints in index.html (faster than @import, which the browser can't discover
+   until it's done parsing this stylesheet). This used to also @import Inter,
+   but nothing in the codebase sets font-family: Inter — it was a pure wasted
+   download every page load. */
 
 /* Chat message bubbles: a long-press (mobile) or click-drag (desktop) used
    to select the raw text underneath, which fought with the menu/long-press

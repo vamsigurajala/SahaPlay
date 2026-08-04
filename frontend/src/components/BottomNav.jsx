@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Home as HomeIcon, Globe, MessageSquare, Bell, User, X } from 'lucide-react';
+import { Home as HomeIcon, Globe, MessageSquare, Search as SearchIcon, User, X } from 'lucide-react';
 import { isStandalonePWA, isTauriApp } from '../lib/platform';
-import { useFollowRequests } from '../hooks/useFollowRequests';
 import { clearUserSession } from '../lib/authUtils.js';
+import { getAvatarUrl } from '../utils/avatarUtils';
+import { API } from '../lib/api';
 import GlobalChatWidget from './GlobalChatWidget';
-import NotificationsPanelContent from './NotificationsPanelContent';
+import SearchTabContent from './SearchTabContent';
 import ProfileActionMenu from './ProfileActionMenu';
 import SupportModal from './SupportModal';
 import DownloadAppModal from './DownloadAppModal';
 
 // Native-app-style bottom tab bar, shown only inside an installed PWA / future
 // Android TWA (never in a regular mobile browser tab — see isStandalonePWA()).
-// Each tab reuses an existing piece rather than rebuilding it: Home/Public
-// Rooms are routes Home.jsx/PublicRooms.jsx already own; Global Chat mounts
-// its own independent GlobalChatWidget instance (the component already
-// supports multiple simultaneous instances — Room.jsx mounts a separate one
-// too); Notifications and Profile reuse the same content components Navbar.jsx
-// uses for its mobile dropdown/drawer.
+// Icon-only, 5 tabs: Home, Public Rooms, Chats, Search, Profile. Notifications
+// lives in the top bar only (Navbar.jsx) — not duplicated here. Each tab
+// reuses an existing piece rather than rebuilding it: Home/Public Rooms are
+// routes Home.jsx/PublicRooms.jsx already own; Chat mounts its own
+// independent GlobalChatWidget instance (Room.jsx already mounts a second
+// one, so the component supports this); Profile reuses the same
+// ProfileActionMenu content Navbar.jsx's mobile drawer uses, scoped down via
+// its `compact` prop.
 export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,46 +36,45 @@ export default function BottomNav() {
   const watchRole = localStorage.getItem('watch_role') || 'user';
   const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
 
-  const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+  const [avatarPath, setAvatarPath] = useState(null);
   useEffect(() => {
-    const obs = new MutationObserver(() => setIsLight(document.documentElement.getAttribute('data-theme') === 'light'));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => obs.disconnect();
-  }, []);
+    if (isGuest || !token || token === 'null' || token === 'undefined') return;
+    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setAvatarPath(data?.avatarPath || null))
+      .catch(() => {});
+  }, [token, isGuest]);
 
   const [showChat, setShowChat] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
-
-  const { followRequests, allowRequest, followBack } = useFollowRequests();
-  const pendingCount = followRequests.filter(r => r.status === 'pending').length;
 
   // Room is its own immersive, already-crowded UI (video controls, floating
   // chat panel) — a persistent tab bar there would just add clutter on top
   // of existing bottom-anchored controls, so it's excluded here.
   if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/')) return null;
 
-  const closeOverlays = () => { setShowChat(false); setShowNotifications(false); setShowProfile(false); };
+  const closeOverlays = () => { setShowChat(false); setShowSearch(false); setShowProfile(false); };
 
   const handleLogout = () => {
     clearUserSession();
     window.location.reload();
   };
 
-  // Chat/Notifications hidden for guests — same condition Navbar.jsx already
-  // uses to hide those icons in the regular mobile nav (guests can't chat,
-  // and per the recent guest-restrictions changes can't create/join rooms
-  // either, so a tab leading to an empty state would read as broken).
+  // Chats hidden for guests — same condition Navbar.jsx already uses to hide
+  // that icon in the regular mobile nav (guests can't chat, and per the
+  // recent guest-restrictions changes can't create/join rooms either, so a
+  // tab leading to an empty state would read as broken).
   const tabs = [
-    { key: 'home', label: t('home', 'Home'), icon: HomeIcon, active: location.pathname === '/' && !showChat && !showNotifications && !showProfile, onClick: () => { closeOverlays(); navigate('/'); } },
-    { key: 'public', label: t('publicRooms', 'Public Rooms'), icon: Globe, active: location.pathname === '/public' && !showChat && !showNotifications && !showProfile, onClick: () => { closeOverlays(); navigate('/public'); } },
+    { key: 'home', label: t('home', 'Home'), icon: HomeIcon, active: location.pathname === '/' && !showChat && !showSearch && !showProfile, onClick: () => { closeOverlays(); navigate('/'); } },
+    { key: 'public', label: t('publicRooms', 'Public Rooms'), icon: Globe, active: location.pathname === '/public' && !showChat && !showSearch && !showProfile, onClick: () => { closeOverlays(); navigate('/public'); } },
     ...(isLoggedIn ? [
       { key: 'chat', label: t('chats', 'Chats'), icon: MessageSquare, active: showChat, onClick: () => { const next = !showChat; closeOverlays(); setShowChat(next); } },
-      { key: 'notifications', label: t('notifications', 'Notifications'), icon: Bell, active: showNotifications, badge: pendingCount, onClick: () => { const next = !showNotifications; closeOverlays(); setShowNotifications(next); } },
     ] : []),
-    { key: 'profile', label: t('profile', 'Profile'), icon: User, active: showProfile, onClick: () => { const next = !showProfile; closeOverlays(); setShowProfile(next); } },
+    { key: 'search', label: t('search', 'Search'), icon: SearchIcon, active: showSearch, onClick: () => { const next = !showSearch; closeOverlays(); setShowSearch(next); } },
+    { key: 'profile', label: t('profile', 'Profile'), icon: User, active: showProfile, isAvatar: true, onClick: () => { const next = !showProfile; closeOverlays(); setShowProfile(next); } },
   ];
 
   return (
@@ -88,18 +90,19 @@ export default function BottomNav() {
           background: #ffffff; border-top: 1px solid rgba(0,0,0,0.08);
         }
         .bottom-nav-tab {
-          flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-          gap: 3px; padding: 8px 4px 7px; background: none; border: none; cursor: pointer;
-          color: #8b8b93; font-size: 10px; font-weight: 600; position: relative;
+          flex: 1; display: flex; align-items: center; justify-content: center;
+          padding: 13px 4px; background: none; border: none; cursor: pointer;
+          color: #8b8b93; position: relative;
         }
         .bottom-nav-tab.active { color: var(--brand-1); }
         html[data-theme='light'] .bottom-nav-tab { color: #6b7280; }
-        .bottom-nav-badge {
-          position: absolute; top: 4px; right: calc(50% - 20px);
-          background: #ef4444; color: #fff; border-radius: 50%;
-          min-width: 15px; height: 15px; font-size: 9px; font-weight: 700;
-          display: flex; align-items: center; justify-content: center; padding: 0 3px;
+        .bottom-nav-avatar {
+          width: 24px; height: 24px; border-radius: 50%; overflow: hidden;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(255,255,255,0.08); flex-shrink: 0;
         }
+        .bottom-nav-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .bottom-nav-tab.active .bottom-nav-avatar { box-shadow: 0 0 0 2px var(--brand-1); }
         .bottom-nav-overlay {
           position: fixed; inset: 0; z-index: 100000;
           background: #0b0b0f; display: flex; flex-direction: column;
@@ -117,22 +120,14 @@ export default function BottomNav() {
         .bottom-nav-overlay-body { flex: 1; overflow-y: auto; padding: 8px 12px calc(env(safe-area-inset-bottom, 0px) + 90px); }
       `}</style>
 
-      {showNotifications && (
+      {showSearch && (
         <div className="bottom-nav-overlay">
           <div className="bottom-nav-overlay-header">
-            <h2 className="bottom-nav-overlay-title">{t('notifications', 'Notifications')}</h2>
-            <button className="bottom-nav-overlay-close" onClick={() => setShowNotifications(false)} aria-label="Close"><X size={20} /></button>
+            <h2 className="bottom-nav-overlay-title">{t('search', 'Search')}</h2>
+            <button className="bottom-nav-overlay-close" onClick={() => setShowSearch(false)} aria-label="Close"><X size={20} /></button>
           </div>
           <div className="bottom-nav-overlay-body">
-            <NotificationsPanelContent
-              followRequests={followRequests}
-              onAllow={allowRequest}
-              onFollowBack={followBack}
-              onItemClick={(username) => { setShowNotifications(false); navigate(`/profile/${username}`); }}
-              isLight={isLight}
-              t={t}
-              listMaxHeight="none"
-            />
+            <SearchTabContent t={t} />
           </div>
         </div>
       )}
@@ -180,10 +175,14 @@ export default function BottomNav() {
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
-            <button key={tab.key} className={`bottom-nav-tab${tab.active ? ' active' : ''}`} onClick={tab.onClick}>
-              <Icon size={21} />
-              {!!tab.badge && <span className="bottom-nav-badge">{tab.badge > 9 ? '9+' : tab.badge}</span>}
-              <span>{tab.label}</span>
+            <button key={tab.key} className={`bottom-nav-tab${tab.active ? ' active' : ''}`} onClick={tab.onClick} aria-label={tab.label} title={tab.label}>
+              {tab.isAvatar ? (
+                <div className="bottom-nav-avatar">
+                  {avatarPath ? <img src={getAvatarUrl(avatarPath)} alt="" /> : <Icon size={16} />}
+                </div>
+              ) : (
+                <Icon size={22} />
+              )}
             </button>
           );
         })}
