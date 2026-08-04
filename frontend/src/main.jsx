@@ -8,6 +8,14 @@ import App from './App.jsx'
 import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
 import { API } from './lib/api.js';
+import { isStandalonePWA } from './lib/platform.js';
+
+// Standalone-mode is session-stable (a launch-time property, not something
+// that flips mid-session), so this is set once here rather than recomputed
+// on every render — index.css keys its PWA-only font override off this class.
+if (isStandalonePWA()) {
+  document.documentElement.classList.add('pwa-standalone');
+}
 
 // Render's free tier spins the backend down when idle and takes ~30-60s to
 // cold-start on the first request. prefetchAll() below only pings the backend

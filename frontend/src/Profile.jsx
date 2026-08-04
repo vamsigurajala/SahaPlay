@@ -10,12 +10,14 @@ import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
+import Cropper from 'react-easy-crop';
+import { getCroppedImg } from './utils/CropImage';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
-import { isTauriApp } from './lib/platform';
+import { isTauriApp, isStandalonePWA } from './lib/platform';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -29,6 +31,7 @@ const Profile = () => {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
+  const standalone = isStandalonePWA();
   const getLocalizedCountryName = (code, name) => {
     if (!code) return name;
     try {
@@ -461,15 +464,19 @@ const Profile = () => {
     }
   };
 
-  // Image crop state
+  // Image crop state — react-easy-crop handles the actual pointer/touch
+  // panning and pinch-zoom itself (the previous hand-rolled canvas version
+  // only wired mouse events, so touch dragging fell through to the page's
+  // native scroll instead of panning the image, and drew the source image
+  // at 1:1 pixel scale onto a 240px canvas with no "fit" step, so anything
+  // larger than that — i.e. basically every phone photo — opened already
+  // zoomed into a tiny center crop).
   const [selectedImage, setSelectedImage] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
-  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [cropZoom, setCropZoom] = useState(1);
-  const cropCanvasRef = useRef(null);
-  const imgRef = useRef(null);
-  const isDragging = useRef(false);
-  const dragStart = useRef({ x: 0, y: 0 });
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const onCropComplete = useCallback((_croppedArea, pixels) => setCroppedAreaPixels(pixels), []);
 
   // Lock body scroll when modals are open
   useEffect(() => {
@@ -770,51 +777,29 @@ const Profile = () => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { setSelectedImage(ev.target.result); setCropOffset({ x: 0, y: 0 }); setCropZoom(1); setShowCropModal(true); };
+    reader.onload = (ev) => { setSelectedImage(ev.target.result); setCrop({ x: 0, y: 0 }); setCropZoom(1); setCroppedAreaPixels(null); setShowCropModal(true); };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  useEffect(() => {
-    if (!showCropModal || !selectedImage || !cropCanvasRef.current) return;
-    const canvas = cropCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      imgRef.current = img;
-      const size = 240;
-      canvas.width = size; canvas.height = size;
-      ctx.clearRect(0, 0, size, size);
-      ctx.save();
-      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.clip();
-      const scale = cropZoom;
-      const w = img.width * scale; const h = img.height * scale;
-      const x = (size - w) / 2 + cropOffset.x; const y = (size - h) / 2 + cropOffset.y;
-      ctx.drawImage(img, x, y, w, h);
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(var(--brand-2-rgb),0.6)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2); ctx.stroke();
-    };
-    img.src = selectedImage;
-  }, [showCropModal, selectedImage, cropOffset, cropZoom]);
-
-  const handleCropMouseDown = (e) => { isDragging.current = true; dragStart.current = { x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y }; };
-  const handleCropMouseMove = (e) => { if (!isDragging.current) return; setCropOffset({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y }); };
-  const handleCropMouseUp = () => { isDragging.current = false; };
-
-  const handleCropConfirm = () => {
-    if (!cropCanvasRef.current) return;
-    cropCanvasRef.current.toBlob((blob) => {
+  const handleCropConfirm = async () => {
+    if (!croppedAreaPixels) return;
+    try {
+      const blob = await getCroppedImg(selectedImage, croppedAreaPixels);
       setShowCropModal(false);
       const formData = new FormData();
       formData.append('avatar', blob, 'avatar.png');
-      fetch(`${API}/api/profile/avatar`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData })
-        .then(r => r.json()).then(data => {
-          if (data.error) return toast.error(data.error);
-          toast.success('Avatar updated!');
-          fetchProfile();
-        }).catch(() => toast.error('Upload failed'));
-    }, 'image/png');
+      const res = await fetch(`${API}/api/profile/avatar`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
+      const data = await res.json();
+      if (data.error) return toast.error(data.error);
+      toast.success('Avatar updated!');
+      // So the bottom nav's avatar icon (and anywhere else showing it) updates
+      // immediately instead of waiting for a full page reload.
+      window.dispatchEvent(new Event('avatar_updated'));
+      fetchProfile();
+    } catch (err) {
+      toast.error('Upload failed');
+    }
   };
 
   if (!profile) {
@@ -1183,7 +1168,11 @@ const Profile = () => {
         {/* Center: Empty (identity moved to right) */}
         <div style={{ flex: 1 }}></div>
 
-        {/* Right: Actions */}
+        {/* Right: Actions — hidden in standalone PWA mode, where all of these
+            (search, chat, notifications, account menu) are redundant with
+            the bottom nav / top-bar notifications icon already shown on the
+            rest of the app shell. */}
+        {!standalone && (
         <div ref={navIconsRef} style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
           {/* Search */}
           <div style={{ position: 'relative' }}>
@@ -1438,6 +1427,7 @@ const Profile = () => {
             )}
           </div>
         </div>
+        )}
       </nav>
 
       {/* Global Chat Widget */}
@@ -2072,13 +2062,22 @@ const Profile = () => {
         <div className="crop-modal-overlay">
           <div className="crop-modal-content">
             <h3 className="crop-title" style={{ color: '#fff', fontSize: 18, fontWeight: 700, marginBottom: 20 }}>Crop your photo</h3>
-            <div style={{ position: 'relative', width: 240, height: 240, margin: '0 auto', borderRadius: '50%', overflow: 'hidden', cursor: 'grab', background: '#000' }}
-              onMouseDown={handleCropMouseDown} onMouseMove={handleCropMouseMove} onMouseUp={handleCropMouseUp} onMouseLeave={handleCropMouseUp}>
-              <canvas ref={cropCanvasRef} width={240} height={240} style={{ width: '100%', height: '100%' }} />
+            <div style={{ position: 'relative', width: 240, height: 240, margin: '0 auto', borderRadius: '50%', overflow: 'hidden', background: '#000' }}>
+              <Cropper
+                image={selectedImage}
+                crop={crop}
+                zoom={cropZoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onZoomChange={setCropZoom}
+                onCropComplete={onCropComplete}
+              />
             </div>
             <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
               <span className="crop-zoom-label" style={{ fontSize: 12, color: '#888' }}>Zoom</span>
-              <input type="range" min="0.5" max="3" step="0.05" value={cropZoom} onChange={e => setCropZoom(parseFloat(e.target.value))} style={{ flex: 1, maxWidth: 180, accentColor: 'var(--brand-1)' }} />
+              <input type="range" min="1" max="3" step="0.05" value={cropZoom} onChange={e => setCropZoom(parseFloat(e.target.value))} style={{ flex: 1, maxWidth: 180, accentColor: 'var(--brand-1)' }} />
             </div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
               <button className="crop-btn" onClick={() => fileInputRef.current.click()}>Reselect</button>

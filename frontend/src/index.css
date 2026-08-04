@@ -1,8 +1,18 @@
-/* Outfit itself is already loaded via the <link rel="stylesheet"> + preconnect
-   hints in index.html (faster than @import, which the browser can't discover
-   until it's done parsing this stylesheet). This used to also @import Inter,
-   but nothing in the codebase sets font-family: Inter — it was a pure wasted
-   download every page load. */
+/* Both Outfit and Inter load via the single <link rel="stylesheet"> +
+   preconnect hints in index.html (faster than @import, which the browser
+   can't discover until it's done parsing this stylesheet) — one request,
+   not the two-mechanism duplication this used to be. Inter is also already
+   used deliberately, inline, in a handful of components (GlobalChatWidget's
+   panel, timers, subtitles) for its cleaner numerals/UI legibility. */
+
+/* Installed PWA / Android TWA only (see main.jsx's isStandalonePWA() check,
+   which stamps this class once at launch) — native apps typically favor a
+   plain UI-optimized grotesque over a more stylized display font, and Inter
+   is already the font this codebase reaches for elsewhere for that reason.
+   Regular mobile/desktop web keeps Outfit untouched. */
+html.pwa-standalone * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
 
 /* Chat message bubbles: a long-press (mobile) or click-drag (desktop) used
    to select the raw text underneath, which fought with the menu/long-press

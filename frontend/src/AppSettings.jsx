@@ -13,7 +13,7 @@ import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
-import { isTauriApp } from './lib/platform';
+import { isTauriApp, isStandalonePWA } from './lib/platform';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -302,6 +302,7 @@ const AppSettings = () => {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
+  const standalone = isStandalonePWA();
 
   // Settings state
   const [settings, setSettings] = useState(null);
@@ -1025,7 +1026,9 @@ const AppSettings = () => {
         {/* Center: Empty (identity moved to right) */}
         <div style={{ flex: 1 }}></div>
 
-        {/* Right: Actions */}
+        {/* Right: Actions — hidden in standalone PWA mode, redundant with the
+            bottom nav / top-bar notifications icon there. */}
+        {!standalone && (
         <div ref={navIconsRef} style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '8px' }}>
           {/* Search */}
           <div style={{ position: 'relative' }}>
@@ -1280,6 +1283,7 @@ const AppSettings = () => {
             )}
           </div>
         </div>
+        )}
       </nav>
 
 

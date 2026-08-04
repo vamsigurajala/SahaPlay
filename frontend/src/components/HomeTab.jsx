@@ -12,10 +12,18 @@ import PinnedRoomsGrid from './PinnedRoomsGrid';
 // regardless of which branch renders) for the shared .pinned-card/.img-layer/
 // etc rules that PinnedRoomsGrid's markup depends on.
 export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, onUnpin, t }) {
+  const hasPinned = pinnedRooms && pinnedRooms.length > 0;
   return (
-    <div style={{ padding: '28px 20px 100px', maxWidth: 640, margin: '0 auto' }}>
+    <div style={{
+      padding: '28px 20px 100px', maxWidth: 640, margin: '0 auto',
+      ...(hasPinned ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
+    }}>
       <style>{`
-        .home-tab-create-btn { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--brand-gradient);border:none;color:#fff;padding:16px;font-size:16px;border-radius:14px;font-weight:700;cursor:pointer; }
+        /* !important here: this button's text must stay white regardless of
+           theme (it sits on the brand gradient background either way) — a
+           global light-mode text-color rule was otherwise winning by
+           specificity and rendering it black in light mode. */
+        .home-tab-create-btn { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--brand-gradient);border:none;color:#fff !important;padding:16px;font-size:16px;border-radius:14px;font-weight:700;cursor:pointer; }
         .home-tab-join-form { display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;margin-top:12px; }
         html[data-theme='light'] .home-tab-join-form { background:#fff;border-color:rgba(0,0,0,0.1); }
         .home-tab-join-input { flex:1;background:transparent;border:none;outline:none;padding:14px 16px;font-size:15px;color:#fff;min-width:0; }
@@ -26,7 +34,7 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
       `}</style>
 
       <button onClick={createRoom} className="home-tab-create-btn">
-        <Play size={18} fill="#fff" strokeWidth={0} /> {t('createRoom', 'Create Room')}
+        <Play size={18} fill="#fff" strokeWidth={0} /> <span className="stay-white">{t('createRoom', 'Create Room')}</span>
       </button>
 
       <form onSubmit={handleJoin} className="home-tab-join-form">
@@ -40,7 +48,7 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
         <button type="submit" className="home-tab-join-btn">{t('join', 'Join')}</button>
       </form>
 
-      {pinnedRooms && pinnedRooms.length > 0 && (
+      {hasPinned && (
         <div style={{ marginTop: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <Pin size={16} />

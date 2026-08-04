@@ -87,7 +87,11 @@ export default function SearchTabContent({ t }) {
           {roomResults.slice(0, 20).map(room => (
             <div key={room.id} className="search-tab-row" onClick={() => navigate(`/room/${room.id}`)}>
               <div className="search-tab-thumb">
-                <img src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/200/200`} alt="" />
+                {room.thumbnailPath ? (
+                  <img src={getRoomThumbnailUrl(room.thumbnailPath)} alt="" />
+                ) : (
+                  <Users size={18} color="#888" />
+                )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room.name}</div>
