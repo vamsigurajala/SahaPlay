@@ -1,83 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pin, Hash, Users } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
+import { Pin } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import { getRoomThumbnailUrl } from './utils/avatarUtils';
-import { API } from './lib/api';
-
-const getCategoryLabel = (id, t) => {
-  const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
-  const keyMap = { movies: 'catMovies', anime: 'catAnime', songs: 'catMusic', gaming: 'catGaming', sports: 'catSports', other: 'catOther' };
-  const defaultMap = { movies: 'Movies', anime: 'Anime', songs: 'Music', gaming: 'Gaming', sports: 'Sports', other: 'Other' };
-  return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
-};
+import PinnedRoomsGrid from './components/PinnedRoomsGrid';
+import { usePinnedRooms } from './hooks/usePinnedRooms';
 
 // Standalone "Pinned Rooms" page — the desktop (Tauri) Navbar links here directly
 // instead of showing this grid inline on the Dashboard, matching how Public Rooms
 // already gets its own page rather than being mixed into the home view.
 const PinnedRooms = () => {
-  const navigate = useNavigate();
   const { t } = useTranslation();
-  const token = localStorage.getItem('watch_token');
-  const isGuest = localStorage.getItem('watch_is_guest') === 'true';
-  const [pinnedRooms, setPinnedRooms] = useState([]);
-
-  const fetchRooms = useCallback(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      if (stored.length > 0) {
-        fetch(`${API}/api/rooms/info?ids=${stored.join(',')}`)
-          .then(r => r.json())
-          .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
-          .catch(() => { });
-      } else {
-        setPinnedRooms([]);
-      }
-    } catch (e) { }
-  }, []);
-
-  useEffect(() => {
-    fetchRooms();
-    window.addEventListener('focus', fetchRooms);
-    return () => window.removeEventListener('focus', fetchRooms);
-  }, [fetchRooms]);
-
-  useEffect(() => {
-    if (isGuest || !token || token === 'null' || token === 'undefined') return;
-    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (data.pinnedRooms) {
-          try {
-            const arr = JSON.parse(data.pinnedRooms);
-            localStorage.setItem('pinned_rooms', JSON.stringify(arr));
-            fetchRooms();
-          } catch (e) { }
-        }
-      })
-      .catch(() => { });
-  }, [token, isGuest, fetchRooms]);
-
-  const handleUnpin = async (e, id) => {
-    e.stopPropagation();
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      const updated = stored.filter(r => r !== id);
-      localStorage.setItem('pinned_rooms', JSON.stringify(updated));
-      if (token && !isGuest) {
-        await fetch(`${API}/api/profile/pinned-rooms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ pinnedRooms: updated }),
-        });
-      }
-      toast.success('Room unpinned');
-      fetchRooms();
-    } catch (err) { }
-  };
+  const { pinnedRooms, unpinRoom } = usePinnedRooms();
 
   return (
     <div style={{ minHeight: '100vh' }}>
@@ -136,38 +71,13 @@ const PinnedRooms = () => {
               <p style={{ color: '#888', margin: 0 }}>{t('noPinnedRoomsDesc', 'Pin a room from its menu to see it here for quick access.')}</p>
             </div>
           ) : (
-            <div className="rooms-grid">
-              {pinnedRooms.map(room => (
-                <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
-                  <div className="img-layer">
-                    <img
-                      src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`}
-                      alt={t('roomCover', 'Room Cover')}
-                      className="pinned-img"
-                      onLoad={(e) => e.target.classList.add('loaded')}
-                    />
-                    <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
-                    <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title="Unpin Room">
-                      <Pin className="unpin-icon" size={16} />
-                    </button>
-                  </div>
-                  <div className="footer-layer">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, letterSpacing: '0.5px', color: '#6b7280' }}>
-                        <Hash size={10} /> {room.id}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: 8, color: '#10b981', fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <Users size={12} /> {room.userCount}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{room.name}</h3>
-                      <button className="join-btn">{t('join', 'Join')}</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <PinnedRoomsGrid
+              rooms={pinnedRooms}
+              onUnpin={unpinRoom}
+              gridClassName="rooms-grid"
+              fadeIn
+              titleColor="#fff"
+            />
           )}
         </div>
       </section>

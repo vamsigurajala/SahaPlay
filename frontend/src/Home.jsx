@@ -1,21 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, Zap, Globe, MessageSquare, Pin, Hash, Users, Lock, Share2, Mic, ChevronDown, ChevronUp, Paperclip, Heart, CornerUpLeft, Smile, Send } from 'lucide-react';
+import { Play, Zap, Globe, MessageSquare, Pin, Lock, Share2, Mic, ChevronDown, ChevronUp, Paperclip, Heart, CornerUpLeft, Smile, Send } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
-import { getRoomThumbnailUrl } from './utils/avatarUtils';
-import { API } from './lib/api';
-
-const getCategoryLabel = (id, t) => {
-  const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
-  const keyMap = { movies: 'catMovies', anime: 'catAnime', songs: 'catMusic', gaming: 'catGaming', sports: 'catSports', other: 'catOther' };
-  const defaultMap = { movies: 'Movies', anime: 'Anime', songs: 'Music', gaming: 'Gaming', sports: 'Sports', other: 'Other' };
-  return `${emojiMap[id] || '✨'} ${t(keyMap[id] || 'catOther', defaultMap[id] || 'Other')}`;
-};
+import PinnedRoomsGrid from './components/PinnedRoomsGrid';
+import HomeTab from './components/HomeTab';
+import { usePinnedRooms } from './hooks/usePinnedRooms';
+import { isStandalonePWA } from './lib/platform';
 
 const GROUP_SCRIPT = [
   { user: 'Alex', initial: 'A', color: '#a855f7', type: 'in', text: 'This part coming up is insane 🔥', reactions: ['👍 3', '❤️ 2'] },
@@ -72,7 +67,8 @@ const Home = () => {
   const loggedInUsername = localStorage.getItem('watch_username');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
-  const [pinnedRooms, setPinnedRooms] = useState([]);
+  const standalone = isStandalonePWA();
+  const { pinnedRooms, unpinRoom } = usePinnedRooms({ limit: 6 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -88,42 +84,6 @@ const Home = () => {
   const chatSectionRef = useRef(null);
   const [chatVisible, setChatVisible] = useState(false);
  
-  const fetchRooms = useCallback(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      if (stored.length > 0) {
-        fetch(`${API}/api/rooms/info?ids=${stored.slice(0, 6).join(',')}`)
-          .then(r => r.json())
-          .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
-          .catch(() => { });
-      } else {
-        setPinnedRooms([]);
-      }
-    } catch (e) { }
-  }, []);
- 
-  useEffect(() => {
-    fetchRooms();
-    window.addEventListener('focus', fetchRooms);
-    return () => window.removeEventListener('focus', fetchRooms);
-  }, [fetchRooms]);
- 
-  useEffect(() => {
-    if (isGuest || !token || token === 'null' || token === 'undefined') return;
-    fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (data.pinnedRooms) {
-          try {
-            const arr = JSON.parse(data.pinnedRooms);
-            localStorage.setItem('pinned_rooms', JSON.stringify(arr));
-            fetchRooms();
-          } catch (e) { }
-        }
-      })
-      .catch(() => { });
-  }, [token, isGuest, fetchRooms]);
-
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setChatVisible(true); },
@@ -172,24 +132,6 @@ const Home = () => {
   }, [visibleMessages]);
 
 
-
-  const handleUnpin = async (e, id) => {
-    e.stopPropagation();
-    try {
-      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
-      const updated = stored.filter(r => r !== id);
-      localStorage.setItem('pinned_rooms', JSON.stringify(updated));
-      if (token && !isGuest) {
-        await fetch(`${API}/api/profile/pinned-rooms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ pinnedRooms: updated }),
-        });
-      }
-      toast.success('Room unpinned');
-      fetchRooms();
-    } catch (err) { }
-  };
 
   const handleJoin = (e) => {
     e.preventDefault();
@@ -541,6 +483,18 @@ const Home = () => {
       <CreateRoomModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} loggedInUsername={loggedInUsername} />
       <Navbar />
 
+      {standalone ? (
+        <HomeTab
+          roomId={roomId}
+          setRoomId={setRoomId}
+          handleJoin={handleJoin}
+          createRoom={createRoom}
+          pinnedRooms={(isLoggedIn || isGuest) ? pinnedRooms : []}
+          onUnpin={unpinRoom}
+          t={t}
+        />
+      ) : (
+      <>
       {/* ─── SECTION 1: HERO ─── */}
       <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflow: 'hidden' }}>
         <div className="hero-orb orb-1" />
@@ -686,33 +640,12 @@ const Home = () => {
               <div className="section-icon-badge"><Pin size={18} /></div>
               <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
             </div>
-            <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
-              {pinnedRooms.slice(0, 6).map(room => (
-                <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
-                  <div className="img-layer">
-                    <img src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`} alt={t('roomCover', 'Room Cover')} className="pinned-img" />
-                    <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
-                    <button className="unpin-btn" onClick={(e) => handleUnpin(e, room.id)} title="Unpin Room">
-                      <Pin className="unpin-icon" size={16} />
-                    </button>
-                  </div>
-                  <div className="footer-layer">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, letterSpacing: '0.5px', color: '#6b7280' }}>
-                        <Hash size={10} /> {room.id}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: 8, color: '#10b981', fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <Users size={12} /> {room.userCount}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{room.name}</h3>
-                      <button className="join-btn">{t('join', 'Join')}</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <PinnedRoomsGrid
+              rooms={pinnedRooms.slice(0, 6)}
+              onUnpin={unpinRoom}
+              gridClassName="pinned-grid"
+              gridStyle={{ display: 'grid', gap: 20 }}
+            />
           </div>
         </section>
       )}
@@ -1068,6 +1001,8 @@ const Home = () => {
       </section>
 
       <Footer />
+      </>
+      )}
     </div>
   );
 };

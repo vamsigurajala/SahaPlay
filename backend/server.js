@@ -3323,6 +3323,25 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   if (req.query.lastSeen) {
     try { lastSeen = JSON.parse(decodeURIComponent(req.query.lastSeen)); } catch{}
   }
+  // Merge in the server-persisted lastSeen (set by the chat:mark_read /
+  // chat:mark_all_read socket handlers on every mark-as-read). The client's
+  // own copy lives in localStorage's chat_last_seen and is intentionally
+  // wiped by clearUserSession() on logout — without this merge, a fresh
+  // login sends an empty lastSeen map, every chat's cutoff falls back to 0,
+  // and every past message counts as unread again even though the server
+  // already recorded it as read. Take whichever timestamp (server or
+  // client) is more recent per chat, case-insensitively.
+  try {
+    const userRow = await queryGet('SELECT lastSeen FROM users WHERE username = ?', [username]);
+    const serverLastSeen = JSON.parse(userRow?.lastSeen || '{}');
+    for (const k in serverLastSeen) {
+      const kLower = k.toLowerCase();
+      let existing = 0;
+      let existingKey = null;
+      for (const ck in lastSeen) { if (ck.toLowerCase() === kLower) { existing = lastSeen[ck] || 0; existingKey = ck; break; } }
+      if ((serverLastSeen[k] || 0) > existing) lastSeen[existingKey || k] = serverLastSeen[k];
+    }
+  } catch (e) {}
   let localRooms = [];
   if (req.query.localRooms) {
     try { localRooms = JSON.parse(decodeURIComponent(req.query.localRooms)); } catch{}

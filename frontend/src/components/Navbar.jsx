@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin, Globe } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { useDebounce } from '../hooks/useDebounce';
+import { useFollowRequests } from '../hooks/useFollowRequests';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
 import DownloadAppModal from './DownloadAppModal';
+import NotificationsPanelContent from './NotificationsPanelContent';
+import ProfileActionMenu from './ProfileActionMenu';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
@@ -41,7 +43,7 @@ const Navbar = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [followRequests, setFollowRequests] = useState([]);
+  const { followRequests, allowRequest, followBack } = useFollowRequests();
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [profile, setProfile] = useState(() => {
     const isG = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
@@ -206,26 +208,6 @@ const Navbar = () => {
     };
   }, [token, isGuest]);
 
-  // Handle follow requests
-  useEffect(() => {
-    if (isGuest || !token) return;
-    const fetchRequests = () => {
-      fetch(`${API}/api/follow/requests`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) setFollowRequests(data); })
-        .catch(() => {});
-    };
-    fetchRequests();
-    const interval = setInterval(fetchRequests, 3000);
-    window.addEventListener('focus', fetchRequests);
-    window.addEventListener('follow_status_updated', fetchRequests);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', fetchRequests);
-      window.removeEventListener('follow_status_updated', fetchRequests);
-    };
-  }, [token, isGuest]);
-
   // Search execution
   useEffect(() => {
     if (!debouncedSearchQuery) { setSearchResults([]); return; }
@@ -297,36 +279,6 @@ const Navbar = () => {
     chatWidgetRef?.current?.markReadFor?.(chatKey);
     // Note: checkUnread polling (every 5s) will reconcile with server
   }, []);
-
-  const handleAllowRequest = async (requestingUser, e) => {
-    e.stopPropagation();
-    try {
-      const r = await fetch(`${API}/api/follow/${requestingUser}/accept`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      const d = await r.json();
-      if (!d.error) {
-         toast.success(`Accepted ${requestingUser}'s follow request`);
-         setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, status: 'accepted' } : u));
-      }
-    } catch {}
-  };
-
-  const handleFollowBack = async (requestingUser, e) => {
-    e.stopPropagation();
-    setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: 'pending' } : u));
-    try {
-      const r = await fetch(`${API}/api/follow/${requestingUser}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
-      const d = await r.json();
-      if (d.error) {
-        toast.error(d.error);
-        setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
-      } else {
-        toast.success(`Follow request sent to ${requestingUser}!`);
-        window.dispatchEvent(new Event('follow_status_updated'));
-      }
-    } catch {
-      setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, myFollowStatus: null } : u));
-    }
-  };
 
   const handleLogout = () => {
     clearUserSession();
@@ -512,48 +464,14 @@ const Navbar = () => {
                           boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
                           zIndex: 100000
                         }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: isLight ? '#666' : '#555', padding: '0 12px 8px', letterSpacing: '0.8px', textTransform: 'uppercase' }}>{t('followNotifications', 'Follow Notifications')}</div>
-                          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-                            {followRequests.length > 0 ? (
-                              followRequests.map(u => (
-                                <div key={u.username} onClick={() => { setShowNotifications(false); navigate(`/profile/${u.username}`); }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'background 0.2s', background: u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent' }}
-                                  onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
-                                  onMouseLeave={e => e.currentTarget.style.background = u.status === 'pending' ? (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.05)') : 'transparent'}>
-                                  <div style={{ width: 40, height: 40, borderRadius: 12, background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                                    {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <User size={18} color={isLight ? '#666' : '#888'} />}
-                                  </div>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{u.displayName || u.username}</div>
-                                    <div style={{ color: isLight ? '#444' : '#6b7280', fontSize: 11, marginTop: 2 }}>
-                                      {u.status === 'pending' ? t('wantsToFollow', { username: `@${u.username}`, defaultValue: `@${u.username} wants to follow you` }) : t('startedFollowing', { username: `@${u.username}`, defaultValue: `@${u.username} started following you` })}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                                      {u.status === 'pending' ? (
-                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
-                                      ) : (
-                                        <button disabled style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
-                                      )}
-                                      
-                                      {u.myFollowStatus === 'accepted' ? (
-                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
-                                      ) : (
-                                        <button onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (u.myFollowStatus === 'pending') return;
-                                          handleFollowBack(u.username, e);
-                                        }} className={u.myFollowStatus === 'pending' ? '' : 'stay-white'} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
-                                          {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                            ) : (
-                              <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 24 }}>{t('noNewNotifications', 'No new notifications')}</div>
-                            )}
-                          </div>
+                          <NotificationsPanelContent
+                            followRequests={followRequests}
+                            onAllow={allowRequest}
+                            onFollowBack={followBack}
+                            onItemClick={(username) => { setShowNotifications(false); navigate(`/profile/${username}`); }}
+                            isLight={isLight}
+                            t={t}
+                          />
                         </div>
                       )}
                     </div>
@@ -717,7 +635,7 @@ const Navbar = () => {
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                       {u.status === 'pending' ? (
-                                        <button onClick={(e) => handleAllowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                        <button onClick={(e) => allowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                                       ) : (
                                         <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                                       )}
@@ -728,7 +646,7 @@ const Navbar = () => {
                                         <button onClick={(e) => {
                                           e.stopPropagation();
                                           if (u.myFollowStatus === 'pending') return;
-                                          handleFollowBack(u.username, e);
+                                          followBack(u.username, e);
                                         }} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                           {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                                         </button>
@@ -998,54 +916,22 @@ const Navbar = () => {
               <div style={{ height: '1px', background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)', margin: '6px 0' }} />
 
               {(isLoggedIn || isGuest) && (
-                <>
-                  <button className={`nav-link-btn${location.pathname === '/profile' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/profile')}>
-                    <User size={16} />
-                    {t('profile', 'Profile')} {loggedInUsername ? `(${loggedInUsername})` : ''}
-                  </button>
-
-                  <button className={`nav-link-btn${location.pathname === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/app-settings')}>
-                    <Settings size={16} />
-                    {t('app', 'App Settings')}
-                  </button>
-
-                  <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowSupportModal(true); setShowMobileMenu(false); }}>
-                    <HelpCircle size={16} />
-                    {t('contactSupport', 'Contact Support')}
-                  </button>
-
-                  {!isDesktopApp && (
-                    <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}>
-                      <Download size={16} />
-                      {t('getDesktopApp', 'Get Desktop App')}
-                    </button>
-                  )}
-
-                  {isAdminRole && (
-                    <button className={`nav-link-btn${location.pathname === '/admin' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => navigateAndCloseMenu('/admin')}>
-                      <Sparkles size={16} color="var(--brand-2)" />
-                      {t('adminDashboard', 'Admin Dashboard')}
-                    </button>
-                  )}
-
-                  {isGuest ? (
-                    <>
-                      <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={() => { clearUserSession(); navigateAndCloseMenu('/login'); }}>
-                        <User size={16} />
-                        {t('logIn', 'Sign In')}
-                      </button>
-                      <button className="stay-white" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', background: 'var(--brand-gradient)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, marginTop: 4 }} onClick={() => navigateAndCloseMenu('/signup')}>
-                        <Sparkles size={16} />
-                        {t('signUp', 'Sign Up')}
-                      </button>
-                    </>
-                  ) : (
-                    <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px', color: '#f87171' }} onClick={() => { setShowMobileMenu(false); handleLogout(); }}>
-                      <LogOut size={16} color="#f87171" />
-                      {t('logOut', 'Log Out')}
-                    </button>
-                  )}
-                </>
+                <ProfileActionMenu
+                  currentPath={location.pathname}
+                  loggedInUsername={loggedInUsername}
+                  isGuest={isGuest}
+                  isAdminRole={isAdminRole}
+                  isDesktopApp={isDesktopApp}
+                  onProfileClick={() => navigateAndCloseMenu('/profile')}
+                  onAppSettingsClick={() => navigateAndCloseMenu('/app-settings')}
+                  onContactSupportClick={() => { setShowSupportModal(true); setShowMobileMenu(false); }}
+                  onGetDesktopAppClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}
+                  onAdminClick={() => navigateAndCloseMenu('/admin')}
+                  onSignInClick={() => { clearUserSession(); navigateAndCloseMenu('/login'); }}
+                  onSignUpClick={() => navigateAndCloseMenu('/signup')}
+                  onLogoutClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                  t={t}
+                />
               )}
 
               {!isLoggedIn && !isGuest && (

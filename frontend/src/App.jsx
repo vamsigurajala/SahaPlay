@@ -9,6 +9,7 @@ import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp } from './lib/platform';
 import { APP_THEMES } from './data/appThemes';
+import BottomNav from './components/BottomNav';
 const Home = lazy(() => import('./Home'));
 const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
@@ -1195,6 +1196,7 @@ function App() {
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
           </Routes>
           </Suspense>
+          <BottomNav />
         </Router>
       </GoogleOAuthProvider>
     </CryptoProvider>
