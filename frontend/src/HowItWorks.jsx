@@ -235,10 +235,7 @@ const HowItWorks = () => {
     { q: t('faqQ2', 'Does everyone need to have the video file?'), a: t('faqA2', 'No. For YouTube, Twitch, and Vimeo everyone just needs the link. For local files only the host needs the file — it streams to everyone else. For Netflix, only the host needs a subscription.') },
     { q: t('faqQ3', 'What if I join the room late?'), a: t('faqA3', 'We automatically detect where the video is currently playing and jump you straight to that exact moment. You\'re always in sync with the rest of the room instantly.') },
     { q: t('faqQ4', 'How many people can be in one room?'), a: t('faqA4', 'Up to 50 people can watch together in a single room at the same time.') },
-    { q: t('faqQ5', 'Is SahaPlay completely free?'), a: t('faqA5', 'Yes, completely free to use. Create rooms, invite friends, and watch together with no cost and no credit card required.') },
     { q: t('faqQ6', 'Which browsers does it work in?'), a: t('faqA6', 'SahaPlay works in Chrome, Firefox, Safari, and Edge. No plugins or extensions needed. For screenshare with audio we recommend Chrome for best results.') },
-    { q: t('faqQ7', 'Can I watch Netflix or Prime Video together?'), a: t('faqA7', 'Yes — using the Screenshare feature. The host shares their Netflix or Prime tab and everyone in the room sees it in real time. You need a subscription to those services.') },
-    { q: t('faqQ8', 'Are my private messages really private?'), a: t('faqA8', 'Yes. Both private and group chats in SahaPlay are end-to-end encrypted on your device, including supported images, files, and voice notes — only the intended recipients can read them, not us or anyone else.') },
   ];
 
   return (

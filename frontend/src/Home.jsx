@@ -994,7 +994,7 @@ const Home = () => {
                   opacity: 0.38,
                   filter: 'grayscale(15%)',
                   transition: 'opacity 0.2s ease, filter 0.2s ease',
-                  cursor: 'default',
+                  cursor: 'pointer',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.opacity = '1';
@@ -1005,6 +1005,7 @@ const Home = () => {
                   e.currentTarget.style.filter = 'grayscale(15%)';
                 }}
                 onError={e => { e.currentTarget.style.display = 'none'; }}
+                onClick={() => toast(p.name, { duration: 1500 })}
               />
             ))}
           </div>
@@ -1019,10 +1020,10 @@ const Home = () => {
             <p className="section-desc" style={{ fontSize: 16 }}>{t('faqSectionDesc', 'Everything you need to know before you start.')}</p>
           </div>
           {[
-            { q: t('homeFaqQ5', 'Is SahaPlay free?'), a: t('homeFaqA5', "Yes — SahaPlay is completely free to use, with no download required. There's also an optional Pro plan for extras like larger file uploads, but every core watch-together feature is free.") },
+            { q: t('homeFaqQ5', 'Is SahaPlay free?'), a: t('homeFaqA5', 'Yes, completely free to use. Create rooms, invite friends, and watch together with no cost and no credit card required.') },
             { q: t('homeFaqQ6', 'Do I need to download anything to use SahaPlay?'), a: t('homeFaqA6', "No, you don't need to download anything — SahaPlay runs entirely in your browser, so there's nothing to install for you or the friends you invite. Just open a room link and start watching.") },
             { q: t('homeFaqQ7', 'How does watch-together video sync work?'), a: t('homeFaqA7', "SahaPlay uses real-time WebSocket connections to keep everyone's play, pause, and seek actions in sync within milliseconds, so the whole room sees the same moment at the same time.") },
-            { q: t('homeFaqQ8', 'Is SahaPlay chat encrypted?'), a: t('homeFaqA8', 'Yes. Private and group chats in SahaPlay are end-to-end encrypted, including supported messages, images, files, and voice notes. Content is encrypted before it leaves your device, so only the intended recipients can decrypt it.') },
+            { q: t('homeFaqQ8', 'Is SahaPlay chat encrypted?'), a: t('homeFaqA8', 'Yes. Private and group chats in SahaPlay are end-to-end encrypted, including supported messages, images, files, and voice notes. Content is encrypted before it leaves your device, so only the intended recipients can decrypt it and read them, not us or anyone else.') },
             { q: t('homeFaqQ9', 'What can I watch together on SahaPlay?'), a: t('homeFaqA9', 'You can watch almost anything together: Twitch and YouTube streams directly in the room, Netflix or Prime Video via screenshare, or your own uploaded video files — all perfectly synced for everyone.') },
             { q: t('homeFaqQ1', 'How many languages does SahaPlay support?'), a: t('homeFaqA1', 'SahaPlay currently supports 20 languages: English, Spanish, French, German, Japanese, Korean, Chinese, Hindi, Portuguese, Arabic, Russian, Italian, Telugu, Tamil, Bengali, Marathi, Gujarati, Malayalam, Kannada, and Punjabi. You can change your language anytime from the Settings menu.') },
             { q: t('homeFaqQ2', "Can I hide other people's videos when streaming in a room?"), a: t('homeFaqA2', 'Yes — you can hide or unhide anyone\'s camera video at any time. Just click their video feed and select "Hide Video"; this only affects your own view, not what others in the room see.') },
