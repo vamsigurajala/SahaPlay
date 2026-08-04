@@ -133,9 +133,10 @@ export default function PinSetupModal({ onClose, onSuccess, action }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         animation: 'fadeIn 0.2s ease-out'
       }}>
-      <div 
+      <div
+        className="no-scrollbar"
         onMouseDown={e => e.stopPropagation()}
-        onClick={e => e.stopPropagation()} 
+        onClick={e => e.stopPropagation()}
         style={{
         width: '90%', maxWidth: 390, maxHeight: '90vh', overflowY: 'auto',
         background: 'linear-gradient(165deg, #16162a 0%, #0a0a14 100%)',

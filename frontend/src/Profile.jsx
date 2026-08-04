@@ -1925,7 +1925,7 @@ const Profile = () => {
                       <input className="profile-input" type={showCurrentPw ? 'text' : 'password'} placeholder={t('currentPassword', 'Current Password')} value={currentPassword}
                         onChange={e => { setCurrentPassword(e.target.value); if (pwErrors.currentPassword) setPwErrors(p => ({ ...p, currentPassword: null })); }}
                         style={{ borderColor: pwErrors.currentPassword ? '#ef4444' : undefined }} />
-                      <button className="pw-toggle" onClick={() => setShowCurrentPw(p => !p)}>{showCurrentPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      {currentPassword && <button className="pw-toggle" onClick={() => setShowCurrentPw(p => !p)}>{showCurrentPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
                     </div>
                     {pwErrors.currentPassword && <div style={{ color: '#ef4444', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}><AlertCircle size={12} />{pwErrors.currentPassword}</div>}
                   </div>
@@ -1934,7 +1934,7 @@ const Profile = () => {
                       <input className="profile-input" type={showNewPw ? 'text' : 'password'} placeholder={t('newPassword', 'New Password')} value={newPassword}
                         onChange={e => { setNewPassword(e.target.value); if (pwErrors.newPassword) setPwErrors(p => ({ ...p, newPassword: null })); }}
                         style={{ borderColor: pwErrors.newPassword ? '#ef4444' : undefined }} />
-                      <button className="pw-toggle" onClick={() => setShowNewPw(p => !p)}>{showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      {newPassword && <button className="pw-toggle" onClick={() => setShowNewPw(p => !p)}>{showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
                     </div>
                     {pwErrors.newPassword && <div style={{ color: '#ef4444', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}><AlertCircle size={12} />{pwErrors.newPassword}</div>}
                   </div>
@@ -1943,7 +1943,7 @@ const Profile = () => {
                       <input className="profile-input" type={showConfirmPw ? 'text' : 'password'} placeholder={t('confirmNewPassword', 'Confirm New Password')} value={confirmPassword}
                         onChange={e => { setConfirmPassword(e.target.value); if (pwErrors.confirmPassword) setPwErrors(p => ({ ...p, confirmPassword: null })); }}
                         style={{ borderColor: pwErrors.confirmPassword ? '#ef4444' : undefined }} />
-                      <button className="pw-toggle" onClick={() => setShowConfirmPw(p => !p)}>{showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      {confirmPassword && <button className="pw-toggle" onClick={() => setShowConfirmPw(p => !p)}>{showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
                     </div>
                     {pwErrors.confirmPassword && <div style={{ color: '#ef4444', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}><AlertCircle size={12} />{pwErrors.confirmPassword}</div>}
                   </div>
