@@ -20,6 +20,15 @@ import { API } from './lib/api.js';
 // multi-second warm-up head start before any user-initiated request happens.
 fetch(`${API}/health`).catch(() => {});
 
+// Registers a minimal pass-through service worker (see public/sw.js) — this
+// exists purely to satisfy Chrome's PWA installability requirement for the
+// Android TWA wrapper, not to add offline support or caching.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   environment: import.meta.env.MODE,
