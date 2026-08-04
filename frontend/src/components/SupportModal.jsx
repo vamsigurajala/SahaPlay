@@ -330,9 +330,7 @@ const SupportModal = ({ isOpen, onClose }) => {
           position: relative;
         }
         html[data-theme='light'] .support-modal-card {
-          background-color: rgba(255, 255, 255, 0.85) !important;
-          backdrop-filter: blur(20px) !important;
-          -webkit-backdrop-filter: blur(20px) !important;
+          background-color: #ffffff !important;
           border: 1px solid rgba(226, 232, 240, 0.8) !important;
           box-shadow: 0 24px 64px rgba(15, 23, 42, 0.15) !important;
         }
@@ -377,6 +375,13 @@ const SupportModal = ({ isOpen, onClose }) => {
         @media (max-width: 576px) {
           .nav-dropdown {
             width: 100% !important;
+          }
+          .support-modal-overlay {
+            align-items: flex-start !important;
+            padding-top: max(env(safe-area-inset-top, 0px), 32px) !important;
+          }
+          .support-modal-card {
+            max-height: 78vh !important;
           }
         }
       `}</style>

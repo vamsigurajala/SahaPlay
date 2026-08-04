@@ -65,7 +65,7 @@ export default function BottomNav() {
   // Swipe-back closes Search/Profile instead of navigating away — Chat is
   // excluded since GlobalChatWidget already owns its own back-intercept
   // level for its isOpen state (see its onClose prop below).
-  useBackIntercept((showSearch || showProfile) ? 1 : 0, (newLevel) => { if (newLevel === 0) closeOverlays(); });
+  const { skipNextClose } = useBackIntercept((showSearch || showProfile) ? 1 : 0, (newLevel) => { if (newLevel === 0) closeOverlays(); });
 
   // Room is its own immersive, already-crowded UI (video controls, floating
   // chat panel) — a persistent tab bar there would just add clutter on top
@@ -73,6 +73,16 @@ export default function BottomNav() {
   if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/')) return null;
 
   const closeAll = () => { setShowChat(false); closeOverlays(); };
+  // Any handler that closes Search/Profile AND navigates to a different
+  // route in the same click needs this — otherwise this hook's own
+  // history.go() cleanup (triggered by the overlay closing) races the
+  // router's pushState and silently undoes the navigation, which is why
+  // "Account"/"App Settings" inside the drawer previously did nothing.
+  const navigateFrom = (path) => {
+    if (showSearch || showProfile) skipNextClose();
+    closeAll();
+    navigate(path);
+  };
 
   const handleLogout = () => {
     clearUserSession();
@@ -86,8 +96,8 @@ export default function BottomNav() {
   // recent guest-restrictions changes can't create/join rooms either, so a
   // tab leading to an empty state would read as broken).
   const tabs = [
-    { key: 'home', label: t('home', 'Home'), icon: HomeIcon, active: location.pathname === '/' && !anyOverlayOpen, onClick: () => { closeAll(); navigate('/'); } },
-    { key: 'public', label: t('publicRooms', 'Public Rooms'), icon: Globe, active: location.pathname === '/public' && !anyOverlayOpen, onClick: () => { closeAll(); navigate('/public'); } },
+    { key: 'home', label: t('home', 'Home'), icon: HomeIcon, active: location.pathname === '/' && !anyOverlayOpen, onClick: () => navigateFrom('/') },
+    { key: 'public', label: t('publicRooms', 'Public Rooms'), icon: Globe, active: location.pathname === '/public' && !anyOverlayOpen, onClick: () => navigateFrom('/public') },
     ...(isLoggedIn ? [
       { key: 'chat', label: t('chats', 'Chats'), icon: MessageSquare, active: showChat, onClick: () => { const next = !showChat; closeAll(); setShowChat(next); } },
     ] : []),
@@ -182,13 +192,13 @@ export default function BottomNav() {
                 isGuest={isGuest}
                 isAdminRole={isAdminRole}
                 isDesktopApp={isDesktopApp}
-                onProfileClick={() => { setShowProfile(false); navigate('/profile'); }}
-                onAppSettingsClick={() => { setShowProfile(false); navigate('/app-settings'); }}
+                onProfileClick={() => { skipNextClose(); setShowProfile(false); navigate('/profile'); }}
+                onAppSettingsClick={() => { skipNextClose(); setShowProfile(false); navigate('/app-settings'); }}
                 onContactSupportClick={() => { setShowProfile(false); setShowSupportModal(true); }}
                 onGetDesktopAppClick={() => { setShowProfile(false); setShowDownloadAppModal(true); }}
-                onAdminClick={() => { setShowProfile(false); navigate('/admin'); }}
-                onSignInClick={() => { clearUserSession(); setShowProfile(false); navigate('/login'); }}
-                onSignUpClick={() => { setShowProfile(false); navigate('/signup'); }}
+                onAdminClick={() => { skipNextClose(); setShowProfile(false); navigate('/admin'); }}
+                onSignInClick={() => { skipNextClose(); clearUserSession(); setShowProfile(false); navigate('/login'); }}
+                onSignUpClick={() => { skipNextClose(); setShowProfile(false); navigate('/signup'); }}
                 onLogoutClick={() => { setShowProfile(false); handleLogout(); }}
                 t={t}
               />
