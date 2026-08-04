@@ -2421,11 +2421,16 @@ const Room = () => {
     const isCurrentRoom = isGroupMsg && partner.toLowerCase() === roomId.toLowerCase();
     if (!isGroupMsg || isCurrentRoom) return; // already counted by Room.jsx socket
 
-    // Cross-room group message: only GCW's socket sees it, so count it here
+    // Cross-room group message: only GCW's socket sees it, so count it here.
+    // Always key by lowercase — every other unread store (server polling, GCW's
+    // own conversation list, handleMarkRead's delete) uses the lowercase room/
+    // username as the key, so a raw-case key here would never get cleared by
+    // mark-as-read/mark-all-read and would linger until the next 5s poll.
+    const partnerKey = partner.toLowerCase();
     const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
-    localCounts[partner] = (localCounts[partner] || 0) + 1;
+    localCounts[partnerKey] = (localCounts[partnerKey] || 0) + 1;
     localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
-    setUnreadCounts(prev => ({ ...prev, [partner]: (prev[partner] || 0) + 1 }));
+    setUnreadCounts(prev => ({ ...prev, [partnerKey]: (prev[partnerKey] || 0) + 1 }));
     setTotalUnread(prev => prev + 1);
   }, [roomId, showRecentChats]);
 
@@ -12303,6 +12308,7 @@ const Room = () => {
                 setClearChatTarget, setClearChatModalOpen, setClearForBoth,
                 SOCKET_SERVER_URL, roomId,
                 onMarkRead: handleMarkRead,
+                onMarkAllRead: handleMarkAllRead,
                 clearRoomChat: handleClearRoomChat,
                 setDmThreads,
                 socket,

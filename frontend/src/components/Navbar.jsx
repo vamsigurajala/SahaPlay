@@ -237,7 +237,10 @@ const Navbar = () => {
   }, [debouncedSearchQuery, token, isGuest]);
 
   const handleNewMessage = useCallback((partner, msg) => {
-    const chatKey = partner;
+    // Always key by lowercase — the 5s server poll below and handleMarkRead's
+    // delete both use the lowercase chat id, so a raw-case key here would
+    // never get cleared by mark-as-read and would linger until the next poll.
+    const chatKey = (partner || '').toLowerCase();
     if (chatWidgetRef.current?.isOpen && chatWidgetRef.current?.activeChat?.partner === partner) return;
 
     const myUsername = localStorage.getItem('watch_username') || '';
