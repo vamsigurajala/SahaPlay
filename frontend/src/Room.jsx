@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from
 import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
+import { isStandalonePWA } from './lib/platform.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -12419,7 +12420,7 @@ const Room = () => {
                 <Settings2 size={20} /> <span>{t('roomSettings', 'Room Settings')}</span>
               </button>
             )}
-            {isEffectiveHost && !isGameOrActivity(mediaUrl) && (
+            {isEffectiveHost && !isGameOrActivity(mediaUrl) && !isStandalonePWA() && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
                 <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
               </button>
@@ -12429,9 +12430,11 @@ const Room = () => {
                 <Trash2 size={20} /> <span>{t('deleteRoom', 'Delete Room')}</span>
               </button>
             )}
-            <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleFullscreen(); }}>
-              <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
-            </button>
+            {!isStandalonePWA() && (
+              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); handleFullscreen(); }}>
+                <Maximize size={20} /> <span>{t('fullscreen', 'Fullscreen')}</span>
+              </button>
+            )}
             <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowNotificationSettings(true); }}>
               <Bell size={20} /> <span>{t('notifications', 'Notifications')}</span>
             </button>

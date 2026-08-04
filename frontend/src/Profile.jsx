@@ -1466,7 +1466,7 @@ const Profile = () => {
                 {isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative' }}>
-                      <div style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid rgba(var(--brand-1-rgb),0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div style={{ width: 84, height: 84, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={38} color="var(--brand-1)" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
@@ -1524,7 +1524,7 @@ const Profile = () => {
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 24 }}>
-                      <div style={{ width: 96, height: 96, borderRadius: '50%', border: '3px solid rgba(var(--brand-1-rgb),0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={44} color="var(--brand-1)" />}
                       </div>
                       <div style={{ display: 'flex', gap: 32 }}>
@@ -1700,7 +1700,7 @@ const Profile = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                 {/* Profile Picture */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid rgba(var(--brand-1-rgb),0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 84, height: 84, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {avatarUrl ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={34} color="var(--brand-1)" />}
                   </div>
                   <button onClick={() => fileInputRef.current.click()} style={{ position: 'absolute', bottom: -2, right: -2, width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: '2px solid #0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -1741,7 +1741,7 @@ const Profile = () => {
             /* Desktop view layout (original) */
             <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '40px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '32px' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 100, height: 100, borderRadius: '50%', border: '3px solid rgba(var(--brand-1-rgb),0.4)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {avatarUrl ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={40} color="var(--brand-1)" />}
                 </div>
                 <button onClick={() => fileInputRef.current.click()} style={{ position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: '2px solid #0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -2070,6 +2070,7 @@ const Profile = () => {
                 aspect={1}
                 cropShape="round"
                 showGrid={false}
+                objectFit="cover"
                 onCropChange={setCrop}
                 onZoomChange={setCropZoom}
                 onCropComplete={onCropComplete}
@@ -2203,7 +2204,7 @@ const Profile = () => {
                 ) : (
                   (followListData[followModalTab] || []).map(u => (
                     <div key={u.username} className="follow-user-item" onClick={() => { setShowFollowModal(false); navigate(`/profile/${u.username}`); }}>
-                      <div style={{ width: 42, height: 42, borderRadius: '50%', border: '2px solid rgba(var(--brand-1-rgb),0.3)', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <div style={{ width: 42, height: 42, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="var(--brand-1)" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>

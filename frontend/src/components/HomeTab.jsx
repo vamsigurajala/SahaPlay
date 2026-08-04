@@ -15,44 +15,91 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
   const hasPinned = pinnedRooms && pinnedRooms.length > 0;
   return (
     <div style={{
-      padding: '28px 20px 100px', maxWidth: 640, margin: '0 auto',
+      padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',
       ...(hasPinned ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
     }}>
       <style>{`
+        .home-tab-hero { text-align: center; margin-bottom: 22px; }
+        .home-tab-hero-icon {
+          width: 56px; height: 56px; border-radius: 18px; background: var(--brand-gradient);
+          display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;
+          box-shadow: 0 10px 24px rgba(var(--brand-1-rgb),0.35);
+        }
+        .home-tab-hero h1 { font-size: 21px; font-weight: 800; margin: 0 0 4px; }
+        .home-tab-hero p { font-size: 13px; color: #888; margin: 0; }
+
+        .home-tab-action-card {
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 22px; padding: 20px; box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+        }
+        html[data-theme='light'] .home-tab-action-card {
+          background: #ffffff; border-color: rgba(0,0,0,0.06); box-shadow: 0 8px 28px rgba(15,23,42,0.06);
+        }
+
         /* !important here: this button's text must stay white regardless of
            theme (it sits on the brand gradient background either way) — a
            global light-mode text-color rule was otherwise winning by
            specificity and rendering it black in light mode. */
-        .home-tab-create-btn { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--brand-gradient);border:none;color:#fff !important;padding:16px;font-size:16px;border-radius:14px;font-weight:700;cursor:pointer; }
-        .home-tab-join-form { display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:14px;overflow:hidden;margin-top:12px; }
-        html[data-theme='light'] .home-tab-join-form { background:#fff;border-color:rgba(0,0,0,0.1); }
-        .home-tab-join-input { flex:1;background:transparent;border:none;outline:none;padding:14px 16px;font-size:15px;color:#fff;min-width:0; }
-        html[data-theme='light'] .home-tab-join-input { color:#111 !important; }
-        .home-tab-join-btn { border:none;padding:14px 20px;font-weight:700;font-size:14px;cursor:pointer;background:rgba(var(--brand-1-rgb),0.2);color:var(--brand-1-light); }
-        html[data-theme='light'] .home-tab-join-btn { background:#f1f5f9 !important;color:var(--brand-1-dark) !important; }
-        .home-tab-pinned-grid { display:grid;grid-template-columns:repeat(2, 1fr);gap:14px; }
+        .home-tab-create-btn {
+          width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+          background: var(--brand-gradient); border: none; color: #fff !important; padding: 16px;
+          font-size: 16px; border-radius: 16px; font-weight: 700; cursor: pointer;
+          box-shadow: 0 10px 24px rgba(var(--brand-1-rgb),0.3); transition: transform 0.15s ease;
+        }
+        .home-tab-create-btn:active { transform: scale(0.98); }
+
+        .home-tab-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: #777; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; }
+        .home-tab-divider::before, .home-tab-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
+        html[data-theme='light'] .home-tab-divider::before, html[data-theme='light'] .home-tab-divider::after { background: rgba(0,0,0,0.08); }
+
+        .home-tab-join-form { display: flex; align-items: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; overflow: hidden; }
+        html[data-theme='light'] .home-tab-join-form { background: #f8fafc; border-color: rgba(0,0,0,0.08); }
+        .home-tab-join-input { flex: 1; background: transparent; border: none; outline: none; padding: 14px 16px; font-size: 15px; color: #fff; min-width: 0; }
+        html[data-theme='light'] .home-tab-join-input { color: #111 !important; }
+        .home-tab-join-btn { border: none; padding: 14px 20px; font-weight: 700; font-size: 14px; cursor: pointer; background: rgba(var(--brand-1-rgb),0.2); color: var(--brand-1-light); }
+        html[data-theme='light'] .home-tab-join-btn { background: #e2e8f0 !important; color: var(--brand-1-dark) !important; }
+
+        .home-tab-pinned-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .home-tab-pinned-title { display: flex; align-items: center; gap: 10px; }
+        .home-tab-pinned-count { background: rgba(var(--brand-1-rgb),0.15); color: var(--brand-1-light); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+        .home-tab-pinned-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
       `}</style>
 
-      <button onClick={createRoom} className="home-tab-create-btn">
-        <Play size={18} fill="#fff" strokeWidth={0} /> <span className="stay-white">{t('createRoom', 'Create Room')}</span>
-      </button>
+      <div className="home-tab-hero">
+        <div className="home-tab-hero-icon">
+          <Play size={24} color="#fff" fill="#fff" strokeWidth={0} />
+        </div>
+        <h1>{t('watchTogether', 'Watch Together')}</h1>
+        <p>{t('homeTabTagline', 'Create a room or join one with friends')}</p>
+      </div>
 
-      <form onSubmit={handleJoin} className="home-tab-join-form">
-        <input
-          type="text"
-          placeholder={t('enterRoomId', 'Enter Room ID...')}
-          value={roomId}
-          onChange={e => setRoomId(e.target.value)}
-          className="home-tab-join-input"
-        />
-        <button type="submit" className="home-tab-join-btn">{t('join', 'Join')}</button>
-      </form>
+      <div className="home-tab-action-card">
+        <button onClick={createRoom} className="home-tab-create-btn">
+          <Play size={18} fill="#fff" strokeWidth={0} /> <span className="stay-white">{t('createRoom', 'Create Room')}</span>
+        </button>
+
+        <div className="home-tab-divider">{t('or', 'or')}</div>
+
+        <form onSubmit={handleJoin} className="home-tab-join-form">
+          <input
+            type="text"
+            placeholder={t('enterRoomId', 'Enter Room ID...')}
+            value={roomId}
+            onChange={e => setRoomId(e.target.value)}
+            className="home-tab-join-input"
+          />
+          <button type="submit" className="home-tab-join-btn">{t('join', 'Join')}</button>
+        </form>
+      </div>
 
       {hasPinned && (
-        <div style={{ marginTop: 36 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <Pin size={16} />
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{t('pinnedRooms', 'Pinned Rooms')}</h2>
+        <div style={{ marginTop: 32 }}>
+          <div className="home-tab-pinned-header">
+            <div className="home-tab-pinned-title">
+              <Pin size={16} />
+              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{t('pinnedRooms', 'Pinned Rooms')}</h2>
+            </div>
+            <span className="home-tab-pinned-count">{pinnedRooms.length}</span>
           </div>
           <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
         </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { User, Settings, HelpCircle, Download, Sparkles, LogOut, ChevronRight } from 'lucide-react';
+import { getAvatarUrl } from '../utils/avatarUtils';
 
 // Extracted from Navbar.jsx's mobile hamburger drawer (the logged-in/guest
 // action-item list: Profile, App Settings, Contact Support, Get Desktop App,
@@ -32,13 +33,14 @@ export default function ProfileActionMenu({
   onSignInClick,
   onSignUpClick,
   onLogoutClick,
+  avatarPath,
   t,
 }) {
   if (compact) {
-    const Row = ({ icon: Icon, label, onClick, active, danger, color }) => (
+    const Row = ({ icon: Icon, label, onClick, active, danger, color, avatarUrl }) => (
       <button className={`profile-drawer-item${active ? ' active' : ''}${danger ? ' danger' : ''}`} onClick={onClick}>
-        <span className="profile-drawer-item-icon" style={color ? { background: `${color}1f`, color } : undefined}>
-          <Icon size={17} />
+        <span className="profile-drawer-item-icon" style={avatarUrl ? undefined : (color ? { background: `${color}1f`, color } : undefined)}>
+          {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} /> : <Icon size={17} />}
         </span>
         <span className="profile-drawer-item-label">{label}</span>
         <ChevronRight size={16} className="profile-drawer-item-chevron" />
@@ -59,7 +61,7 @@ export default function ProfileActionMenu({
           html[data-theme='light'] .profile-drawer-item:hover, html[data-theme='light'] .profile-drawer-item:active { background: rgba(0,0,0,0.045); }
           .profile-drawer-item.active { background: rgba(var(--brand-1-rgb), 0.14); }
           .profile-drawer-item-icon {
-            width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+            width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0; overflow: hidden;
             display: flex; align-items: center; justify-content: center;
             background: rgba(255,255,255,0.08); color: #c7c7cf;
           }
@@ -79,7 +81,7 @@ export default function ProfileActionMenu({
           }
         `}</style>
 
-        <Row icon={User} label={t('account', 'Account')} onClick={onProfileClick} active={currentPath === '/profile'} color="var(--brand-1)" />
+        <Row icon={User} label={t('account', 'Account')} onClick={onProfileClick} active={currentPath === '/profile'} color="var(--brand-1)" avatarUrl={!isGuest && avatarPath ? getAvatarUrl(avatarPath) : null} />
         <Row icon={Settings} label={t('app', 'App Settings')} onClick={onAppSettingsClick} active={currentPath === '/app-settings'} color="var(--brand-2)" />
         <Row icon={HelpCircle} label={t('contactSupport', 'Contact Support')} onClick={onContactSupportClick} color="#38bdf8" />
 
