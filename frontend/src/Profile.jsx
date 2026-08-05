@@ -18,6 +18,7 @@ import { API } from './lib/api';
 import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA } from './lib/platform';
+import { useCrypto } from './contexts/CryptoContext';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -28,6 +29,7 @@ const Profile = () => {
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t, i18n } = useTranslation();
+  const { clearKeys } = useCrypto();
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
@@ -49,6 +51,7 @@ const Profile = () => {
 
   const handleLogout = () => {
     clearUserSession();
+    clearKeys();
     navigate('/login');
   };
 

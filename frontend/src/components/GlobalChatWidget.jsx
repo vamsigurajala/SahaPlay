@@ -1986,6 +1986,11 @@ const GlobalChatWidget = forwardRef(({
   const inputRef = useRef(null);
   useAutoResizeTextarea(inputRef, inputValue);
   const socketRef = useRef(null);
+  // Tracks which token the live socket was authenticated with, so a token
+  // change (re-login as a different account without this widget unmounting)
+  // tears down the old connection instead of silently staying authenticated
+  // as the previous account — see socketRef.current's own guard below.
+  const socketTokenRef = useRef(null);
   const activeChatRef = useRef(null);
   const viewRef = useRef('list');
   const containerRef = useRef(null);
@@ -2464,9 +2469,19 @@ const GlobalChatWidget = forwardRef(({
 
   // Connect socket for live updates (reactions + new messages)
   useEffect(() => {
-    if (!token || socketRef.current || !isReady) return;
+    if (!token || !isReady) return;
+    // Already connected with this exact token — nothing to do.
+    if (socketRef.current && socketTokenRef.current === token) return;
+    // A socket exists but for a DIFFERENT token (re-login as another account
+    // without this widget unmounting) — tear it down before reconnecting,
+    // otherwise it would keep running authenticated as the old account.
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
     const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
+    socketTokenRef.current = token;
 
     sock.on('connect', () => {
       console.log('[WIDGET SOCKET] Connected/Reconnected');
@@ -3349,7 +3364,13 @@ const GlobalChatWidget = forwardRef(({
     });
     // ─────────────────────────────────────────────────────────────────────────
 
-    return () => { sock.disconnect(); socketRef.current = null; };
+    return () => {
+      sock.disconnect();
+      if (socketRef.current === sock) {
+        socketRef.current = null;
+        socketTokenRef.current = null;
+      }
+    };
   }, [token, onNewMessage, isReady]);
 
   // Persist conversation list to localStorage whenever it changes (enables LIFO across refreshes)

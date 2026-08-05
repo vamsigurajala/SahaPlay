@@ -10,8 +10,8 @@ export const clearUserSession = () => {
         'chat_cleared_partners',
         'pinned_rooms',
         'wt_kp_pw',
-        'wt_session_key',
-        'wt_session_pw',
+        'wt_sk',
+        'wt_spw',
         'chat_lock_auto_minutes',
         'chat_lock_auto_on_close',
         'watch_last_activity'
