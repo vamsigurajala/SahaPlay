@@ -88,7 +88,11 @@ export default function BottomNav() {
 
   const handleLogout = () => {
     clearUserSession();
-    window.location.reload();
+    // Explicit redirect rather than reload() — reload() re-fetches whatever
+    // (possibly protected) route the user was on, which then has to bounce
+    // to /login itself, an extra hop that read as "logout didn't take
+    // effect" until that second redirect landed.
+    window.location.href = '/login';
   };
 
   const anyOverlayOpen = showChat || showSearch || showProfile;
@@ -201,7 +205,7 @@ export default function BottomNav() {
                 onAdminClick={() => { skipNextClose(); setShowProfile(false); navigate('/admin'); }}
                 onSignInClick={() => { skipNextClose(); clearUserSession(); setShowProfile(false); navigate('/login'); }}
                 onSignUpClick={() => { skipNextClose(); setShowProfile(false); navigate('/signup'); }}
-                onLogoutClick={() => { setShowProfile(false); handleLogout(); }}
+                onLogoutClick={() => { skipNextClose(); setShowProfile(false); handleLogout(); }}
                 t={t}
               />
             </div>

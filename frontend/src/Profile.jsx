@@ -52,7 +52,12 @@ const Profile = () => {
   const handleLogout = () => {
     clearUserSession();
     clearKeys();
-    navigate('/login');
+    // A SPA-only navigate() left some components (mounted outside this page,
+    // e.g. the persistent BottomNav) showing stale logged-in state until a
+    // manual refresh, most visible in the standalone PWA. A hard redirect
+    // guarantees every component remounts fresh, matching the logout button
+    // in BottomNav.jsx/Navbar.jsx, which already force a full reload.
+    window.location.href = '/login';
   };
 
   const copyProfileLink = () => {

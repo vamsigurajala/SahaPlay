@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
-import { signInWithApple } from './lib/appleAuth';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
 import { useCrypto } from './contexts/CryptoContext';
 import {
@@ -33,12 +32,25 @@ const Signup = () => {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   const [agreeTerms, setAgreeTerms]               = useState(false);
   const [agreePrivacy, setAgreePrivacy]            = useState(false);
+  const [tooltipOpen, setTooltipOpen]             = useState(false);
+  const tooltipRef = useRef(null);
   const [oauthModalMode, setOauthModalMode] = useState(null); // null | 'set' | 'unlock'
   const [oauthModalCtx, setOauthModalCtx] = useState(null);   // { data, oauthLabel, isMigration }
 
   const navigate       = useNavigate();
   const { t }          = useTranslation();
   const { setKeyPair } = useCrypto();
+
+  // Tap-to-toggle for touch devices — :hover alone never fires on a phone/PWA,
+  // so without this the tooltip could only be dismissed, never opened, by tap.
+  useEffect(() => {
+    if (!tooltipOpen) return;
+    const handleOutside = (e) => {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target)) setTooltipOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [tooltipOpen]);
 
   const validateForm = () => {
     const e = {};
@@ -106,8 +118,7 @@ const Signup = () => {
     }
   };
 
-  // Shared by Google and Apple sign-in — both return the same response shape from
-  // the backend. OAuth accounts have no password, so their E2EE private key is
+  // Used by Google sign-in. OAuth accounts have no password, so their E2EE private key is
   // protected by a separate encryption passphrase (OAuthEncryptionModal) instead
   // — never the OAuth login itself, never the chat-lock PIN. Three cases:
   //   needsKeySetup            — brand-new account (or unrecoverable legacy blob):
@@ -275,50 +286,6 @@ const Signup = () => {
         setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
       } else {
         setGlobalError(t('networkErrorGoogle', 'Network error during Google Auth'));
-      }
-    } finally {
-      clearTimeout(slowTimer);
-      clearTimeout(abortTimer);
-      setIsSubmitting(false);
-      setIsSlowLogin(false);
-    }
-  };
-
-  const handleAppleClick = async () => {
-    setGlobalError('');
-    setIsSubmitting(true);
-    setIsSlowLogin(false);
-    let slowTimer, abortTimer;
-    try {
-      const authData = await signInWithApple();
-
-      slowTimer = setTimeout(() => setIsSlowLogin(true), 6000);
-      const controller = new AbortController();
-      abortTimer = setTimeout(() => controller.abort(), 70000);
-
-      const response = await fetch(`${API}/api/auth/apple`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_token: authData.authorization?.id_token,
-          user: authData.user || null,
-        }),
-        signal: controller.signal
-      });
-      const data = await response.json();
-      if (response.ok) {
-        await completeOAuthSignup(data, 'Apple');
-      } else {
-        setGlobalError(data.error || t('appleSignupFailed', 'Apple Signup failed'));
-      }
-    } catch (err) {
-      if (err?.error === 'popup_closed_by_user') {
-        // User cancelled the popup — not an error worth surfacing
-      } else if (err.name === 'AbortError') {
-        setGlobalError(t('loginTimeout', 'The server is taking longer than expected to respond (it may be waking up from idle). Please try again in a moment.'));
-      } else {
-        console.error('[Signup] Apple Sign-In error:', err);
-        setGlobalError(t('networkErrorApple', 'Network error during Apple Auth'));
       }
     } finally {
       clearTimeout(slowTimer);
@@ -503,11 +470,6 @@ const Signup = () => {
             background: rgba(var(--brand-1-rgb), 0.15) !important;
             color: var(--brand-1-darker) !important;
           }
-          .apple-btn { background: #fff !important; color: #000 !important; border: none !important; }
-          .apple-btn:hover { background: #f0f0f0 !important; }
-          html[data-theme='light'] .apple-btn { background: #000 !important; color: #fff !important; }
-          html[data-theme='light'] .apple-btn:hover { background: #222 !important; }
-          
           /* Tooltip styles */
           .tooltip-container { position: relative; display: inline-flex; cursor: help; }
           .tooltip-container .tooltip-text {
@@ -522,12 +484,33 @@ const Signup = () => {
             margin-left: -5px; border-width: 5px; border-style: solid;
             border-color: #1a1a2e transparent transparent transparent;
           }
-          .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+          .tooltip-container:hover .tooltip-text,
+          .tooltip-container.tooltip-open .tooltip-text { visibility: visible; opacity: 1; }
           html[data-theme='light'] .tooltip-container .tooltip-text {
             background-color: #ffffff !important; color: #1e293b !important; border: 1px solid rgba(var(--brand-1-rgb),0.2) !important; box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
           }
           html[data-theme='light'] .tooltip-container .tooltip-text::after {
             border-color: #ffffff transparent transparent transparent !important;
+          }
+
+          /* Mobile/PWA: the icon sits near the right edge of the E2EE banner,
+             so a 220px box centered on it (left:50%/translateX(-50%)) spilled
+             off the right side of the screen. Anchor it to the icon's right
+             edge instead and cap its width to the viewport so it always
+             stays inside the app. */
+          @media (max-width: 640px) {
+            .tooltip-container .tooltip-text {
+              width: 200px;
+              max-width: calc(100vw - 56px);
+              left: auto;
+              right: -10px;
+              transform: none;
+            }
+            .tooltip-container .tooltip-text::after {
+              left: auto;
+              right: 14px;
+              margin-left: 0;
+            }
           }
         `}</style>
 
@@ -647,7 +630,11 @@ const Signup = () => {
                 <span className="su-e2ee-label" style={{ fontSize: '12px', color: 'var(--brand-1-light)', flex: 1 }}>
                   <strong style={{ color: '#c7d2fe' }}>{t('saveRecoveryPhrase', 'Save Recovery Phrase')}</strong>
                 </span>
-                <div className="tooltip-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
+                <div
+                  ref={tooltipRef}
+                  className={`tooltip-container${tooltipOpen ? ' tooltip-open' : ''}`}
+                  onClick={() => setTooltipOpen(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.2)', color: '#c7d2fe', fontSize: '11px', fontWeight: 'bold' }}>
                   i
                   <span className="tooltip-text">
                     {t('recoveryTooltip', "After signup you'll receive a 24-letter recovery key. It's the only way to recover your encrypted messages if you forget your password or change your device. The server never sees your messages.")}
@@ -725,18 +712,6 @@ const Signup = () => {
                   />
                 </div>
               </div>
-
-              {/* Apple */}
-              <button
-                type="button"
-                className="social-btn apple-btn"
-                onClick={handleAppleClick}
-                style={{ width: '50px', height: '50px' }}
-              >
-                <svg width="22" height="22" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/>
-                </svg>
-              </button>
             </div>
           </div>
         </div>

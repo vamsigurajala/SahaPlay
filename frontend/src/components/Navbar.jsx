@@ -283,7 +283,11 @@ const Navbar = () => {
 
   const handleLogout = () => {
     clearUserSession();
-    window.location.reload();
+    // Explicit redirect rather than reload() — reload() re-fetches whatever
+    // (possibly protected) route the user was on, which then has to bounce
+    // to /login itself, an extra hop that read as "logout didn't take
+    // effect" until that second redirect landed.
+    window.location.href = '/login';
   };
 
   return (
@@ -940,7 +944,7 @@ const Navbar = () => {
                   onAdminClick={() => navigateAndCloseMenu('/admin')}
                   onSignInClick={() => { clearUserSession(); navigateAndCloseMenu('/login'); }}
                   onSignUpClick={() => navigateAndCloseMenu('/signup')}
-                  onLogoutClick={() => { setShowMobileMenu(false); handleLogout(); }}
+                  onLogoutClick={() => { mobileMenuBack.skipNextClose(); setShowMobileMenu(false); handleLogout(); }}
                   t={t}
                 />
               )}
