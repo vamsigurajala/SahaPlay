@@ -6,7 +6,7 @@ import { ArrowLeft, Filter, Pin, Star, Hash, Users, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import { getRoomThumbnailUrl } from './utils/avatarUtils';
+import RoomThumbnail from './components/RoomThumbnail';
 import { API } from './lib/api';
 import { isStandalonePWA } from './lib/platform';
 
@@ -116,21 +116,30 @@ const PublicRooms = () => {
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
+        @keyframes roomCardIn {
+          from { opacity: 0; transform: translateY(14px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         .pinned-card {
           border-radius: 16px;
           cursor: pointer;
           border: 1px solid rgba(255,255,255,0.08);
           background: #12121a;
           box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-          transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
           display: flex;
           flex-direction: column;
           overflow: hidden;
+          animation: roomCardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+          animation-delay: calc(var(--card-i, 0) * 45ms);
         }
         .pinned-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+          transform: translateY(-6px) scale(1.015);
+          box-shadow: 0 16px 34px rgba(0,0,0,0.5);
           border-color: rgba(var(--brand-1-rgb),0.5);
+        }
+        .pinned-card:active {
+          transform: translateY(-2px) scale(0.99);
         }
         .img-layer {
           height: 130px;
@@ -405,13 +414,13 @@ const PublicRooms = () => {
         ) : (
           <>
             <div className="rooms-grid">
-              {filteredRooms.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map(room => (
-                <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
+              {filteredRooms.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((room, i) => (
+                <div key={room.id} className="pinned-card" style={{ '--card-i': i }} onClick={() => navigate(`/room/${room.id}`)}>
                   <div className="img-layer">
-                    <img 
-                      src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`}
-                      alt="Room Cover" 
-                      className="pinned-img"
+                    <RoomThumbnail
+                      thumbnailPath={room.thumbnailPath}
+                      alt="Room Cover"
+                      imgClassName="pinned-img"
                       onLoad={(e) => e.target.classList.add('loaded')}
                     />
                     <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>

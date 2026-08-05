@@ -321,14 +321,14 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px 24px' }}>
+        <div className="admin-drawer-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', padding: '20px 24px' }}>
           {loading && <div style={{ color: isLight ? '#6b7280' : 'rgba(255,255,255,0.35)', textAlign: 'center', marginTop: 60, fontSize: 14 }}>Loading…</div>}
           {error && <div style={{ color: '#f87171', fontSize: 14 }}>{error}</div>}
 
           {!loading && !error && isUserList && (() => {
             const users = data?.users || [];
             return (
-              <div style={{ minWidth: 380 }}>
+              <div className="admin-drawer-list" style={{ minWidth: 380 }}>
                 <p style={{
                   margin: '0 0 16px',
                   color: isLight ? '#4b5563' : 'rgba(255,255,255,0.35)',
@@ -378,7 +378,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
           })()}
 
           {!loading && !error && type === 'active-rooms' && (() => (
-            <div style={{ minWidth: 380 }}>
+            <div className="admin-drawer-list" style={{ minWidth: 380 }}>
               <p style={{ margin: '0 0 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.35)', fontSize: 13 }}>
                 {activeRoomList.length} room{activeRoomList.length !== 1 ? 's' : ''}{search ? ' found' : ' with active connections'}
               </p>
@@ -409,7 +409,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
           ))()}
 
           {!loading && !error && isDbRooms && (() => (
-            <div style={{ minWidth: 380 }}>
+            <div className="admin-drawer-list" style={{ minWidth: 380 }}>
               <p style={{ margin: '0 0 16px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.35)', fontSize: 13 }}>
                 {dbTotal.toLocaleString()} room{dbTotal !== 1 ? 's' : ''} in database
               </p>

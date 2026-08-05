@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Pin, Hash, Users } from 'lucide-react';
-import { getRoomThumbnailUrl } from '../utils/avatarUtils';
+import RoomThumbnail from './RoomThumbnail';
 
 const getCategoryLabel = (id, t) => {
   const emojiMap = { movies: '🎬', anime: '⛩️', songs: '🎵', gaming: '🎮', sports: '⚽', other: '✨' };
@@ -25,10 +25,10 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
       {rooms.map(room => (
         <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
           <div className="img-layer">
-            <img
-              src={getRoomThumbnailUrl(room.thumbnailPath) || `https://picsum.photos/seed/${room.id}/600/400`}
+            <RoomThumbnail
+              thumbnailPath={room.thumbnailPath}
               alt={t('roomCover', 'Room Cover')}
-              className="pinned-img"
+              imgClassName="pinned-img"
               {...(fadeIn ? { onLoad: (e) => e.target.classList.add('loaded') } : {})}
             />
             <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>

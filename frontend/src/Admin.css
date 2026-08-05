@@ -290,6 +290,20 @@
   }
 }
 
+/* Detail drawer (Online Users / Guests / Active Rooms / DB Rooms) list body —
+   the desktop layout gives it a 380px min-width + horizontal scroll so long
+   room/user rows never get squished; on a narrow phone that min-width alone
+   exceeds the viewport, forcing the whole list into an unwanted side-scroll
+   that rubber-bands on every touch. Drop both on mobile so it just fits. */
+@media (max-width: 768px) {
+  .admin-drawer-body {
+    overflow-x: hidden !important;
+  }
+  .admin-drawer-list {
+    min-width: 0 !important;
+  }
+}
+
 /* Active Room Card Header Responsiveness */
 @media (max-width: 768px) {
   .active-room-card-chevron-mobile {
