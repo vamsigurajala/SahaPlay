@@ -1,0 +1,87 @@
+name: Android — Build TWA (.aab)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-android:
+    name: Build signed Android App Bundle (Bubblewrap TWA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Decode signing keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/sahaplay-upload.keystore"
+
+      # bubblewrap init normally runs as an interactive wizard; on this
+      # non-TTY CI runner it should fall back to the values it derives from
+      # the fetched manifest.json (name, theme/background color, icons,
+      # start URL) for every field it can. This is the first real run of
+      # this step against the actual Bubblewrap CLI + Android SDK — if it
+      # errors on a prompt with no non-interactive default, that will be
+      # visible in this step's log and gets fixed from there.
+      - name: Init Bubblewrap project from the live PWA manifest
+        run: |
+          bubblewrap init \
+            --manifest https://sahaplay.com/manifest.json \
+            --directory android-twa \
+            < /dev/null
+
+      # bubblewrap init generates its own placeholder signingKey entry in
+      # twa-manifest.json. Point it at our real, permanent upload keystore
+      # (decoded above from ANDROID_KEYSTORE_BASE64) instead, via a small
+      # inline patch rather than assuming a CLI flag exists for this.
+      - name: Point the generated project at our signing keystore
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = 'android-twa/twa-manifest.json';
+            const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+            manifest.signingKey = {
+              path: process.env.RUNNER_TEMP + '/sahaplay-upload.keystore',
+              alias: process.env.ANDROID_KEY_ALIAS,
+            };
+            fs.writeFileSync(path, JSON.stringify(manifest, null, 2));
+          "
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      # First attempt at the non-interactive signing flags — Bubblewrap's
+      # build wizard normally prompts for the keystore/key passwords fresh
+      # each build. If these flag names don't match what this Bubblewrap
+      # CLI version actually accepts, the error will name the correct flag
+      # and this step gets corrected from there.
+      - name: Build signed .aab
+        working-directory: android-twa
+        run: |
+          bubblewrap build \
+            --skipPwaValidation \
+            --password="$ANDROID_KEYSTORE_PASSWORD" \
+            --ksKeyPassword="$ANDROID_KEY_PASSWORD"
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload signed .aab artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sahaplay-android-aab
+          path: android-twa/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error

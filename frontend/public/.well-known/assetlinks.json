@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.sahaplay.app",
+      "sha256_cert_fingerprints": [
+        "C6:92:D1:E0:8E:EA:1E:55:87:50:BE:93:38:CD:60:48:F2:79:F5:B6:A2:F7:EF:AF:5A:21:92:6A:7A:96:CB:89"
+      ]
+    }
+  }
+]
