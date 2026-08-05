@@ -13,6 +13,7 @@ import {
 import { getAvatarUrl } from './utils/avatarUtils';
 import MediaLightbox from './components/MediaLightbox';
 import { API as API_BASE } from './lib/api';
+import { useBackIntercept } from './hooks/useBackIntercept';
 
 function authHeaders() {
   const token = localStorage.getItem('watch_token');
@@ -3509,6 +3510,13 @@ export default function Admin() {
   const [showMobileContent, setShowMobileContent] = useState(false);
   const [pendingTicketId, setPendingTicketId] = useState(null);
   const navigate = useNavigate();
+
+  // On mobile, swiping back while viewing a section's content (Reports, Audit
+  // Logs, etc.) should return to the admin nav list, not exit the whole panel
+  // back to the main app — there was previously no history entry for this
+  // in-panel transition at all, so a swipe just fell through to the browser's
+  // real back navigation.
+  useBackIntercept(showMobileContent ? 1 : 0, (newLevel) => { if (newLevel === 0) setShowMobileContent(false); });
 
   useEffect(() => {
     const obs = new MutationObserver(() => {

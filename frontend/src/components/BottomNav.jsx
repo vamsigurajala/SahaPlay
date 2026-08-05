@@ -69,8 +69,10 @@ export default function BottomNav() {
 
   // Room is its own immersive, already-crowded UI (video controls, floating
   // chat panel) — a persistent tab bar there would just add clutter on top
-  // of existing bottom-anchored controls, so it's excluded here.
-  if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/')) return null;
+  // of existing bottom-anchored controls, so it's excluded here. Admin has
+  // its own "Back to App" exit and a fixed bottom nav here would sit on top
+  // of / cover its own bottom-anchored UI (e.g. table pagination controls).
+  if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/') || location.pathname.startsWith('/admin')) return null;
 
   const closeAll = () => { setShowChat(false); closeOverlays(); };
   // Any handler that closes Search/Profile AND navigates to a different
