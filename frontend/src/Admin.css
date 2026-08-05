@@ -238,6 +238,58 @@
   100% { transform: scale(0.95); opacity: 0.5; }
 }
 
+/* Overview stat-card rows — flex-wrap already stacks these correctly, but
+   without a shrink point small enough for narrow phones the row's own
+   rubber-band/scroll can appear to "drift" horizontally on touch. Locking
+   overflow-x and shrinking the cards on small screens keeps them stacked
+   and stationary. */
+.admin-stat-row {
+  overflow-x: hidden;
+}
+@media (max-width: 480px) {
+  .admin-stat-row {
+    gap: 10px !important;
+  }
+  .admin-stat-card {
+    flex: 1 1 calc(50% - 10px) !important;
+    min-width: 0 !important;
+    padding: 14px 14px !important;
+  }
+  .admin-stat-card-value {
+    font-size: 22px !important;
+  }
+  .admin-stat-card-label {
+    font-size: 11px !important;
+  }
+  .admin-stat-card-sub {
+    font-size: 10.5px !important;
+  }
+  .admin-stat-card-icon {
+    width: 26px !important;
+    height: 26px !important;
+  }
+}
+
+/* Users page "Joined" column filter dropdown — anchored (position:absolute)
+   to a table-header button that lives inside a horizontally-scrolling table
+   wrapper, so on a narrow screen it could render clipped by / detached from
+   that scroll box. Breaking it out to a fixed, near-top, full-width panel on
+   mobile guarantees every option is visible regardless of table scroll
+   position. */
+@media (max-width: 768px) {
+  .admin-join-filter-dropdown {
+    position: fixed !important;
+    top: 72px !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    z-index: 100050 !important;
+  }
+}
+
 /* Active Room Card Header Responsiveness */
 @media (max-width: 768px) {
   .active-room-card-chevron-mobile {

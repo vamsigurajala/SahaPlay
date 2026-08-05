@@ -36,6 +36,7 @@ function StatCard({ label, value, icon: Icon, color = 'var(--brand-1)', sub, onC
   const isLight = React.useContext(AdminThemeCtx);
   return (
     <div
+      className="admin-stat-card"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -54,16 +55,16 @@ function StatCard({ label, value, icon: Icon, color = 'var(--brand-1)', sub, onC
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 13, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: '0.03em' }}>{label}</span>
+        <span className="admin-stat-card-label" style={{ fontSize: 13, color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: '0.03em' }}>{label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {clickable && hovered && <ExternalLink size={12} color={color} style={{ opacity: 0.7 }} />}
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="admin-stat-card-icon" style={{ width: 32, height: 32, borderRadius: 10, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Icon size={16} color={color} />
           </div>
         </div>
       </div>
-      <span style={{ fontSize: 32, fontWeight: 800, color: isLight ? '#111827' : '#fff', lineHeight: 1 }}>{value ?? '—'}</span>
-      {sub && <span style={{ fontSize: 12, color: isLight ? '#6b7280' : 'rgba(255,255,255,0.35)' }}>{sub}</span>}
+      <span className="admin-stat-card-value" style={{ fontSize: 32, fontWeight: 800, color: isLight ? '#111827' : '#fff', lineHeight: 1 }}>{value ?? '—'}</span>
+      {sub && <span className="admin-stat-card-sub" style={{ fontSize: 12, color: isLight ? '#6b7280' : 'rgba(255,255,255,0.35)' }}>{sub}</span>}
     </div>
   );
 }
@@ -510,6 +511,11 @@ function OverviewPage({ onNavigate }) {
   const [drawer, setDrawer] = useState(null); // { type, title }
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  // Swiping back while a stat-card drawer (Online Users, Guests, Active
+  // Rooms, DB Rooms) is open should just close that drawer — composes with
+  // Admin()'s own back-intercept level via the hook's shared stack.
+  useBackIntercept(drawer ? 1 : 0, (newLevel) => { if (newLevel === 0) setDrawer(null); });
+
   useEffect(() => {
     let mounted = true;
     async function poll() {
@@ -544,21 +550,32 @@ function OverviewPage({ onNavigate }) {
         <DetailDrawer title={drawer.title} type={drawer.type} filter={drawer.filter || 'all'} onClose={() => setDrawer(null)} />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Overview</h1>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse 1.5s ease infinite' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '0.06em' }}>LIVE</span>
-            </span>
+      <div className="admin-reports-header" style={{ marginBottom: 28 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Overview</h1>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'pulse 1.5s ease infinite' }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '0.06em' }}>LIVE</span>
+              </span>
+            </div>
+            <button className="mobile-refresh-btn" onClick={manualRefresh} disabled={loading} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600,
+            }}>
+              <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+              Refresh
+            </button>
           </div>
-          <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.35)', fontSize: 13 }}>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.35)', fontSize: 13 }}>
             Auto-refreshes every 5s · Click any card to see details
             {lastUpdated && ` · Last updated ${fmtTime(lastUpdated)}`}
           </p>
         </div>
-        <button onClick={manualRefresh} disabled={loading} style={{
+        <button className="desktop-refresh-btn" onClick={manualRefresh} disabled={loading} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
           background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
           border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -580,7 +597,7 @@ function OverviewPage({ onNavigate }) {
       ) : stats ? (
         <>
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Users</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
+          <div className="admin-stat-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
             <StatCard label="Total Users" value={stats.totalUsers.toLocaleString()} icon={Users} color="var(--brand-1)"
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => onNavigate('users') : undefined}
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to manage all users" : undefined} />
@@ -593,7 +610,7 @@ function OverviewPage({ onNavigate }) {
           </div>
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Online Now</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
+          <div className="admin-stat-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 32 }}>
             <StatCard label="Logged-in Users" value={stats.loggedInOnline.toLocaleString()} icon={Activity} color="var(--brand-1)"
               sub={['super_admin', 'admin'].includes(watchRole) ? "Click to see who's online" : undefined}
               onClick={['super_admin', 'admin'].includes(watchRole) ? () => setDrawer({ type: 'online-users', title: 'Logged-in Users Online' }) : undefined} />
@@ -603,7 +620,7 @@ function OverviewPage({ onNavigate }) {
           </div>
 
           <h3 style={{ margin: '0 0 14px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 12, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700 }}>Rooms</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+          <div className="admin-stat-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
             <StatCard label="Active Rooms Now" value={stats.activeRoomsNow.toLocaleString()} icon={LayoutDashboard} color="var(--brand-1)"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Rooms', filter: 'all' }) : undefined} />
@@ -1052,6 +1069,8 @@ const JOIN_FILTERS = [
   { key: 'all', label: 'All' },
 ];
 
+const SUPPORT_FILTERS = [['all', 'All'], ['open', 'Open'], ['in_progress', 'In Progress'], ['resolved', 'Resolved'], ['dismissed', 'Dismissed']];
+
 function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
   const isLight = React.useContext(AdminThemeCtx);
   const watchRole = localStorage.getItem('watch_role') || 'user';
@@ -1159,12 +1178,23 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
         <TerminateModal user={terminateTarget} onClose={() => setTerminateTarget(null)} onTerminated={() => load(search, page)} />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Users</h1>
-          <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total</p>
+      <div className="admin-reports-header" style={{ marginBottom: 24 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Users</h1>
+            <button className="mobile-refresh-btn" onClick={() => load(search, page, joinFilter)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            }}>
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          </div>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total</p>
         </div>
-        <button onClick={() => load(search, page, joinFilter)} style={{
+        <button className="desktop-refresh-btn" onClick={() => load(search, page, joinFilter)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
           background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
           border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -1233,7 +1263,7 @@ function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
                     }} />
                   </button>
                   {showJoinDropdown && (
-                    <div style={{
+                    <div className="admin-join-filter-dropdown" style={{
                       position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 2000,
                       background: isLight ? '#f3f4f6' : '#161b27',
                       border: isLight ? '1px solid #d1d5db' : '1px solid rgba(var(--brand-1-rgb),0.25)',
@@ -1575,12 +1605,22 @@ function ActiveRoomsPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Active Rooms</h1>
-          <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{allRooms.length} room{allRooms.length !== 1 ? 's' : ''} active</p>
+      <div className="admin-reports-header" style={{ marginBottom: 16 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Active Rooms</h1>
+            <button className="mobile-refresh-btn" onClick={load} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600
+            }}>
+              <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
+            </button>
+          </div>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{allRooms.length} room{allRooms.length !== 1 ? 's' : ''} active</p>
         </div>
-        <button onClick={load} style={{
+        <button className="desktop-refresh-btn" onClick={load} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
           background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
           border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -1737,12 +1777,22 @@ function AuditLogsPage() {
 
   return (
     <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Audit Logs</h1>
-          <p style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total actions</p>
+      <div className="admin-reports-header" style={{ marginBottom: 24 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Audit Logs</h1>
+            <button className="mobile-refresh-btn" onClick={() => load(page)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600
+            }}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} total actions</p>
         </div>
-        <button onClick={() => load(page)} style={{
+        <button className="desktop-refresh-btn" onClick={() => load(page)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
           background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
           border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -2402,7 +2452,9 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
   const [resolveMessage, setResolveMessage] = useState('');
   const [teamMembers, setTeamMembers] = useState([]);
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const assignDropdownRef = useRef(null);
+  const filterDropdownRef = useRef(null);
   const searchTimer = useRef(null);
 
   const currentAdminId = (() => {
@@ -2446,6 +2498,17 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
     document.addEventListener('mousedown', closeDropdown);
     return () => document.removeEventListener('mousedown', closeDropdown);
   }, [showAssignDropdown]);
+
+  useEffect(() => {
+    if (!showFilterDropdown) return;
+    function closeDropdown(e) {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setShowFilterDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', closeDropdown);
+    return () => document.removeEventListener('mousedown', closeDropdown);
+  }, [showFilterDropdown]);
 
   function handleFilter(f) { setFilter(f); setPage(1); load(1, f, search); }
   function handleSearch(s) {
@@ -2547,6 +2610,45 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                   color: isLight ? '#111827' : '#fff', fontSize: 13, width: 180, outline: 'none'
                 }} />
             </div>
+            <div ref={filterDropdownRef} style={{ position: 'relative' }}>
+              <button onClick={() => setShowFilterDropdown(v => !v)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                background: filter !== 'all' ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.06)'),
+                border: filter !== 'all' ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
+                borderRadius: 9, color: filter !== 'all' ? 'var(--brand-1-light)' : (isLight ? '#374151' : '#fff'), cursor: 'pointer', fontSize: 12, fontWeight: 700
+              }}>
+                {SUPPORT_FILTERS.find(([f]) => f === filter)?.[1] || 'All'}
+                <ChevronDown size={12} style={{ transform: showFilterDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }} />
+              </button>
+              {showFilterDropdown && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 2000,
+                  background: isLight ? '#f3f4f6' : '#161b27',
+                  border: isLight ? '1px solid #d1d5db' : '1px solid rgba(var(--brand-1-rgb),0.25)',
+                  borderRadius: 10, padding: 4, minWidth: 160,
+                  boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' : '0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
+                }}>
+                  {SUPPORT_FILTERS.map(([f, label]) => {
+                    const active = filter === f;
+                    return (
+                      <button
+                        key={f}
+                        onClick={() => { handleFilter(f); setShowFilterDropdown(false); }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', margin: '1px 0',
+                          background: active ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent',
+                          border: 'none', borderRadius: 7, cursor: 'pointer',
+                          color: active ? 'var(--brand-1)' : (isLight ? '#111827' : 'rgba(255,255,255,0.82)'),
+                          fontSize: 13, fontWeight: active ? 700 : 500,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <button onClick={() => load(page, filter, search)} style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
               background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
@@ -2556,28 +2658,6 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
               <RefreshCw size={13} />
             </button>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-          {[['all','All'], ['open','Open'], ['in_progress','In Progress'], ['resolved','Resolved'], ['dismissed','Dismissed']].map(([f, label]) => {
-            const active = filter === f;
-            return (
-              <button
-                key={f}
-                onClick={() => handleFilter(f)}
-                style={{
-                  padding: '6px 13px', borderRadius: 8,
-                  border: active ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
-                  background: active ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'),
-                  color: active ? 'var(--brand-1-light)' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'),
-                  fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                  transition: 'all 0.15s'
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
         </div>
 
         {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
@@ -3349,8 +3429,8 @@ function AdminTeamPage({ onOpenTicket }) {
           <div style={{ fontSize: 11, fontWeight: 700, color: T.faint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
             Invites ({invites.length})
           </div>
-          <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 14, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 14, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 620 }}>
               <thead>
                 <tr style={{ background: T.tagBg }}>
                   {['Email', 'Role', 'Invited By', 'Expires', 'Status', 'Actions'].map(h => (
@@ -3499,11 +3579,22 @@ const BASE_NAV = [
 export default function Admin() {
   const [tab, setTabState] = useState(() => localStorage.getItem('admin_active_tab') || 'overview');
   const [userJoinFilter, setUserJoinFilter] = useState('all');
+  // True only when the current tab was reached by drilling down from a stat
+  // card on Overview (not by tapping the sidebar directly) — lets swipe-back
+  // return specifically to Overview instead of just toggling the mobile
+  // content/menu view, which would leave `tab` pointed at whatever page was
+  // drilled into.
+  const [drilledFromOverview, setDrilledFromOverview] = useState(false);
   const setTab = (val, filter = null) => {
     setTabState(val);
     localStorage.setItem('admin_active_tab', val);
     if (filter !== null) setUserJoinFilter(filter);
   };
+  // Sidebar taps are always a fresh, top-level tab selection — never a drill-down.
+  const selectTab = (val) => { setDrilledFromOverview(false); setTab(val); };
+  // OverviewPage's stat cards call this instead of setTab directly, so the
+  // extra back-intercept level below knows to unwind to Overview specifically.
+  const navigateFromOverview = (val, filter = null) => { setDrilledFromOverview(true); setTab(val, filter); };
   const [badges, setBadges] = useState({ openSupportRequests: 0, unresolvedReports: 0, pendingInvites: 0 });
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
@@ -3515,8 +3606,18 @@ export default function Admin() {
   // Logs, etc.) should return to the admin nav list, not exit the whole panel
   // back to the main app — there was previously no history entry for this
   // in-panel transition at all, so a swipe just fell through to the browser's
-  // real back navigation.
-  useBackIntercept(showMobileContent ? 1 : 0, (newLevel) => { if (newLevel === 0) setShowMobileContent(false); });
+  // real back navigation. A tab reached by drilling down from Overview gets
+  // one level deeper still, so a swipe unwinds to Overview first before it
+  // ever reaches the menu-list level.
+  const backLevel = drilledFromOverview ? 2 : (showMobileContent ? 1 : 0);
+  useBackIntercept(backLevel, (newLevel) => {
+    if (newLevel === 1 && drilledFromOverview) {
+      setDrilledFromOverview(false);
+      setTab('overview');
+    } else if (newLevel === 0) {
+      setShowMobileContent(false);
+    }
+  });
 
   useEffect(() => {
     const obs = new MutationObserver(() => {
@@ -3620,7 +3721,7 @@ export default function Admin() {
             return (
               <button
                 key={id}
-                onClick={() => { setTab(id); setShowMobileContent(true); }}
+                onClick={() => { selectTab(id); setShowMobileContent(true); }}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 2,
@@ -3687,7 +3788,16 @@ export default function Admin() {
           }}
         >
           <button
-            onClick={() => setShowMobileContent(false)}
+            onClick={() => {
+              // Mirrors the useBackIntercept onPop logic above, so a manual
+              // tap on this back button behaves identically to a swipe-back.
+              if (drilledFromOverview) {
+                setDrilledFromOverview(false);
+                setTab('overview');
+              } else {
+                setShowMobileContent(false);
+              }
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -3703,16 +3813,13 @@ export default function Admin() {
           >
             <ChevronLeft size={24} />
           </button>
-          <span style={{ fontWeight: 800, fontSize: 15, color: isLight ? '#111827' : '#fff' }}>
-            {NAV.find(n => n.id === tab)?.label || 'Admin'}
-          </span>
         </header>
 
         {!hasAccess ? (
           <AccessDeniedPage tabLabel={activeNavItem?.label || 'this page'} />
         ) : (
           <>
-            {tab === 'overview' && <OverviewPage onNavigate={setTab} />}
+            {tab === 'overview' && <OverviewPage onNavigate={navigateFromOverview} />}
             {tab === 'users' && <UsersPage initialJoinFilter={userJoinFilter} onJoinFilterChange={setUserJoinFilter} />}
             {tab === 'rooms' && <ActiveRoomsPage />}
             {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}

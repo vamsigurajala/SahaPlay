@@ -15,9 +15,29 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   const isVid = type?.startsWith('video/');
   const hasMultiple = items?.length > 1;
   const [showItemMenu, setShowItemMenu] = React.useState(false);
+  const [showArrows, setShowArrows] = React.useState(true);
   const touchRef = React.useRef({ x: 0, y: 0, active: false });
+  // Set on a confirmed swipe navigation so the click that (on some mobile
+  // browsers/webviews) still fires right after a drag doesn't also toggle
+  // arrow visibility — swiping should never bring the arrows back.
+  const swipedRef = React.useRef(false);
 
   React.useEffect(() => { setShowItemMenu(false); }, [index]);
+
+  // Shown briefly on open (or whenever a tap reveals them again), then
+  // auto-hide — teaches the swipe affordance without permanently
+  // obstructing the view. Mount-only-plus-showArrows-toggle on purpose:
+  // navigating via swipe changes `index` but must NOT re-trigger this.
+  React.useEffect(() => {
+    if (!showArrows) return;
+    const t = setTimeout(() => setShowArrows(false), 2500);
+    return () => clearTimeout(t);
+  }, [showArrows]);
+
+  const handleMediaClick = () => {
+    if (swipedRef.current) { swipedRef.current = false; return; }
+    setShowArrows(v => !v);
+  };
 
   React.useEffect(() => {
     const handleKey = (e) => {
@@ -60,8 +80,8 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     const deltaX = touch.clientX - s.x;
     const deltaY = touch.clientY - s.y;
     if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical drag — ignore
-    if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) onPrev?.();
-    else if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) onNext?.();
+    if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) { swipedRef.current = true; onPrev?.(); }
+    else if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) { swipedRef.current = true; onNext?.(); }
   };
 
   const expiryDaysLeft = item?.expiresAt ? Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
@@ -133,6 +153,7 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onClick={handleMediaClick}
           style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}
         >
           {isImg ? (
@@ -147,13 +168,13 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
             </div>
           )}
 
-          {hasMultiple && index > 0 && (
+          {hasMultiple && index > 0 && showArrows && (
             <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
               style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronLeft size={20} /></span>
             </button>
           )}
-          {hasMultiple && index < items.length - 1 && (
+          {hasMultiple && index < items.length - 1 && showArrows && (
             <button onClick={e => { e.stopPropagation(); onNext?.(); }}
               style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronRight size={20} /></span>
