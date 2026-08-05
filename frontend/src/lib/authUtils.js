@@ -1,3 +1,6 @@
+import { appCache } from '../cache/appCache.js';
+import { resetPrefetchCooldown } from '../cache/prefetch.js';
+
 export const clearUserSession = () => {
     const keysToRemove = [
         'watch_token',
@@ -43,4 +46,11 @@ export const clearUserSession = () => {
     } catch (e) {
         console.warn('Failed to clear some dynamic local storage keys', e);
     }
+
+    // The GET-request cache is keyed by URL only, with no notion of which
+    // account asked — without this, a same-tab account switch would keep
+    // serving the previous account's cached /api/profile, /api/chats/recent,
+    // etc. responses until their TTL lapsed or the page was refreshed.
+    appCache.clear();
+    resetPrefetchCooldown();
 };

@@ -8,15 +8,28 @@ import { User, Settings, HelpCircle, Download, Sparkles, LogOut, ChevronRight } 
 // unchanged; the standalone-PWA bottom nav's Profile tab renders the same
 // component with its own (simpler) navigation callbacks.
 //
-// `compact`, when true, scopes the menu down to exactly Account / App
-// Settings / Contact Support / Logout (or Sign In+Sign Up for a guest, since
-// "Logout" doesn't apply to a guest session) — hiding Get Desktop App
-// (redundant inside an already-installed app) and Admin Dashboard, for the
+// `compact`, when true, scopes the menu down to Account / App Settings /
+// Contact Support / Logout (or Sign In+Sign Up for a guest, since "Logout"
+// doesn't apply to a guest session), plus Admin Dashboard for admin roles —
+// hiding only Get Desktop App (redundant inside an already-installed app)
+// and Pinned/Public Rooms (already their own bottom-nav tabs), for the
 // standalone-PWA bottom nav's Profile tab. It also renders as a distinct,
 // card-style row list (icon chip + label + chevron) instead of the plain
 // `.nav-link-btn` list the hamburger drawer uses — that shared class centers
 // its content by default (fine for the drawer's own scoped override), which
 // left compact rows looking mis-aligned/plain in the bottom-nav drawer.
+// Hoisted out of ProfileActionMenu (captures nothing from its closure) so
+// React doesn't treat it as a new component type on every render.
+const CompactRow = ({ icon: Icon, label, onClick, active, danger, color }) => (
+  <button className={`profile-drawer-item${active ? ' active' : ''}${danger ? ' danger' : ''}`} onClick={onClick}>
+    <span className="profile-drawer-item-icon" style={color ? { background: `${color}1f`, color } : undefined}>
+      <Icon size={17} />
+    </span>
+    <span className="profile-drawer-item-label">{label}</span>
+    <ChevronRight size={16} className="profile-drawer-item-chevron" />
+  </button>
+);
+
 export default function ProfileActionMenu({
   compact = false,
   currentPath,
@@ -35,16 +48,6 @@ export default function ProfileActionMenu({
   t,
 }) {
   if (compact) {
-    const Row = ({ icon: Icon, label, onClick, active, danger, color }) => (
-      <button className={`profile-drawer-item${active ? ' active' : ''}${danger ? ' danger' : ''}`} onClick={onClick}>
-        <span className="profile-drawer-item-icon" style={color ? { background: `${color}1f`, color } : undefined}>
-          <Icon size={17} />
-        </span>
-        <span className="profile-drawer-item-label">{label}</span>
-        <ChevronRight size={16} className="profile-drawer-item-chevron" />
-      </button>
-    );
-
     return (
       <>
         <style>{`
@@ -79,22 +82,26 @@ export default function ProfileActionMenu({
           }
         `}</style>
 
-        <Row icon={User} label={t('account', 'Account')} onClick={onProfileClick} active={currentPath === '/profile'} color="var(--brand-1)" />
-        <Row icon={Settings} label={t('app', 'App Settings')} onClick={onAppSettingsClick} active={currentPath === '/app-settings'} color="var(--brand-2)" />
-        <Row icon={HelpCircle} label={t('contactSupport', 'Contact Support')} onClick={onContactSupportClick} color="#38bdf8" />
+        <CompactRow icon={User} label={t('account', 'Account')} onClick={onProfileClick} active={currentPath === '/profile'} color="var(--brand-1)" />
+        <CompactRow icon={Settings} label={t('app', 'App Settings')} onClick={onAppSettingsClick} active={currentPath === '/app-settings'} color="var(--brand-2)" />
+        <CompactRow icon={HelpCircle} label={t('contactSupport', 'Contact Support')} onClick={onContactSupportClick} color="#38bdf8" />
+
+        {isAdminRole && (
+          <CompactRow icon={Sparkles} label={t('adminDashboard', 'Admin Dashboard')} onClick={onAdminClick} active={currentPath === '/admin'} color="var(--brand-2)" />
+        )}
 
         <div className="profile-drawer-divider" />
 
         {isGuest ? (
           <>
-            <Row icon={User} label={t('logIn', 'Sign In')} onClick={onSignInClick} color="var(--brand-1)" />
+            <CompactRow icon={User} label={t('logIn', 'Sign In')} onClick={onSignInClick} color="var(--brand-1)" />
             <button className="profile-drawer-signup-btn stay-white" onClick={onSignUpClick}>
               <Sparkles size={16} className="stay-white" />
               <span className="stay-white">{t('signUp', 'Sign Up')}</span>
             </button>
           </>
         ) : (
-          <Row icon={LogOut} label={t('logOut', 'Log Out')} onClick={onLogoutClick} danger />
+          <CompactRow icon={LogOut} label={t('logOut', 'Log Out')} onClick={onLogoutClick} danger />
         )}
       </>
     );

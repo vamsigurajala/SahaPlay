@@ -10,6 +10,15 @@ let _lastRun = 0;
 const COOLDOWN = 60_000;
 
 /**
+ * Lets a fresh login guarantee an immediate real prefetch instead of
+ * possibly waiting out the previous account's cooldown window — see
+ * clearUserSession() in lib/authUtils.js.
+ */
+export function resetPrefetchCooldown() {
+  _lastRun = 0;
+}
+
+/**
  * Warm the cache in background tiers:
  *   Tier 1 — critical data (parallel)
  *   Tier 2 — pinned rooms
