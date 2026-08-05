@@ -11,6 +11,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
+import { isStandalonePWA } from './lib/platform';
 
 const SECTIONS = [
   { id: 'introduction',         num: 1,  titleKey: 'termsSec1Title',  defaultTitle: 'Introduction',                           Icon: FileText      },
@@ -653,7 +654,7 @@ export default function Terms() {
         </section>
 
       </div>
-      <Footer />
+      {!isStandalonePWA() && <Footer />}
 
       {/* ══ BACK TO TOP ═══════════════════════════════════════════════ */}
       {showBackToTop && (
