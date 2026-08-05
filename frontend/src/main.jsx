@@ -2,6 +2,26 @@ import { StrictMode } from 'react'
 import { clearUserSession } from './lib/authUtils.js';
 import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
+// Self-hosted (not Google Fonts CDN) — a cross-origin font stylesheet is one
+// more request that can fail or stall on a flaky connection, which silently
+// drops the whole page back to a generic system font. Bundling the font
+// files through Vite means they ship with everything else and work offline
+// in the Tauri desktop build too.
+import '@fontsource/outfit/300.css';
+import '@fontsource/outfit/400.css';
+import '@fontsource/outfit/500.css';
+import '@fontsource/outfit/600.css';
+import '@fontsource/outfit/700.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import '@fontsource/inter/800.css';
+import '@fontsource/plus-jakarta-sans/400.css';
+import '@fontsource/plus-jakarta-sans/500.css';
+import '@fontsource/plus-jakarta-sans/600.css';
+import '@fontsource/plus-jakarta-sans/700.css';
+import '@fontsource/plus-jakarta-sans/800.css';
 import './index.css'
 import './i18n'
 import App from './App.jsx'
