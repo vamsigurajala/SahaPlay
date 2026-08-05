@@ -1,0 +1,13 @@
+{
+  "name": "sahaplay-loadtest",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Load-test tooling for SahaPlay — self-contained, deliberately never touches production (see the guards in each script).",
+  "scripts": {
+    "setup": "node setup-fixtures.js"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3",
+    "socket.io-client": "^4.8.3"
+  }
+}

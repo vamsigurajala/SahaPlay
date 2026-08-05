@@ -1,0 +1,4 @@
+node_modules/
+loadtest-tokens.json
+loadtest-rooms.json
+.env.production-secret

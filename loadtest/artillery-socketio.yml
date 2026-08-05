@@ -1,0 +1,86 @@
+# Socket.IO load test: connect (pre-minted JWT) -> join_room -> chat_message
+# -> play/pause/seek burst. Scenario logic lives in socketio-scenario.js —
+# see that file for why it's plain "function" steps instead of the
+# socketio-v3 engine's declarative flow.
+#
+# STAGING ONLY. This writes real chat messages and room state — the
+# processor refuses to run at all if WS_BASE looks like production
+# (see _guard.js) unless LOADTEST_ALLOW_PRODUCTION_WRITE=yes-i-am-sure is
+# explicitly set, a deliberate one-off override, never a default.
+# Run `node setup-fixtures.js` once before this, against the same WS_BASE,
+# to generate loadtest-tokens.json / loadtest-rooms.json.
+#
+# IMPORTANT — arrivalCount vs arrivalRate/rampTo (a real mistake made and
+# fixed here): arrivalRate/rampTo means NEW VIRTUAL USERS PER SECOND, not
+# "total concurrent users held open." An earlier version of this file used
+# rampTo: 50 / arrivalRate: 50 believing it meant "50 concurrent" (the k6
+# ramping-vus mental model) — it actually meant 50 NEW sockets spawned every
+# second, uncapped, for the phase's whole duration. Combined with each VU
+# taking several seconds to finish (longer still once the server started
+# struggling), concurrency ran away far past 50 and never stopped climbing
+# until the phase ended — 2250 VUs created, 80.6% failed. Every phase below
+# now uses `arrivalCount` (a FIXED TOTAL) instead — regardless of how slow
+# the server responds, no more than that exact number will ever be created.
+# See the math in the chat history / commit message for how arrivalCount +
+# duration were chosen to also approximate genuine concurrent overlap, not
+# just a safe total.
+#
+# Usage (run these one at a time, not all in one invocation):
+#   WS_BASE=https://your-backend \
+#     npx artillery run --environment cold_start artillery-socketio.yml
+#
+#   WS_BASE=https://your-backend \
+#     npx artillery run --environment spike_tiny_confirm artillery-socketio.yml
+#
+#   WS_BASE=https://your-backend \
+#     npx artillery run --environment spike_conservative artillery-socketio.yml
+#
+#   WS_BASE=https://your-backend \
+#     npx artillery run --environment spike_full artillery-socketio.yml
+
+config:
+  target: "{{ $processEnvironment.WS_BASE }}"   # informational only — the actual socket connects read WS_BASE directly in socketio-scenario.js
+  processor: "./socketio-scenario.js"
+
+  environments:
+    # A handful of connections against a backend that's been sitting idle —
+    # do you get queued-then-successful joins, or 502/timeout while it wakes?
+    cold_start:
+      phases:
+        - name: "Cold-start burst (10 VUs over 5s)"
+          arrivalCount: 10
+          duration: 5
+
+    # Sanity-check the arrivalCount fix itself before trusting it at 50:
+    # a small, cheap run to confirm vusers.created comes back exactly 12,
+    # not some larger runaway number.
+    spike_tiny_confirm:
+      phases:
+        - name: "Tiny confirm burst — exactly 12, hard-capped"
+          arrivalCount: 12
+          duration: 2
+
+    # Genuine ~50 concurrent: arrivalCount=50 is a hard total (never more,
+    # no matter how slow responses get), duration=2s keeps the spawn window
+    # under the ~2.78s baseline per-VU time (stage (b)'s clean measurement)
+    # so the 50 genuinely overlap in time rather than trickling in one by one.
+    spike_conservative:
+      phases:
+        - name: "Burst of 50 concurrent (hard-capped total, not a rate)"
+          arrivalCount: 50
+          duration: 2
+
+    # Genuine ~300 concurrent, same reasoning — NOT pre-approved to run
+    # against production without an explicit separate go-ahead (see the
+    # decision already made to hold off on this pending stage (d)'s result).
+    spike_full:
+      phases:
+        - name: "Burst of 300 concurrent (hard-capped total, not a rate)"
+          arrivalCount: 300
+          duration: 2.5
+
+scenarios:
+  - name: "Join room -> chat -> sync"
+    flow:
+      - function: "assignVirtualUser"
+      - function: "runSocketScenario"

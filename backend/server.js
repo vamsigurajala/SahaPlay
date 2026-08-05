@@ -6200,7 +6200,11 @@ io.on('connection', (socket) => {
 
     pool.query(queryStr, queryParams, async (err, pgRes) => {
       const groupRows = pgRes ? pgRes.rows : null;
-      console.log('[executeFinalJoin] groupRows count for', roomId, 'is', groupRows ? groupRows.length : 0, 'error:', err ? err.message : null);
+      if (err) {
+        console.log('[executeFinalJoin] group history query failed for', roomId, '— error:', err.message);
+      } else {
+        console.log('[executeFinalJoin] groupRows count for', roomId, 'is', groupRows ? groupRows.length : 0);
+      }
       if (!err && groupRows && groupRows.length > 0) {
         // 1. Build username→publicKey from currently-connected sockets (fast, in-memory)
         const usernameToPublicKey = {};
