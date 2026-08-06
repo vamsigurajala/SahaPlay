@@ -5716,6 +5716,14 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
       stream.readyEmitted = true;
       if (room) {
         room.streamPending = null;
+        // Persist the playable URL now, not just at stream_finalize (full upload
+        // complete) — otherwise anyone who joins/reconnects between "ready" and
+        // "finalize" got an empty currentMedia in room_state and saw nothing at
+        // all until the entire (possibly multi-minute) upload finished.
+        room.currentMedia = `${req.protocol}://${req.get('host')}/api/stream/${streamKey}/video`;
+        room.currentTime = 0;
+        room.isPlaying = false;
+        room.timestampUpdatedAt = Date.now();
       }
       io.to(stream.roomId).emit('stream_ready', {
         streamKey,

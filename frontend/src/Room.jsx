@@ -5448,7 +5448,23 @@ const Room = () => {
   // Sync isPlaying state → local <video> element for stream URLs
   useEffect(() => {
     if (!localVideoRef.current) return;
-    if (isPlaying) localVideoRef.current.play().catch(() => {});
+    if (isPlaying) {
+      const el = localVideoRef.current;
+      el.play().catch(() => {
+        // Unmuted autoplay is commonly blocked without a direct user gesture on
+        // this element — this was silently swallowed before, so a viewer who'd
+        // just joined (or whose upload just became playable) stayed on a frozen
+        // paused frame indefinitely with no indication anything was wrong, until
+        // they happened to tap the player themselves. Muted autoplay is allowed
+        // almost everywhere, so fall back to that to at least get them watching
+        // in sync — they can unmute with one tap on the volume control.
+        el.muted = true;
+        setPlayerMuted(true);
+        el.play().then(() => {
+          toast('Video muted to start playback — tap the volume icon to unmute', { icon: '🔇' });
+        }).catch(() => {});
+      });
+    }
     else localVideoRef.current.pause();
   }, [isPlaying]);
 
