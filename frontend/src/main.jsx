@@ -22,6 +22,8 @@ import '@fontsource/plus-jakarta-sans/500.css';
 import '@fontsource/plus-jakarta-sans/600.css';
 import '@fontsource/plus-jakarta-sans/700.css';
 import '@fontsource/plus-jakarta-sans/800.css';
+// Single weight — used only for the stylish "SahaPlay" script wordmark.
+import '@fontsource/pacifico/400.css';
 import './index.css'
 import './i18n'
 import App from './App.jsx'

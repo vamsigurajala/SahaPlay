@@ -358,6 +358,25 @@ const Navbar = () => {
               <span className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
             </div>
 
+            {/* Center: stylish script wordmark — standalone (PWA/TWA) home screen
+                only, same idea as Instagram's centered script logotype on its home
+                feed. Absolutely positioned so it centers independent of how wide
+                the left/right content is, rather than needing a 3-column grid. */}
+            {standalone && location.pathname === '/' && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+                  fontFamily: "'Pacifico', cursive", fontSize: 24, lineHeight: 1,
+                  background: 'var(--brand-gradient)', WebkitBackgroundClip: 'text', backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent', color: 'var(--brand-1)',
+                  pointerEvents: 'none', whiteSpace: 'nowrap'
+                }}
+              >
+                SahaPlay
+              </span>
+            )}
+
             {/* Right: Actions & Hamburger */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div ref={navIconsRef} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
