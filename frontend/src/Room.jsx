@@ -1742,11 +1742,22 @@ const Room = () => {
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       } else {
         setIsMobileFsMode(true);
         // Calls stay portrait (WhatsApp-style); real video/games rotate landscape.
         if (screen?.orientation?.lock) {
           screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
+        }
+        // The CSS takeover (.player-mob-fs/-portrait) only fills the in-page
+        // viewport — it can't touch the OS status bar, which lives outside the
+        // DOM entirely. Also requesting real browser Fullscreen (safe here: no
+        // CSS rotation involved, only the virtual-browser/Hyperbeam case needed
+        // to avoid that) gets Chrome/Safari to hide their own chrome around it
+        // for true edge-to-edge video. Best-effort — iOS Safari on iPhone still
+        // doesn't support element Fullscreen, so this silently no-ops there.
+        if (playerWrapRef.current?.requestFullscreen) {
+          playerWrapRef.current.requestFullscreen().catch(() => {});
         }
       }
       return;
@@ -7041,6 +7052,7 @@ const Room = () => {
     } else {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
 
@@ -7806,6 +7818,7 @@ const Room = () => {
     if (newLevel === 0) {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   });
 
@@ -10318,13 +10331,19 @@ const Room = () => {
                                 : subtitleSettings.bgColor === 'darkgray' ? 'rgba(40,40,40,0.88)'
                                 : 'rgba(0,0,0,0.88)';
                               const isCenter = subtitleSettings.position === 'center';
-                              const pbottom = subtitleSettings.position === 'bottom-raised' ? '14%' : '8%';
+                              // Raised offset clears the control bar while it's visible; once it
+                              // auto-hides (or the user taps controls away) subtitles should drop
+                              // down to just above the screen edge instead of staying elevated.
+                              const pbottom = showControls
+                                ? (subtitleSettings.position === 'bottom-raised' ? '14%' : '8%')
+                                : '3%';
                               return (
                                 <div style={{
                                   position: 'absolute', inset: 0, zIndex: 10000,
                                   display: 'flex', justifyContent: 'center',
                                   alignItems: isCenter ? 'center' : 'flex-end',
                                   paddingBottom: isCenter ? 0 : pbottom,
+                                  transition: isCenter ? undefined : 'padding-bottom 0.25s ease',
                                   pointerEvents: 'none', userSelect: 'none',
                                 }}>
                                   <div style={{
@@ -11691,12 +11710,18 @@ const Room = () => {
             )
           )}
 
-            {/* Floating Restore Controls Button — shown at top center for as long as
-                custom controls are hidden (native player controls are active). Must stay
-                visible the whole time, not just briefly: once native mode is on, the
-                overlay that would normally re-arm a timer is gone (clicks need to reach
-                the iframe directly), so there'd otherwise be no way back to our own UI. */}
-            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && (
+            {/* Floating Restore Controls Button — shown at top center while custom
+                controls are hidden (native player controls are active). For embed-
+                platform iframes (YouTube/SoundCloud) it must stay visible the whole
+                time: once native mode is on there, the overlay that would normally
+                re-arm a timer is gone (clicks need to reach the iframe directly), so
+                there'd otherwise be no way back to our own UI. For plain video files
+                the tap-gesture layer stays active underneath even in native mode, so
+                this can safely follow the same show/auto-hide timer as the rest of
+                the control chrome instead of camping on screen indefinitely. */}
+            {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && (() => {
+              const restoreBtnAutoHide = isTouchPlayer && !isEmbedPlatform(mediaUrl);
+              return (
               <button
                 onClick={() => setHideCustomControls(false)}
                 style={isTouchPlayer ? {
@@ -11711,8 +11736,9 @@ const Room = () => {
                   border: '1px solid rgba(255, 255, 255, 0.25)',
                   cursor: 'pointer',
                   backdropFilter: 'blur(8px)',
-                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                  pointerEvents: 'auto'
+                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease',
+                  opacity: restoreBtnAutoHide && !showControls ? 0 : 1,
+                  pointerEvents: restoreBtnAutoHide && !showControls ? 'none' : 'auto'
                 } : {
                   position: 'absolute',
                   top: '16px',
@@ -11745,8 +11771,9 @@ const Room = () => {
                 <ChevronUp size={16} color="#fff" />
                 {!isTouchPlayer && <span className="stay-white">Show SahaPlay Controls</span>}
               </button>
-            )}
-            
+              );
+            })()}
+
             {/* Camera Streams Overlay (only inside player-wrap when in fullscreen, floating mode only) */}
             {isFullscreen && !shouldUseManagedCameraLayout && !areCamerasHidden && (
               <div style={{
