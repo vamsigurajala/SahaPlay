@@ -8,6 +8,15 @@ export function isTauriApp() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+// `window.Capacitor` is injected by the native shell before the page loads,
+// same mechanism as `__TAURI_INTERNALS__` above — checking it directly here
+// (rather than importing `@capacitor/core`'s own `isNativePlatform()`) keeps
+// the web frontend from picking up a new runtime dependency just to detect
+// its own host, matching the Tauri check's rationale.
+export function isCapacitorApp() {
+  return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+}
+
 // Detects the installed-PWA / Android TWA context so app-shell chrome (like
 // the bottom nav bar) can render only there, never in a regular mobile
 // browser tab. Three signals, since no single one covers every launch path:

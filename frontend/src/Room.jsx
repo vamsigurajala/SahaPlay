@@ -2,7 +2,8 @@ import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from
 import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
-import { isStandalonePWA } from './lib/platform.js';
+import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
+import { setNativeVolume, setNativeBrightness, getNativeVolume } from './lib/nativeMedia.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -1894,6 +1895,21 @@ const Room = () => {
   // aid for that session, not something that should silently carry over and leave
   // the player looking dim the next time fullscreen is entered.
   useEffect(() => { if (!isMobileFsMode) setBrightnessLevel(1); }, [isMobileFsMode]);
+  // Inside the Capacitor-wrapped app, seed the on-screen volume level from the
+  // phone's actual current volume when entering mobile fullscreen, so the
+  // slider starts where the hardware really is instead of wherever it was
+  // last left in-app. No-ops (getNativeVolume resolves null) everywhere else.
+  useEffect(() => {
+    if (!isMobileFsMode || !isCapacitorApp()) return;
+    let cancelled = false;
+    getNativeVolume().then(value => {
+      if (cancelled || value === null) return;
+      playerVolumeRef.current = value;
+      setPlayerVolume(value);
+      setPlayerMuted(value === 0);
+    });
+    return () => { cancelled = true; };
+  }, [isMobileFsMode]);
   // Responsive breakpoints
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -7503,8 +7519,16 @@ const Room = () => {
       playerVolumeRef.current = nextVal;
       setPlayerVolume(nextVal);
       setPlayerMuted(nextVal === 0);
+      // Purely additive: <video>.volume above stays the fallback for plain
+      // web/PWA/TWA; inside the Capacitor-wrapped app this also moves the
+      // phone's real hardware media volume, same slider the buttons control.
+      setNativeVolume(nextVal);
     } else {
-      setBrightnessLevel(MIN_BRIGHTNESS + nextVal * (1 - MIN_BRIGHTNESS));
+      const brightness = MIN_BRIGHTNESS + nextVal * (1 - MIN_BRIGHTNESS);
+      setBrightnessLevel(brightness);
+      // Same as above — the CSS dim overlay is the fallback everywhere;
+      // Capacitor additionally dims the real screen backlight.
+      setNativeBrightness(brightness);
     }
     setVerticalGestureFeedback({ zone: g.zone, value: nextVal });
   };
