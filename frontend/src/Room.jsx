@@ -9490,14 +9490,22 @@ const Room = () => {
         onBeforeLeaveNavigate={roomModalsBack.skipNextClose}
       />
 
-      <SubtitleSettingsModal
-        open={showSubtitleSettingsModal}
-        onClose={() => setShowSubtitleSettingsModal(false)}
-        settings={subtitleSettings}
-        onChange={setSubtitleSettings}
-        isMobile={isTouchPlayer}
-        isRotatedFs={isRotatedFs}
-      />
+      {/* Portaled into player-wrap while real mobile Fullscreen is engaged there —
+          rendered inline (or portaled to document.body, functionally identical for a
+          position:fixed root) it sat outside the fullscreened element's subtree and
+          the browser simply never painted it, same root cause as the CC/quality
+          dropdowns above. */}
+      {createPortal(
+        <SubtitleSettingsModal
+          open={showSubtitleSettingsModal}
+          onClose={() => setShowSubtitleSettingsModal(false)}
+          settings={subtitleSettings}
+          onChange={setSubtitleSettings}
+          isMobile={isTouchPlayer}
+          isRotatedFs={isRotatedFs}
+        />,
+        (isTouchPlayer && isMobileFsMode && playerWrapRef.current) ? playerWrapRef.current : document.body
+      )}
 
       <CustomizeRoomModal
         isOpen={showCustomizeModal}
@@ -11752,7 +11760,16 @@ const Room = () => {
                               {content}
                             </div>
                           ),
-                          document.body
+                          // Portaled into player-wrap itself, not document.body — while real
+                          // browser Fullscreen is engaged on player-wrap (mobile fullscreen,
+                          // now that it triggers actual device rotation), anything portaled
+                          // outside that element's subtree simply isn't painted at all per the
+                          // Fullscreen API spec, which is exactly why this dropdown opened but
+                          // was invisible. player-wrap has no CSS transform in every case except
+                          // the CSS-rotate fallback above (which already compensates for it via
+                          // .sp-mobfs-overlay-wrap), so position:fixed here still anchors to the
+                          // real viewport exactly like a document.body portal did.
+                          playerWrapRef.current || document.body
                         );
                       })()}
                     </div>
@@ -11905,7 +11922,8 @@ const Room = () => {
                       ))}
                     </div>
                     ),
-                    document.body
+                    // See the subtitle dropdown's portal-target comment above — same reason.
+                    playerWrapRef.current || document.body
                   )}
 
                   {/* Fullscreen */}
