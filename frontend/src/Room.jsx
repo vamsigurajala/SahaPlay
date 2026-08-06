@@ -1903,6 +1903,22 @@ const Room = () => {
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
   };
 
+  // Tap-to-toggle for touch players: a tap while controls are up hides them
+  // immediately instead of just re-arming the 3s timer, and a tap while hidden
+  // shows them (with the usual auto-hide). Read via a ref (mirrored below) so
+  // the value used is always the latest, even from inside a setTimeout closure
+  // created on a stale render.
+  const showControlsRef = useRef(showControls);
+  useEffect(() => { showControlsRef.current = showControls; }, [showControls]);
+  const toggleControlsVisibility = () => {
+    if (showControlsRef.current) {
+      clearTimeout(controlsTimerRef.current);
+      setShowControls(false);
+    } else {
+      resetControlsTimer();
+    }
+  };
+
   useEffect(() => {
     return () => {
       clearTimeout(controlsTimerRef.current);
@@ -2678,7 +2694,7 @@ const Room = () => {
   const [isScreensharing, setIsScreensharing] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
   const [remoteStream, setRemoteStream] = useState(null);
-  const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('preferred_quality') || '720p');
+  const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('preferred_quality') || '480p');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const qualityMenuRef = useRef(null);
   // Mobile quality dropdown is portaled to document.body (see render below) so it
@@ -7426,7 +7442,7 @@ const Room = () => {
         setCenterFeedback({ type: isPlaying ? 'pause' : 'play', key: Date.now() });
         centerFeedbackTimerRef.current = setTimeout(() => setCenterFeedback(null), 550);
       }
-      resetControlsTimer();
+      toggleControlsVisibility();
       return;
     }
 
@@ -7446,16 +7462,11 @@ const Room = () => {
     }
 
     // Not (yet) a double-tap — wait out the window in case a second tap follows,
-    // then treat it as a plain single tap that shows the control bar. Used to
-    // immediately hide instead when controls were already showing — a tap that
-    // happened to land while they were up (e.g. right after entering fullscreen)
-    // would instantly dismiss them again, reading as "controls flash and vanish"
-    // rather than staying up for their full auto-hide duration. Always
-    // (re-)showing, same as the center zone already does, means any tap gives
-    // the full window before auto-hide kicks in.
+    // then treat it as a plain single tap that toggles the control bar: shows it
+    // (with the usual auto-hide) if hidden, or hides it immediately if already up.
     clearTimeout(tapTimerRef.current);
     tapTimerRef.current = setTimeout(() => {
-      resetControlsTimer();
+      toggleControlsVisibility();
     }, DOUBLE_TAP_MS);
   };
 
@@ -9559,8 +9570,8 @@ const Room = () => {
           <div
             ref={playerWrapRef}
             className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isRotatedFs ? ' player-mob-fs' : ' player-mob-fs-portrait') : ''}`}
-            onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
-            onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            onMouseMove={() => { if (!isTouchPlayer) resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            onMouseEnter={() => { if (!isTouchPlayer) resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => {
               // Touch devices synthesize a mouseleave shortly after every tap (there's no
               // real hover to sustain), which was instantly killing the 3s auto-hide timer
@@ -9568,7 +9579,12 @@ const Room = () => {
               // away. Only real mouse-leaving-the-player should force an immediate hide.
               if (!isTouchPlayer) setShowControls(false);
             }}
-            onTouchStart={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            // Touch players own show/hide entirely through the tap-gesture zones below
+            // (handlePlayerZoneTap → toggleControlsVisibility) — this bubbles up from every
+            // tap in those zones too, and unconditionally showing here raced with (and
+            // always won against) a tap's decision to hide, so a second tap never actually
+            // hid the controls. Game overlays still get their own timer reset.
+            onTouchStart={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             style={{
               flex: 1,
               background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',

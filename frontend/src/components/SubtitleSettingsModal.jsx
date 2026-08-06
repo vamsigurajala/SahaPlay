@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 
 const FONT_SIZES = [
   { value: 'small', label: 'Small', px: 13 },
@@ -73,9 +73,13 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
       : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.08)');
 
   // Shared drawer-panel look (mobile portrait AND rotated-fullscreen both use this —
-  // only how the panel is positioned/wrapped differs between the two).
+  // only how the panel is positioned/wrapped differs between the two). Kept translucent
+  // with a blur so the video stays visible through it, matching the semi-transparent
+  // reference look the user asked to match, rather than a fully opaque sheet.
   const panelBase = {
-    background: isLight ? '#ffffff' : '#0d0d1a',
+    background: isLight ? 'rgba(255,255,255,0.82)' : 'rgba(13,13,26,0.72)',
+    backdropFilter: 'blur(18px)',
+    WebkitBackdropFilter: 'blur(18px)',
     padding: '20px 18px',
     overflowY: 'auto',
     scrollbarWidth: 'none',
@@ -99,22 +103,22 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
               e.currentTarget.style.color = '#ffffff';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)';
-              e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.12)';
               e.currentTarget.style.color = isLight ? '#6b7280' : '#9ca3af';
             }}
             style={{
-              background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',
-              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
+              background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
+              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.12)',
+              borderRadius: '50%',
               color: isLight ? '#6b7280' : '#9ca3af',
               cursor: 'pointer',
-              width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, lineHeight: 1, fontFamily: 'inherit', flexShrink: 0,
+              width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'inherit', flexShrink: 0, padding: 0,
               transition: 'background 0.15s, border-color 0.15s, color 0.15s',
             }}
           >
-            ×
+            <X size={16} strokeWidth={2.5} />
           </button>
         </div>
 
@@ -420,7 +424,7 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
       <div className={isMobile ? 'sp-hidden-scroll' : ''} style={isMobile ? {
         ...panelBase,
         borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px 0 0 16px',
+        borderRadius: 0,
         width: 'min(86vw, 340px)',
         height: '100%',
         maxHeight: '100%',
