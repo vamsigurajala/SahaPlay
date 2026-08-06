@@ -6941,6 +6941,24 @@ const Room = () => {
     }
   }, [hyperbeamSession]);
 
+  // Auto-enter rotated landscape fullscreen when a Hyperbeam virtual browser
+  // session opens on a touch device. Netflix/Prime/etc. render as a fixed
+  // 1280x720 desktop page inside the session (this Hyperbeam plan rejects
+  // portrait-shaped resize requests), so cramming that into the small portrait
+  // player tile is unreadable — landscape fullscreen gives it a properly-sized
+  // frame to render into instead, same as this player already does for regular
+  // video via handleFullscreen()/isMobileFsMode.
+  useEffect(() => {
+    if (!isTouchPlayer) return;
+    if (hyperbeamSession) {
+      setIsMobileFsMode(true);
+      if (screen?.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
+    } else {
+      setIsMobileFsMode(false);
+      if (screen?.orientation?.unlock) screen.orientation.unlock();
+    }
+  }, [hyperbeamSession, isTouchPlayer]);
+
   // Navigate the active Virtual Browser when mediaUrl changes
   useEffect(() => {
     const inst = hyperbeamInstanceRef.current;
