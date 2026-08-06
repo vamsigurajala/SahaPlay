@@ -1654,13 +1654,19 @@ const Room = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [isMobileFsMode, setIsMobileFsMode] = useState(false);
-  // True only for the actual rotated (.player-mob-fs) case — calls and the
-  // Hyperbeam virtual browser use .player-mob-fs-portrait instead (stays
-  // upright), so nothing needs the rotated-overlay treatment there. Virtual
-  // browser specifically can't rotate: Hyperbeam's own click/tap-to-remote-
-  // coordinate math isn't aware of a CSS-rotated ancestor, so a rotated
-  // container makes every tap land on the wrong spot in the remote page.
-  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && !isVirtualBrowserMedia;
+  // Virtual browser fullscreen defaults to upright/portrait (so Hyperbeam's tap
+  // coordinates stay correct while browsing/logging in). Once the user manually
+  // re-taps the Fullscreen button, that's them saying "I'm just watching now" —
+  // honor it with a real rotated landscape view. Resets to portrait whenever a
+  // fresh virtual browser session starts.
+  const [vbLandscapeMode, setVbLandscapeMode] = useState(false);
+  // True only for the actual rotated (.player-mob-fs) case — calls always use
+  // .player-mob-fs-portrait (stays upright). The virtual browser defaults to
+  // portrait too (Hyperbeam's tap-to-remote-coordinate math isn't aware of a
+  // CSS-rotated ancestor, so rotating it makes taps land on the wrong spot),
+  // but honors vbLandscapeMode once the user explicitly asks for landscape
+  // via a manual Fullscreen tap.
+  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && (!isVirtualBrowserMedia || vbLandscapeMode);
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
@@ -1721,11 +1727,12 @@ const Room = () => {
         if (screen?.orientation?.unlock) screen.orientation.unlock();
       } else {
         setIsMobileFsMode(true);
-        // Calls and the virtual browser stay portrait (WhatsApp-style / avoids
-        // breaking Hyperbeam's tap coordinates) — only real video/game
-        // playback rotates into landscape on mobile fullscreen.
+        // Calls stay portrait (WhatsApp-style). Virtual browser: a manual
+        // Fullscreen tap here means the user is done navigating and just
+        // wants to watch — honor landscape for it too, same as regular video.
+        if (isVirtualBrowserMedia) setVbLandscapeMode(true);
         if (screen?.orientation?.lock) {
-          screen.orientation.lock((isCallActivity(mediaUrl) || isVirtualBrowserMedia) ? 'portrait' : 'landscape').catch(() => {});
+          screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
         }
       }
       return;
@@ -1782,6 +1789,11 @@ const Room = () => {
   const [playerMuted, setPlayerMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
+  // "Show Chat" pill (virtual browser mobile takeover) — same idea as showControls
+  // but its own 2s timer per the requested behavior, reset on the same move/touch
+  // activity as the rest of the player chrome.
+  const [showChatBtnVisible, setShowChatBtnVisible] = useState(true);
+  const chatBtnTimerRef = useRef(null);
   // Mobile tap-gesture layer: double-tap left/right thirds of the video to seek ±10s
   // (with a transient ripple), single tap to toggle the control bar, center tap to
   // play/pause — mirrors standard mobile video player conventions (YouTube/Netflix).
@@ -1799,11 +1811,15 @@ const Room = () => {
     setShowControls(true);
     clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
+    setShowChatBtnVisible(true);
+    clearTimeout(chatBtnTimerRef.current);
+    chatBtnTimerRef.current = setTimeout(() => setShowChatBtnVisible(false), 2000);
   };
 
   useEffect(() => {
     return () => {
       clearTimeout(controlsTimerRef.current);
+      clearTimeout(chatBtnTimerRef.current);
     };
   }, []);
 
@@ -3221,6 +3237,24 @@ const Room = () => {
         // Set seek target SYNCHRONOUSLY so onLoadedMetadata can seek immediately
         // (the 500ms timeout below runs after onLoadedMetadata fires, so it was too late)
         if (state.currentTime > 0) prepTargetTimeRef.current = state.currentTime;
+      }
+      // Connect straight to an already-running Hyperbeam virtual browser session.
+      // Without this, anyone who joins (or reconnects/refreshes) after the host
+      // opened it never learns the session exists — 'hyperbeam_opened' is a
+      // one-time broadcast to whoever's already connected at that moment, so a
+      // late joiner was stuck on the loading spinner forever with no way to ever
+      // receive it. room_state is sent to every join, so this is what actually
+      // catches them up. Skipped if we're already attached to this exact session
+      // (avoids tearing down and reconnecting a working stream on every routine
+      // room_state broadcast, e.g. permission/mod-action updates).
+      if (state.hyperbeamSession?.embed_url) {
+        const incoming = state.hyperbeamSession;
+        if (incoming.targetUrl) hyperbeamTargetUrlRef.current = incoming.targetUrl;
+        setHyperbeamSession(prev => (prev?.session_id === incoming.session_id) ? prev : { session_id: incoming.session_id, embed_url: incoming.embed_url });
+        setHbSessionId(incoming.session_id);
+      } else {
+        setHyperbeamSession(prev => prev ? null : prev);
+        setHbSessionId(prev => prev ? null : prev);
       }
       if (state.streamPending) {
         setStreamPending(state.streamPending);
@@ -6808,16 +6842,36 @@ const Room = () => {
     // Session runs at Hyperbeam's default 1280×720 — this account's plan doesn't
     // allow requesting a custom width/height (err_api_restricted), so the SDK's
     // resize() is what stretches/fits it to the actual player container.
-    const syncResize = (el, inst) => {
+    const syncResize = async (el, inst) => {
       if (cancelled || !el || !inst) return;
       const w = Math.round(el.clientWidth);
       const h = Math.round(el.clientHeight);
       if (w < 256 || h < 256) return;
+      // el.clientWidth/Height are CSS pixels — requesting those 1:1 on a
+      // high-DPI phone/laptop under-resamples the stream relative to the
+      // screen's real pixel density, so the browser has to upscale the video
+      // to fill the box, which is a real (and fixable) source of the blur.
+      // Try device-pixel-density first (capped at 2x — diminishing returns
+      // above that, and more likely to fit this account's max-area quota),
+      // falling back to the plain CSS-pixel size if that gets rejected.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const hiW = Math.round(w * dpr);
+      const hiH = Math.round(h * dpr);
       try {
-        inst.resize(w, h);
-        console.log('[HYPERBEAM] resize →', w, 'x', h);
+        const ok = dpr > 1 ? await inst.resize(hiW, hiH) : await inst.resize(w, h);
+        if (!ok) throw new Error('resize rejected');
+        console.log('[HYPERBEAM] resize →', dpr > 1 ? `${hiW}x${hiH}` : `${w}x${h}`, `(${dpr}x)`);
       } catch (e) {
-        console.warn('[HYPERBEAM] resize skipped:', e.message);
+        if (dpr > 1) {
+          try {
+            await inst.resize(w, h);
+            console.log('[HYPERBEAM] resize (1x fallback) →', w, 'x', h);
+          } catch (e2) {
+            console.warn('[HYPERBEAM] resize skipped:', e2.message);
+          }
+        } else {
+          console.warn('[HYPERBEAM] resize skipped:', e.message);
+        }
       }
     };
 
@@ -6959,11 +7013,21 @@ const Room = () => {
     const virtualBrowserActive = isLaunchingVirtualBrowser || !!hyperbeamSession || isVirtualBrowserMedia;
     if (virtualBrowserActive) {
       setIsMobileFsMode(true);
+      resetControlsTimer();
     } else {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
     }
   }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
+
+  // Reset the landscape preference only when a genuinely new app is being
+  // launched — deliberately NOT keyed on hyperbeamSession itself, since a
+  // reconnect (the SDK watchdog recovery, or a fresh session object with the
+  // same underlying content) replaces that object and would otherwise wipe
+  // out a landscape choice the user made moments ago mid-watch.
+  useEffect(() => {
+    if (isLaunchingVirtualBrowser) setVbLandscapeMode(false);
+  }, [isLaunchingVirtualBrowser]);
 
   // Navigate the active Virtual Browser when mediaUrl changes
   useEffect(() => {
@@ -9300,7 +9364,7 @@ const Room = () => {
 
           <div
             ref={playerWrapRef}
-            className={`player-wrap${isTouchPlayer && isMobileFsMode ? ((isCallActivity(mediaUrl) || isVirtualBrowserMedia) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
+            className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isRotatedFs ? ' player-mob-fs' : ' player-mob-fs-portrait') : ''}`}
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => {
@@ -10031,6 +10095,12 @@ const Room = () => {
                           position: 'absolute', inset: 0, zIndex: 50,
                           borderRadius: isMobile ? 0 : 16, overflow: 'hidden'
                         }}
+                        // Capture phase so this fires even though the Hyperbeam SDK's own
+                        // handlers on hyperbeamContainerRef don't bubble touch/pointer
+                        // activity back up — without this, tapping inside the remote
+                        // browser itself would never re-arm the Show Chat auto-hide timer.
+                        onTouchStartCapture={resetControlsTimer}
+                        onMouseMoveCapture={resetControlsTimer}
                       >
                         <div
                           ref={hyperbeamContainerRef}
@@ -10082,7 +10152,10 @@ const Room = () => {
                               background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
                               border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20,
                               padding: '7px 14px', fontSize: 12, fontWeight: 700, color: '#fff',
-                              display: 'flex', alignItems: 'center', gap: 6
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              opacity: showChatBtnVisible ? 1 : 0,
+                              pointerEvents: showChatBtnVisible ? 'auto' : 'none',
+                              transition: 'opacity 0.3s'
                             }}
                           >
                             <MessageCircle size={14} color="#fff" />

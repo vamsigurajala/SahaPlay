@@ -5251,9 +5251,19 @@ function buildUserList(room) {
     });
 }
 
-function getSerializableRoom(room) {
+function getSerializableRoom(room, roomId) {
   if (!room) return null;
+  // Include the active Hyperbeam session (if any) so anyone receiving this
+  // room_state — a late joiner, a reconnect, a page refresh — can connect
+  // straight to the already-running virtual browser instead of waiting
+  // forever for the one-time 'hyperbeam_opened' broadcast they already
+  // missed. admin_token deliberately excluded — only the host who created
+  // the session gets that, same as the hyperbeam_opened relay already does.
+  const hbSession = roomId ? activeHyperbeamSessions.get(roomId) : null;
   return {
+    hyperbeamSession: hbSession
+      ? { session_id: hbSession.session_id, embed_url: hbSession.embed_url, targetUrl: hbSession.targetUrl }
+      : null,
     roomName: room.roomName || 'Room Chat',
     currentMedia: room.currentMedia || null,
     currentTime: room.currentTime || 0,
@@ -6150,7 +6160,7 @@ io.on('connection', (socket) => {
     }
 
     // Emit initial state
-    const state = getSerializableRoom(roomObj);
+    const state = getSerializableRoom(roomObj, roomId);
     if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
     
     console.log(`[JOIN_FLOW] Emitting room_state and user_joined for ${username} in ${roomId}`);
@@ -7595,7 +7605,7 @@ io.on('connection', (socket) => {
     const isMember = room.users.some(u => u.socketId === socket.id);
     if (!isMember) return;
 
-    const state = getSerializableRoom(room);
+    const state = getSerializableRoom(room, roomId);
     if (state.isPlaying) state.currentTime += (Date.now() - state.timestampUpdatedAt) / 1000;
     socket.emit('room_state', state);
     } catch (err) {
@@ -7708,7 +7718,7 @@ io.on('connection', (socket) => {
     room.subtitles = null;
     io.in(roomId).emit('media_changed', mediaUrl);
     if (browserUrl) io.in(roomId).emit('browser_url_changed', browserUrl);
-    io.in(roomId).emit('room_state', getSerializableRoom(room));
+    io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     } catch (err) {
       console.error('[SOCKET] change_media error:', err.message, 'user:', socket.username);
     }
@@ -7881,7 +7891,7 @@ io.on('connection', (socket) => {
       room.isPlaying = false;
       room.timestampUpdatedAt = Date.now();
     }
-    const state = getSerializableRoom(rooms.get(roomId));
+    const state = getSerializableRoom(rooms.get(roomId), roomId);
     io.in(roomId).emit('room_state', state);
     socket.to(roomId).emit('webrtc_screenshare_started', { socketId: socket.id, app });
     } catch (err) {
@@ -7903,7 +7913,7 @@ io.on('connection', (socket) => {
 
     room.screenshareHostId = null;
     room.activeExternalApp = null;
-    const state = getSerializableRoom(room);
+    const state = getSerializableRoom(room, roomId);
     io.in(roomId).emit('room_state', state);
     socket.to(roomId).emit('webrtc_screenshare_stopped', socket.id);
     } catch (err) {
@@ -8111,7 +8121,7 @@ io.on('connection', (socket) => {
       io.to(targetSocketId).emit('kicked_out', { reason: 'banned' });
       room.users = room.users.filter(u => u.socketId !== targetSocketId);
       io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
-      io.in(roomId).emit('room_state', getSerializableRoom(room));
+      io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
       io.in(roomId).emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
     } else {
       socket.emit('error_notification', 'Target user not found.');
@@ -8371,7 +8381,7 @@ io.on('connection', (socket) => {
 
     // Refresh user list and state for everyone because isAdmin status or permissions might have changed
     io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
-    io.in(roomId).emit('room_state', getSerializableRoom(room));
+    io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     io.in(roomId).emit('room_settings_updated', {
       roomId,
       roomName: room.roomName,
@@ -8407,7 +8417,7 @@ io.on('connection', (socket) => {
     db.run('DELETE FROM room_bans WHERE roomId = ? AND username = ?', [roomId, username], (err) => {
       if (err) console.error('[mod_unban] DB Error:', err.message);
     });
-    io.in(roomId).emit('room_state', getSerializableRoom(room));
+    io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     // Emit to the host's socket specifically so the settings modal updates instantly
     socket.emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
     io.in(roomId).emit('room_settings_updated', { bannedUsers: Array.from(room.bannedUsers) });
