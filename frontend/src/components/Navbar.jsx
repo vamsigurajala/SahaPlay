@@ -367,10 +367,10 @@ const Navbar = () => {
                 aria-hidden="true"
                 style={{
                   position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-                  fontFamily: "'Pacifico', cursive", fontSize: 24, lineHeight: 1,
+                  fontFamily: "'Pacifico', cursive", fontSize: 24, lineHeight: 1.8,
                   background: 'var(--brand-gradient)', WebkitBackgroundClip: 'text', backgroundClip: 'text',
                   WebkitTextFillColor: 'transparent', color: 'var(--brand-1)',
-                  pointerEvents: 'none', whiteSpace: 'nowrap'
+                  pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'visible'
                 }}
               >
                 SahaPlay

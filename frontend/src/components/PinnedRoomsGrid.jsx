@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Pin, Hash, Users } from 'lucide-react';
+import { Pin, Users } from 'lucide-react';
 import RoomThumbnail from './RoomThumbnail';
 
 const getCategoryLabel = (id, t) => {
@@ -40,9 +40,7 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
             <h3 className="room-card-title" style={titleColor ? { color: titleColor } : undefined}>{room.name}</h3>
             <div className="room-card-bottom-row">
               <div className="room-card-meta">
-                <span><Hash size={10} /> {room.id}</span>
-                <span className="room-card-meta-dot">&bull;</span>
-                <span><Users size={11} /> {room.userCount}</span>
+                <span><Users size={11} /> {room.userCount} {t('watching', 'watching')}</span>
               </div>
               <button className="join-btn">{t('join', 'Join')}</button>
             </div>

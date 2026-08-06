@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Filter, Pin, Star, Hash, Users, Lock } from 'lucide-react';
+import { ArrowLeft, Filter, Pin, Star, Users, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -219,7 +219,6 @@ const PublicRooms = () => {
           gap: 3px;
           white-space: nowrap;
         }
-        .room-card-meta-dot { opacity: 0.5; }
         html[data-theme='light'] .room-card-meta { color: #64748b; }
         .join-btn {
           background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
@@ -467,9 +466,7 @@ const PublicRooms = () => {
                     <h3 className="room-card-title">{room.name}</h3>
                     <div className="room-card-bottom-row">
                       <div className="room-card-meta">
-                        <span><Hash size={10}/> {room.id}</span>
-                        <span className="room-card-meta-dot">&bull;</span>
-                        <span><Users size={11} /> {room.userCount}</span>
+                        <span><Users size={11} /> {room.userCount} {t('watching', 'watching')}</span>
                       </div>
                       <button className="join-btn">{t('join', 'Join')}</button>
                     </div>

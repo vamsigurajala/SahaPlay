@@ -384,7 +384,6 @@ const Home = () => {
         .room-card-bottom-row { display:flex;justify-content:space-between;align-items:center;gap:8px; }
         .room-card-meta { display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#8a8f98;min-width:0;overflow:hidden; }
         .room-card-meta span { display:inline-flex;align-items:center;gap:3px;white-space:nowrap; }
-        .room-card-meta-dot { opacity:0.5; }
         html[data-theme='light'] .room-card-meta { color:#64748b; }
         .join-btn { background:var(--brand-gradient);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
         .pinned-card:hover .join-btn { transform:translateY(-2px); }
