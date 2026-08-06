@@ -1299,7 +1299,16 @@ const Room = () => {
   // Without this, a viewer catching up to the still-uploading edge of the file just
   // sees the video silently freeze with zero feedback, indistinguishable from broken.
   const [isStreamBuffering, setIsStreamBuffering] = useState(false);
-  useEffect(() => { setIsStreamBuffering(false); }, [mediaUrl]);
+  // Local streams start "buffering" the instant their URL is set, not just once
+  // onWaiting later fires mid-playback — otherwise someone joining a room where a
+  // movie is already a couple minutes in (or a fresh viewer whose player hasn't
+  // attempted its first frame yet) saw nothing at all: no spinner, no message,
+  // just a blank/frozen player for however long it took the stream to actually
+  // start. onPlaying (wired on the <video> element) flips this back off once
+  // real playback begins.
+  useEffect(() => {
+    setIsStreamBuffering(!!(mediaUrl && (mediaUrl.includes('/api/stream/') || mediaUrl.startsWith('blob:'))));
+  }, [mediaUrl]);
   const [bufferedSeconds, setBufferedSeconds] = useState(0);
   const lastPrepUrl = useRef('');
 
@@ -1660,13 +1669,24 @@ const Room = () => {
   // honor it with a real rotated landscape view. Resets to portrait whenever a
   // fresh virtual browser session starts.
   const [vbLandscapeMode, setVbLandscapeMode] = useState(false);
-  // True only for the actual rotated (.player-mob-fs) case — calls always use
-  // .player-mob-fs-portrait (stays upright). The virtual browser defaults to
-  // portrait too (Hyperbeam's tap-to-remote-coordinate math isn't aware of a
-  // CSS-rotated ancestor, so rotating it makes taps land on the wrong spot),
-  // but honors vbLandscapeMode once the user explicitly asks for landscape
-  // via a manual Fullscreen tap.
-  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && (!isVirtualBrowserMedia || vbLandscapeMode);
+  // True once screen.orientation.lock('landscape') has actually resolved (the
+  // device is genuinely rotated by the OS, not just faked with CSS) — see
+  // handleFullscreen. When this is true the CSS rotate trick below must NOT
+  // also apply: the browser viewport is already landscape-shaped, so rotating
+  // its content another 90deg on top of that double-transforms everything —
+  // which is exactly what made the subtitle/quality dropdowns (positioned via
+  // real getBoundingClientRect() math) render off-screen in landscape.
+  const [isRealLandscapeLock, setIsRealLandscapeLock] = useState(false);
+  // True only for the CSS-rotated (.player-mob-fs) fallback case — calls always
+  // use .player-mob-fs-portrait (stays upright), and so does any case where a
+  // real device rotation already happened (isRealLandscapeLock), since then the
+  // OS itself has already turned the content landscape and no CSS rotation is
+  // needed (or wanted — see above). The virtual browser defaults to portrait too
+  // (Hyperbeam's tap-to-remote-coordinate math isn't aware of a CSS-rotated
+  // ancestor, so rotating it makes taps land on the wrong spot, which is also
+  // why it never attempts a real orientation lock), but honors vbLandscapeMode
+  // once the user explicitly asks for landscape via a manual Fullscreen tap.
+  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && (!isVirtualBrowserMedia || vbLandscapeMode) && !isRealLandscapeLock;
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
@@ -1679,7 +1699,15 @@ const Room = () => {
       setIsFullscreen(entering && !isDoc);
       // Auto-close global chat when exiting fullscreen so it doesn't
       // unexpectedly reappear as a normal-mode panel.
-      if (!entering) setShowRecentChats(false);
+      if (!entering) {
+        setShowRecentChats(false);
+        // Safety net for exits the mobile toggle/back-intercept didn't catch
+        // (OS-level swipe-away, hardware back on some devices, etc.) — without
+        // this, isRealLandscapeLock could stay stuck true with no actual
+        // Fullscreen/rotation behind it, wrongly suppressing the CSS rotate
+        // fallback next time mobile fullscreen is entered.
+        setIsRealLandscapeLock(false);
+      }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
@@ -1741,6 +1769,7 @@ const Room = () => {
       }
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
+        setIsRealLandscapeLock(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
         if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       } else {
@@ -1763,12 +1792,15 @@ const Room = () => {
         // locking once it resolves, is what makes the OS actually rotate.
         if (playerWrapRef.current?.requestFullscreen) {
           playerWrapRef.current.requestFullscreen()
-            .then(() => { screen?.orientation?.lock?.(targetOrientation)?.catch(() => {}); })
+            .then(() => screen?.orientation?.lock?.(targetOrientation))
+            .then(() => { if (targetOrientation === 'landscape') setIsRealLandscapeLock(true); })
             .catch(() => {
               // Fullscreen unsupported/denied (iPhone Safari has no element
-              // Fullscreen at all) — try a bare lock anyway just in case, and
-              // otherwise the CSS takeover below still gives a landscape look.
-              screen?.orientation?.lock?.(targetOrientation)?.catch(() => {});
+              // Fullscreen at all) or the lock itself was rejected — try a bare
+              // lock anyway just in case, and otherwise the CSS takeover below
+              // still gives a landscape look. isRealLandscapeLock stays false
+              // either way, so that CSS fallback is actually allowed to apply.
+              screen?.orientation?.lock?.(targetOrientation).catch(() => {});
             });
         } else if (screen?.orientation?.lock) {
           screen.orientation.lock(targetOrientation).catch(() => {});
@@ -7081,6 +7113,7 @@ const Room = () => {
       resetControlsTimer();
     } else {
       setIsMobileFsMode(false);
+      setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
@@ -7384,15 +7417,16 @@ const Room = () => {
     }
 
     // Not (yet) a double-tap — wait out the window in case a second tap follows,
-    // then treat it as a plain single tap that toggles the control bar.
+    // then treat it as a plain single tap that shows the control bar. Used to
+    // immediately hide instead when controls were already showing — a tap that
+    // happened to land while they were up (e.g. right after entering fullscreen)
+    // would instantly dismiss them again, reading as "controls flash and vanish"
+    // rather than staying up for their full auto-hide duration. Always
+    // (re-)showing, same as the center zone already does, means any tap gives
+    // the full window before auto-hide kicks in.
     clearTimeout(tapTimerRef.current);
     tapTimerRef.current = setTimeout(() => {
-      if (showControls) {
-        clearTimeout(controlsTimerRef.current);
-        setShowControls(false);
-      } else {
-        resetControlsTimer();
-      }
+      resetControlsTimer();
     }, DOUBLE_TAP_MS);
   };
 
@@ -7847,6 +7881,7 @@ const Room = () => {
   const mobileFsBack = useBackIntercept(isTouchPlayer && isMobileFsMode ? 1 : 0, (newLevel) => {
     if (newLevel === 0) {
       setIsMobileFsMode(false);
+      setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
@@ -11157,12 +11192,15 @@ const Room = () => {
                     )}
                     <div style={{ flex: 1 }} />
 
-                    {/* Fallback to Native controls — compact icon-only on touch, since
-                        .player-native-btn's full text-pill version is hidden by CSS there
-                        (too wide for the row); same setHideCustomControls(true) action,
-                        the top-center "restore" button (below) already handles switching
-                        back and already has its own compact touch styling. */}
-                    {isTouchPlayer && (
+                    {/* Fallback to Native controls — compact icon-only on touch; same
+                        setHideCustomControls(true) action, the top-center "restore" button
+                        (below) already handles switching back and already has its own
+                        compact touch styling. Used to rely on a max-width CSS media query
+                        to hide the full text-pill version instead of a real isTouchPlayer
+                        check — that broke the instant real device rotation (landscape
+                        fullscreen) made the viewport wide enough to clear the breakpoint,
+                        showing both buttons stacked on top of each other. */}
+                    {isTouchPlayer ? (
                       <button
                         className="player-ctrl-btn"
                         onClick={() => setHideCustomControls(true)}
@@ -11170,7 +11208,7 @@ const Room = () => {
                       >
                         <ChevronDown size={16} />
                       </button>
-                    )}
+                    ) : (
                     <button
                       className="player-native-btn"
                       onClick={() => setHideCustomControls(true)}
@@ -11209,6 +11247,7 @@ const Room = () => {
                       <ChevronDown size={14} color="var(--brand-1-light)" />
                       <span>Use Native Player</span>
                     </button>
+                    )}
 
                     <div style={{ flex: 1 }} />
  
