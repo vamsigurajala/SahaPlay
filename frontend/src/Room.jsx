@@ -1742,11 +1742,36 @@ const Room = () => {
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       } else {
+        // Close any open chat panel before entering — it's a descendant of
+        // player-wrap and renders full-height in transparentMode, so leaving
+        // it open would cover the video the moment real Fullscreen engages
+        // (this is what broke last time: the panel took over instead of the
+        // video). Native apps don't show chat over the video on fullscreen
+        // entry either; the in-player chat bubble still reopens it on demand.
+        setShowRecentChats(false);
         setIsMobileFsMode(true);
         // Calls stay portrait (WhatsApp-style); real video/games rotate landscape.
-        if (screen?.orientation?.lock) {
-          screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
+        const targetOrientation = isCallActivity(mediaUrl) ? 'portrait' : 'landscape';
+        // Mobile browsers only allow screen.orientation.lock() to succeed while
+        // the page is actually in Fullscreen — calling it without Fullscreen
+        // (the old behavior) silently rejects every time, which is why this
+        // only ever produced a CSS-rotated fake landscape instead of a real
+        // device rotation like YouTube/Netflix (status bar migrating to the
+        // top, hidden by default). Sequencing real Fullscreen first, then
+        // locking once it resolves, is what makes the OS actually rotate.
+        if (playerWrapRef.current?.requestFullscreen) {
+          playerWrapRef.current.requestFullscreen()
+            .then(() => { screen?.orientation?.lock?.(targetOrientation)?.catch(() => {}); })
+            .catch(() => {
+              // Fullscreen unsupported/denied (iPhone Safari has no element
+              // Fullscreen at all) — try a bare lock anyway just in case, and
+              // otherwise the CSS takeover below still gives a landscape look.
+              screen?.orientation?.lock?.(targetOrientation)?.catch(() => {});
+            });
+        } else if (screen?.orientation?.lock) {
+          screen.orientation.lock(targetOrientation).catch(() => {});
         }
       }
       return;
@@ -7041,6 +7066,7 @@ const Room = () => {
     } else {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
 
@@ -7806,6 +7832,7 @@ const Room = () => {
     if (newLevel === 0) {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   });
 
