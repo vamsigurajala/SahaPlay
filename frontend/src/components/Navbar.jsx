@@ -362,7 +362,7 @@ const Navbar = () => {
                 only, same idea as Instagram's centered script logotype on its home
                 feed. Absolutely positioned so it centers independent of how wide
                 the left/right content is, rather than needing a 3-column grid. */}
-            {standalone && location.pathname === '/' && (
+            {standalone && (location.pathname === '/' || location.pathname === '/public') && (
               <span
                 aria-hidden="true"
                 style={{
