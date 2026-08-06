@@ -808,7 +808,7 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
       flexDirection: 'column',
       color: '#fff',
       fontFamily: 'system-ui, -apple-system, sans-serif'
-    }} className="gcw-force-dark">
+    }} className="gcw-force-dark crazygames-lobby">
       {/* Lobby Header */}
       <div style={{
         padding: '16px 24px',

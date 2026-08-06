@@ -948,11 +948,11 @@ function App() {
         color: #ffffff !important;
         -webkit-text-fill-color: #ffffff !important;
       }
-      html[data-theme='light'] .gcw-force-dark button[style*="color: #888"],
-      html[data-theme='light'] .gcw-force-dark button[style*="color:#888"],
-      html[data-theme='light'] .gcw-force-dark [style*="color: #888"],
-      html[data-theme='light'] .gcw-force-dark [style*="color:#888"],
-      html[data-theme='light'] .gcw-force-dark [style*="color: var(--brand-1-light)"] {
+      html[data-theme='light'] .crazygames-lobby button[style*="color: #888"],
+      html[data-theme='light'] .crazygames-lobby button[style*="color:#888"],
+      html[data-theme='light'] .crazygames-lobby [style*="color: #888"],
+      html[data-theme='light'] .crazygames-lobby [style*="color:#888"],
+      html[data-theme='light'] .crazygames-lobby [style*="color: var(--brand-1-light)"] {
         color: inherit !important;
       }
 
