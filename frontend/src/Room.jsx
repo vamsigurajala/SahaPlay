@@ -10535,7 +10535,15 @@ const Room = () => {
                                 ? (subtitleSettings.position === 'bottom-raised' ? '14%' : '8%')
                                 : '3%';
                               return (
-                                <div style={{
+                                // gcw-force-dark: this overlay's text color is always a literal
+                                // hex (colorMap above) meant to read against its own dark/semi-
+                                // transparent backdrop, not against the page. Without this, the
+                                // site-wide light-mode CSS override (App.jsx) rewrites any literal
+                                // white/light inline color to near-black site-wide — which left the
+                                // background dark (untouched, since only light backgrounds get
+                                // flipped) but the text forced dark too, making subtitles nearly
+                                // invisible in light mode specifically.
+                                <div className="gcw-force-dark" style={{
                                   position: 'absolute', inset: 0, zIndex: 10000,
                                   display: 'flex', justifyContent: 'center',
                                   alignItems: isCenter ? 'center' : 'flex-end',
