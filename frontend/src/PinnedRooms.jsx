@@ -28,7 +28,7 @@ const PinnedRooms = () => {
         .cat-badge { position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);color:#fff;padding:4px 9px;border-radius:8px;font-size:10.5px;font-weight:700;letter-spacing:0.3px;z-index:10; }
         html[data-theme='light'] .cat-badge { background:rgba(0,0,0,0.5);color:#fff; }
         .room-id-badge { position:absolute;bottom:10px;left:10px;display:flex;align-items:center;gap:3px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);color:#fff;padding:3px 8px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.2px;z-index:10; }
-        html[data-theme='light'] .room-id-badge { background:rgba(0,0,0,0.5);color:#fff; }
+        html[data-theme='light'] .room-id-badge { background:rgba(0,0,0,0.5) !important;color:#fff !important; }
         .unpin-btn { position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);border:none;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);z-index:10; }
         .unpin-btn:hover { background:#ef4444;color:#fff;transform:scale(1.1); }
         .unpin-btn .unpin-icon { transition:fill 0.3s ease;fill:none; }

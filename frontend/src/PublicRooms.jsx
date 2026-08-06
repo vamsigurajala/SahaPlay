@@ -412,7 +412,7 @@ const PublicRooms = () => {
         html[data-theme='light'] .section-desc { color: #4a5568 !important; }
 
         html[data-theme='light'] .cat-badge { background: #fff; color: #111; border-color: rgba(0,0,0,0.1); }
-        html[data-theme='light'] .room-id-badge { background: rgba(0,0,0,0.5); color: #fff; }
+        html[data-theme='light'] .room-id-badge { background: rgba(0,0,0,0.5) !important; color: #fff !important; }
         
         html[data-theme='light'] .private-btn {
           background: rgba(255,255,255,0.85) !important;
@@ -485,7 +485,7 @@ const PublicRooms = () => {
                     <h3 className="room-card-title">{room.name}</h3>
                     <div className="room-card-bottom-row">
                       <div className="room-card-meta">
-                        <span><Users size={11} /> {room.userCount} {t('watching', 'watching')}</span>
+                        <span><Users size={11} /> {room.userCount}{room.userCount > 0 ? ` ${t('watching', 'watching')}` : ''}</span>
                       </div>
                       <button className="join-btn">{t('join', 'Join')}</button>
                     </div>

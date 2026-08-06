@@ -41,7 +41,7 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
             <h3 className="room-card-title" style={titleColor ? { color: titleColor } : undefined}>{room.name}</h3>
             <div className="room-card-bottom-row">
               <div className="room-card-meta">
-                <span><Users size={11} /> {room.userCount} {t('watching', 'watching')}</span>
+                <span><Users size={11} /> {room.userCount}{room.userCount > 0 ? ` ${t('watching', 'watching')}` : ''}</span>
               </div>
               <button className="join-btn">{t('join', 'Join')}</button>
             </div>
