@@ -1742,22 +1742,11 @@ const Room = () => {
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
-        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       } else {
         setIsMobileFsMode(true);
         // Calls stay portrait (WhatsApp-style); real video/games rotate landscape.
         if (screen?.orientation?.lock) {
           screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
-        }
-        // The CSS takeover (.player-mob-fs/-portrait) only fills the in-page
-        // viewport — it can't touch the OS status bar, which lives outside the
-        // DOM entirely. Also requesting real browser Fullscreen (safe here: no
-        // CSS rotation involved, only the virtual-browser/Hyperbeam case needed
-        // to avoid that) gets Chrome/Safari to hide their own chrome around it
-        // for true edge-to-edge video. Best-effort — iOS Safari on iPhone still
-        // doesn't support element Fullscreen, so this silently no-ops there.
-        if (playerWrapRef.current?.requestFullscreen) {
-          playerWrapRef.current.requestFullscreen().catch(() => {});
         }
       }
       return;
@@ -7052,7 +7041,6 @@ const Room = () => {
     } else {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
-      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
 
@@ -7818,7 +7806,6 @@ const Room = () => {
     if (newLevel === 0) {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
-      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
   });
 
