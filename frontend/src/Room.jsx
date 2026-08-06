@@ -1654,10 +1654,13 @@ const Room = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [isMobileFsMode, setIsMobileFsMode] = useState(false);
-  // True only for the actual rotated (.player-mob-fs) case — calls use
-  // .player-mob-fs-portrait instead, which stays upright, so nothing needs the
-  // rotated-overlay treatment there.
-  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl);
+  // True only for the actual rotated (.player-mob-fs) case — calls and the
+  // Hyperbeam virtual browser use .player-mob-fs-portrait instead (stays
+  // upright), so nothing needs the rotated-overlay treatment there. Virtual
+  // browser specifically can't rotate: Hyperbeam's own click/tap-to-remote-
+  // coordinate math isn't aware of a CSS-rotated ancestor, so a rotated
+  // container makes every tap land on the wrong spot in the remote page.
+  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && !isVirtualBrowserMedia;
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
@@ -1718,10 +1721,11 @@ const Room = () => {
         if (screen?.orientation?.unlock) screen.orientation.unlock();
       } else {
         setIsMobileFsMode(true);
-        // Calls stay portrait (WhatsApp-style) — only real video/game
+        // Calls and the virtual browser stay portrait (WhatsApp-style / avoids
+        // breaking Hyperbeam's tap coordinates) — only real video/game
         // playback rotates into landscape on mobile fullscreen.
         if (screen?.orientation?.lock) {
-          screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
+          screen.orientation.lock((isCallActivity(mediaUrl) || isVirtualBrowserMedia) ? 'portrait' : 'landscape').catch(() => {});
         }
       }
       return;
@@ -6941,23 +6945,25 @@ const Room = () => {
     }
   }, [hyperbeamSession]);
 
-  // Auto-enter rotated landscape fullscreen when a Hyperbeam virtual browser
-  // session opens on a touch device. Netflix/Prime/etc. render as a fixed
-  // 1280x720 desktop page inside the session (this Hyperbeam plan rejects
-  // portrait-shaped resize requests), so cramming that into the small portrait
-  // player tile is unreadable — landscape fullscreen gives it a properly-sized
-  // frame to render into instead, same as this player already does for regular
-  // video via handleFullscreen()/isMobileFsMode.
+  // Auto-enter the full-screen takeover (no chat/media-selector/anything else
+  // visible, same .player-mob-fs-portrait treatment calls already get) the
+  // instant a streaming app is picked on a touch device — not just once the
+  // Hyperbeam session finishes connecting, so there's no flash of the normal
+  // room layout during the loading spinner. Deliberately NOT the rotated
+  // .player-mob-fs variant: Hyperbeam's own tap-to-remote-coordinate math
+  // isn't aware of a CSS-rotated ancestor, so rotating this container makes
+  // every tap land on the wrong spot in the remote page (this is the "clicks
+  // do nothing" bug — .player-mob-fs-portrait stays upright and avoids it).
   useEffect(() => {
     if (!isTouchPlayer) return;
-    if (hyperbeamSession) {
+    const virtualBrowserActive = isLaunchingVirtualBrowser || !!hyperbeamSession || isVirtualBrowserMedia;
+    if (virtualBrowserActive) {
       setIsMobileFsMode(true);
-      if (screen?.orientation?.lock) screen.orientation.lock('landscape').catch(() => {});
     } else {
       setIsMobileFsMode(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
     }
-  }, [hyperbeamSession, isTouchPlayer]);
+  }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
 
   // Navigate the active Virtual Browser when mediaUrl changes
   useEffect(() => {
@@ -9294,7 +9300,7 @@ const Room = () => {
 
           <div
             ref={playerWrapRef}
-            className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isCallActivity(mediaUrl) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
+            className={`player-wrap${isTouchPlayer && isMobileFsMode ? ((isCallActivity(mediaUrl) || isVirtualBrowserMedia) ? ' player-mob-fs-portrait' : ' player-mob-fs') : ''}`}
             onMouseMove={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => {
@@ -10060,6 +10066,28 @@ const Room = () => {
                               ✕ Exit Virtual Browser
                             </button>
                           </div>
+                        )}
+                        {/* Mobile-only "show chat" control — the exit bar above only reveals on
+                            hover, which never fires on touch, so phones need their own always-
+                            visible way out of the full-screen takeover. Unlike Exit Virtual Browser,
+                            this doesn't end the session for anyone — it just drops this viewer's own
+                            screen back to the normal room layout (video + chat) so they can talk to
+                            others once they've picked something to watch; the virtual browser keeps
+                            running inline underneath. Available to every viewer, not just the host. */}
+                        {isTouchPlayer && isMobileFsMode && (
+                          <button
+                            onClick={() => { setIsMobileFsMode(false); if (screen?.orientation?.unlock) screen.orientation.unlock(); }}
+                            style={{
+                              position: 'absolute', top: 10, right: 10, zIndex: 60,
+                              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
+                              border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20,
+                              padding: '7px 14px', fontSize: 12, fontWeight: 700, color: '#fff',
+                              display: 'flex', alignItems: 'center', gap: 6
+                            }}
+                          >
+                            <MessageCircle size={14} color="#fff" />
+                            Show Chat
+                          </button>
                         )}
                         {/* Connecting spinner — clears automatically when WebRTC stream starts */}
                         {hbNavStatus === 'connecting' && (
