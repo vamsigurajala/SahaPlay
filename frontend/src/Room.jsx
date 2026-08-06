@@ -8637,6 +8637,11 @@ const Room = () => {
         .player-scrubber{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
         .player-scrubber::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--brand-1);cursor:pointer;box-shadow:0 0 4px rgba(var(--brand-1-rgb),0.8);transition:transform 0.1s;}
         .player-scrubber::-webkit-slider-thumb:hover{transform:scale(1.3);}
+        .player-scrubber::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--brand-1);cursor:pointer;border:none;box-shadow:0 0 4px rgba(var(--brand-1-rgb),0.8);}
+        @media (pointer: coarse) {
+          .player-scrubber::-webkit-slider-thumb{width:18px;height:18px;}
+          .player-scrubber::-moz-range-thumb{width:18px;height:18px;}
+        }
         .player-vol-slider{-webkit-appearance:none;appearance:none;width:70px;height:3px;border-radius:2px;outline:none;cursor:pointer;background:transparent;}
         .join-req-approve-btn { flex: 1; padding: 7px 16px; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); border: none; border-radius: 10px; color: #ffffff !important; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: 0 4px 12px rgba(var(--brand-1-rgb),0.2); }
         .join-req-deny-btn { flex: 1; padding: 7px 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: #ffffff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; text-align: center; }
@@ -11047,17 +11052,22 @@ const Room = () => {
                   pointerEvents: 'none',
                   borderRadius: isEmbedPlatform(mediaUrl) ? '0' : '0 0 16px 16px'
                 }}>
-                  {/* Scrubber — hidden for web iframes */}
+                  {/* Scrubber — hidden for web iframes. The visual track is a thin 4px
+                      line, but its hit/drag area is a much taller invisible band
+                      (touch-target sized) — the previous version made the actual
+                      <input> only 4px tall (matching its wrapper), which a mouse
+                      pointer can hit precisely but a finger on mobile/iPad basically
+                      can't drag reliably. */}
                   {!(isScreensharing || isViewer) && !isWebIframe(mediaUrl) && duration > 0 && (
-                    <div style={{ position: 'relative', height: 4, marginBottom: 10, display: 'flex', alignItems: 'center', pointerEvents: showControls ? 'auto' : 'none' }}>
+                    <div style={{ position: 'relative', height: isTouchPlayer ? 28 : 4, marginBottom: 10, pointerEvents: showControls ? 'auto' : 'none' }}>
                       <div style={{
-                        position: 'absolute', left: 0, height: 4, borderRadius: 2,
+                        position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', height: 4, borderRadius: 2,
                         width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
                         background: 'linear-gradient(90deg,var(--brand-1),var(--brand-2))',
                         pointerEvents: 'none', zIndex: 1
                       }} />
                       <div style={{
-                        position: 'absolute', left: 0, right: 0, height: 4,
+                        position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 4,
                         borderRadius: 2, background: 'rgba(255,255,255,0.15)', zIndex: 0
                       }} />
                       <input
@@ -11067,10 +11077,11 @@ const Room = () => {
                         onChange={handleScrubberChange}
                         disabled={!hasPlayerPrivileges}
                         style={{
-                          position: 'absolute', inset: 0, zIndex: 2, width: '100%',
+                          position: 'absolute', inset: 0, zIndex: 2, width: '100%', height: '100%',
                           '--track-fill': `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
                           cursor: hasPlayerPrivileges ? 'pointer' : 'default',
-                          pointerEvents: hasPlayerPrivileges ? 'auto' : 'none'
+                          pointerEvents: hasPlayerPrivileges ? 'auto' : 'none',
+                          touchAction: 'none'
                         }}
                       />
                     </div>
