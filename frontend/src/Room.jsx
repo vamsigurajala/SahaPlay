@@ -9683,7 +9683,14 @@ const Room = () => {
             {/* ── Management Controls Overlay (Visible for ALL media types) ── */}
             {!isTvMode && (
             <div style={{
-              position: 'absolute', bottom: 20, right: 20, zIndex: 500,
+              position: 'absolute',
+              // Sits above the bottom control bar in fullscreen (that bar's own
+              // fullscreen/CC/quality icons live at bottom:0 too — at bottom:20
+              // this was landing right on top of them, blocking the Fullscreen
+              // button itself). Plain (non-fullscreen) layout has no bottom bar
+              // there, so it stays at its original lower position.
+              bottom: (isFullscreen || isMobileFsMode) ? 76 : 20, right: 20,
+              zIndex: 99999,
               display: 'flex', alignItems: 'center', gap: 12,
               pointerEvents: 'none',
               opacity: (isFullscreen || isMobileFsMode) ? (showControls ? 1 : 0) : (showControls || uiVisible) ? 1 : 0,
