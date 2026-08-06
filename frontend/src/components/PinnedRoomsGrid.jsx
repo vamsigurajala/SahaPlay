@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Pin, Users } from 'lucide-react';
+import { Pin, Hash, Users } from 'lucide-react';
 import RoomThumbnail from './RoomThumbnail';
 
 const getCategoryLabel = (id, t) => {
@@ -32,6 +32,7 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
               {...(fadeIn ? { onLoad: (e) => e.target.classList.add('loaded') } : {})}
             />
             <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
+            <div className="room-id-badge"><Hash size={9} /> {room.id}</div>
             <button className="unpin-btn" onClick={(e) => onUnpin(e, room.id)} title="Unpin Room">
               <Pin className="unpin-icon" size={16} />
             </button>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Filter, Pin, Star, Users, Lock } from 'lucide-react';
+import { ArrowLeft, Filter, Pin, Star, Hash, Users, Lock } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -175,6 +175,23 @@ const PublicRooms = () => {
           font-size: 10.5px;
           font-weight: 700;
           letter-spacing: 0.3px;
+          z-index: 10;
+        }
+        .room-id-badge {
+          position: absolute;
+          bottom: 10px;
+          left: 10px;
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          background: rgba(0,0,0,0.45);
+          backdrop-filter: blur(6px);
+          color: #fff;
+          padding: 3px 8px;
+          border-radius: 8px;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.2px;
           z-index: 10;
         }
         /* Room name gets its own full-width line now instead of being squeezed
@@ -395,6 +412,7 @@ const PublicRooms = () => {
         html[data-theme='light'] .section-desc { color: #4a5568 !important; }
 
         html[data-theme='light'] .cat-badge { background: #fff; color: #111; border-color: rgba(0,0,0,0.1); }
+        html[data-theme='light'] .room-id-badge { background: rgba(0,0,0,0.5); color: #fff; }
         
         html[data-theme='light'] .private-btn {
           background: rgba(255,255,255,0.85) !important;
@@ -456,6 +474,7 @@ const PublicRooms = () => {
                       onLoad={(e) => e.target.classList.add('loaded')}
                     />
                     <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
+                    <div className="room-id-badge"><Hash size={9} /> {room.id}</div>
                     {loggedInUsername && room.hostUsername && (String(loggedInUsername).toLowerCase() === String(room.hostUsername).toLowerCase()) && (
                       <button className="private-btn" onClick={(e) => handleMakePrivate(e, room.id)} title={t('makePrivate', 'Make Private')}>
                         <Lock className="lock-icon" size={16} />
