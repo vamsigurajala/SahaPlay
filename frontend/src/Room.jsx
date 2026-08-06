@@ -11152,9 +11152,12 @@ const Room = () => {
 
                     <div style={{ flex: 1 }} />
  
-                  {/* Globe / Virtual Browser button — only shown for web iframe URLs.
-                      Disabled until a block is detected (hard X-Frame error OR soft 10s timeout). */}
-                  {isWebIframe(mediaUrl) && isEffectiveHost && (
+                  {/* Globe / Virtual Browser button — only shown for web iframe URLs that
+                      AREN'T already a live virtual browser session (offering to "open in
+                      virtual browser" something that's already open in the virtual browser
+                      is redundant/confusing). Disabled until a block is detected (hard
+                      X-Frame error OR soft 10s timeout). */}
+                  {isWebIframe(mediaUrl) && isEffectiveHost && !hyperbeamSession && (
                     <div ref={globePopupRef} className="player-globe-wrap" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <button
                         id="globe-virtual-browser-btn"

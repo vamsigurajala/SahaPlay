@@ -135,7 +135,7 @@ export const OPTIONS = [
   // ── Web Chat ──
   { id: 'videocall', name: 'Video Call', category: 'Web Chat', subtitle: 'Encrypted real-time video connection', badge: 'Secure', color: '#10b981', icon: Video, type: 'activity', url: 'activity://videocall', image: '/images/apps/videocall.png' },
   { id: 'voicecall', name: 'Voice Call', category: 'Web Chat', subtitle: 'Secure end-to-end voice room', badge: 'Secure', color: '#06b6d4', icon: Mic, type: 'activity', url: 'activity://voicecall', image: '/images/apps/voicecall.png' },
-  { id: 'webbrowser', name: 'Virtual Browser', category: 'Web Chat', subtitle: 'Search and browse the web together', badge: 'Multiplayer', color: '#6366f1', icon: Globe, type: 'virtual_browser', skipWarning: true, url: 'https://www.google.com' },
+  { id: 'webbrowser', name: 'Virtual Browser', category: 'Web Chat', subtitle: 'Search and browse the web together', badge: 'Multiplayer', color: '#6366f1', icon: Globe, type: 'virtual_browser', skipWarning: true, url: 'https://www.google.com', image: '/images/apps/webbrowser.svg' },
 
   // ── Social & Music ──
   { id: 'soundcloud', name: 'SoundCloud', category: 'Social & Music', subtitle: 'Search and stream music playlists together', badge: 'Multiplayer', bgColor: '#ff5500', color: '#fff', icon: FaSoundcloud, type: 'direct', isWide: true, image: '/images/apps/soundcloud.jpg' },
