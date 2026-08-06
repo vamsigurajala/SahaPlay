@@ -135,7 +135,7 @@ export const OPTIONS = [
   // ── Web Chat ──
   { id: 'videocall', name: 'Video Call', category: 'Web Chat', subtitle: 'Encrypted real-time video connection', badge: 'Secure', color: '#10b981', icon: Video, type: 'activity', url: 'activity://videocall', image: '/images/apps/videocall.png' },
   { id: 'voicecall', name: 'Voice Call', category: 'Web Chat', subtitle: 'Secure end-to-end voice room', badge: 'Secure', color: '#06b6d4', icon: Mic, type: 'activity', url: 'activity://voicecall', image: '/images/apps/voicecall.png' },
-  { id: 'webbrowser', name: 'Virtual Browser', category: 'Web Chat', subtitle: 'Search and browse the web together', badge: 'Multiplayer', color: '#6366f1', icon: Globe, type: 'virtual_browser', skipWarning: true, url: 'https://www.google.com', image: '/images/apps/webbrowser.svg' },
+  { id: 'webbrowser', name: 'Virtual Browser', category: 'Web Chat', subtitle: 'Search and browse the web together', badge: 'Multiplayer', color: '#6366f1', icon: Globe, type: 'virtual_browser', skipWarning: true, url: 'https://www.google.com', image: '/images/apps/virtualbrowser.jpg' },
 
   // ── Social & Music ──
   { id: 'soundcloud', name: 'SoundCloud', category: 'Social & Music', subtitle: 'Search and stream music playlists together', badge: 'Multiplayer', bgColor: '#ff5500', color: '#fff', icon: FaSoundcloud, type: 'direct', isWide: true, image: '/images/apps/soundcloud.jpg' },
@@ -154,8 +154,15 @@ export const OPTIONS = [
 
 function AppCard({ app, onClick, isLight }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const Icon = app.icon;
   const hasImage = app.image && !imgFailed;
+  // Only devices with a real hover concept (mouse/trackpad) get the
+  // name-on-hover treatment for Web Chat cards — touchscreens never fire a
+  // sustained hover, so hiding the name by default there would mean it's
+  // simply never seen at all.
+  const canHover = typeof window !== 'undefined' && window.matchMedia?.('(hover: hover)').matches;
+  const nameOnHoverOnly = app.category === 'Web Chat' && canHover;
 
   const isCleanThumbnailOnly = app.category === 'Streaming' || app.category === 'Social & Music';
 
@@ -250,11 +257,13 @@ function AppCard({ app, onClick, isLight }) {
         e.currentTarget.style.transform = 'translateY(-4px)';
         e.currentTarget.style.boxShadow = isLight ? '0 12px 24px rgba(0,0,0,0.08)' : '0 16px 32px rgba(0,0,0,0.4)';
         e.currentTarget.style.borderColor = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.15)';
+        setIsHovered(true);
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)';
         e.currentTarget.style.boxShadow = isLight ? '0 4px 12px rgba(0,0,0,0.03)' : '0 8px 16px rgba(0,0,0,0.15)';
         e.currentTarget.style.borderColor = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.05)';
+        setIsHovered(false);
       }}
     >
       {/* Background Graphic: either a local cover image or abstract glowing gradient with central translucent icon */}
@@ -271,13 +280,17 @@ function AppCard({ app, onClick, isLight }) {
               zIndex: 0,
             }}
           />
-          {/* Dark gradient overlay + name/badge on top of image */}
+          {/* Dark gradient overlay + name/badge on top of image — for Web Chat
+              cards on a hover-capable device, both the gradient and the name
+              stay hidden until hovered so the tile reads as a clean icon at rest. */}
           <div style={{
             position: 'absolute', inset: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.2) 55%, transparent 100%)',
             zIndex: 1,
             display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-            padding: '10px 12px', boxSizing: 'border-box', gap: 4
+            padding: '10px 12px', boxSizing: 'border-box', gap: 4,
+            opacity: nameOnHoverOnly ? (isHovered ? 1 : 0) : 1,
+            transition: 'opacity 0.2s ease'
           }}>
             <span className={`stay-white${(app.category === 'Games' || app.category === 'Activities') ? ' game-card-title' : ''}`} style={{
               fontSize: 12, fontWeight: 900, color: '#fff',
