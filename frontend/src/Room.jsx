@@ -6842,10 +6842,29 @@ const Room = () => {
     // Session runs at Hyperbeam's default 1280×720 — this account's plan doesn't
     // allow requesting a custom width/height (err_api_restricted), so the SDK's
     // resize() is what stretches/fits it to the actual player container.
+    //
+    // CRITICAL: resize() changes the shared VM's actual rendering resolution for
+    // every connected viewer at once — it is NOT a per-viewer local scale. With
+    // every viewer's own ResizeObserver independently calling this, whoever
+    // resized most recently was silently overriding the video's real resolution
+    // for the entire room (this is why a second viewer on a laptop was seeing
+    // the phone host's portrait-shaped resize instead of their own). Only the
+    // session holder (admin_token — the same signal that already gates
+    // tabs.update navigation above) may resize; everyone else just displays
+    // whatever resolution is already there, letterboxed to fit their own
+    // container via the SDK's own video element sizing.
     const syncResize = async (el, inst) => {
-      if (cancelled || !el || !inst) return;
+      if (cancelled || !el || !inst || !hbAdminTokenRef.current) return;
       const w = Math.round(el.clientWidth);
       const h = Math.round(el.clientHeight);
+      // Also skip while the host's own container is portrait-shaped (their phone,
+      // still in the upright/tappable takeover) — Netflix/Prime/etc. are landscape
+      // content, so requesting a portrait resolution actively makes the shared
+      // video worse for every other viewer too. Only resize once the host's
+      // container is landscape-ish (a desktop window, or their own manual
+      // landscape takeover) — everyone, including a portrait phone, letterboxes
+      // a landscape video fine; the reverse isn't true.
+      if (w < h) return;
       if (w < 256 || h < 256) return;
       // el.clientWidth/Height are CSS pixels — requesting those 1:1 on a
       // high-DPI phone/laptop under-resamples the stream relative to the
