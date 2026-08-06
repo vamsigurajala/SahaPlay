@@ -37,16 +37,13 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
             </button>
           </div>
           <div className="footer-layer">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600, letterSpacing: '0.5px', color: '#6b7280' }}>
-                <Hash size={10} /> {room.id}
+            <h3 className="room-card-title" style={titleColor ? { color: titleColor } : undefined}>{room.name}</h3>
+            <div className="room-card-bottom-row">
+              <div className="room-card-meta">
+                <span><Hash size={10} /> {room.id}</span>
+                <span className="room-card-meta-dot">&bull;</span>
+                <span><Users size={11} /> {room.userCount}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: 8, color: '#10b981', fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                <Users size={12} /> {room.userCount}
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, ...(titleColor ? { color: titleColor } : {}), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 170 }}>{room.name}</h3>
               <button className="join-btn">{t('join', 'Join')}</button>
             </div>
           </div>

@@ -121,7 +121,7 @@ const PublicRooms = () => {
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .pinned-card {
-          border-radius: 16px;
+          border-radius: 20px;
           cursor: pointer;
           border: 1px solid rgba(255,255,255,0.08);
           background: #12121a;
@@ -165,26 +165,62 @@ const PublicRooms = () => {
         }
         .cat-badge {
           position: absolute;
-          top: 12px;
-          left: 12px;
-          background: rgba(0,0,0,0.65);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255,255,255,0.12);
+          top: 10px;
+          left: 10px;
+          background: rgba(0,0,0,0.45);
+          backdrop-filter: blur(6px);
           color: #fff;
-          padding: 6px 12px;
-          border-radius: 10px;
-          font-size: 11px;
+          padding: 4px 9px;
+          border-radius: 8px;
+          font-size: 10.5px;
           font-weight: 700;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.3px;
           z-index: 10;
         }
+        /* Room name gets its own full-width line now instead of being squeezed
+           next to the Join button; id/participant-count demoted to one small
+           muted line below it instead of two pills sitting above the name. */
         .footer-layer {
           background: linear-gradient(135deg, rgba(var(--brand-1-rgb),0.12), rgba(var(--brand-2-rgb),0.12));
-          padding: 12px 16px;
+          padding: 14px 16px;
           display: flex;
           flex-direction: column;
+          gap: 8px;
           border-top: 1px solid rgba(255,255,255,0.05);
         }
+        .room-card-title {
+          margin: 0;
+          font-size: 15px;
+          font-weight: 700;
+          line-height: 1.3;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .room-card-bottom-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+        }
+        .room-card-meta {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 11px;
+          font-weight: 600;
+          color: #8a8f98;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .room-card-meta span {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          white-space: nowrap;
+        }
+        .room-card-meta-dot { opacity: 0.5; }
+        html[data-theme='light'] .room-card-meta { color: #64748b; }
         .join-btn {
           background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
           border: none;
@@ -194,6 +230,7 @@ const PublicRooms = () => {
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
+          flex-shrink: 0;
           transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         .nav-icon-btn { position: relative; width: 38px; height: 38px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: #94a3b8; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
@@ -322,27 +359,25 @@ const PublicRooms = () => {
         }
         .private-btn {
           position: absolute;
-          top: 12px;
-          right: 12px;
-          background: rgba(0,0,0,0.6);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255,255,255,0.15);
+          top: 8px;
+          right: 8px;
+          background: rgba(0,0,0,0.4);
+          backdrop-filter: blur(6px);
+          border: none;
           color: #fff;
-          width: 32px;
-          height: 32px;
-          border-radius: 10px;
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           z-index: 10;
         }
         .private-btn:hover {
-          background: #000000;
+          background: #ef4444;
           color: #fff;
-          border-color: rgba(239,68,68,0.7);
-          box-shadow: 0 0 16px rgba(239,68,68,0.35);
           transform: scale(1.1);
         }
         .private-btn .lock-icon {
@@ -363,14 +398,12 @@ const PublicRooms = () => {
         html[data-theme='light'] .cat-badge { background: #fff; color: #111; border-color: rgba(0,0,0,0.1); }
         
         html[data-theme='light'] .private-btn {
-          background: #fff !important;
-          border-color: rgba(0,0,0,0.1) !important;
+          background: rgba(255,255,255,0.85) !important;
           color: #111 !important;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         }
         html[data-theme='light'] .private-btn:hover {
-          border-color: #ef4444 !important;
-          color: #ef4444 !important;
+          background: #ef4444 !important;
+          color: #fff !important;
         }
         html[data-theme='light'] .nav-icon-btn.active { color: var(--brand-1) !important; background: rgba(var(--brand-1-rgb),0.1) !important; }
         
@@ -431,16 +464,13 @@ const PublicRooms = () => {
                     )}
                   </div>
                   <div className="footer-layer">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#a0aab2', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600, letterSpacing: '0.5px' }}>
-                        <Hash size={10}/> {room.id}
+                    <h3 className="room-card-title">{room.name}</h3>
+                    <div className="room-card-bottom-row">
+                      <div className="room-card-meta">
+                        <span><Hash size={10}/> {room.id}</span>
+                        <span className="room-card-meta-dot">&bull;</span>
+                        <span><Users size={11} /> {room.userCount}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(16,185,129,0.15)', padding: '3px 8px', borderRadius: '8px', color: '#10b981', fontSize: '11px', fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <Users size={12} /> {room.userCount}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>{room.name}</h3>
                       <button className="join-btn">{t('join', 'Join')}</button>
                     </div>
                   </div>

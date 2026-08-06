@@ -361,28 +361,40 @@ const Home = () => {
           gap: 20px;
         }
 
-        /* ── Pinned cards ── */
-        .pinned-card { border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
+        /* ── Pinned cards ──
+           Redesigned for a calmer resting state: the room name now gets its
+           own full-width line (was squeezed next to the Join button and
+           truncated hard at 170px), id/participant-count demoted to a single
+           small muted line below it instead of two competing pills sitting
+           above the name, and the image overlay badges are lighter-weight
+           (no border/blur box) so they read as icons, not extra buttons. */
+        .pinned-card { border-radius:20px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:#12121a;box-shadow:0 4px 20px rgba(0,0,0,0.3);transition:transform 0.3s ease,box-shadow 0.3s ease,border-color 0.3s ease;display:flex;flex-direction:column;overflow:hidden; }
         .pinned-card:hover { transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,0.5);border-color:rgba(var(--brand-1-rgb),0.5); }
         .img-layer { height:130px;position:relative;overflow:hidden; }
         .pinned-img { width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease; }
         .pinned-card:hover .pinned-img { transform:scale(1.08); }
-        .cat-badge { position:absolute;top:12px;left:12px;background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0.5px;z-index:10; }
-        html[data-theme='light'] .cat-badge { color:#ffffff !important; background:rgba(0,0,0,0.6) !important; }
-        .unpin-btn { position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.15);color:#fff;width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);z-index:10; }
-        .unpin-btn:hover { background:rgba(239,68,68,0.2);color:#ef4444;border-color:rgba(239,68,68,0.4);box-shadow:0 0 20px rgba(239,68,68,0.3);transform:scale(1.1); }
+        .cat-badge { position:absolute;top:10px;left:10px;background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);color:#fff;padding:4px 9px;border-radius:8px;font-size:10.5px;font-weight:700;letter-spacing:0.3px;z-index:10; }
+        html[data-theme='light'] .cat-badge { color:#ffffff !important; background:rgba(0,0,0,0.5) !important; }
+        .unpin-btn { position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.4);backdrop-filter:blur(6px);border:none;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);z-index:10; }
+        .unpin-btn:hover { background:#ef4444;color:#fff;transform:scale(1.1); }
         .unpin-btn .unpin-icon { transition:fill 0.3s ease;fill:none; }
         .unpin-btn:hover .unpin-icon { fill:currentColor; }
-        .footer-layer { background:linear-gradient(135deg,rgba(var(--brand-1-rgb),0.12),rgba(var(--brand-2-rgb),0.12));padding:12px 16px;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05); }
-        .join-btn { background:var(--brand-gradient);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
+        .footer-layer { background:linear-gradient(135deg,rgba(var(--brand-1-rgb),0.12),rgba(var(--brand-2-rgb),0.12));padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(255,255,255,0.05); }
+        .room-card-title { margin:0;font-size:15px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .room-card-bottom-row { display:flex;justify-content:space-between;align-items:center;gap:8px; }
+        .room-card-meta { display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#8a8f98;min-width:0;overflow:hidden; }
+        .room-card-meta span { display:inline-flex;align-items:center;gap:3px;white-space:nowrap; }
+        .room-card-meta-dot { opacity:0.5; }
+        html[data-theme='light'] .room-card-meta { color:#64748b; }
+        .join-btn { background:var(--brand-gradient);border:none;color:#fff;padding:5px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;transition:transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275); }
         .pinned-card:hover .join-btn { transform:translateY(-2px); }
         html[data-theme='light'] .pinned-card { background:#fff;border-color:rgba(var(--brand-1-rgb),0.08);box-shadow:0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 16px -6px rgba(0, 0, 0, 0.03); }
         html[data-theme='light'] .pinned-card:hover { border-color:var(--brand-1);box-shadow:0 20px 35px -5px rgba(var(--brand-1-rgb), 0.18), 0 10px 20px -10px rgba(0, 0, 0, 0.06); }
 
         html[data-theme='light'] .join-btn { background:var(--brand-gradient);color:#fff !important; }
         html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
-        html[data-theme='light'] .unpin-btn { background:#f1f5f9 !important;border-color:rgba(0,0,0,0.1) !important;color:#475569 !important; }
-        html[data-theme='light'] .unpin-btn:hover { background:#fff !important;border-color:var(--brand-1-dark) !important;color:var(--brand-1-dark) !important; }
+        html[data-theme='light'] .unpin-btn { background:rgba(255,255,255,0.85) !important;color:#475569 !important; }
+        html[data-theme='light'] .unpin-btn:hover { background:#ef4444 !important;color:#fff !important; }
 
         /* ── Nav overrides ── */
         .nav-link-btn { background:none;border:none;font-size:14px;font-weight:700;cursor:pointer;padding:10px 18px;border-radius:14px;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);color:#94a3b8; }
