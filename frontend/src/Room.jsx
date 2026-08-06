@@ -1722,15 +1722,29 @@ const Room = () => {
 
   const handleFullscreen = () => {
     if (isTouchPlayer) {
+      // Virtual browser is auto-entered into the takeover the instant it opens
+      // (see the isLaunchingVirtualBrowser/hyperbeamSession effect), so by the
+      // time the user can even reach this button isMobileFsMode is already
+      // true — treating that as "exit" here would mean their first tap just
+      // backs out to the normal layout instead of doing what they're actually
+      // asking for (rotate to landscape). So for virtual browser this button
+      // is a portrait/landscape toggle instead of an enter/exit toggle;
+      // "Exit Virtual Browser" (or leaving the app) is the only way out.
+      if (isVirtualBrowserMedia) {
+        const nextLandscape = !vbLandscapeMode;
+        setVbLandscapeMode(nextLandscape);
+        setIsMobileFsMode(true);
+        if (screen?.orientation) {
+          (nextLandscape ? screen.orientation.lock?.('landscape') : screen.orientation.lock?.('portrait'))?.catch(() => {});
+        }
+        return;
+      }
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
       } else {
         setIsMobileFsMode(true);
-        // Calls stay portrait (WhatsApp-style). Virtual browser: a manual
-        // Fullscreen tap here means the user is done navigating and just
-        // wants to watch — honor landscape for it too, same as regular video.
-        if (isVirtualBrowserMedia) setVbLandscapeMode(true);
+        // Calls stay portrait (WhatsApp-style); real video/games rotate landscape.
         if (screen?.orientation?.lock) {
           screen.orientation.lock(isCallActivity(mediaUrl) ? 'portrait' : 'landscape').catch(() => {});
         }
@@ -1789,11 +1803,6 @@ const Room = () => {
   const [playerMuted, setPlayerMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
-  // "Show Chat" pill (virtual browser mobile takeover) — same idea as showControls
-  // but its own 2s timer per the requested behavior, reset on the same move/touch
-  // activity as the rest of the player chrome.
-  const [showChatBtnVisible, setShowChatBtnVisible] = useState(true);
-  const chatBtnTimerRef = useRef(null);
   // Mobile tap-gesture layer: double-tap left/right thirds of the video to seek ±10s
   // (with a transient ripple), single tap to toggle the control bar, center tap to
   // play/pause — mirrors standard mobile video player conventions (YouTube/Netflix).
@@ -1811,15 +1820,11 @@ const Room = () => {
     setShowControls(true);
     clearTimeout(controlsTimerRef.current);
     controlsTimerRef.current = setTimeout(() => setShowControls(false), 3000);
-    setShowChatBtnVisible(true);
-    clearTimeout(chatBtnTimerRef.current);
-    chatBtnTimerRef.current = setTimeout(() => setShowChatBtnVisible(false), 2000);
   };
 
   useEffect(() => {
     return () => {
       clearTimeout(controlsTimerRef.current);
-      clearTimeout(chatBtnTimerRef.current);
     };
   }, []);
 
@@ -9681,14 +9686,17 @@ const Room = () => {
               position: 'absolute', bottom: 20, right: 20, zIndex: 500,
               display: 'flex', alignItems: 'center', gap: 12,
               pointerEvents: 'none',
-              opacity: isFullscreen ? (showControls ? 1 : 0) : (showControls || uiVisible) ? 1 : 0,
-              visibility: isFullscreen ? (showControls ? 'visible' : 'hidden') : (showControls || uiVisible) ? 'visible' : 'hidden',
+              opacity: (isFullscreen || isMobileFsMode) ? (showControls ? 1 : 0) : (showControls || uiVisible) ? 1 : 0,
+              visibility: (isFullscreen || isMobileFsMode) ? (showControls ? 'visible' : 'hidden') : (showControls || uiVisible) ? 'visible' : 'hidden',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               {/* Right: Management Actions (Chat, Fullscreen) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, pointerEvents: 'auto' }}>
-                {/* Chat Toggle (Fullscreen Only or Always) */}
-                {isFullscreen && (
+                {/* Chat Toggle (Fullscreen Only or Always) — also shown during the mobile
+                    virtual-browser takeover (isMobileFsMode without real browser Fullscreen),
+                    same overlay-on-top-of-video pattern as desktop Fullscreen instead of a
+                    separate bespoke control. */}
+                {(isFullscreen || (isTouchPlayer && isMobileFsMode)) && (
                   <div ref={fsGlobalChatBtnRef} style={{ position: 'relative' }}>
                     <button
                       className="player-ctrl-btn stay-white"
@@ -10155,31 +10163,6 @@ const Room = () => {
                               ✕ Exit Virtual Browser
                             </button>
                           </div>
-                        )}
-                        {/* Mobile-only "show chat" control — the exit bar above only reveals on
-                            hover, which never fires on touch, so phones need their own always-
-                            visible way out of the full-screen takeover. Unlike Exit Virtual Browser,
-                            this doesn't end the session for anyone — it just drops this viewer's own
-                            screen back to the normal room layout (video + chat) so they can talk to
-                            others once they've picked something to watch; the virtual browser keeps
-                            running inline underneath. Available to every viewer, not just the host. */}
-                        {isTouchPlayer && isMobileFsMode && (
-                          <button
-                            onClick={() => { setIsMobileFsMode(false); if (screen?.orientation?.unlock) screen.orientation.unlock(); }}
-                            style={{
-                              position: 'absolute', top: 10, right: 10, zIndex: 60,
-                              background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)',
-                              border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20,
-                              padding: '7px 14px', fontSize: 12, fontWeight: 700, color: '#fff',
-                              display: 'flex', alignItems: 'center', gap: 6,
-                              opacity: showChatBtnVisible ? 1 : 0,
-                              pointerEvents: showChatBtnVisible ? 'auto' : 'none',
-                              transition: 'opacity 0.3s'
-                            }}
-                          >
-                            <MessageCircle size={14} color="#fff" />
-                            Show Chat
-                          </button>
                         )}
                         {/* Connecting spinner — clears automatically when WebRTC stream starts */}
                         {hbNavStatus === 'connecting' && (
@@ -11853,7 +11836,7 @@ const Room = () => {
                 onNewMessage={handleNewMessage}
                 activeRoomTab={(isMobile || rightPanelTab === 'chat') ? chatTab : null}
                 activeRoomPartner={(isMobile || rightPanelTab === 'chat') ? (chatTab === 'dm' ? dmTarget : roomId) : null}
-                transparentMode={isFullscreen}
+                transparentMode={isFullscreen || (isTouchPlayer && isMobileFsMode)}
                 roomPermissions={room?.permissions}
                 isRoomHost={isEffectiveHost}
               />
