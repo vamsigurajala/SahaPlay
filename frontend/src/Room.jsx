@@ -35,7 +35,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -1701,17 +1701,25 @@ const Room = () => {
       // unexpectedly reappear as a normal-mode panel.
       if (!entering) {
         setShowRecentChats(false);
-        // Safety net for exits the mobile toggle/back-intercept didn't catch
-        // (OS-level swipe-away, hardware back on some devices, etc.) — without
-        // this, isRealLandscapeLock could stay stuck true with no actual
-        // Fullscreen/rotation behind it, wrongly suppressing the CSS rotate
-        // fallback next time mobile fullscreen is entered.
+        // Safety net for exits the mobile toggle/back-intercept didn't catch —
+        // e.g. a swipe-back gesture on Android commonly makes the browser exit
+        // real Fullscreen on its own, native-side, without ever running our
+        // handleFullscreen/mobileFsBack code. Without this, isMobileFsMode (and
+        // isRealLandscapeLock) stayed stuck true with no actual Fullscreen/
+        // rotation behind them anymore — the player kept rendering the fixed
+        // fullscreen CSS takeover even though the OS had already rotated back
+        // to portrait, which is exactly the "stuck in fullscreen while the
+        // status bar flips back" bug this fixes.
         setIsRealLandscapeLock(false);
+        if (isTouchPlayer && isMobileFsMode) {
+          setIsMobileFsMode(false);
+          if (screen?.orientation?.unlock) screen.orientation.unlock();
+        }
       }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
-  }, []);
+  }, [isTouchPlayer, isMobileFsMode]);
 
   const handleNavigateHome = (menu = 'selector') => {
     if (document.fullscreenElement) {
@@ -1870,6 +1878,22 @@ const Room = () => {
   const tapTimerRef = useRef(null);
   const lastTapRef = useRef({ zone: null, time: 0 });
   const playerWrapRef = useRef(null);
+  // Vertical swipe on the left/right thirds (fullscreen only) — right controls the
+  // video's own volume (a real, web-controllable property), left dims a CSS overlay
+  // over the video to simulate a brightness control. There's no web API to touch the
+  // device's actual screen backlight (that's native-app-only on both Android and
+  // iOS), so this is honestly a video-only dim, not real hardware brightness — but
+  // it's the same trick most non-native video players use, and reads the same to
+  // the user watching in a dark room.
+  const [brightnessLevel, setBrightnessLevel] = useState(1); // 1 = no dim, floor clamped in the handler
+  const [verticalGestureFeedback, setVerticalGestureFeedback] = useState(null); // { zone: 'left'|'right', value: 0..1 } | null
+  const verticalGestureRef = useRef({ active: false, zone: null, startY: 0, startVal: 0, moved: false });
+  const verticalGestureHideTimerRef = useRef(null);
+  const justDraggedVerticalRef = useRef(false);
+  // Reset the dim back to normal on exiting fullscreen — it's a transient viewing
+  // aid for that session, not something that should silently carry over and leave
+  // the player looking dim the next time fullscreen is entered.
+  useEffect(() => { if (!isMobileFsMode) setBrightnessLevel(1); }, [isMobileFsMode]);
   // Responsive breakpoints
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -7388,6 +7412,11 @@ const Room = () => {
   // left-then-right double tap doesn't misfire as a seek.
   const DOUBLE_TAP_MS = 300;
   const handlePlayerZoneTap = (zone) => {
+    // A vertical volume/brightness drag on this same zone just ended — the touch
+    // sequence still fires a synthetic click afterward, which would otherwise also
+    // toggle play/pause or the control bar right after the user was just adjusting
+    // volume/brightness.
+    if (justDraggedVerticalRef.current) return;
     if (zone === 'center') {
       if (hasPlayerPrivileges) {
         togglePlayPause();
@@ -7428,6 +7457,56 @@ const Room = () => {
     tapTimerRef.current = setTimeout(() => {
       resetControlsTimer();
     }, DOUBLE_TAP_MS);
+  };
+
+  // Vertical drag range in px to go from 0% to 100% — shorter than the full screen
+  // height so a comfortable half-screen swipe already covers the whole range.
+  const VERTICAL_GESTURE_RANGE = 220;
+  const MIN_BRIGHTNESS = 0.25; // never let the dim overlay go fully black/unreadable
+
+  const handleVerticalGestureStart = (e, zone) => {
+    // Both volume and brightness are purely local/per-device (like the existing
+    // volume slider, which has no permission gate either) — not shared room state,
+    // so every viewer can freely adjust their own regardless of player privileges.
+    if (!(isTouchPlayer && isMobileFsMode)) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    verticalGestureRef.current = {
+      active: true, zone, startY: touch.clientY, moved: false,
+      startVal: zone === 'right' ? playerVolumeRef.current : (brightnessLevel - MIN_BRIGHTNESS) / (1 - MIN_BRIGHTNESS),
+    };
+  };
+
+  const handleVerticalGestureMove = (e) => {
+    const g = verticalGestureRef.current;
+    if (!g.active) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const deltaY = g.startY - touch.clientY; // positive = finger moved up = increase
+    if (!g.moved && Math.abs(deltaY) < 10) return; // small jitter tolerance before committing to a drag
+    g.moved = true;
+    // Prevent the page/native scroll from fighting the drag once it's confirmed.
+    e.preventDefault();
+    const nextVal = Math.min(1, Math.max(0, g.startVal + deltaY / VERTICAL_GESTURE_RANGE));
+    if (g.zone === 'right') {
+      playerVolumeRef.current = nextVal;
+      setPlayerVolume(nextVal);
+      setPlayerMuted(nextVal === 0);
+    } else {
+      setBrightnessLevel(MIN_BRIGHTNESS + nextVal * (1 - MIN_BRIGHTNESS));
+    }
+    setVerticalGestureFeedback({ zone: g.zone, value: nextVal });
+  };
+
+  const handleVerticalGestureEnd = () => {
+    const g = verticalGestureRef.current;
+    if (g.moved) {
+      justDraggedVerticalRef.current = true;
+      setTimeout(() => { justDraggedVerticalRef.current = false; }, 400);
+      clearTimeout(verticalGestureHideTimerRef.current);
+      verticalGestureHideTimerRef.current = setTimeout(() => setVerticalGestureFeedback(null), 700);
+    }
+    verticalGestureRef.current = { active: false, zone: null, startY: 0, startVal: 0, moved: false };
   };
 
   useEffect(() => {
@@ -10967,9 +11046,47 @@ const Room = () => {
               !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && (!isEmbedPlatform(mediaUrl) || !hideCustomControls) &&
               !isTwitch && !isVimeo && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}>
-                <div style={{ flex: 1 }} onClick={() => handlePlayerZoneTap('left')} />
+                <div
+                  style={{ flex: 1, touchAction: isMobileFsMode ? 'none' : 'auto' }}
+                  onClick={() => handlePlayerZoneTap('left')}
+                  onTouchStart={e => handleVerticalGestureStart(e, 'left')}
+                  onTouchMove={handleVerticalGestureMove}
+                  onTouchEnd={handleVerticalGestureEnd}
+                  onTouchCancel={handleVerticalGestureEnd}
+                />
                 <div style={{ flex: 1.2 }} onClick={() => handlePlayerZoneTap('center')} />
-                <div style={{ flex: 1 }} onClick={() => handlePlayerZoneTap('right')} />
+                <div
+                  style={{ flex: 1, touchAction: isMobileFsMode ? 'none' : 'auto' }}
+                  onClick={() => handlePlayerZoneTap('right')}
+                  onTouchStart={e => handleVerticalGestureStart(e, 'right')}
+                  onTouchMove={handleVerticalGestureMove}
+                  onTouchEnd={handleVerticalGestureEnd}
+                  onTouchCancel={handleVerticalGestureEnd}
+                />
+                {verticalGestureFeedback && (
+                  <div style={{
+                    position: 'absolute', top: '50%',
+                    [verticalGestureFeedback.zone === 'left' ? 'left' : 'right']: '14%',
+                    transform: 'translateY(-50%)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                    pointerEvents: 'none', zIndex: 40,
+                  }}>
+                    <div style={{ width: 5, height: 120, borderRadius: 3, background: 'rgba(255,255,255,0.25)', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        height: `${verticalGestureFeedback.value * 100}%`,
+                        background: verticalGestureFeedback.zone === 'right' ? 'linear-gradient(180deg,var(--brand-1),var(--brand-2))' : '#fbbf24',
+                        borderRadius: 3,
+                      }} />
+                    </div>
+                    {verticalGestureFeedback.zone === 'right'
+                      ? (verticalGestureFeedback.value === 0 ? <VolumeX size={20} color="#fff" /> : <Volume2 size={20} color="#fff" />)
+                      : <Sun size={20} color="#fff" />}
+                    <span className="stay-white" style={{ color: '#fff', fontSize: 12, fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                      {Math.round(verticalGestureFeedback.value * 100)}%
+                    </span>
+                  </div>
+                )}
                 {seekFeedback && (
                   <div
                     key={seekFeedback.key}
@@ -11006,6 +11123,17 @@ const Room = () => {
                   @keyframes sp-center-pulse { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
                 `}</style>
               </div>
+            )}
+
+            {/* Brightness dim overlay — see the vertical-gesture comment above for why
+                this simulates brightness with a CSS dim instead of real device
+                brightness (no web API exposes that). Sits below the control bar
+                (zIndex 25) so controls stay fully legible even at a heavy dim. */}
+            {isTouchPlayer && isMobileFsMode && brightnessLevel < 1 && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 12, pointerEvents: 'none',
+                background: '#000', opacity: 1 - brightnessLevel,
+              }} />
             )}
 
             {/* Persistent file input — lives outside the modal so it survives modal unmount */}
