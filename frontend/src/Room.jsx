@@ -4,6 +4,7 @@ import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
+import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
@@ -7685,7 +7686,11 @@ const Room = () => {
     // this check the call below throws synchronously and was being swallowed by
     // console.error with zero user-facing feedback, which is what made this look like
     // "does nothing" on mobile.
-    if (!navigator.mediaDevices?.getDisplayMedia) {
+    // A Capacitor-wrapped native build can fall back to real MediaProjection
+    // capture (see lib/nativeScreenShare.js) when the WebView itself has no
+    // getDisplayMedia() — plain web/PWA has no such fallback available.
+    const nativeCaptureAvailable = isCapacitorApp();
+    if (!navigator.mediaDevices?.getDisplayMedia && !nativeCaptureAvailable) {
       toast.error(
         isMobile
           ? "Screen sharing isn't supported on mobile browsers (iOS or Android) — this is a phone/OS limitation, not something this app can work around. Please share from a desktop browser (Chrome, Edge, or Firefox) instead."
@@ -7706,7 +7711,23 @@ const Room = () => {
         ? { width: videoConstraints.width, height: videoConstraints.height, frameRate: videoConstraints.frameRate }
         : videoConstraints;
 
-      const rawStream = await navigator.mediaDevices.getDisplayMedia({ video: mediaConstraints, audio: true });
+      let rawStream;
+      let nativeCleanup = null;
+      if (!navigator.mediaDevices?.getDisplayMedia && nativeCaptureAvailable) {
+        // getDisplayMedia() is undefined inside the WebView this app
+        // otherwise runs on — go straight to native MediaProjection capture
+        // instead. It hands back a canvas-backed MediaStream, so everything
+        // below (enhancement filter, WebRTC broadcast) works unmodified —
+        // this is the same "draw frames onto a canvas, capture the canvas"
+        // trick the enhancement pipeline itself uses just below.
+        const { stream, cleanup } = await getNativeScreenCaptureStream({
+          onUnexpectedStop: () => stopScreenshare(),
+        });
+        rawStream = stream;
+        nativeCleanup = cleanup;
+      } else {
+        rawStream = await navigator.mediaDevices.getDisplayMedia({ video: mediaConstraints, audio: true });
+      }
 
       let streamToShare = rawStream;
       let enhanceCleanup = null; // Holds the cancelAnimationFrame ID
@@ -7768,6 +7789,7 @@ const Room = () => {
       localStreamRef.current = streamToShare;
       // Store cleanup so stopScreenshare can call it
       localStreamRef.current._enhanceCleanup = enhanceCleanup;
+      localStreamRef.current._nativeCleanup = nativeCleanup;
 
       // Regain focus to the room tab immediately after sharing starts
       setTimeout(() => {
@@ -7805,7 +7827,11 @@ const Room = () => {
     if (localStreamRef.current?._enhanceCleanup) {
       localStreamRef.current._enhanceCleanup();
     }
-    localStreamRef.current?.getTracks().forEach(t => t.stop()); 
+    // Tears down the native MediaProjection capture + foreground service, if active
+    if (localStreamRef.current?._nativeCleanup) {
+      localStreamRef.current._nativeCleanup();
+    }
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null; 
     setIsScreensharing(false);
     setActiveExternalApp(null);

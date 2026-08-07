@@ -1,15 +1,23 @@
 package com.sahaplay.app;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.media.AudioManager;
+import android.media.projection.MediaProjectionManager;
+import android.util.DisplayMetrics;
 import android.view.Window;
 import android.view.WindowManager;
+
+import androidx.activity.result.ActivityResult;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 // Exposes real device volume/brightness control to the web player's vertical
@@ -25,6 +33,32 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 // generated (never-committed) tree directly.
 @CapacitorPlugin(name = "SahaplayMedia")
 public class SahaplayMediaPlugin extends Plugin {
+
+    // Screen-capture frames/events arrive from SahaplayScreenCaptureService
+    // (a plain Android Service, not a Capacitor plugin, so it can't call
+    // notifyListeners() directly) via these static hooks onto whichever
+    // plugin instance is currently attached to the bridge — there is only
+    // ever one Bridge/WebView alive per app process.
+    private static SahaplayMediaPlugin activeInstance;
+
+    @Override
+    public void load() {
+        activeInstance = this;
+    }
+
+    public static void emitScreenFrame(String base64Jpeg, int width, int height) {
+        if (activeInstance == null) return;
+        JSObject data = new JSObject();
+        data.put("data", base64Jpeg);
+        data.put("width", width);
+        data.put("height", height);
+        activeInstance.notifyListeners("screenFrame", data);
+    }
+
+    public static void emitScreenCaptureStopped() {
+        if (activeInstance == null) return;
+        activeInstance.notifyListeners("screenCaptureStopped", new JSObject());
+    }
 
     // STREAM_MUSIC is the same system-wide media volume stream the phone's
     // physical volume buttons control — no manifest permission required.
@@ -114,6 +148,50 @@ public class SahaplayMediaPlugin extends Plugin {
     public void unlockOrientation(PluginCall call) {
         getActivity().runOnUiThread(() ->
             getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED));
+        call.resolve();
+    }
+
+    // Screen share: the WebView this app otherwise runs on has no
+    // screen-capture API at all (getDisplayMedia() is undefined there,
+    // unconditionally — not a support gap that improves with a newer
+    // Android/Chrome version), so this drives Android's own MediaProjection
+    // API directly instead, same as native apps like WhatsApp/Zoom do.
+    // createScreenCaptureIntent() must be launched for a result — Capacitor
+    // plugins do this via startActivityForResult()/@ActivityCallback rather
+    // than the Activity's own startActivityForResult(), since the bridge
+    // needs to intercept the result before handing it back to this call.
+    @PluginMethod
+    public void requestScreenCapture(PluginCall call) {
+        MediaProjectionManager mgr = (MediaProjectionManager) getActivity().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        Intent intent = mgr.createScreenCaptureIntent();
+        startActivityForResult(call, intent, "handleScreenCaptureResult");
+    }
+
+    @ActivityCallback
+    private void handleScreenCaptureResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            call.reject("Screen capture permission denied");
+            return;
+        }
+
+        DisplayMetrics metrics = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+
+        Intent serviceIntent = new Intent(getActivity(), SahaplayScreenCaptureService.class);
+        serviceIntent.putExtra(SahaplayScreenCaptureService.EXTRA_RESULT_CODE, result.getResultCode());
+        serviceIntent.putExtra(SahaplayScreenCaptureService.EXTRA_RESULT_DATA, result.getData());
+        serviceIntent.putExtra(SahaplayScreenCaptureService.EXTRA_WIDTH, metrics.widthPixels);
+        serviceIntent.putExtra(SahaplayScreenCaptureService.EXTRA_HEIGHT, metrics.heightPixels);
+        serviceIntent.putExtra(SahaplayScreenCaptureService.EXTRA_DENSITY, metrics.densityDpi);
+        ContextCompat.startForegroundService(getActivity(), serviceIntent);
+
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopScreenCapture(PluginCall call) {
+        getActivity().stopService(new Intent(getActivity(), SahaplayScreenCaptureService.class));
         call.resolve();
     }
 

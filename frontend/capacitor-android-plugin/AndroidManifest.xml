@@ -67,6 +67,19 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Screen share (see SahaplayScreenCaptureService.java): Android
+             requires MediaProjection capture to run inside a declared,
+             running foreground service (not just an Activity) on API 29+,
+             or captured frames come back blank. foregroundServiceType
+             "mediaProjection" is what lets startForeground() legally cover
+             a MediaProjection capture on API 29+, and is mandatory to
+             declare (alongside the FOREGROUND_SERVICE_MEDIA_PROJECTION
+             permission below) on API 34+. -->
+        <service
+            android:name=".SahaplayScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
     </application>
 
     <!-- Permissions -->
@@ -75,6 +88,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- Not required so the app still installs on devices lacking a camera/mic. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

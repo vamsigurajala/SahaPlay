@@ -156,21 +156,26 @@ jobs:
           npx @capacitor/assets generate --android --iconBackgroundColor '#6366F1' --iconBackgroundColorDark '#0F0F1A'
 
       # Our own native code — a small custom plugin exposing real device
-      # volume/brightness to the web player's swipe gestures, plus a
-      # MainActivity that registers it, plus a manifest override adding the
-      # camera/mic permissions the generated default omits (without them,
-      # Capacitor's built-in getUserMedia permission bridge auto-denies with
-      # no system dialog ever shown — confirmed by reading
-      # BridgeWebChromeClient.onPermissionRequest in @capacitor/android
-      # locally). All hand-written and committed under
-      # capacitor-android-plugin/, copied into the freshly generated
-      # (never-committed) android/ tree on every run rather than living
-      # inside it directly, same "regenerate from source of truth" approach
-      # the old TWA build used for its own android-twa/ directory.
+      # volume/brightness/orientation-lock/screen-capture to the web app
+      # (nothing a plain WebView/browser can do), a foreground Service the
+      # screen-capture feature runs its MediaProjection session inside
+      # (Android requires this on API 29+ or captured frames come back
+      # blank), plus a MainActivity that registers the plugin, plus a
+      # manifest override adding the camera/mic/screen-capture permissions
+      # the generated default omits (without them, Capacitor's built-in
+      # getUserMedia permission bridge auto-denies with no system dialog
+      # ever shown — confirmed by reading BridgeWebChromeClient.
+      # onPermissionRequest in @capacitor/android locally). All hand-written
+      # and committed under capacitor-android-plugin/, copied into the
+      # freshly generated (never-committed) android/ tree on every run
+      # rather than living inside it directly, same "regenerate from source
+      # of truth" approach the old TWA build used for its own android-twa/
+      # directory.
       - name: Add native plugin, MainActivity, and manifest permissions
         working-directory: frontend
         run: |
           cp capacitor-android-plugin/SahaplayMediaPlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayMediaPlugin.java
+          cp capacitor-android-plugin/SahaplayScreenCaptureService.java android/app/src/main/java/com/sahaplay/app/SahaplayScreenCaptureService.java
           cp capacitor-android-plugin/MainActivity.java android/app/src/main/java/com/sahaplay/app/MainActivity.java
           cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
