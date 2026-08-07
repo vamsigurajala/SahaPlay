@@ -699,8 +699,7 @@ const Login = () => {
         ) : (
         /* ── Normal login form ────────────────────────────────────────────── */
         <div className="login-card animated-fade-in">
-          <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('welcomeBack', 'Welcome Back')}</h1>
-          <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>{t('loginDesc', 'Log in to access your encrypted chats')}</p>
+          <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 24px', color: '#fff' }}>{t('welcomeBack', 'Welcome Back')}</h1>
 
           {locationMsg && <div style={{ color: '#4ade80', marginBottom: '20px', fontSize: '14px', background: 'rgba(74,222,128,0.1)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(74,222,128,0.2)' }}>{locationMsg}</div>}
 
@@ -781,10 +780,12 @@ const Login = () => {
               <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>{t('password', 'Password')}</label>
               <div style={{ position: 'relative' }}>
                 <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
-                <input type={showPassword ? 'text' : 'password'} className="login-input" style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }} placeholder="••••••••" value={password} onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: null}); }} />
-                <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+                <input type={showPassword ? 'text' : 'password'} className="login-input" style={{ paddingRight: password ? '48px' : undefined, borderColor: errors.password ? '#ef4444' : undefined }} placeholder="••••••••" value={password} onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: null}); }} />
+                {password && (
+                  <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                )}
               </div>
               {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>

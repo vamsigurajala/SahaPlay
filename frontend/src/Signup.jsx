@@ -595,13 +595,15 @@ const Signup = () => {
                   <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type={showPassword ? 'text' : 'password'} className="login-input"
-                    style={{ paddingRight: '48px', borderColor: errors.password ? '#ef4444' : undefined }}
+                    style={{ paddingRight: password ? '48px' : undefined, borderColor: errors.password ? '#ef4444' : undefined }}
                     placeholder={t('passwordPlaceholder', 'Password')} value={password}
                     onChange={e => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }); }}
                   />
-                  <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                  {password && (
+                    <button type="button" onClick={() => setShowPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  )}
                 </div>
                 {errors.password && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.password}</span>}
               </div>
@@ -613,13 +615,15 @@ const Signup = () => {
                   <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
                   <input
                     type={showConfirmPassword ? 'text' : 'password'} className="login-input"
-                    style={{ paddingRight: '48px', borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
+                    style={{ paddingRight: confirmPassword ? '48px' : undefined, borderColor: errors.confirmPassword ? '#ef4444' : undefined }}
                     placeholder={t('confirmPasswordPlaceholder', 'Confirm your password')} value={confirmPassword}
                     onChange={e => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: null }); }}
                   />
-                  <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                  {confirmPassword && (
+                    <button type="button" onClick={() => setShowConfirmPassword(p => !p)} style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  )}
                 </div>
                 {errors.confirmPassword && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.confirmPassword}</span>}
               </div>
