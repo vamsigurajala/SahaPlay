@@ -3035,6 +3035,11 @@ const publicKeyCache = new Map(); // Map<username_lower, publicKey>
 const SAHAPLAY_OFFICIAL_ROOM_ID = 'sahaplay-official';
 const SAHAPLAY_OFFICIAL_DISPLAY_NAME = 'SahaPlay Updates';
 const SAHAPLAY_BROADCAST_ROLES = ['super_admin', 'admin'];
+// Absolute URL (the logo is a static frontend asset, on sahaplay.com — not
+// something the backend's own /avatars upload path serves) so recipients see
+// the brand mark for this channel instead of whichever admin's own personal
+// avatar happened to post, both in the chat list and next to each message.
+const SAHAPLAY_OFFICIAL_AVATAR_URL = 'https://sahaplay.com/logos/trans_webl.png';
 let officialGroupEnsured = false;
 async function ensureOfficialGroupExists() {
   if (officialGroupEnsured) return;
@@ -3580,6 +3585,20 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     let pinnedIds = [];
     try { pinnedIds = JSON.parse(userRow?.pinnedRooms || '[]'); } catch(e) { console.error('Error parsing pinnedRooms:', e); }
 
+    // The message-driven query above computes isHost generically (room_names.
+    // hostUsername === username) — for the SahaPlay official group there is
+    // no real hostUsername at all, so once it has at least one message (and
+    // therefore surfaces via that query instead of the force-include block
+    // below), every admin was seeing isHost:false and the composer wrongly
+    // locked as "only host can message here" for the very account that's
+    // supposed to be able to post. Patch it here so admin status wins
+    // regardless of which path added this room to finalGroup.
+    const officialEntry = finalGroup.find(g => g.id === SAHAPLAY_OFFICIAL_ROOM_ID);
+    if (officialEntry) {
+      officialEntry.isHost = SAHAPLAY_BROADCAST_ROLES.includes(userRow?.role);
+      officialEntry.partnerAvatar = SAHAPLAY_OFFICIAL_AVATAR_URL;
+    }
+
     const groupRoomIds = new Set(finalGroup.map(g => g.id));
     for (const rid of pinnedIds) {
       if (!groupRoomIds.has(rid)) {
@@ -3627,7 +3646,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         id: SAHAPLAY_OFFICIAL_ROOM_ID,
         partner: SAHAPLAY_OFFICIAL_ROOM_ID,
         displayName: SAHAPLAY_OFFICIAL_DISPLAY_NAME,
-        partnerAvatar: null,
+        partnerAvatar: SAHAPLAY_OFFICIAL_AVATAR_URL,
         message: lastMsg ? lastMsg.message : '',
         lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
         lastMediaType: lastMsg?.mediaType || null,
@@ -3817,7 +3836,14 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
       }
       res.json(filtered.map(r => ({ ...r, seenBy: seenMap[r.id] || [] })));
     } else if (type === 'room') {
-      const joinTs = await getOrInitFirstJoined(username, partner);
+      // The SahaPlay official channel is a public bulletin every user is
+      // implicitly a member of, not a room someone "joins" — a new account
+      // must see the FULL announcement history, not just messages posted
+      // after the first time they happen to open it. Everywhere else,
+      // gating on firstJoined is correct: it's what keeps a new room
+      // participant from seeing chat history predating their own join.
+      const isOfficialBulletin = partner === SAHAPLAY_OFFICIAL_ROOM_ID;
+      const joinTs = isOfficialBulletin ? null : await getOrInitFirstJoined(username, partner);
       let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
@@ -3861,7 +3887,7 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           userId: r.senderId,
           senderName: r.senderName,
           username: r.senderName,
-          senderAvatar: r.senderAvatarPath || null,
+          senderAvatar: isOfficialBulletin ? SAHAPLAY_OFFICIAL_AVATAR_URL : (r.senderAvatarPath || null),
           message: r.message,
           nonce: r.nonce || null,
           ephemeralPublicKey: r.ephemeralPublicKey || null,
@@ -4183,7 +4209,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         userId: req.user.id || 'http_client',
         username,
         senderName: username,
-        senderAvatar: senderAvatar,
+        senderAvatar: (partner === SAHAPLAY_OFFICIAL_ROOM_ID) ? SAHAPLAY_OFFICIAL_AVATAR_URL : senderAvatar,
         message: actualMessage,
         roomId: partner,
         type: 'group',
