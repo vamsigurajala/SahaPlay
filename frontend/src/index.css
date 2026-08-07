@@ -116,6 +116,13 @@ html, body {
   overflow-x: hidden;
   /* Ensure touch scrolling always works on iOS/iPad/Android */
   -webkit-overflow-scrolling: touch;
+  /* Stops the Android/Chrome "rubber-band" glow/stretch when a page is
+     pulled past its top or bottom edge — a plain website tolerates it, but
+     inside the Capacitor app (a single persistent WebView, not a browser
+     tab with its own chrome) it reads as the whole app UI physically
+     stretching. `contain` (not `none`) keeps normal scroll chaining to a
+     parent working where it's actually used (nested scroll areas). */
+  overscroll-behavior-y: contain;
 }
 
 html {
@@ -143,7 +150,7 @@ body {
    fixes every page's toast position in one place instead of threading
    containerStyle through the ~15 separate <Toaster/> usages across pages. */
 [data-rht-toaster] {
-  top: max(16px, calc(env(safe-area-inset-top, 0px) + 8px)) !important;
+  top: max(16px, calc(var(--sp-status-bar-inset, 0px) + 8px)) !important;
 }
 
 @keyframes gradientPan {

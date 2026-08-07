@@ -10,8 +10,15 @@ import { API } from '../lib/api';
 // param and the catalog is small enough that fetching once and filtering
 // locally is simpler than adding one) + users (via the existing
 // /api/users/search, same endpoint Navbar's old search dropdown used).
-export default function SearchTabContent({ t }) {
+export default function SearchTabContent({ t, onNavigate }) {
   const navigate = useNavigate();
+  // BottomNav renders this inside a position:fixed, z-index:100000 full-screen
+  // overlay — navigating to a room/profile changed the route underneath it,
+  // but nothing closed the overlay itself, so the destination page rendered
+  // fully hidden behind the still-open search screen. onNavigate is
+  // BottomNav's navigateFrom, which closes the overlay (with the
+  // skipNextClose handling that needs) before navigating.
+  const goTo = (path) => (onNavigate ? onNavigate(path) : navigate(path));
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 300);
   const [allRooms, setAllRooms] = useState(null);
@@ -85,7 +92,7 @@ export default function SearchTabContent({ t }) {
         <div style={{ marginBottom: 24 }}>
           <div className="search-tab-section-title">{t('rooms', 'Rooms')}</div>
           {roomResults.slice(0, 20).map(room => (
-            <div key={room.id} className="search-tab-row" onClick={() => navigate(`/room/${room.id}`)}>
+            <div key={room.id} className="search-tab-row" onClick={() => goTo(`/room/${room.id}`)}>
               <div className="search-tab-thumb">
                 {room.thumbnailPath ? (
                   <img src={getRoomThumbnailUrl(room.thumbnailPath)} alt="" />
@@ -109,7 +116,7 @@ export default function SearchTabContent({ t }) {
         <div>
           <div className="search-tab-section-title">{t('users', 'Users')}</div>
           {userResults.slice(0, 20).map(u => (
-            <div key={u.username} className="search-tab-row" onClick={() => navigate(`/profile/${u.username}`)}>
+            <div key={u.username} className="search-tab-row" onClick={() => goTo(`/profile/${u.username}`)}>
               <div className="search-tab-thumb" style={{ borderRadius: '50%' }}>
                 {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt="" /> : <User size={18} color="#888" />}
               </div>

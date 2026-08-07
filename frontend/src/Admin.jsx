@@ -3781,7 +3781,8 @@ export default function Admin() {
           style={{
             display: 'none', // Managed by CSS media query
             alignItems: 'center', gap: 12,
-            padding: '0 16px', height: 56, flexShrink: 0,
+            padding: '0 16px', paddingTop: 'var(--sp-status-bar-inset, 0px)',
+            boxSizing: 'content-box', height: 56, flexShrink: 0,
             background: isLight ? '#ffffff' : '#0e0e1a',
             borderBottom: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)',
             zIndex: 100,

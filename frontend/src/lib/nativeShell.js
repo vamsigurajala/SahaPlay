@@ -50,3 +50,37 @@ export function initNativeBackButton() {
     }
   });
 }
+
+// CSS `env(safe-area-inset-top)` reports 0 in this Capacitor WebView (the
+// Android edge-to-edge inset never gets propagated down to the page's CSS
+// environment the way it does in an installed PWA), so every top-of-screen
+// bar/toast/modal built against it still sat under the status bar even
+// after switching from the (also broken — see StatusBarPlugin.java, its
+// overlaysWebView flag is a no-op on Android 15+) native overlaysWebView
+// config. StatusBar.getInfo().height, by contrast, is computed from
+// WindowInsetsCompat — a real, current, non-deprecated measurement — so
+// this reads it directly and republishes it as a CSS custom property every
+// CSS rule in the app can use instead of the env() function.
+const STATUS_BAR_INSET_VAR = '--sp-status-bar-inset';
+const FALLBACK_INSET_PX = 24; // typical Android status bar height, used only until the real value arrives
+
+export async function initNativeStatusBarInset() {
+  const sb = statusBar();
+  if (!sb) return;
+  document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, `${FALLBACK_INSET_PX}px`);
+  const applyRealHeight = async () => {
+    try {
+      const info = await sb.getInfo();
+      if (typeof info?.height === 'number' && info.height > 0) {
+        document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, `${info.height}px`);
+      }
+    } catch {}
+  };
+  await applyRealHeight();
+  // Status bar height can change on rotation (some OEMs use a shorter bar
+  // in landscape) — re-measure on resize/orientation change and app resume.
+  window.addEventListener('resize', applyRealHeight);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyRealHeight();
+  });
+}

@@ -119,15 +119,30 @@ export function installCacheInterceptor() {
 
     const method = ((init?.method) || 'GET').toUpperCase();
     if (method !== 'GET') {
-      try {
-        const pathname = new URL(url, window.location.origin).pathname;
-        appCache.invalidatePrefix(pathname);
-      } catch (e) {
-        const key = cacheKeyFor(url);
-        appCache.invalidate(key);
-      }
-      invalidateDependents(url);
-      return _innerFetch(input, init);
+      const invalidateNow = () => {
+        try {
+          const pathname = new URL(url, window.location.origin).pathname;
+          appCache.invalidatePrefix(pathname);
+        } catch (e) {
+          const key = cacheKeyFor(url);
+          appCache.invalidate(key);
+        }
+        invalidateDependents(url);
+      };
+      // Invalidating only here, before the mutation's own network call, left
+      // a window open: a GET for the same prefix (e.g. the follow-requests
+      // list's 3s poll) firing while this POST is still in flight would
+      // cache-miss, fetch the server's PRE-mutation state, and re-cache it
+      // with a fresh TTL — so a follow request could show "Requested" for
+      // one optimistic-update frame and then silently revert to "Follow
+      // Back" once that poll's stale response landed in cache. Invalidating
+      // again after the mutation resolves closes that window: any cache
+      // entry written during it gets busted immediately rather than living
+      // out its TTL.
+      invalidateNow();
+      const response = await _innerFetch(input, init);
+      invalidateNow();
+      return response;
     }
 
     let pathname;

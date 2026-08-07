@@ -8942,7 +8942,7 @@ const Room = () => {
 
       {/* ── Header ── */}
       {!isTvMode && (
-      <div className="room-header" style={{ height: 64, padding: '0 24px', paddingTop: 'env(safe-area-inset-top, 0px)', boxSizing: 'content-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--room-header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--room-border)', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
+      <div className="room-header" style={{ height: 64, padding: '0 24px', paddingTop: 'var(--sp-status-bar-inset, 0px)', boxSizing: 'content-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--room-header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--room-border)', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
         {/* Left: Navigation & Branding */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button className="back-btn-room" onClick={handleLeaveRoom} title="Back to Home" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, padding: '8px 14px', color: isLight ? '#475569' : '#888', cursor: 'pointer', transition: 'all 0.2s' }}>
@@ -9557,7 +9557,17 @@ const Room = () => {
 
 
       {/* Ã¢â€â‚¬Ã¢â€â‚¬ Main Content Ã¢â€â‚¬Ã¢â€â‚¬ */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isFullscreen && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isFullscreen && !isTvMode ? ' mob-call-active' : ''}`}>
+      {/* mob-media-active/mob-call-active deliberately do NOT exclude
+          isFullscreen (despite the name suggesting otherwise, they used to)
+          — index.css's `.room-main-layout:not(.mob-media-active) .room-player-col
+          { display: none }` rule exists only for the "no media open, chat
+          fills the screen" empty-room state, using absence of this class as
+          a stand-in for that. Real mobile Fullscreen (requestFullscreen(),
+          added for genuine landscape rotation) sets isFullscreen true while
+          media is very much still playing, so excluding it here made that
+          "empty room" rule misfire during Fullscreen too — hiding the
+          player and expanding the chat panel over it instead of the video. */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{

@@ -1916,15 +1916,28 @@ const GlobalChatWidget = forwardRef(({
   const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearChatModalOpen || clearGroupChatModalOpen || renameModalOpen || showMasterKeyModal || showChangePinModal);
 
   // Mobile/iPad swipe-back (and hardware back) should step back one level
-  // instead of leaving the page: closed -> list -> chat -> overlay. Without
-  // this, a swipe-left gesture falls through to the browser's real back
-  // navigation and exits the whole site.
-  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(!isOpen ? 0 : (view === 'chat' ? (anyChatOverlayOpen ? 3 : 2) : 1), (newLevel) => {
+  // instead of leaving the page: closed -> list -> folder (hidden/locked
+  // chats filter) -> chat -> overlay. Without this, a swipe-left gesture
+  // falls through to the browser's real back navigation and exits the
+  // whole site. showHiddenChats/showLockedChats are orthogonal to `view`
+  // (a filter applied to the same list, not a separate screen) — without
+  // their own level here, opening one and swiping back skipped straight
+  // past it to level 1's "close the whole chat widget" handling instead of
+  // just clearing the filter.
+  const anyFolderOpen = showHiddenChats || showLockedChats;
+  const gcwLevel = !isOpen ? 0
+    : view === 'chat' ? (anyChatOverlayOpen ? 4 : 3)
+    : anyFolderOpen ? 2
+    : 1;
+  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(gcwLevel, (newLevel) => {
     if (newLevel === 0) {
       onClose && onClose();
     } else if (newLevel === 1) {
-      handleBackToList();
+      if (view === 'chat') handleBackToList();
+      else { setShowHiddenChats(false); setShowLockedChats(false); }
     } else if (newLevel === 2) {
+      handleBackToList();
+    } else if (newLevel === 3) {
       setForwardPickerOpen(false);
       setBulkDeleteConfirm(false);
       setClearChatModalOpen(false);

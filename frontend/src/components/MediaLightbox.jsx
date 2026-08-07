@@ -89,6 +89,12 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     // swipedRef suppresses that synthetic click if it does still fire, so
     // it can't immediately toggle a second time.
     if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && !e.target.closest('button')) {
+      // Cancels the synthetic click some WebViews still fire after touchend
+      // outright, rather than relying on swipedRef to make it a no-op — on
+      // Android WebView builds that fire a duplicate/"ghost" click, letting
+      // it through even as a no-op left a second toggle able to slip in and
+      // immediately undo this one.
+      e.preventDefault();
       swipedRef.current = true;
       setShowArrows(v => !v);
     }

@@ -423,6 +423,11 @@ export default function SubtitleSettingsModal({ open, onClose, settings, onChang
     >
       <div className={isMobile ? 'sp-hidden-scroll' : ''} style={isMobile ? {
         ...panelBase,
+        // This is the portrait (non-rotated) drawer, so "top" here really is
+        // the physical top of the screen, under the status bar — unlike the
+        // sp-mobfs-overlay-wrap branch above, where local-top maps to the
+        // device's physical right edge post-rotation and must NOT get this.
+        paddingTop: `calc(20px + var(--sp-status-bar-inset, 0px))`,
         borderLeft: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)',
         borderRadius: 0,
         width: 'min(86vw, 340px)',

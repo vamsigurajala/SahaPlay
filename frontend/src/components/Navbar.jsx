@@ -298,10 +298,12 @@ const Navbar = () => {
           transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
           /* Reserves real space for the phone's status bar (clock/wifi/battery)
              instead of drawing under it — Android 15+ enforces edge-to-edge
-             rendering in the Capacitor WebView with no app-level opt-out, so
-             this can't be fixed natively; env(safe-area-inset-top) is 0 in a
-             plain browser tab, so this is a no-op there. */
-          padding-top: env(safe-area-inset-top, 0px);
+             rendering in the Capacitor WebView with no app-level opt-out.
+             --sp-status-bar-inset is set from nativeShell.js's
+             initNativeStatusBarInset() (env(safe-area-inset-top) reports 0
+             in this WebView, so it can't be used here); defaults to 0 in a
+             plain browser tab where the var is never set. */
+          padding-top: var(--sp-status-bar-inset, 0px);
         }
         .main-nav.scrolled {
           background: rgba(9,9,11,0.85) !important;

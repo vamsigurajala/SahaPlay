@@ -1018,7 +1018,7 @@ const AppSettings = () => {
       `}</style>
 
       {/* Navbar */}
-      <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
+      <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', paddingTop: `calc(${isMobile ? '12px' : '16px'} + var(--sp-status-bar-inset, 0px))`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
         {/* Left: Back Button */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <button className="back-btn" onClick={() => navigate(-1)}>

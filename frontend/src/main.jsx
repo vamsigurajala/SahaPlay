@@ -31,13 +31,14 @@ import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
 import { API } from './lib/api.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
-import { initNativeBackButton } from './lib/nativeShell.js';
+import { initNativeBackButton, initNativeStatusBarInset } from './lib/nativeShell.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
 // listener is registered (see nativeShell.js for why).
 if (isCapacitorApp()) {
   initNativeBackButton();
+  initNativeStatusBarInset();
 }
 
 // Standalone-mode is session-stable (a launch-time property, not something
