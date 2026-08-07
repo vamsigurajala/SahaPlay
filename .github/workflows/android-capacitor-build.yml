@@ -228,19 +228,26 @@ jobs:
       # (same name as the style, defined in the unqualified values/
       # styles.xml cap add android already generated) is the standard
       # Android resource-qualifier pattern for "extend the base theme, only
-      # overriding this one attribute, on API 31+ devices" — deliberately
-      # NOT setting windowSplashScreenAnimatedIcon here: Android 12 has
-      # strict size/padding constraints on that icon that are easy to get
-      # wrong blind, and omitting it just makes the OS fall back to the
-      # app's regular launcher icon automatically, which is a safe default.
+      # overriding this one attribute, on API 31+ devices" — this genuinely
+      # resolves correctly at runtime (Android's resource resolver looks up
+      # the lower-priority values/ definition, not an infinite self-loop),
+      # but Android Lint's static ResourceCycle check doesn't understand
+      # that qualifier-folder trick and flags it as a fatal error anyway —
+      # confirmed by an actual failed CI run naming this exact style.
+      # tools:ignore suppresses that specific known-false-positive rather
+      # than disabling lint checks broadly. Deliberately NOT setting
+      # windowSplashScreenAnimatedIcon here: Android 12 has strict
+      # size/padding constraints on that icon that are easy to get wrong
+      # blind, and omitting it just makes the OS fall back to the app's
+      # regular launcher icon automatically, which is a safe default.
       - name: Force white background for the Android 12+ native splash screen
         working-directory: frontend
         run: |
           mkdir -p android/app/src/main/res/values-v31
           cat > android/app/src/main/res/values-v31/styles.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBarLaunch">
+          <resources xmlns:tools="http://schemas.android.com/tools">
+              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBarLaunch" tools:ignore="ResourceCycle">
                   <item name="android:windowSplashScreenBackground">#FFFFFF</item>
               </style>
           </resources>
