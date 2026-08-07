@@ -28,25 +28,39 @@ function stopNativeScreenCapture() {
   plugin()?.stopScreenCapture?.().catch(() => {});
 }
 
+// addListener()'s return shape isn't consistent across Capacitor
+// versions/platforms — some return the PluginListenerHandle synchronously,
+// others return a Promise<PluginListenerHandle>. Assuming it was always a
+// Promise ("r.addListener(...).then is not a function") was the bug that
+// broke every screen-share attempt outright: the native capture (confirmed
+// by the capture notification) had already started successfully by the
+// time this threw, so nothing about the native side needed fixing — just
+// this call needed to handle either shape.
+function removeListenerSafe(handleOrPromise) {
+  if (!handleOrPromise) return;
+  if (typeof handleOrPromise.remove === 'function') { handleOrPromise.remove(); return; }
+  if (typeof handleOrPromise.then === 'function') {
+    handleOrPromise.then((h) => h?.remove?.()).catch(() => {});
+  }
+}
+
 // Resolves with { stream, cleanup } once the first native frame has
 // arrived and sized the canvas. `cleanup` removes the frame listener and
 // stops the native capture — call it from stopScreenshare().
 export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
   await requestNativeScreenCapture();
 
-  return new Promise((resolve, reject) => {
-    const p = plugin();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    let started = false;
-    let frameListenerHandle = null;
-    let stopListenerHandle = null;
-    let settled = false;
+  const p = plugin();
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  let started = false;
+  let settled = false;
 
+  return new Promise((resolve, reject) => {
     const cleanup = () => {
-      frameListenerHandle?.remove?.();
-      stopListenerHandle?.remove?.();
+      removeListenerSafe(frameListenerHandle);
+      removeListenerSafe(stopListenerHandle);
       stopNativeScreenCapture();
     };
 
@@ -64,17 +78,17 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
       }
     };
 
-    p.addListener('screenFrame', (frame) => {
+    const frameListenerHandle = p.addListener('screenFrame', (frame) => {
       if (frame?.data) img.src = `data:image/jpeg;base64,${frame.data}`;
-    }).then((handle) => { frameListenerHandle = handle; });
+    });
 
-    p.addListener('screenCaptureStopped', () => {
+    const stopListenerHandle = p.addListener('screenCaptureStopped', () => {
       // Fires when the user stops sharing from the OS's own capture
       // indicator rather than through our UI — the native side is already
       // torn down, this just needs to be reflected on the JS side too.
       cleanup();
       onUnexpectedStop?.();
-    }).then((handle) => { stopListenerHandle = handle; });
+    });
 
     // Safety net — if no frame ever arrives (capture failed to start on the
     // native side for some reason), don't leave the caller hanging forever.
