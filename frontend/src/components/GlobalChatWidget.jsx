@@ -1381,7 +1381,13 @@ const GlobalChatWidget = forwardRef(({
   activeRoomPartner,
   transparentMode = false,
   roomPermissions,
-  isRoomHost
+  isRoomHost,
+  // Set by a parent that wants to jump straight into a specific chat from
+  // outside the normal conversation-list click path — currently only the
+  // push-notification tap handler (see lib/nativePush.js). Shape:
+  // { partner, type: 'private' | 'room' }.
+  pendingOpenChat,
+  onPendingOpenChatHandled
 }, ref) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -4138,6 +4144,17 @@ const GlobalChatWidget = forwardRef(({
     // A direct call here would create a race condition where two concurrent async
     // fetches finish in non-deterministic order and the wrong one overwrites state.
   };
+
+  // Tapping a push notification lands here — jump straight to that chat the
+  // same way clicking its row in the conversation list would. openChat must
+  // already be defined above this point (it's a `const`, not a hoisted
+  // function declaration) or this closure would reference it before
+  // initialization.
+  useEffect(() => {
+    if (!pendingOpenChat?.partner) return;
+    openChat({ id: pendingOpenChat.partner, partner: pendingOpenChat.partner, type: pendingOpenChat.type || 'private' });
+    onPendingOpenChatHandled?.();
+  }, [pendingOpenChat]);
 
   // Called by ChatLockScreen when PIN is correct
   const handleChatUnlock = (chatKey) => {

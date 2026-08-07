@@ -14,6 +14,7 @@ import SeoHead from './components/SeoHead';
 import { API } from './lib/api';
 import { isCapacitorApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
+import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -128,6 +129,7 @@ const Login = () => {
       localStorage.setItem('watch_token', data.token);
       localStorage.setItem('watch_username', data.username);
       localStorage.setItem('watch_role', data.role || 'user');
+      resyncPushTokenAfterLogin();
       // useInactivityLogout only mounts on protected routes, so watch_last_activity
       // never gets refreshed while sitting on this logged-out login page — it can be
       // stale from a session that ended 20+ minutes ago. Without resetting it here,
@@ -213,6 +215,7 @@ const Login = () => {
     localStorage.setItem('watch_token', data.token);
     localStorage.setItem('watch_username', data.username);
     localStorage.setItem('watch_role', data.role || 'user');
+    resyncPushTokenAfterLogin();
     // See handleLogin's comment above — resets the inactivity clock so the
     // first protected-route mount after login doesn't see a stale timestamp.
     localStorage.setItem('watch_last_activity', String(Date.now()));

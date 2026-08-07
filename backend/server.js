@@ -287,6 +287,111 @@ if (!process.env.APPLE_CLIENT_ID || process.env.APPLE_CLIENT_ID === 'YOUR_APPLE_
   console.warn('[WARN] APPLE_CLIENT_ID not set or is placeholder — Apple Sign-In will not work');
 }
 
+// ─── Push notifications (Firebase Cloud Messaging) ─────────────────────────
+// FIREBASE_SERVICE_ACCOUNT_JSON holds the *entire* downloaded service-account
+// key file as one env var value (Render → Environment, paste the whole
+// JSON) — never committed to the repo, same treatment as the Android
+// signing keystore. Not fatal if missing: push notifications just silently
+// no-op (sendPushToUser below checks firebaseAdmin before doing anything),
+// same "warn, don't crash" pattern as Google/Apple Sign-In above.
+const admin = require('firebase-admin');
+let firebaseAdmin = null;
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firebaseAdmin = admin;
+  } catch (e) {
+    console.error('[FCM] Failed to initialize firebase-admin — check FIREBASE_SERVICE_ACCOUNT_JSON:', e.message);
+  }
+} else {
+  console.warn('[WARN] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications will not be sent');
+}
+
+// data payload values must all be strings for FCM; notification.title/body
+// stay as-is. `data` always carries enough for the tap handler (see
+// nativePush.js) to open the right chat directly without a round-trip.
+async function sendPushToTokens(tokens, { title, body, data = {} } = {}) {
+  if (!firebaseAdmin || !tokens || tokens.length === 0) return;
+  const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
+  const deadTokens = [];
+  // FCM caps a single multicast call at 500 tokens.
+  for (let i = 0; i < tokens.length; i += 500) {
+    const batch = tokens.slice(i, i + 500);
+    try {
+      const resp = await firebaseAdmin.messaging().sendEachForMulticast({
+        notification: { title, body },
+        data: stringData,
+        tokens: batch,
+      });
+      resp.responses.forEach((r, idx) => {
+        if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+          deadTokens.push(batch[idx]);
+        }
+      });
+    } catch (e) {
+      console.error('[FCM] sendPushToTokens batch error:', e.message);
+    }
+  }
+  if (deadTokens.length > 0) {
+    await pool.query('DELETE FROM push_tokens WHERE token = ANY($1::text[])', [deadTokens]).catch(() => {});
+  }
+}
+
+async function sendPushToUser(username, payload) {
+  if (!firebaseAdmin || !username) return;
+  try {
+    const rows = await pool.query('SELECT token FROM push_tokens WHERE LOWER(username) = LOWER($1)', [username]);
+    await sendPushToTokens(rows.rows.map(r => r.token), payload);
+  } catch (e) {
+    console.error('[FCM] sendPushToUser error:', e.message);
+  }
+}
+
+// Used for the SahaPlay official announcements channel — every registered
+// device except the admin who just posted.
+async function sendPushBroadcastExcept(excludeUsername, payload) {
+  if (!firebaseAdmin) return;
+  try {
+    const rows = await pool.query('SELECT token FROM push_tokens WHERE LOWER(username) != LOWER($1)', [excludeUsername || '']);
+    await sendPushToTokens(rows.rows.map(r => r.token), payload);
+  } catch (e) {
+    console.error('[FCM] sendPushBroadcastExcept error:', e.message);
+  }
+}
+
+// Registered once per device after login (see lib/nativePush.js) — token is
+// the UNIQUE key rather than (username, token) so a device that later logs
+// into a different account cleanly reassigns instead of leaving the old
+// account with a stale token that no longer belongs to it.
+app.post('/api/push/register', authenticateToken, async (req, res) => {
+  const { token, platform } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query(
+      `INSERT INTO push_tokens (username, token, platform, updated_at) VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (token) DO UPDATE SET username = $1, platform = $3, updated_at = NOW()`,
+      [req.user.username, token, platform || 'android']
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] register error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/push/unregister', authenticateToken, async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query('DELETE FROM push_tokens WHERE token = $1', [token]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] unregister error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // Initialize DB
 const { Pool } = require('pg');
@@ -1365,6 +1470,24 @@ const migrationsReady = (async () => {
     .catch(e => console.warn('[Migration] pg_trgm extension:', e.message));
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_username_trgm ON users USING GIN (username gin_trgm_ops)`)
     .catch(e => console.warn('[Migration] idx_users_username_trgm:', e.message));
+
+  // ─── Push Notifications (FCM device tokens) ──────────────────────────────
+  // One row per device — `token` unique rather than (username, token) so a
+  // device that logs into a different account cleanly reassigns via the
+  // upsert in /api/push/register instead of accumulating stale rows for
+  // whichever account last registered on it.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      platform TEXT NOT NULL DEFAULT 'android',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] push_tokens table:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_username ON push_tokens (LOWER(username))`)
+    .catch(e => console.warn('[Migration] idx_push_tokens_username:', e.message));
 
   // ─── Phase 3: Database Integrity Hardening ───────────────────────────────
   // bans table
@@ -4150,6 +4273,15 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       invalidateCacheForUser(partner);
 
       res.json({ success: true, timestamp: ts, id: dmDbId });
+
+      // Fire-and-forget — response already sent, don't make the sender wait
+      // on FCM. No preview text: DMs are end-to-end encrypted, the server
+      // never has the plaintext to put in a notification body.
+      sendPushToUser(partner, {
+        title: username,
+        body: mediaUrl ? 'Sent you media' : 'Sent you a message',
+        data: { type: 'dm', chatId: username },
+      });
     } else if (type === 'room') {
       // ─── Mandatory SahaPlay announcements group: admin-only send ───
       if (partner === SAHAPLAY_OFFICIAL_ROOM_ID) {
@@ -4251,6 +4383,21 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       invalidateCacheForUser(username);
       res.json({ success: true, timestamp: ts, id: roomDbId });
+
+      // Push only for the SahaPlay official channel — it's the one group
+      // with a stable, app-wide "membership" (everyone) and unencrypted
+      // content, so a real text preview is both meaningful and possible.
+      // Ordinary watch-together rooms are deliberately excluded: room
+      // "membership" is ephemeral/session-based, not a persistent list to
+      // notify, and their chat is E2EE so no preview text could be shown
+      // anyway (see the DM branch above for the same reasoning).
+      if (partner === SAHAPLAY_OFFICIAL_ROOM_ID) {
+        sendPushBroadcastExcept(username, {
+          title: SAHAPLAY_OFFICIAL_DISPLAY_NAME,
+          body: actualMessage || 'New announcement',
+          data: { type: 'room', chatId: SAHAPLAY_OFFICIAL_ROOM_ID },
+        });
+      }
     }
   } catch (err) {
     console.error('[chats/send] error:', err);

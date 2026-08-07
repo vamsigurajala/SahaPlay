@@ -33,6 +33,7 @@ import { API } from './lib/api.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
+import { initNativePush } from './lib/nativePush.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -47,6 +48,12 @@ if (isCapacitorApp()) {
   // initNativeResumeBridge already uses for the 'focus' event.
   initNativeGoogleAuthCallback((idToken) => {
     window.dispatchEvent(new CustomEvent('native-google-auth', { detail: { idToken } }));
+  });
+  // Rebroadcast the same way — BottomNav.jsx (the only thing rendered in
+  // standalone mode, which is the only mode push notifications fire in)
+  // picks this up to open the specific chat the notification was for.
+  initNativePush((data) => {
+    window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
   });
 }
 

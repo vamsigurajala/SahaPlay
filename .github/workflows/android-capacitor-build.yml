@@ -62,7 +62,7 @@ jobs:
       # inside the ephemeral CI checkout — nothing is committed back.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/splash-screen fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/splash-screen @capacitor/push-notifications fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's
@@ -150,6 +150,41 @@ jobs:
           sed -i "s/classpath 'com.android.tools.build:gradle:[^']*'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle
           cat android/variables.gradle
           cat android/build.gradle
+
+      # Push notifications (Firebase Cloud Messaging): @capacitor/push-
+      # notifications needs the Google Services Gradle plugin applied plus
+      # google-services.json present to know which Firebase project/app
+      # this build belongs to — cap add android has no idea Firebase is
+      # involved at all, so both have to be wired in by hand same as every
+      # other native piece in this workflow. google-services.json itself is
+      # NOT sensitive (it's a client config file meant to ship inside the
+      # app, restricted by package name — not a secret key) so it's
+      # committed under capacitor-android-plugin/ like everything else here;
+      # the actual sensitive piece (the service-account key the backend
+      # uses to SEND pushes) lives only in the Render env var, never in
+      # this repo. classpath is appended right after the existing AGP
+      # classpath line (inside the same buildscript{} dependencies block)
+      # rather than as a separate append, since buildscript{} must be fully
+      # populated before Gradle starts evaluating anything else — same
+      # constraint already documented for the AGP version bump above.
+      # Honesty note: the second sed's exact match target (app/build.gradle's
+      # first line) is the one piece of this step not independently
+      # confirmed against a real CI log the way build.gradle's AGP line was
+      # — if Capacitor's generated app/build.gradle differs from the known
+      # template on the actual runner, this fails LOUDLY (via the grep
+      # check below) rather than silently shipping a build where push
+      # notifications quietly never work; fix from the real file content
+      # printed by the `cat` and re-run.
+      - name: Wire up Firebase Cloud Messaging (push notifications)
+        working-directory: frontend
+        run: |
+          cp capacitor-android-plugin/google-services.json android/app/google-services.json
+          sed -i "s/\(classpath 'com.android.tools.build:gradle:[^']*'\)/\1\n        classpath 'com.google.gms:google-services:4.4.2'/" android/build.gradle
+          sed -i "0,/apply plugin: 'com.android.application'/s//apply plugin: 'com.android.application'\napply plugin: 'com.google.gms.google-services'/" android/app/build.gradle
+          cat android/build.gradle
+          cat android/app/build.gradle
+          grep -q "classpath 'com.google.gms:google-services:4.4.2'" android/build.gradle || { echo "::error::google-services classpath was not inserted into android/build.gradle"; exit 1; }
+          grep -q "apply plugin: 'com.google.gms.google-services'" android/app/build.gradle || { echo "::error::google-services plugin was not applied in android/app/build.gradle — check its actual first lines above and fix the sed match"; exit 1; }
 
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic

@@ -144,6 +144,29 @@ export default function BottomNav() {
     setTotalUnread(0);
   }, [unreadCounts]);
 
+  // Push-notification tap → jump straight to that chat. main.jsx registers
+  // the native listener and rebroadcasts it as this plain DOM event (same
+  // pattern as native-google-auth) since BottomNav is the only thing
+  // rendered in standalone mode, which is the only mode pushes fire in.
+  const [pendingOpenChat, setPendingOpenChat] = useState(null);
+  useEffect(() => {
+    const handler = (e) => {
+      const data = e.detail;
+      if (!data?.chatId) return;
+      // Room/Admin routes make this component return null (see below) even
+      // though its hooks/state still run — force back to a route where the
+      // chat overlay actually renders, same as tapping a notification in
+      // any native app takes you out of whatever you were doing.
+      navigate('/');
+      setShowSearch(false);
+      setShowProfile(false);
+      setShowChat(true);
+      setPendingOpenChat({ partner: data.chatId, type: data.type === 'dm' ? 'private' : 'room' });
+    };
+    window.addEventListener('open_chat_from_notification', handler);
+    return () => window.removeEventListener('open_chat_from_notification', handler);
+  }, []);
+
   const closeOverlays = () => { setShowSearch(false); setShowProfile(false); };
   // Swipe-back closes Search/Profile instead of navigating away — Chat is
   // excluded since GlobalChatWidget already owns its own back-intercept
@@ -311,6 +334,8 @@ export default function BottomNav() {
           onMarkRead={handleMarkRead}
           onMarkAllRead={handleMarkAllRead}
           onNewMessage={handleNewMessage}
+          pendingOpenChat={pendingOpenChat}
+          onPendingOpenChatHandled={() => setPendingOpenChat(null)}
         />
       )}
 

@@ -18,6 +18,7 @@ import nacl from 'tweetnacl';
 import { API } from './lib/api';
 import { isCapacitorApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
+import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -140,6 +141,7 @@ const Signup = () => {
     } catch (e) {}
     localStorage.setItem('watch_token', data.token);
     localStorage.setItem('watch_username', data.username);
+    resyncPushTokenAfterLogin();
     // useInactivityLogout only mounts on protected routes, so watch_last_activity can
     // be stale from a session that ended 20+ minutes ago — reset it here so the first
     // protected-route mount after this login doesn't immediately force-logout.

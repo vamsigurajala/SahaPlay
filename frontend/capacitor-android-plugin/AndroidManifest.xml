@@ -90,6 +90,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Android 13+ requires this runtime permission before ANY notification
+         (not just push) can be shown — @capacitor/push-notifications likely
+         already declares this in its own bundled manifest, but declaring it
+         here too removes any doubt rather than relying on that unverified. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Not required so the app still installs on devices lacking a camera/mic. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
