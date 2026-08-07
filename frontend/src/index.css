@@ -1315,6 +1315,7 @@ html[data-theme='light'] .mobile-nav-divider {
   }
   .room-header {
     padding: 0 16px !important;
+    padding-top: var(--sp-status-bar-inset, 0px) !important;
   }
 }
 
@@ -1322,6 +1323,7 @@ html[data-theme='light'] .mobile-nav-divider {
 @media (max-width: 639px) {
   .room-header {
     padding: 0 10px !important;
+    padding-top: var(--sp-status-bar-inset, 0px) !important;
     height: 56px !important;
   }
   .room-brand-text        { display: none !important; }

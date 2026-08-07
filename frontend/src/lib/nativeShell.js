@@ -94,6 +94,10 @@ const FALLBACK_INSET_PX = 28; // typical Android status bar height, used wheneve
 // unconditionally for isCapacitorApp() (not gated on the plugin) guarantees
 // a real, non-zero inset applies regardless of whether StatusBar.getInfo()
 // ever successfully resolves.
+// Tracks the last real measured inset so setStatusBarHidden() can restore the
+// exact value on exit instead of falling back to the generic default.
+let lastKnownInsetPx = FALLBACK_INSET_PX;
+
 export async function initNativeStatusBarInset() {
   if (!isCapacitorApp()) return;
   document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, `${FALLBACK_INSET_PX}px`);
@@ -103,6 +107,7 @@ export async function initNativeStatusBarInset() {
     try {
       const info = await sb.getInfo();
       if (typeof info?.height === 'number' && info.height > 0) {
+        lastKnownInsetPx = info.height;
         document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, `${info.height}px`);
       }
     } catch {}
@@ -121,7 +126,14 @@ export async function initNativeStatusBarInset() {
 // reveals it again, Android's default transient-bar behavior, then it
 // re-hides) and restores it on exit. Best-effort: if the plugin isn't
 // available this silently no-ops rather than blocking fullscreen entry.
+//
+// Also zeroes the --sp-status-bar-inset CSS var while hidden: App.jsx's
+// global status-bar scrim reads that var to paint an opaque strip across the
+// very top of the page, above even the fullscreen video player. With the
+// real status bar hidden there's nothing left to cover, so leaving the var
+// at its normal value just cut a visible bar across the top of the video.
 export function setStatusBarHidden(hidden) {
+  document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, hidden ? '0px' : `${lastKnownInsetPx}px`);
   const sb = statusBar();
   if (!sb) return;
   (hidden ? sb.hide() : sb.show())?.catch?.(() => {});

@@ -1695,8 +1695,17 @@ const Room = () => {
   // the real value once metadata has loaded by the time fullscreen is
   // actually toggled); embeds/iframes have no element to check here and
   // keep the existing landscape assumption.
+  //
+  // Two different <video> elements exist depending on media type: `videoRef`
+  // (screensharing/viewer) and `localVideoRef` (an uploaded local file, the
+  // actual scenario this orientation check is for) — only one is ever
+  // mounted at a time, so read whichever one actually has metadata. Reading
+  // only `videoRef` here always saw a null ref for uploaded files, silently
+  // defaulting isPortraitMediaFs to false regardless of the real file.
   const videoRef = useRef(null);
-  const isPortraitMediaFs = !!videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > videoRef.current.videoWidth;
+  const localVideoRef = useRef(null); // <video> element for local stream playback
+  const activeFsVideoEl = localVideoRef.current || videoRef.current;
+  const isPortraitMediaFs = !!activeFsVideoEl && activeFsVideoEl.videoWidth > 0 && activeFsVideoEl.videoHeight > activeFsVideoEl.videoWidth;
   const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && !isPortraitMediaFs && (!isVirtualBrowserMedia || vbLandscapeMode) && !isRealLandscapeLock;
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
@@ -1732,6 +1741,26 @@ const Room = () => {
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, [isTouchPlayer, isMobileFsMode]);
+
+  // isRealLandscapeLock used to be set purely from screen.orientation.lock()'s
+  // Promise resolving — but that Promise can resolve without the OS actually
+  // rotating (WebView-dependent), and the fallback lock attempt in
+  // handleFullscreen's .catch() never set it at all even when IT succeeded in
+  // rotating. Either gap meant a real device rotation and the CSS fake-rotate
+  // fallback (isRotatedFs) could both end up active at once — a double
+  // rotation that's what actually produced "landscape video renders portrait
+  // in fullscreen". screen.orientation's own 'change' event is the one
+  // trustworthy signal that a rotation genuinely happened, so sync from that
+  // instead of trusting any lock() Promise.
+  useEffect(() => {
+    if (!isMobileFsMode || !screen?.orientation) return;
+    const syncFromRealOrientation = () => {
+      setIsRealLandscapeLock(!!screen.orientation?.type?.startsWith('landscape'));
+    };
+    syncFromRealOrientation();
+    screen.orientation.addEventListener?.('change', syncFromRealOrientation);
+    return () => screen.orientation.removeEventListener?.('change', syncFromRealOrientation);
+  }, [isMobileFsMode]);
 
   const handleNavigateHome = (menu = 'selector') => {
     if (document.fullscreenElement) {
@@ -1818,16 +1847,21 @@ const Room = () => {
         // device rotation like YouTube/Netflix (status bar migrating to the
         // top, hidden by default). Sequencing real Fullscreen first, then
         // locking once it resolves, is what makes the OS actually rotate.
+        // isRealLandscapeLock itself is no longer set here — the effect above
+        // syncs it from screen.orientation's own 'change' event, the only
+        // signal that reflects whether the OS actually rotated (the lock()
+        // Promise can resolve without a real rotation happening, and this
+        // .catch() fallback lock — or even the primary one above — could
+        // succeed without ever being reflected here, letting the CSS
+        // fake-rotate fallback stay wrongly active on top of a real one).
         if (playerWrapRef.current?.requestFullscreen) {
           playerWrapRef.current.requestFullscreen()
             .then(() => screen?.orientation?.lock?.(targetOrientation))
-            .then(() => { if (targetOrientation === 'landscape') setIsRealLandscapeLock(true); })
             .catch(() => {
               // Fullscreen unsupported/denied (iPhone Safari has no element
               // Fullscreen at all) or the lock itself was rejected — try a bare
-              // lock anyway just in case, and otherwise the CSS takeover below
-              // still gives a landscape look. isRealLandscapeLock stays false
-              // either way, so that CSS fallback is actually allowed to apply.
+              // lock anyway just in case; the CSS takeover below covers it
+              // either way until/unless a real rotation is confirmed.
               screen?.orientation?.lock?.(targetOrientation).catch(() => {});
             });
         } else if (screen?.orientation?.lock) {
@@ -2720,7 +2754,6 @@ const Room = () => {
   const publicKeySentRef = useRef(false);
 
   const playerRef = useRef(null);
-  const localVideoRef = useRef(null); // <video> element for local stream playback
   const appWindowRef = useRef(null);
   const lastExternalUpdate = useRef(0);
   const localStreamRef = useRef(null);
