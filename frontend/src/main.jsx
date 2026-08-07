@@ -32,6 +32,7 @@ import { prefetchAll } from './cache/prefetch.js';
 import { API } from './lib/api.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
+import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -40,6 +41,13 @@ if (isCapacitorApp()) {
   initNativeBackButton();
   initNativeStatusBarInset();
   initNativeResumeBridge();
+  // Registered once here (not per-page) since the deep link can land while
+  // either Login or Signup triggered it — rebroadcast as a plain DOM event
+  // so whichever page is mounted can pick it up, same bridging pattern
+  // initNativeResumeBridge already uses for the 'focus' event.
+  initNativeGoogleAuthCallback((idToken) => {
+    window.dispatchEvent(new CustomEvent('native-google-auth', { detail: { idToken } }));
+  });
 }
 
 // Standalone-mode is session-stable (a launch-time property, not something

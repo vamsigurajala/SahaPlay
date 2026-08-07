@@ -16,6 +16,10 @@ import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import SeoHead from './components/SeoHead';
 import nacl from 'tweetnacl';
 import { API } from './lib/api';
+import { isCapacitorApp } from './lib/platform';
+import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const Signup = () => {
   const [username, setUsername]             = useState('');
@@ -294,6 +298,19 @@ const Signup = () => {
       setIsSlowLogin(false);
     }
   };
+
+  // Fired by main.jsx's initNativeGoogleAuthCallback once the native Google
+  // sign-in Custom Tab hands an id_token back to the app (see
+  // lib/nativeGoogleAuth.js) — routes it through the exact same completion
+  // path the web <GoogleLogin> button's onSuccess already uses.
+  useEffect(() => {
+    if (!isCapacitorApp()) return;
+    const onNativeGoogleAuth = (e) => {
+      if (e.detail?.idToken) handleGoogleSuccess({ credential: e.detail.idToken });
+    };
+    window.addEventListener('native-google-auth', onNativeGoogleAuth);
+    return () => window.removeEventListener('native-google-auth', onNativeGoogleAuth);
+  }, []);
 
   const handlePhraseConfirmed = () => {
     setShowRecoveryModal(false);
@@ -709,11 +726,20 @@ const Signup = () => {
                   </svg>
                 </div>
                 <div style={{ position: 'absolute', inset: 0, opacity: 0.001, zIndex: 2 }}>
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setGlobalError(t('googleUnsuccessful', 'Google Signup was unsuccessful'))}
-                    type="icon" shape="circle" size="large"
-                  />
+                  {isCapacitorApp() ? (
+                    // Google blocks its own OAuth screen inside any embedded WebView —
+                    // the web <GoogleLogin> popup silently shows nothing here. Same
+                    // visible icon, but the click opens a real Chrome Custom Tab instead
+                    // (see lib/nativeGoogleAuth.js); handleGoogleSuccess still runs, just
+                    // via the 'native-google-auth' listener above instead of onSuccess.
+                    <button type="button" onClick={() => openNativeGoogleSignIn(GOOGLE_CLIENT_ID)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', background: 'transparent', border: 'none', cursor: 'pointer' }} aria-label="Sign up with Google" />
+                  ) : (
+                    <GoogleLogin
+                      onSuccess={handleGoogleSuccess}
+                      onError={() => setGlobalError(t('googleUnsuccessful', 'Google Signup was unsuccessful'))}
+                      type="icon" shape="circle" size="large"
+                    />
+                  )}
                 </div>
               </div>
             </div>

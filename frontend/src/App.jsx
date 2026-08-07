@@ -18,6 +18,7 @@ const Login = lazy(() => import('./Login'));
 const Signup = lazy(() => import('./Signup'));
 const Verify = lazy(() => import('./Verify'));
 const ForgotPassword = lazy(() => import('./ForgotPassword'));
+const GoogleAuthCallback = lazy(() => import('./GoogleAuthCallback'));
 const ResetPassword = lazy(() => import('./ResetPassword'));
 const PublicRooms = lazy(() => import('./PublicRooms'));
 const PinnedRooms = lazy(() => import('./PinnedRooms'));
@@ -1196,6 +1197,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/verify" element={<Verify />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/tv" element={<TvPairing />} />
             <Route path="/features" element={<Features />} />

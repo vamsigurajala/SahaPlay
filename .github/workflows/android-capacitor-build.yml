@@ -62,7 +62,7 @@ jobs:
       # inside the ephemeral CI checkout — nothing is committed back.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's

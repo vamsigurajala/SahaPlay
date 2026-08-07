@@ -31,6 +31,19 @@ export default defineConfig({
             if (id.includes('tweetnacl') || id.includes('socket.io')) return 'vendor-core';
             return 'vendor'; // all other deps
           }
+          // Pinned explicitly rather than left to Rollup's automatic
+          // chunking — that's a whole-graph heuristic, so adding an
+          // unrelated new shared module elsewhere (lib/platform.js, lib/
+          // nativeGoogleAuth.js, both newly shared between the eager main
+          // entry and lazy Login/Signup chunks) shifted its decisions and
+          // pulled these two previously-separate chunks into the main
+          // eager bundle instead, adding ~340KB to every page's initial
+          // load. GlobalChatWidget in particular is reachable both eagerly
+          // (BottomNav, mounted app-wide in App.jsx) and lazily (Room.jsx),
+          // which is exactly the shape Rollup's automatic splitter can flip
+          // on when something unrelated elsewhere in the graph changes.
+          if (id.includes('/contexts/CryptoContext')) return 'crypto-context';
+          if (id.includes('/components/GlobalChatWidget')) return 'global-chat-widget';
         }
       }
     }

@@ -37,6 +37,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Google Sign-In can't run inside our own WebView at all — Google
+                 deliberately blocks its OAuth screen for any embedded-webview
+                 user agent (anti-phishing policy), which is why the button did
+                 nothing. The fix opens the OAuth flow in a real Chrome Custom
+                 Tab (Google allows that) via @capacitor/browser, pointed at
+                 https://sahaplay.com/auth/google/callback (a real page on our
+                 own domain, since Google's web OAuth client type requires an
+                 https redirect_uri, not a custom scheme, for the first hop).
+                 That page immediately redirects to sahaplay://auth-callback
+                 with the id_token, which THIS intent-filter catches, handing
+                 control back to the already-running app (singleTask above)
+                 instead of launching a second instance. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sahaplay" android:host="auth-callback" />
+            </intent-filter>
+
         </activity>
 
         <provider
