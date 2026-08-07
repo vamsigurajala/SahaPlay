@@ -1695,6 +1695,7 @@ const Room = () => {
   // the real value once metadata has loaded by the time fullscreen is
   // actually toggled); embeds/iframes have no element to check here and
   // keep the existing landscape assumption.
+  const videoRef = useRef(null);
   const isPortraitMediaFs = !!videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > videoRef.current.videoWidth;
   const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && !isPortraitMediaFs && (!isVirtualBrowserMedia || vbLandscapeMode) && !isRealLandscapeLock;
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
@@ -2722,7 +2723,6 @@ const Room = () => {
   const localVideoRef = useRef(null); // <video> element for local stream playback
   const appWindowRef = useRef(null);
   const lastExternalUpdate = useRef(0);
-  const videoRef = useRef(null);
   const localStreamRef = useRef(null);
   const peerConnectionsRef = useRef({});
   const [isScreensharing, setIsScreensharing] = useState(false);

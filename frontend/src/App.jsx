@@ -1169,6 +1169,26 @@ function App() {
     <CryptoProvider>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
+          {/* Fixed opaque strip covering the status bar area (time/wifi/battery),
+              above every page, modal, and overlay in the app (z-index beats even
+              ChatLockScreen's 10000000). Height collapses to 0 on web/PWA, where
+              --sp-status-bar-inset is never set. Without this, any page/scroll
+              state that doesn't happen to reserve its own top padding lets content
+              scroll right up under the status bar icons — this guarantees it never
+              can, the same way Instagram's own top bar always stays solid. */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 'var(--sp-status-bar-inset, 0px)',
+              background: 'var(--bg-color)',
+              zIndex: 2147483000,
+              pointerEvents: 'none',
+            }}
+          />
           <ScrollToTop />
           <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>

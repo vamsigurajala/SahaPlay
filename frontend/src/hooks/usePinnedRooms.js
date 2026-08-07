@@ -12,15 +12,23 @@ export function usePinnedRooms({ limit } = {}) {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const [pinnedRooms, setPinnedRooms] = useState([]);
 
-  const fetchRooms = useCallback(() => {
+  // Unlike PublicRooms (4s poll) and useFollowRequests (3s poll), this had no
+  // self-healing retry — a single failed/empty attempt (e.g. racing a Render
+  // free-tier cold start after the app sat backgrounded for a while) left
+  // pinnedRooms stuck empty until something else happened to trigger a focus
+  // event. One retry after a short delay covers that race the same way the
+  // 401 grace-window retry in main.jsx already does for auth.
+  const fetchRooms = useCallback((isRetry) => {
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       if (stored.length > 0) {
         const ids = limit ? stored.slice(0, limit) : stored;
         fetch(`${API}/api/rooms/info?ids=${ids.join(',')}`)
-          .then(r => r.json())
+          .then(r => { if (!r.ok) throw new Error('bad response'); return r.json(); })
           .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
-          .catch(() => { });
+          .catch(() => {
+            if (isRetry !== true) setTimeout(() => fetchRooms(true), 4000);
+          });
       } else {
         setPinnedRooms([]);
       }
