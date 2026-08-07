@@ -61,6 +61,89 @@ export default function BottomNav() {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
 
+  // Mirrors Navbar.jsx's own unread tracking (same localStorage keys, same
+  // /api/chats/recent poll) rather than sharing state cross-component —
+  // Navbar's Chat trigger (and its badge) is deliberately hidden in
+  // standalone mode since this tab bar already covers it, but nothing ever
+  // gave THIS tab the badge to cover it with, so it silently never showed
+  // here at all. Self-contained polling matches this file's existing
+  // "mounts its own independent GlobalChatWidget instance" precedent rather
+  // than wiring a new cross-component event channel just for this.
+  const [unreadCounts, setUnreadCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
+  });
+  const [totalUnread, setTotalUnread] = useState(() => {
+    try {
+      const counts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      return Object.values(counts).reduce((a, b) => a + b, 0);
+    } catch { return 0; }
+  });
+
+  useEffect(() => {
+    if (isGuest || !token) return;
+    const checkUnread = async () => {
+      try {
+        const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
+        const param = encodeURIComponent(JSON.stringify(lastSeen));
+        const res = await fetch(`${API}/api/chats/recent?lastSeen=${param}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        const serverCounts = {};
+        let total = 0;
+        data.forEach(chat => {
+          const chatKey = (chat.id || chat.partner || '').toLowerCase();
+          if (chat.unread && chat.unread > 0) {
+            serverCounts[chatKey] = chat.unread;
+            total += chat.unread;
+          }
+        });
+        localStorage.setItem('chat_unread_counts', JSON.stringify(serverCounts));
+        setUnreadCounts(serverCounts);
+        setTotalUnread(total);
+      } catch {}
+    };
+    checkUnread();
+    const interval = setInterval(checkUnread, 5000);
+    window.addEventListener('focus', checkUnread);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkUnread);
+    };
+  }, [token, isGuest]);
+
+  const handleNewMessage = React.useCallback((partner) => {
+    const chatKey = (partner || '').toLowerCase();
+    const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+    localCounts[chatKey] = (localCounts[chatKey] || 0) + 1;
+    localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+    setUnreadCounts(prev => ({ ...prev, [chatKey]: (prev[chatKey] || 0) + 1 }));
+    setTotalUnread(prev => prev + 1);
+  }, []);
+
+  const handleMarkRead = React.useCallback((chatId) => {
+    const chatKey = (chatId || '').toLowerCase();
+    const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
+    lastSeen[chatKey] = Date.now();
+    localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+    setUnreadCounts(prev => {
+      const next = { ...prev };
+      const removed = next[chatId] || next[chatKey] || 0;
+      if (removed > 0) setTotalUnread(t => Math.max(0, t - removed));
+      delete next[chatId];
+      delete next[chatKey];
+      return next;
+    });
+  }, []);
+
+  const handleMarkAllRead = React.useCallback(() => {
+    const lastSeen = (() => { try { return JSON.parse(localStorage.getItem('chat_last_seen') || '{}'); } catch { return {}; } })();
+    Object.keys(unreadCounts).forEach(k => { lastSeen[k] = Date.now(); });
+    localStorage.setItem('chat_last_seen', JSON.stringify(lastSeen));
+    localStorage.setItem('chat_unread_counts', JSON.stringify({}));
+    setUnreadCounts({});
+    setTotalUnread(0);
+  }, [unreadCounts]);
+
   const closeOverlays = () => { setShowSearch(false); setShowProfile(false); };
   // Swipe-back closes Search/Profile instead of navigating away — Chat is
   // excluded since GlobalChatWidget already owns its own back-intercept
@@ -129,6 +212,12 @@ export default function BottomNav() {
           color: #8b8b93; position: relative;
         }
         .bottom-nav-tab.active { color: var(--brand-1); }
+        .bottom-nav-badge {
+          position: absolute; top: 6px; right: 50%; margin-right: -18px;
+          background: #ef4444; border-radius: 50%; color: #fff;
+          font-size: 10px; font-weight: 800; min-width: 15px; height: 15px;
+          padding: 0 2px; display: flex; align-items: center; justify-content: center;
+        }
         html[data-theme='light'] .bottom-nav-tab { color: #6b7280; }
         .bottom-nav-avatar {
           width: 24px; height: 24px; border-radius: 50%; overflow: hidden;
@@ -218,10 +307,10 @@ export default function BottomNav() {
         <GlobalChatWidget
           isOpen={showChat}
           onClose={() => setShowChat(false)}
-          unreadCounts={{}}
-          onMarkRead={() => {}}
-          onMarkAllRead={() => {}}
-          onNewMessage={() => {}}
+          unreadCounts={unreadCounts}
+          onMarkRead={handleMarkRead}
+          onMarkAllRead={handleMarkAllRead}
+          onNewMessage={handleNewMessage}
         />
       )}
 
@@ -242,6 +331,9 @@ export default function BottomNav() {
                   </div>
                 ) : (
                   <Icon size={22} />
+                )}
+                {tab.key === 'chat' && totalUnread > 0 && (
+                  <div className="bottom-nav-badge stay-white">{totalUnread > 9 ? '9+' : totalUnread}</div>
                 )}
               </button>
             );
