@@ -1387,7 +1387,11 @@ const GlobalChatWidget = forwardRef(({
   // push-notification tap handler (see lib/nativePush.js). Shape:
   // { partner, type: 'private' | 'room' }.
   pendingOpenChat,
-  onPendingOpenChatHandled
+  onPendingOpenChatHandled,
+  // Called right before this overlay closes to let a viewed profile open —
+  // lets the parent remember which chat was open so a real back/swipe-back
+  // gesture from that profile can reopen it (see leaveChatToViewProfile).
+  onLeaveToProfile
 }, ref) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -1804,6 +1808,21 @@ const GlobalChatWidget = forwardRef(({
       setShowChangePinModal(false);
     }
   });
+
+  // Leaving to view someone's profile from within an open chat closes this
+  // full-screen overlay first (it and the page underneath can never both be
+  // visible — see `if (!isOpen) return null` below), but shouldn't just
+  // discard which chat was open: onLeaveToProfile lets the parent (BottomNav)
+  // remember it, so a real back/swipe-back gesture from that profile reopens
+  // the same chat instead of landing on a bare Home screen.
+  const leaveChatToViewProfile = (targetUsername) => {
+    if (activeChat?.partner) {
+      onLeaveToProfile?.({ partner: activeChat.partner, type: activeChat.type });
+    }
+    gcwSkipNextClose();
+    onClose && onClose();
+    navigate(`/profile/${targetUsername}`);
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -5386,9 +5405,7 @@ const GlobalChatWidget = forwardRef(({
                   const partner = activeChat.partner.toLowerCase();
                   const isBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
                   if (!isBlocked) {
-                    gcwSkipNextClose();
-                    onClose && onClose();
-                    navigate(`/profile/${activeChat.partner}`);
+                    leaveChatToViewProfile(activeChat.partner);
                   }
                 }
               }}
@@ -6631,9 +6648,7 @@ const GlobalChatWidget = forwardRef(({
                                onClick={(e) => {
                                  e.stopPropagation();
                                  if (!isBlocked && sNameOriginal && sNameOriginal !== '?') {
-                                   gcwSkipNextClose();
-                                   onClose && onClose();
-                                   navigate(`/profile/${sNameOriginal}`);
+                                   leaveChatToViewProfile(sNameOriginal);
                                  }
                                }}
                                title={isBlocked ? 'Blocked User' : `View ${sNameOriginal}'s profile`}
@@ -6655,7 +6670,7 @@ const GlobalChatWidget = forwardRef(({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { gcwSkipNextClose(); onClose && onClose(); navigate(`/profile/${sName}`); }
+                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { leaveChatToViewProfile(sName); }
                               }}
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
@@ -7042,11 +7057,9 @@ const GlobalChatWidget = forwardRef(({
                       ? t('needToFollowBack', { name: activeChat.displayName, defaultValue: `You need to follow ${activeChat.displayName} back to chat.` })
                       : t('needMutualFollow', 'You need to follow each other to start messaging.')}
                 </p>
-                {activeRelation.followStatus !== 'accepted' && (
-                  <button className="stay-white" onClick={() => navigate(`/profile/${activeChat.partner}`)} style={{ marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 10, color: '#fff !important', fontSize: 11, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(var(--brand-1-rgb),0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
-                    {t('viewProfile', 'View Profile')}
-                  </button>
-                )}
+                <button className="stay-white" onClick={() => leaveChatToViewProfile(activeChat.partner)} style={{ marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 10, color: '#fff !important', fontSize: 11, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(var(--brand-1-rgb),0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
+                  {t('viewProfile', 'View Profile')}
+                </button>
               </div>
             ) : (
               <>

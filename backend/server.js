@@ -5011,17 +5011,28 @@ app.post('/api/follow/:username', authenticateTokenOptional, async (req, res) =>
 });
 
 // ─── ACCEPT a follow request ───
-app.post('/api/follow/:username/accept', authenticateTokenOptional, (req, res) => {
+app.post('/api/follow/:username/accept', authenticateTokenOptional, async (req, res) => {
   if (!req.user || req.user.isGuest || req.user.id === 0) {
     return res.status(401).json({ error: 'login_required', message: 'Please log in to use this feature' });
   }
   const accepter = req.user.username;
   const requester = req.params.username;
-  db.run('UPDATE follows SET status = ? WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', ['accepted', requester, accepter], function(err) {
-    if (err) return res.status(500).json({ error: 'Database error' });
+  try {
+    await pool.query('UPDATE follows SET status = $1 WHERE LOWER("followerId") = LOWER($2) AND LOWER("followingId") = LOWER($3)', ['accepted', requester, accepter]);
+
+    // Accepting a friend request establishes mutual friendship immediately —
+    // every follow requires manual approval in this app (there's no public
+    // following), so requiring a *second*, easy-to-miss "Follow Back" step
+    // after accepting just left messaging gated and reading as "the accept
+    // didn't work" even though both people had already agreed to connect.
+    const reverse = await pool.query('UPDATE follows SET status = $1 WHERE LOWER("followerId") = LOWER($2) AND LOWER("followingId") = LOWER($3)', ['accepted', accepter, requester]);
+    if (reverse.rowCount === 0) {
+      await pool.query('INSERT INTO follows ("followerId", "followingId", status) VALUES ($1, $2, $3)', [accepter, requester, 'accepted']);
+    }
+
     invalidateCacheForUser(accepter);
     invalidateCacheForUser(requester);
-    
+
     // Notify both users in real-time
     emitToUser(requester, 'follow_accepted', { accepter, requester });
     emitToUser(accepter, 'follow_accepted', { accepter, requester });
@@ -5033,7 +5044,10 @@ app.post('/api/follow/:username/accept', authenticateTokenOptional, (req, res) =
     });
 
     res.json({ success: true, status: 'accepted' });
-  });
+  } catch (err) {
+    console.error('Accept follow error:', err);
+    res.status(500).json({ error: 'Database error' });
+  }
 });
 
 // ─── UNFOLLOW / Cancel request ───
