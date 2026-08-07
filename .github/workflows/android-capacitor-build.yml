@@ -189,31 +189,27 @@ jobs:
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic
       # placeholder icon and does nothing with our actual logo — this is why
-      # the installed app showed no real icon. dark_appstore.png is the
-      # highest-resolution square logo asset in the repo (1254x1254); the
-      # brand indigo/near-black pair matches the manifest's theme_color/
-      # background_color so the generated adaptive-icon backdrop looks
-      # consistent with the rest of the PWA install experience.
+      # the installed app showed no real icon.
       #
-      # resources/splash.png drives the launch/install splash screen (shown
-      # while the app cold-starts, before the remote site finishes loading)
-      # — light_appstore.png is the logo variant meant to sit on a light
-      # surface (a dark/brand-colored mark, not the pale one meant for dark
-      # backgrounds) at app-store-asset resolution (512x512 — the "_webl"
-      # logo variants are only 64x64, too low-res once composited onto a
-      # full splash canvas), composited by @capacitor/assets onto a plain
-      # white canvas via --splashBackgroundColor, same "source logo + flag"
-      # pattern already used for the icon above. Both light/dark splash
-      # variants are forced to white intentionally — the ask was a white
-      # splash regardless of device theme, not a theme-adaptive one.
+      # Both the launcher icon and the splash use light_appstore.png — the
+      # logo variant meant to sit on a light surface (a brand-colored mark,
+      # not the pale one meant for dark backgrounds), at app-store-asset
+      # resolution (512x512 — the "_webl" logo variants are only 64x64, too
+      # low-res once composited onto a full icon/splash canvas). Both are
+      # composited onto a plain white canvas via --iconBackgroundColor/
+      # --splashBackgroundColor. White is forced for BOTH the light and dark
+      # variants of each intentionally — the ask was a white background
+      # regardless of device theme, not a theme-adaptive one. Android's own
+      # adaptive-icon masking is what turns this square into the circle (or
+      # whatever shape a given launcher uses) seen on the home screen.
       - name: Generate real app icons and splash screen
         working-directory: frontend
         run: |
           mkdir -p resources
-          cp public/logos/dark_appstore.png resources/icon.png
+          cp public/logos/light_appstore.png resources/icon.png
           cp public/logos/light_appstore.png resources/splash.png
           npx @capacitor/assets generate --android \
-            --iconBackgroundColor '#6366F1' --iconBackgroundColorDark '#0F0F1A' \
+            --iconBackgroundColor '#FFFFFF' --iconBackgroundColorDark '#FFFFFF' \
             --splashBackgroundColor '#FFFFFF' --splashBackgroundColorDark '#FFFFFF'
 
       # The white splash above is what @capacitor/splash-screen (a JS-driven
