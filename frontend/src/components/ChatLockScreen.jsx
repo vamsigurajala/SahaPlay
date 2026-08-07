@@ -58,7 +58,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
   const storageKey = `chat_lock_state_${myUsername}`;
 
   // Mobile/iPad swipe-back should close this lock screen instead of navigating away.
-  useBackIntercept(1, (newLevel) => { if (newLevel === 0) onClose && onClose(); });
+  const { skipNextClose } = useBackIntercept(1, (newLevel) => { if (newLevel === 0) onClose && onClose(); });
 
   const [attempts, setAttempts] = useState(() => {
     try {
@@ -155,6 +155,10 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         setAttempts(0);
         setBlockedUntil(null);
         localStorage.setItem(storageKey, JSON.stringify({ attempts: 0, blockedUntil: null }));
+        // This unmount is an in-app success, not a swipe/back gesture — see
+        // useBackIntercept.js's skipNextClose docs for why this must be
+        // called before the parent's state change unmounts this screen.
+        skipNextClose();
         if (action === 'unlock') onUnlock?.(chatKey);
         else onToggleSuccess?.(action === 'toggle-lock');
       } else if (res.status === 403 && data.error === 'SELF_DESTRUCT_TRIGGERED') {
@@ -207,6 +211,7 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
         setBlockedUntil(null);
         localStorage.setItem(storageKey, JSON.stringify({ attempts: 0, blockedUntil: null }));
         toast.success(t('accessRestoredMasterKey', 'Access restored via Master Key'));
+        skipNextClose();
         if (action === 'unlock') onUnlock?.(chatKey);
         else onToggleSuccess?.(action === 'toggle-lock');
       } else {

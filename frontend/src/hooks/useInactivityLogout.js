@@ -2,9 +2,18 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { clearUserSession } from '../lib/authUtils.js';
+import { isCapacitorApp } from '../lib/platform.js';
 
 // Auto-logout after sustained inactivity to protect unattended accounts/devices.
-const INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+// The 20-minute window makes sense for a browser tab that might be left open
+// on a shared/public computer, but it's wrong for the native app — switching
+// apps or letting the phone lock is normal, momentary mobile usage, not an
+// unattended session, and no native app (Instagram, etc.) logs a user out
+// for that. On Capacitor, only a genuinely long stretch of the app never
+// being opened at all counts as "inactive".
+const WEB_INACTIVITY_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
+const MOBILE_INACTIVITY_TIMEOUT_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const INACTIVITY_TIMEOUT_MS = isCapacitorApp() ? MOBILE_INACTIVITY_TIMEOUT_MS : WEB_INACTIVITY_TIMEOUT_MS;
 const CHECK_INTERVAL_MS = 10 * 1000; // Check every 10 seconds
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'wheel', 'click'];
 

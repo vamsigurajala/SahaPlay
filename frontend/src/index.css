@@ -137,6 +137,15 @@ body {
   animation: gradientPan 15s ease infinite alternate;
 }
 
+/* react-hot-toast renders one shared container per <Toaster/> instance with
+   this data attribute, hardcoded to `top: 16px` internally — overriding it
+   here (needs !important since the library sets it as an inline style)
+   fixes every page's toast position in one place instead of threading
+   containerStyle through the ~15 separate <Toaster/> usages across pages. */
+[data-rht-toaster] {
+  top: max(16px, calc(env(safe-area-inset-top, 0px) + 8px)) !important;
+}
+
 @keyframes gradientPan {
   0% {
     background-position: 0% 50%;

@@ -80,8 +80,18 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     const deltaX = touch.clientX - s.x;
     const deltaY = touch.clientY - s.y;
     if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical drag — ignore
-    if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) { swipedRef.current = true; onPrev?.(); }
-    else if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) { swipedRef.current = true; onNext?.(); }
+    if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) { swipedRef.current = true; onPrev?.(); return; }
+    if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) { swipedRef.current = true; onNext?.(); return; }
+    // A real tap (not a swipe, not on a button — those handle their own
+    // taps) — toggle directly here rather than depending solely on the
+    // synthetic click event fired after touchend, which some embedded
+    // WebViews (e.g. the Capacitor Android build) don't reliably dispatch.
+    // swipedRef suppresses that synthetic click if it does still fire, so
+    // it can't immediately toggle a second time.
+    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && !e.target.closest('button')) {
+      swipedRef.current = true;
+      setShowArrows(v => !v);
+    }
   };
 
   const expiryDaysLeft = item?.expiresAt ? Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;

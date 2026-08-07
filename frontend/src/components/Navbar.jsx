@@ -296,6 +296,12 @@ const Navbar = () => {
         .main-nav {
           position: sticky; top: 0; z-index: 1000;
           transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+          /* Reserves real space for the phone's status bar (clock/wifi/battery)
+             instead of drawing under it — Android 15+ enforces edge-to-edge
+             rendering in the Capacitor WebView with no app-level opt-out, so
+             this can't be fixed natively; env(safe-area-inset-top) is 0 in a
+             plain browser tab, so this is a no-op there. */
+          padding-top: env(safe-area-inset-top, 0px);
         }
         .main-nav.scrolled {
           background: rgba(9,9,11,0.85) !important;

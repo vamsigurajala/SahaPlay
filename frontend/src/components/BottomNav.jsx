@@ -145,6 +145,7 @@ export default function BottomNav() {
         .bottom-nav-overlay-header {
           display: flex; align-items: center; justify-content: space-between;
           padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
+          padding-top: calc(16px + env(safe-area-inset-top, 0px));
         }
         html[data-theme='light'] .bottom-nav-overlay-header { border-bottom-color: rgba(0,0,0,0.08); }
         .bottom-nav-overlay-title { font-size: 16px; font-weight: 800; color: #fff; margin: 0; }

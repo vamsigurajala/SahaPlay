@@ -19,12 +19,16 @@ import { useEffect, useRef } from 'react';
  *   level when the user swipes/back-navigates; the caller should update
  *   its own state to match (e.g. close the modal, or go back one view).
  * @returns {{ skipNextClose: () => void }} call skipNextClose()
- *   synchronously right before closing AND navigating to a different route
- *   in the same click handler (e.g. a mobile-menu link). Without it, this
- *   hook's own history.go() cleanup races with the router's pushState and
- *   can undo the navigation. The pushed entry is left inert in the shared
- *   history stack instead of being consumed — harmless, just costs one
- *   extra no-op swipe if the user ever backs all the way through it.
+ *   synchronously right before either (a) closing AND navigating to a
+ *   different route in the same click handler (e.g. a mobile-menu link), or
+ *   (b) triggering a state change that unmounts this component as a result
+ *   of an in-app action rather than a swipe/back gesture (e.g. a locked
+ *   chat's password check succeeding). Without it, this hook's own
+ *   history.go() cleanup races with the router's pushState, or with a real
+ *   back gesture that happens to fire in close succession, and can consume
+ *   more real history than intended. The pushed entry is left inert in the
+ *   shared history stack instead of being consumed — harmless, just costs
+ *   one extra no-op swipe if the user ever backs all the way through it.
  */
 const sharedStack = [];
 let suppressCount = 0;
@@ -96,6 +100,24 @@ export function useBackIntercept(level, onPop) {
   useEffect(() => () => {
     const diff = currentLevelRef.current;
     if (diff > 0) {
+      if (skipConsumeRef.current) {
+        // Unmounted because of an in-app action fired in this same tick
+        // (e.g. a locked chat's password check succeeding) rather than a
+        // swipe/back gesture — same skipNextClose() escape hatch used by
+        // the level-change branch above, just reachable from unmount too.
+        // Physically calling history.go() here to "clean up" this
+        // instance's pushed entry races the browser's own back-navigation
+        // handling when a real swipe/back happens in close succession
+        // (confirmed: a locked chat's swipe-back was landing on an
+        // unrelated earlier page after unlocking, consistent with this
+        // cleanup's go(-1) and a fast follow-up real back gesture
+        // coalescing into a single popstate) — leaving the entry inert
+        // avoids that race entirely, at the same "one extra no-op swipe"
+        // cost already accepted for the route-changed case below.
+        skipConsumeRef.current = false;
+        currentLevelRef.current = 0;
+        return;
+      }
       if (pathAtOpenRef.current !== null && window.location.pathname !== pathAtOpenRef.current) {
         // The surrounding page/route changed (e.g. navigating away from a
         // room to a profile) — that's what unmounted us, not an in-app
