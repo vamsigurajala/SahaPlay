@@ -1,6 +1,7 @@
 package com.sahaplay.app;
 
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.media.AudioManager;
 import android.view.Window;
 import android.view.WindowManager;
@@ -71,6 +72,48 @@ public class SahaplayMediaPlugin extends Plugin {
             layoutParams.screenBrightness = clamped;
             window.setAttributes(layoutParams);
         });
+        call.resolve();
+    }
+
+    // The web `screen.orientation.lock()` API is a no-op on Android whenever
+    // the device's own auto-rotate system setting is off (a very common
+    // default) — Chromium's implementation only lets the API pick between
+    // orientations auto-rotate would already allow, it never overrides that
+    // toggle. That's why "turn landscape on fullscreen" never worked no
+    // matter how the JS-side lock-state tracking was fixed: the lock() call
+    // itself was silently rejecting the whole time. A native app doesn't
+    // have that limitation — Activity.setRequestedOrientation() forces a
+    // real rotation regardless of the system auto-rotate setting, exactly
+    // like YouTube/Netflix's own native players. android:configChanges on
+    // the activity already includes "orientation|screenSize", so this does
+    // NOT recreate the Activity/reload the WebView when called.
+    @PluginMethod
+    public void lockOrientation(PluginCall call) {
+        String value = call.getString("value");
+        if (value == null) {
+            call.reject("value required");
+            return;
+        }
+        final int orientation;
+        if ("landscape".equals(value)) {
+            // SENSOR_LANDSCAPE (not plain LANDSCAPE) so the device can still
+            // pick landscape-left vs landscape-right off the accelerometer,
+            // matching how a real video player's fullscreen feels.
+            orientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+        } else if ("portrait".equals(value)) {
+            orientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        } else {
+            call.reject("invalid value");
+            return;
+        }
+        getActivity().runOnUiThread(() -> getActivity().setRequestedOrientation(orientation));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void unlockOrientation(PluginCall call) {
+        getActivity().runOnUiThread(() ->
+            getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED));
         call.resolve();
     }
 

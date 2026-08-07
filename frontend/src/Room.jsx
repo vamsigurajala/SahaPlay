@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
-import { setNativeVolume, setNativeBrightness, getNativeVolume } from './lib/nativeMedia.js';
+import { setNativeVolume, setNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
@@ -1734,6 +1734,7 @@ const Room = () => {
         if (isTouchPlayer && isMobileFsMode) {
           setIsMobileFsMode(false);
           if (screen?.orientation?.unlock) screen.orientation.unlock();
+          if (isCapacitorApp()) unlockNativeOrientation();
           setStatusBarHidden(false);
         }
       }
@@ -1814,12 +1815,14 @@ const Room = () => {
         if (screen?.orientation) {
           (nextLandscape ? screen.orientation.lock?.('landscape') : screen.orientation.lock?.('portrait'))?.catch(() => {});
         }
+        if (isCapacitorApp()) setNativeOrientation(nextLandscape ? 'landscape' : 'portrait');
         return;
       }
       if (isMobileFsMode) {
         setIsMobileFsMode(false);
         setIsRealLandscapeLock(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
+        if (isCapacitorApp()) unlockNativeOrientation();
         if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
         setStatusBarHidden(false);
       } else {
@@ -1840,6 +1843,12 @@ const Room = () => {
         // (native players — YouTube, Instagram Reels, etc. — never force a
         // portrait clip into landscape).
         const targetOrientation = isCallActivity(mediaUrl) ? 'portrait' : (isPortraitMediaFs ? 'portrait' : 'landscape');
+        // Native call first, unconditionally — unlike the web Orientation
+        // Lock API below (which requires document Fullscreen to even attempt
+        // locking, and even then is a no-op if the device's system
+        // auto-rotate toggle is off), setRequestedOrientation() forces a
+        // real rotation immediately regardless of either condition.
+        if (isCapacitorApp()) setNativeOrientation(targetOrientation);
         // Mobile browsers only allow screen.orientation.lock() to succeed while
         // the page is actually in Fullscreen — calling it without Fullscreen
         // (the old behavior) silently rejects every time, which is why this
@@ -7279,6 +7288,7 @@ const Room = () => {
       setIsMobileFsMode(false);
       setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (isCapacitorApp()) unlockNativeOrientation();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       setStatusBarHidden(false);
     }
@@ -8106,6 +8116,7 @@ const Room = () => {
       setIsMobileFsMode(false);
       setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
+      if (isCapacitorApp()) unlockNativeOrientation();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
       setStatusBarHidden(false);
     }

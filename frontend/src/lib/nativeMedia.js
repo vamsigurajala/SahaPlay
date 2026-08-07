@@ -26,3 +26,19 @@ export async function getNativeVolume() {
     return null;
   }
 }
+
+// The web screen.orientation.lock() API silently no-ops on Android whenever
+// the device's system auto-rotate toggle is off — a common default, and the
+// real reason fullscreen landscape never actually rotated the device no
+// matter how the JS-side lock-state tracking was fixed. This calls the
+// native Activity's setRequestedOrientation() instead (see
+// SahaplayMediaPlugin.lockOrientation), which forces a real rotation
+// regardless of that toggle, the same way YouTube/Netflix's own native
+// players do. value is 'landscape' | 'portrait'.
+export function setNativeOrientation(value) {
+  plugin()?.lockOrientation({ value }).catch(() => {});
+}
+
+export function unlockNativeOrientation() {
+  plugin()?.unlockOrientation().catch(() => {});
+}
