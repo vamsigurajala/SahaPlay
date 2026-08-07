@@ -586,6 +586,7 @@ import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia } from '../lib/crypto';
+import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 
@@ -2823,7 +2824,7 @@ const GlobalChatWidget = forwardRef(({
       let decryptedMediaUrl = msg.mediaUrl;
       const activeKey = keyPairRef.current;
       const msgNonce = msg.nonce || (msg.e2ee && msg.e2ee.nonce);
-      if (isGroup && !msgNonce) {
+      if (isGroup && !msgNonce && !isSahaplayOfficialGroup(msg.roomId)) {
         // Legacy group message (predates client-side group E2EE) — see
         // LEGACY_GROUP_TEXT_PLACEHOLDER definition for the full rationale.
         decryptedMessage = msg.mediaUrl ? '' : LEGACY_GROUP_TEXT_PLACEHOLDER;
@@ -3714,6 +3715,10 @@ const GlobalChatWidget = forwardRef(({
             const msgNormalize = (!(_pmt) && plainText) ? { message: plainText } : {};
             return { ...c, ...privateMeta, ...msgNormalize, decryptedText: plainText };
           } else if (c.type === 'room') {
+            // The mandatory SahaPlay announcements group is intentionally
+            // unencrypted (see isSahaplayOfficialGroup) — its preview text is
+            // already plain, never ciphertext, so skip decryption entirely.
+            if (isSahaplayOfficialGroup(c)) return { ...c, decryptedText: c.message };
             // Always attach lastMediaType for room media so the list renderer never shows ciphertext
             const _rmt = c.mediaType || c.lastMediaType;
             const mediaMeta = _rmt ? { lastMediaType: _rmt, message: _rmt.startsWith('video') ? 'Video' : _rmt.startsWith('image') ? 'Photo' : _rmt.startsWith('audio') ? 'Voice Note' : 'File' } : {};
@@ -3938,13 +3943,17 @@ const GlobalChatWidget = forwardRef(({
 
   const latestHistoryRequestRef = useRef(0);
   
-  const decryptGlobalChatMessages = async (fetched, type) => {
+  const decryptGlobalChatMessages = async (fetched, type, partner) => {
     const kp = keyPairRef.current;
     const decrypted = await Promise.all(fetched.map(async (m) => {
       const mUserLower = myUsername?.toLowerCase();
       const msgIsMe = m.isMe || (m.senderName && m.senderName.toLowerCase() === mUserLower) || (m.username && m.username.toLowerCase() === mUserLower);
 
       if (!m.nonce) {
+        // The mandatory SahaPlay announcements group is intentionally
+        // unencrypted (see isSahaplayOfficialGroup) — never route it through
+        // the legacy-ciphertext placeholder, its text is already plain.
+        if (isSahaplayOfficialGroup(partner)) return { ...m, decryptedText: m.message || '' };
         // Legacy group message (predates client-side group E2EE) — DM's own legacy
         // path (pre-DM-E2EE messages, if any) is untouched below, unchanged.
         const isGroupMsgLegacy = m.type === 'group' || m.type === 'room' || type === 'room';
@@ -4055,7 +4064,7 @@ const GlobalChatWidget = forwardRef(({
       const data = await res.json();
       const fetched = Array.isArray(data) ? data : [];
 
-      const decrypted = await decryptGlobalChatMessages(fetched, type);
+      const decrypted = await decryptGlobalChatMessages(fetched, type, cleanPartner);
 
       if (requestId !== latestHistoryRequestRef.current) return;
       
@@ -4147,7 +4156,7 @@ const GlobalChatWidget = forwardRef(({
           return;
         }
 
-        const processed = await decryptGlobalChatMessages(fetched, type);
+        const processed = await decryptGlobalChatMessages(fetched, type, cleanPartner);
 
         setMessages(prev => {
           return mergeHistoryBatch(prev, processed);
@@ -4476,6 +4485,12 @@ const GlobalChatWidget = forwardRef(({
              // isEncrypted remains false
            }
         }
+      } else if (activeChat.type === 'room' && isSahaplayOfficialGroup(activeChat)) {
+        // Mandatory SahaPlay announcements group: intentionally unencrypted —
+        // see isSahaplayOfficialGroup for why (public bulletin, no fixed
+        // participant list to wrap a group key for).
+        messagePayload = optimisticMsg.message;
+        isEncrypted = true; // not a lie here: this room's messages are defined as always-plain, matching the mandatory-encryption guard below on purpose
       } else if (activeChat.type === 'room' && keyPair) {
         const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
         const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, {
@@ -5249,7 +5264,12 @@ const GlobalChatWidget = forwardRef(({
 
   const perms = activeChat?.permissions || roomPermissions;
   const isHost = activeChat?.isHost || isRoomHost;
-  const chatLocked = perms?.chat === 'host';
+  // The mandatory SahaPlay announcements group has no permissions object of
+  // its own (it's not a real room) — always locked here, same as a
+  // perms.chat==='host' room; isHost (backend-computed true for
+  // admin/super_admin viewing this group, see /api/chats/recent) unlocks it
+  // for them via the same !isHost checks every other host-only room uses.
+  const chatLocked = perms?.chat === 'host' || isSahaplayOfficialGroup(activeChat);
   const linksBlocked = perms?.allowLinks === false;
   const mediaBlocked = perms?.allowMedia === false;
 
@@ -7259,7 +7279,11 @@ const GlobalChatWidget = forwardRef(({
                           className="chat-msg-textarea no-scrollbar"
                           ref={inputRef}
                           rows={1}
-                          placeholder={activeChat?.type === 'room' && chatLocked && !isHost ? t('onlyHostCanMessage', 'Only the host can message...') : t('messagePlaceholder', 'Message...')}
+                          placeholder={
+                            activeChat?.type === 'room' && chatLocked && !isHost
+                              ? (isSahaplayOfficialGroup(activeChat) ? t('officialGroupReadOnly', 'Only SahaPlay admins can post here') : t('onlyHostCanMessage', 'Only the host can message...'))
+                              : t('messagePlaceholder', 'Message...')
+                          }
                           disabled={!!(activeChat?.type === 'room' && chatLocked && !isHost)}
                           value={inputValue}
                           onChange={e => {

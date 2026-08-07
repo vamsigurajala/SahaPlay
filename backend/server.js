@@ -3026,6 +3026,29 @@ const adminRoleCache = new Map(); // Map<userId, { role, email, expiresAt }>
 // A10-A2: In-process cache for user public keys (indefinite — invalidated on key write)
 const publicKeyCache = new Map(); // Map<username_lower, publicKey>
 
+// ─── Mandatory SahaPlay announcements group ──────────────────────────────────
+// A reserved, roomless "group" reusing the existing 'group'-type message infra
+// (same messages table, same /api/chats/send + /api/chats/recent paths) rather
+// than a live joinable video room — every signed-in user sees it unconditionally
+// in their chat list (see /api/chats/recent), and only super_admin/admin roles
+// (narrower than ALL_ADMIN_ROLES — moderators/support are not "Admin") may post.
+const SAHAPLAY_OFFICIAL_ROOM_ID = 'sahaplay-official';
+const SAHAPLAY_OFFICIAL_DISPLAY_NAME = 'SahaPlay Updates';
+const SAHAPLAY_BROADCAST_ROLES = ['super_admin', 'admin'];
+let officialGroupEnsured = false;
+async function ensureOfficialGroupExists() {
+  if (officialGroupEnsured) return;
+  try {
+    await pool.query(
+      `INSERT INTO room_names (roomId, roomName, isPublic) VALUES ($1, $2, false) ON CONFLICT(roomId) DO NOTHING`,
+      [SAHAPLAY_OFFICIAL_ROOM_ID, SAHAPLAY_OFFICIAL_DISPLAY_NAME]
+    );
+    officialGroupEnsured = true;
+  } catch (err) {
+    console.error('[SahaPlay group] ensure-exists error:', err);
+  }
+}
+
 async function requireAdmin(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   try {
@@ -3187,7 +3210,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const [followersRow, followingRow] = await Promise.all([
       queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
@@ -3319,6 +3342,7 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
 // â"€â"€ GET Recent Chats â"€â"€
 app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   const username = req.user.username;
+  await ensureOfficialGroupExists();
   let lastSeen = {};
   if (req.query.lastSeen) {
     try { lastSeen = JSON.parse(decodeURIComponent(req.query.lastSeen)); } catch{}
@@ -3552,7 +3576,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     }));
 
     // 3. Pinned rooms: show even if no messages
-    const userRow = await queryGet('SELECT pinnedRooms FROM users WHERE username = ?', [username]);
+    const userRow = await queryGet('SELECT pinnedRooms, role FROM users WHERE username = ?', [username]);
     let pinnedIds = [];
     try { pinnedIds = JSON.parse(userRow?.pinnedRooms || '[]'); } catch(e) { console.error('Error parsing pinnedRooms:', e); }
 
@@ -3585,6 +3609,42 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
           isHost: (hostUsername || '').toLowerCase() === (username || '').toLowerCase() || !!settings?.newMembersAdmins
         });
       }
+    }
+
+    // 3.5 Mandatory SahaPlay announcements group — every signed-in user always
+    // sees this, with no per-user membership/pin/join required (there's no
+    // live room to join at all). Force-included here rather than relying on
+    // the message-driven query above, which only surfaces rooms that already
+    // have at least one message.
+    if (!finalGroup.some(g => g.id === SAHAPLAY_OFFICIAL_ROOM_ID)) {
+      const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type = ?::text ORDER BY timestamp DESC LIMIT 1', [SAHAPLAY_OFFICIAL_ROOM_ID, 'group']);
+      const officialLs = lastSeenLower[SAHAPLAY_OFFICIAL_ROOM_ID] || 0;
+      const officialUnreadRow = await queryGet(
+        `SELECT COUNT(*) as c FROM messages WHERE roomId = ? AND type = ?::text AND timestamp > ?`,
+        [SAHAPLAY_OFFICIAL_ROOM_ID, 'group', officialLs]
+      );
+      finalGroup.push({
+        id: SAHAPLAY_OFFICIAL_ROOM_ID,
+        partner: SAHAPLAY_OFFICIAL_ROOM_ID,
+        displayName: SAHAPLAY_OFFICIAL_DISPLAY_NAME,
+        partnerAvatar: null,
+        message: lastMsg ? lastMsg.message : '',
+        lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
+        lastMediaType: lastMsg?.mediaType || null,
+        lastMediaFileName: lastMsg?.media_file_name || null,
+        lastMediaDuration: lastMsg?.media_duration || null,
+        lastSenderName: lastMsg?.senderName || null,
+        type: 'room',
+        isOfficial: true,
+        isMyLastMessage: false,
+        // Reuses the existing "only host can send" composer-lock UI on the
+        // frontend (perms.chat === 'host' pattern) — admins/super_admins are
+        // treated as this group's "host" so they see an unlocked composer,
+        // everyone else sees the same locked/disabled state that pattern
+        // already renders.
+        isHost: SAHAPLAY_BROADCAST_ROLES.includes(userRow?.role),
+        unread: officialUnreadRow ? Number(officialUnreadRow.c) : 0
+      });
     }
 
     // 4. In-memory connected rooms: user is currently in room but may not have sent messages
@@ -3659,7 +3719,11 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       });
     }
 
-    finalArr.sort((a,b) => b.lastTimestamp - a.lastTimestamp);
+    finalArr.sort((a,b) => {
+      if (a.id === SAHAPLAY_OFFICIAL_ROOM_ID) return -1;
+      if (b.id === SAHAPLAY_OFFICIAL_ROOM_ID) return 1;
+      return b.lastTimestamp - a.lastTimestamp;
+    });
     res.json(finalArr);
   } catch(err) {
     console.error('Recent chats error:', err);
@@ -4054,6 +4118,14 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       res.json({ success: true, timestamp: ts, id: dmDbId });
     } else if (type === 'room') {
+      // ─── Mandatory SahaPlay announcements group: admin-only send ───
+      if (partner === SAHAPLAY_OFFICIAL_ROOM_ID) {
+        const senderRole = (await queryGet('SELECT role FROM users WHERE username = ?', [username]))?.role;
+        if (!SAHAPLAY_BROADCAST_ROLES.includes(senderRole)) {
+          return res.status(403).json({ error: 'Only SahaPlay admins can post in this group.' });
+        }
+      }
+
       // ─── Room Permissions Check ───
       const roomRow = await queryGet('SELECT hostUsername, permissions FROM room_names WHERE roomId = ?', [partner]);
       if (roomRow) {
@@ -6832,6 +6904,10 @@ io.on('connection', (socket) => {
       return;
     }
     const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+    // Defense-in-depth: the reserved announcements group is never created as a
+    // real live room through the normal flow (so `rooms.get()` below already
+    // returns nothing for it), but reject explicitly rather than relying on that.
+    if (roomId === SAHAPLAY_OFFICIAL_ROOM_ID) return;
     const room = rooms.get(roomId);
     if (!room) {
       console.log(`[Chat] Room not found in memory: ${roomId} (Original: ${rawRoomId})`);
