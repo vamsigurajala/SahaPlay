@@ -31,7 +31,7 @@ import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
 import { API } from './lib/api.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
-import { initNativeBackButton, initNativeStatusBarInset } from './lib/nativeShell.js';
+import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -39,6 +39,7 @@ import { initNativeBackButton, initNativeStatusBarInset } from './lib/nativeShel
 if (isCapacitorApp()) {
   initNativeBackButton();
   initNativeStatusBarInset();
+  initNativeResumeBridge();
 }
 
 // Standalone-mode is session-stable (a launch-time property, not something
@@ -144,8 +145,14 @@ window.addEventListener('unhandledrejection', (event) => {
   console.error('[UNHANDLED REJECTION]', event.reason);
 });
 
-// MutationObserver to automatically find and remove the evaluation/demo-only banner if injected by the environment proxy
-if (typeof window !== 'undefined') {
+// MutationObserver to automatically find and remove the evaluation/demo-only banner if injected by the environment proxy.
+// Skipped entirely in the native app: no such proxy/banner ever exists in a
+// real installed APK, so this bought nothing there while still walking every
+// text node in the whole document on every single DOM mutation — including
+// the one React makes on every keystroke in a controlled input, on every
+// page (chat, search, even the login form), which is what made typing feel
+// laggy everywhere rather than in one specific heavy component.
+if (typeof window !== 'undefined' && !isCapacitorApp()) {
   const removeEvaluationBanner = () => {
     const walker = document.createTreeWalker(
       document.body || document.documentElement,

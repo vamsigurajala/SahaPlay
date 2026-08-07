@@ -116,13 +116,6 @@ html, body {
   overflow-x: hidden;
   /* Ensure touch scrolling always works on iOS/iPad/Android */
   -webkit-overflow-scrolling: touch;
-  /* Stops the Android/Chrome "rubber-band" glow/stretch when a page is
-     pulled past its top or bottom edge — a plain website tolerates it, but
-     inside the Capacitor app (a single persistent WebView, not a browser
-     tab with its own chrome) it reads as the whole app UI physically
-     stretching. `contain` (not `none`) keeps normal scroll chaining to a
-     parent working where it's actually used (nested scroll areas). */
-  overscroll-behavior-y: contain;
 }
 
 html {

@@ -4,6 +4,7 @@ import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, getNativeVolume } from './lib/nativeMedia.js';
+import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
@@ -1687,7 +1688,15 @@ const Room = () => {
   // ancestor, so rotating it makes taps land on the wrong spot, which is also
   // why it never attempts a real orientation lock), but honors vbLandscapeMode
   // once the user explicitly asks for landscape via a manual Fullscreen tap.
-  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && (!isVirtualBrowserMedia || vbLandscapeMode) && !isRealLandscapeLock;
+  // Portrait-shaped uploaded videos are already correctly oriented once
+  // locked to portrait — CSS-rotating them the same way a landscape video
+  // needs would turn them sideways instead. Read straight from the <video>
+  // element's own metadata (re-evaluated on every render, so it picks up
+  // the real value once metadata has loaded by the time fullscreen is
+  // actually toggled); embeds/iframes have no element to check here and
+  // keep the existing landscape assumption.
+  const isPortraitMediaFs = !!videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > videoRef.current.videoWidth;
+  const isRotatedFs = isMobileFsMode && !isCallActivity(mediaUrl) && !isPortraitMediaFs && (!isVirtualBrowserMedia || vbLandscapeMode) && !isRealLandscapeLock;
   const [showCastDiscovery, setShowCastDiscovery] = useState(false);
 
   // Monitor browser-level fullscreen changes to sync UI state
@@ -1715,6 +1724,7 @@ const Room = () => {
         if (isTouchPlayer && isMobileFsMode) {
           setIsMobileFsMode(false);
           if (screen?.orientation?.unlock) screen.orientation.unlock();
+          setStatusBarHidden(false);
         }
       }
     };
@@ -1781,6 +1791,7 @@ const Room = () => {
         setIsRealLandscapeLock(false);
         if (screen?.orientation?.unlock) screen.orientation.unlock();
         if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        setStatusBarHidden(false);
       } else {
         // Close any open chat panel before entering — it's a descendant of
         // player-wrap and renders full-height in transparentMode, so leaving
@@ -1790,8 +1801,15 @@ const Room = () => {
         // entry either; the in-player chat bubble still reopens it on demand.
         setShowRecentChats(false);
         setIsMobileFsMode(true);
-        // Calls stay portrait (WhatsApp-style); real video/games rotate landscape.
-        const targetOrientation = isCallActivity(mediaUrl) ? 'portrait' : 'landscape';
+        // Immersive playback like native video players — status bar hides,
+        // a swipe from the top edge briefly reveals it (Android's default
+        // transient-bar behavior), then it re-hides on its own.
+        setStatusBarHidden(true);
+        // Calls stay portrait (WhatsApp-style); video orientation follows the
+        // actual uploaded file's own aspect ratio via isPortraitMediaFs
+        // (native players — YouTube, Instagram Reels, etc. — never force a
+        // portrait clip into landscape).
+        const targetOrientation = isCallActivity(mediaUrl) ? 'portrait' : (isPortraitMediaFs ? 'portrait' : 'landscape');
         // Mobile browsers only allow screen.orientation.lock() to succeed while
         // the page is actually in Fullscreen — calling it without Fullscreen
         // (the old behavior) silently rejects every time, which is why this
@@ -7172,6 +7190,7 @@ const Room = () => {
       setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      setStatusBarHidden(false);
     }
   }, [isLaunchingVirtualBrowser, hyperbeamSession, isVirtualBrowserMedia, isTouchPlayer]);
 
@@ -7998,6 +8017,7 @@ const Room = () => {
       setIsRealLandscapeLock(false);
       if (screen?.orientation?.unlock) screen.orientation.unlock();
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      setStatusBarHidden(false);
     }
   });
 
