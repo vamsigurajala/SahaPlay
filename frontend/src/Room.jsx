@@ -2760,6 +2760,63 @@ const Room = () => {
   const peerConnectionsRef = useRef({});
   const [isScreensharing, setIsScreensharing] = useState(false);
   const [isViewer, setIsViewer] = useState(false);
+
+  // ─── Reels-style pull-down-to-expand / pull-up-to-collapse ───
+  // Separate from isMobileFsMode (the real landscape-rotation Fullscreen
+  // feature above) — this stays portrait the whole time, purely resizing the
+  // mobile mini-player (.room-player-col, normally a fixed 260px) up toward
+  // filling the room's content area in place, driven 1:1 by the drag and
+  // snapping on release. Two asymmetric drag zones, matching how the user
+  // actually described the gesture: a handle at the top of the chat panel
+  // drags DOWN to expand (chat shrinks away as the video grows over it), and
+  // the video itself, once expanded, drags UP to collapse back.
+  const ROOM_PEEK_MIN_HEIGHT = 260;
+  const roomMainLayoutRef = useRef(null);
+  const peekDragRef = useRef({ active: false, startY: 0, startProgress: 0, containerHeight: 0 });
+  const [peekProgress, setPeekProgress] = useState(0); // 0..1, live only while dragging
+  const [isPeekDragging, setIsPeekDragging] = useState(false);
+  const [isPeekExpanded, setIsPeekExpanded] = useState(false); // settled state after release
+
+  const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && !isCallActivity(mediaUrl) && (!!mediaUrl || isScreensharing || isViewer);
+
+  const startPeekDrag = (e) => {
+    if (!canPeekGesture) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const containerHeight = roomMainLayoutRef.current?.getBoundingClientRect().height || 0;
+    if (containerHeight <= ROOM_PEEK_MIN_HEIGHT) return;
+    peekDragRef.current = { active: true, startY: touch.clientY, startProgress: isPeekExpanded ? 1 : 0, containerHeight };
+    setIsPeekDragging(true);
+  };
+  const movePeekDrag = (e) => {
+    const g = peekDragRef.current;
+    if (!g.active) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const deltaY = touch.clientY - g.startY; // positive = dragging down = toward expanded
+    const range = g.containerHeight - ROOM_PEEK_MIN_HEIGHT;
+    if (range <= 0) return;
+    e.preventDefault();
+    setPeekProgress(Math.max(0, Math.min(1, g.startProgress + deltaY / range)));
+  };
+  const endPeekDrag = () => {
+    const g = peekDragRef.current;
+    if (!g.active) return;
+    peekDragRef.current.active = false;
+    setIsPeekDragging(false);
+    setPeekProgress(prev => {
+      const settled = prev >= 0.5;
+      setIsPeekExpanded(settled);
+      return settled ? 1 : 0;
+    });
+  };
+  // Real Fullscreen (the rotate-to-landscape feature) and this gesture are
+  // mutually exclusive UI states — if the user reaches real fullscreen some
+  // other way while peek-expanded, collapse the peek state so they don't
+  // fight each other on exit.
+  useEffect(() => {
+    if (isMobileFsMode && isPeekExpanded) { setIsPeekExpanded(false); setPeekProgress(0); }
+  }, [isMobileFsMode]);
   const [remoteStream, setRemoteStream] = useState(null);
   const [videoQuality, setVideoQuality] = useState(() => localStorage.getItem('preferred_quality') || '480p');
   const [showQualityMenu, setShowQualityMenu] = useState(false);
@@ -9620,15 +9677,23 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
             flex: 3, display: 'flex', flexDirection: 'column', gap: isTvMode ? 0 : 12,
             overflow: 'hidden',
-            maxHeight: '100%', position: 'relative'
+            maxHeight: '100%', position: 'relative',
+            '--peek-player-height': isPeekDragging
+              ? `${ROOM_PEEK_MIN_HEIGHT + peekProgress * (peekDragRef.current.containerHeight - ROOM_PEEK_MIN_HEIGHT)}px`
+              : (isPeekExpanded ? '100%' : `${ROOM_PEEK_MIN_HEIGHT}px`),
+            transition: isPeekDragging ? 'none' : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
           className="no-scrollbar room-player-col"
+          onTouchStart={isPeekExpanded ? startPeekDrag : undefined}
+          onTouchMove={isPeekExpanded ? movePeekDrag : undefined}
+          onTouchEnd={isPeekExpanded ? endPeekDrag : undefined}
+          onTouchCancel={isPeekExpanded ? endPeekDrag : undefined}
         >
           {/* Customize Room floating button */}
           {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
@@ -12225,6 +12290,22 @@ const Room = () => {
             what's actually happening in the room, not just the raw video. */}
         {(
         <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
+          {/* Reels-style pull-down-to-expand handle — grab anywhere on this
+              bar and drag down to grow the video over the chat panel; drag
+              back up on the video itself (see .room-player-col above) to
+              return here. Only shown collapsed/mobile/media-active — once
+              expanded this whole panel has ~0px of space anyway. */}
+          {canPeekGesture && !isPeekExpanded && (
+            <div
+              onTouchStart={startPeekDrag}
+              onTouchMove={movePeekDrag}
+              onTouchEnd={endPeekDrag}
+              onTouchCancel={endPeekDrag}
+              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '8px 0', flexShrink: 0, touchAction: 'none' }}
+            >
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} />
+            </div>
+          )}
           {/* Mobile: Browse Media button pinned above chat when no media playing.
               Visibility is enforced purely by the .mobile-browse-media-btn CSS media
               query (same max-width: 639px breakpoint that hides .room-quick-controls),

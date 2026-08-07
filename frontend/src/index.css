@@ -1750,10 +1750,13 @@ body.sp-mobile-fs-active .room-player-col {
        syncResize() guard skips the call entirely under that floor, so a
        230px-tall box meant the Virtual Browser video was never actually told
        to fit this container and rendered partially/mismatched. 260px keeps a
-       small margin above the 256px floor. */
-    height: 260px !important;
-    min-height: 260px !important;
-    max-height: 260px !important;
+       small margin above the 256px floor. --peek-player-height (set inline
+       by Room.jsx's pull-to-expand gesture) drives this same height up
+       toward 100% while dragging/expanded; it defaults to 260px so every
+       other case (not dragging, not expanded) is unaffected. */
+    height: var(--peek-player-height, 260px) !important;
+    min-height: var(--peek-player-height, 260px) !important;
+    max-height: var(--peek-player-height, 260px) !important;
   }
   .mob-media-active .room-right-column {
     display: flex !important;
