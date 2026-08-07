@@ -87,10 +87,38 @@ jobs:
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/android/sahaplay-upload.keystore
 
+      # Capacitor's generated project ships an older default Kotlin version for
+      # its own capacitor-cordova-android-plugins module, while some other
+      # dependency pulls in a newer kotlin-stdlib — Kotlin merged the old
+      # split kotlin-stdlib-jdk7/jdk8 artifacts into the main stdlib as of
+      # 1.8, so having both an old split version and a new merged version
+      # present resolves to the same classes twice ("Duplicate class ...")
+      # and Gradle refuses to package the bundle. Forcing every module in
+      # every configuration to one consistent, modern Kotlin version (via a
+      # Gradle init script rather than editing the generated, never-committed
+      # project files directly) collapses the old split artifacts into the
+      # no-op compatibility shims they are at that version, eliminating the
+      # duplicate without needing to know Capacitor's internal file layout.
+      - name: Write Kotlin version-conflict fix
+        run: |
+          cat > frontend/android/kotlin-fix.init.gradle <<'EOF'
+          allprojects {
+            configurations.all {
+              resolutionStrategy {
+                force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
+                force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.25'
+                force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.25'
+                force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.25'
+              }
+            }
+          }
+          EOF
+
       - name: Build signed .aab
         working-directory: frontend/android
         run: |
           ./gradlew bundleRelease \
+            --init-script kotlin-fix.init.gradle \
             -Pandroid.injected.signing.store.file=$(pwd)/sahaplay-upload.keystore \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
