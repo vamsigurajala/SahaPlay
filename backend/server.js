@@ -360,39 +360,6 @@ async function sendPushBroadcastExcept(excludeUsername, payload) {
   }
 }
 
-// Registered once per device after login (see lib/nativePush.js) — token is
-// the UNIQUE key rather than (username, token) so a device that later logs
-// into a different account cleanly reassigns instead of leaving the old
-// account with a stale token that no longer belongs to it.
-app.post('/api/push/register', authenticateToken, async (req, res) => {
-  const { token, platform } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'token required' });
-  try {
-    await pool.query(
-      `INSERT INTO push_tokens (username, token, platform, updated_at) VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (token) DO UPDATE SET username = $1, platform = $3, updated_at = NOW()`,
-      [req.user.username, token, platform || 'android']
-    );
-    res.json({ success: true });
-  } catch (e) {
-    console.error('[Push] register error:', e.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/push/unregister', authenticateToken, async (req, res) => {
-  const { token } = req.body || {};
-  if (!token) return res.status(400).json({ error: 'token required' });
-  try {
-    await pool.query('DELETE FROM push_tokens WHERE token = $1', [token]);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('[Push] unregister error:', e.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
 // Initialize DB
 const { Pool } = require('pg');
 const pool = new Pool({
@@ -4156,6 +4123,42 @@ app.post('/api/chats/react', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Database error' });
   } finally {
     client.release();
+  }
+});
+
+// Registered once per device after login (see lib/nativePush.js) — token is
+// the UNIQUE key rather than (username, token) so a device that later logs
+// into a different account cleanly reassigns instead of leaving the old
+// account with a stale token that no longer belongs to it.
+// (Moved here from right after the Firebase init block above — `app` isn't
+// declared until further down the file (`const app = express()`), so
+// registering routes on it that early threw "Cannot access 'app' before
+// initialization" at startup, before any request was ever served.)
+app.post('/api/push/register', authenticateToken, async (req, res) => {
+  const { token, platform } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query(
+      `INSERT INTO push_tokens (username, token, platform, updated_at) VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (token) DO UPDATE SET username = $1, platform = $3, updated_at = NOW()`,
+      [req.user.username, token, platform || 'android']
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] register error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/push/unregister', authenticateToken, async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await pool.query('DELETE FROM push_tokens WHERE token = $1', [token]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] unregister error:', e.message);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
