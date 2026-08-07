@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { isCapacitorApp } from '../lib/platform';
 
+// Mobile app only — explicitly not wanted on the website. isCapacitorApp()
+// reads window.Capacitor, a global the native shell injects into the page
+// before it loads, present ONLY inside the installed Android app's WebView
+// and never in a regular browser tab. This is still a plain web-code
+// condition (same file, same deploy as everything else on the site) — it
+// doesn't require a native rebuild, since the check just runs differently
+// depending on where the exact same JS happens to execute.
+//
 // Shown once per app cold start (mounted at the App root, so it never
 // remounts on route navigation — only on a real page load / app launch).
 // Purely a visual overlay layered on top of whatever's rendering underneath;
@@ -12,10 +21,11 @@ const HOLD_UNTIL_MS = 1050; // when the fade-out begins
 const REMOVE_AT_MS = 1500;  // when the overlay unmounts entirely
 
 export default function AnimatedSplash() {
-  const [mounted, setMounted] = useState(true);
+  const [mounted, setMounted] = useState(isCapacitorApp());
   const [fadingOut, setFadingOut] = useState(false);
 
   useEffect(() => {
+    if (!isCapacitorApp()) return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       setMounted(false);
       return;
