@@ -11,6 +11,7 @@ import { isTauriApp } from './lib/platform';
 import { syncStatusBarTheme } from './lib/nativeShell';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
+import AnimatedSplash from './components/AnimatedSplash';
 const Home = lazy(() => import('./Home'));
 const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
@@ -1170,6 +1171,7 @@ function App() {
     <CryptoProvider>
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
+          <AnimatedSplash />
           {/* Fixed opaque strip covering the status bar area (time/wifi/battery),
               above every page, modal, and overlay in the app (z-index beats even
               ChatLockScreen's 10000000). Height collapses to 0 on web/PWA, where
