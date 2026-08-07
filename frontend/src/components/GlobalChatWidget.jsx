@@ -3751,7 +3751,17 @@ const GlobalChatWidget = forwardRef(({
           const existingTs = Number(existing?.lastTimestamp) || 0;
           const serverTs   = Number(c.lastTimestamp) || 0;
 
-          if (existing && existingTs > serverTs) {
+          // Only trust "local is ahead of server" for a genuinely recent optimistic
+          // send of OUR OWN (isMyLastMessage, sent in roughly the last fetch cycle)
+          // whose DB write this fetch just raced. Without the extra guard, this
+          // branch also fired whenever local was "ahead" simply because the message
+          // it was tracking got unsent/deleted since — server's new (older, but
+          // real) last message would then lose every field here (including
+          // lastMediaType), permanently stuck showing the deleted message's text
+          // forever after, since this merged, wrong result is what gets persisted
+          // to localStorage and re-merged against on every future fetch too.
+          const isPlausiblyOptimistic = existing?.isMyLastMessage && existingTs > 0 && (Date.now() - existingTs) < 15000;
+          if (existing && existingTs > serverTs && isPlausiblyOptimistic) {
             // Local state is ahead of server (e.g. optimistic update not yet flushed to DB).
             // Keep local structure, but apply any fresher decryptedText from the server fetch.
             const betterDecryptedText = finalC.decryptedText || existing.decryptedText;

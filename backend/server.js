@@ -5018,17 +5018,13 @@ app.post('/api/follow/:username/accept', authenticateTokenOptional, async (req, 
   const accepter = req.user.username;
   const requester = req.params.username;
   try {
+    // Deliberately one-directional: accepting only confirms THIS request
+    // (requester -> accepter). Messaging stays gated behind a real mutual
+    // follow — the accepter must separately send (and have accepted) their
+    // own request back via "Follow Back" before it's a two-way friendship.
+    // (Reverted an earlier attempt to auto-reciprocate here — explicitly
+    // asked to keep both sides as deliberate, separate actions.)
     await pool.query('UPDATE follows SET status = $1 WHERE LOWER("followerId") = LOWER($2) AND LOWER("followingId") = LOWER($3)', ['accepted', requester, accepter]);
-
-    // Accepting a friend request establishes mutual friendship immediately —
-    // every follow requires manual approval in this app (there's no public
-    // following), so requiring a *second*, easy-to-miss "Follow Back" step
-    // after accepting just left messaging gated and reading as "the accept
-    // didn't work" even though both people had already agreed to connect.
-    const reverse = await pool.query('UPDATE follows SET status = $1 WHERE LOWER("followerId") = LOWER($2) AND LOWER("followingId") = LOWER($3)', ['accepted', accepter, requester]);
-    if (reverse.rowCount === 0) {
-      await pool.query('INSERT INTO follows ("followerId", "followingId", status) VALUES ($1, $2, $3)', [accepter, requester, 'accepted']);
-    }
 
     invalidateCacheForUser(accepter);
     invalidateCacheForUser(requester);

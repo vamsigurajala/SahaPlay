@@ -104,7 +104,10 @@ export function getMessagePreview(chat, myUsername) {
     return <span style={rowStyle}>You:&nbsp;{content}</span>
   }
 
-  if (chat.lastSenderName) {
+  // Group chats need the sender name (could be any member) — private DMs
+  // don't, since the row is already labeled with who it's from, so
+  // repeating that name in front of every preview is pure noise.
+  if (chat.type === 'room' && chat.lastSenderName) {
     // Recipients should see "SahaPlay" as the sender here too, not whichever
     // admin account actually posted — same reasoning as the message bubbles.
     const name = isSahaplayOfficialGroup(chat) ? 'SahaPlay' : chat.lastSenderName
