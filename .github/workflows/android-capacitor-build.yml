@@ -87,38 +87,40 @@ jobs:
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/android/sahaplay-upload.keystore
 
-      # Capacitor's generated project ships an older default Kotlin version for
-      # its own capacitor-cordova-android-plugins module, while some other
-      # dependency pulls in a newer kotlin-stdlib — Kotlin merged the old
-      # split kotlin-stdlib-jdk7/jdk8 artifacts into the main stdlib as of
-      # 1.8, so having both an old split version and a new merged version
-      # present resolves to the same classes twice ("Duplicate class ...")
-      # and Gradle refuses to package the bundle. Forcing every module in
-      # every configuration to one consistent, modern Kotlin version (via a
-      # Gradle init script rather than editing the generated, never-committed
-      # project files directly) collapses the old split artifacts into the
-      # no-op compatibility shims they are at that version, eliminating the
-      # duplicate without needing to know Capacitor's internal file layout.
-      - name: Write Kotlin version-conflict fix
+      # Something in the resolved dependency graph (confirmed by generating
+      # this exact project locally: androidx.activity/core/fragment/webkit at
+      # the versions in variables.gradle, plus org.apache.cordova:framework)
+      # pulls the old, pre-1.8 split kotlin-stdlib-jdk7/jdk8 artifacts, while
+      # something else pulls the modern merged kotlin-stdlib — both contain
+      # the same classes, so :app:checkReleaseDuplicateClasses fails. A prior
+      # attempt applied a version-force via a separate --init-script, but the
+      # old versions still showed up unchanged on the next run, so this
+      # instead appends directly to the actual generated root build.gradle
+      # (confirmed content by running `cap add android` locally) — excluding
+      # the legacy split modules outright is also more certain than
+      # version-forcing them, since kotlin-stdlib 1.8+ already contains
+      # everything they used to provide.
+      - name: Fix Kotlin stdlib duplicate-class conflict
+        working-directory: frontend
         run: |
-          cat > frontend/android/kotlin-fix.init.gradle <<'EOF'
+          cat >> android/build.gradle <<'EOF'
+
           allprojects {
-            configurations.all {
-              resolutionStrategy {
-                force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
-                force 'org.jetbrains.kotlin:kotlin-stdlib-common:1.9.25'
-                force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.25'
-                force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.25'
+              configurations.all {
+                  exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+                  exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+                  resolutionStrategy {
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.25'
+                  }
               }
-            }
           }
           EOF
+          cat android/build.gradle
 
       - name: Build signed .aab
         working-directory: frontend/android
         run: |
           ./gradlew bundleRelease \
-            --init-script kotlin-fix.init.gradle \
             -Pandroid.injected.signing.store.file=$(pwd)/sahaplay-upload.keystore \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
