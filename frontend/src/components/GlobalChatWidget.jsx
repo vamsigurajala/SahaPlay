@@ -2515,15 +2515,24 @@ const GlobalChatWidget = forwardRef(({
       
       setConversations(prev => {
         const conversations = Array.isArray(prev) ? prev : [];
-        const match = conversations.find(c => 
-          String(c.lastTimestamp) === String(timestampId) || 
+        const match = conversations.find(c =>
+          String(c.lastTimestamp) === String(timestampId) ||
           (originalId && String(c.lastTimestamp) === String(originalId)) ||
           String(c.lastTimestamp) === String(messageId)
         );
-        if (match) {
-          fetchConversations();
-        }
-        return conversations;
+        if (!match) return conversations;
+        fetchConversations();
+        // Zero out lastTimestamp on the tracked entry immediately, rather than
+        // waiting on fetchConversations() to land: that fetch's own merge logic
+        // treats a HIGHER local lastTimestamp than what the server just returned
+        // as "local is ahead, probably an optimistic send still in flight" and
+        // keeps the (now-deleted) stale preview — this was the exact reason
+        // unsending the conversation's last message left it stuck showing text/
+        // media that no longer exists, even across a hard refresh (localStorage
+        // persists the wrong merge result right back into the next fetch's
+        // "existing" side). Resetting to 0 here guarantees the server's fresh
+        // "real" last message always wins once that fetch resolves.
+        return conversations.map(c => (c === match ? { ...c, lastTimestamp: 0 } : c));
       });
     };
 
@@ -3751,17 +3760,15 @@ const GlobalChatWidget = forwardRef(({
           const existingTs = Number(existing?.lastTimestamp) || 0;
           const serverTs   = Number(c.lastTimestamp) || 0;
 
-          // Only trust "local is ahead of server" for a genuinely recent optimistic
-          // send of OUR OWN (isMyLastMessage, sent in roughly the last fetch cycle)
-          // whose DB write this fetch just raced. Without the extra guard, this
-          // branch also fired whenever local was "ahead" simply because the message
-          // it was tracking got unsent/deleted since — server's new (older, but
-          // real) last message would then lose every field here (including
-          // lastMediaType), permanently stuck showing the deleted message's text
-          // forever after, since this merged, wrong result is what gets persisted
-          // to localStorage and re-merged against on every future fetch too.
-          const isPlausiblyOptimistic = existing?.isMyLastMessage && existingTs > 0 && (Date.now() - existingTs) < 15000;
-          if (existing && existingTs > serverTs && isPlausiblyOptimistic) {
+          // "Local ahead of server" normally means an optimistic update (our own
+          // send, or a real-time received message) that this fetch raced and the
+          // DB write hasn't caught up to yet — trust local in that case. The one
+          // case this must NOT apply is a local entry that's stale because the
+          // message it was tracking got unsent/deleted — handleRemoteDelete
+          // (above) zeroes lastTimestamp the instant that happens specifically so
+          // existingTs can never win here once that's happened, without needing
+          // this merge to guess at intent from timing alone.
+          if (existing && existingTs > serverTs) {
             // Local state is ahead of server (e.g. optimistic update not yet flushed to DB).
             // Keep local structure, but apply any fresher decryptedText from the server fetch.
             const betterDecryptedText = finalC.decryptedText || existing.decryptedText;
@@ -3994,10 +4001,17 @@ const GlobalChatWidget = forwardRef(({
       // Replace messages atomically — no merge needed since we cleared before fetching
       setMessages(resolveReplyMessages(decrypted));
 
-      // Sync the sidebar preview with the latest message from history.
-      // This fixes rooms that show "Start a conversation" because fetchConversations didn't
-      // find them (e.g. user never sent a message, or room was restarted from memory).
-      if (decrypted.length > 0 && type === 'room') {
+      // Sync the sidebar preview with the latest message from history — the
+      // just-loaded thread is unambiguously correct, so use it to override
+      // whatever the conversation list's real-time/fetch-merge heuristics
+      // landed on. Originally room-only ("fixes rooms that show 'Start a
+      // conversation' because fetchConversations didn't find them"), but
+      // private DMs need the exact same correction: two messages received in
+      // quick succession could each update the list via their own socket
+      // event, and if the connection has any hiccup that drops or reorders
+      // one of those, the list gets stuck on an earlier message with nothing
+      // to naturally correct it. Opening the chat always re-derives the truth.
+      if (decrypted.length > 0 && (type === 'room' || type === 'private')) {
         const latestMsg = decrypted[decrypted.length - 1];
         const latestTs = Number(latestMsg.timestamp) || 0;
         const _mtype = latestMsg.mediaType || '';
