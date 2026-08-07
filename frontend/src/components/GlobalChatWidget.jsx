@@ -1583,6 +1583,22 @@ const GlobalChatWidget = forwardRef(({
       return JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
     } catch { return []; }
   });
+  // Mirror the mute list server-side on every change — push notifications
+  // fire from the backend with no access to this (or any) device's
+  // localStorage, so muting a chat only ever suppressed the in-app toast
+  // without this. Fires once on mount too, which is what backfills the
+  // server the first time for an existing local mute list. Reads the token
+  // directly rather than closing over the component's `token` const, which
+  // is declared further down this component and would be a TDZ error here.
+  useEffect(() => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn || tkn === 'null' || tkn === 'undefined') return;
+    fetch(`${API}/api/profile/muted-chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+      body: JSON.stringify({ mutedChats }),
+    }).catch(() => {});
+  }, [mutedChats]);
   const [hiddenChats, setHiddenChats] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(`hidden_chats_${myUsername}`) || '[]');

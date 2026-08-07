@@ -387,6 +387,17 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
   const targets = recipients.filter(u => u && u.toLowerCase() !== (senderUsername || '').toLowerCase());
   for (const recipient of targets) {
     try {
+      // Respect this recipient's mute list before doing anything else — a
+      // muted chat should never produce a system notification (on a closed/
+      // backgrounded app, this is the ONLY thing that would otherwise fire;
+      // there's no client-side toast to suppress since nothing is running).
+      // The message itself is unaffected — only sent from here, storage and
+      // in-app unread counts happen elsewhere regardless of mute state.
+      const muteRow = await queryGet('SELECT mutedChats FROM users WHERE LOWER(username) = LOWER(?)', [recipient]);
+      let muted = [];
+      try { muted = JSON.parse(muteRow?.mutedChats || '[]'); } catch { muted = []; }
+      if (muted.some(m => String(m).toLowerCase() === String(chatId).toLowerCase())) continue;
+
       // pending_notifications is Postgres-only (no SQLite mirror), so this
       // uses `pool` directly rather than the queryGet() helper other code
       // in this file uses for the (dual-written) users table.
@@ -436,10 +447,16 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
 // post reads as "from SahaPlay" regardless of which admin sent it — see
 // the display-name override in messagePreview.jsx/GlobalChatWidget.jsx),
 // just tag-based replacement so a burst of announcements doesn't stack.
-async function sendPushBroadcastExcept(excludeUsername, payload) {
+async function sendPushBroadcastExcept(excludeUsername, payload, muteChatId) {
   if (!firebaseAdmin) return;
   try {
-    const rows = await pool.query('SELECT token FROM push_tokens WHERE LOWER(username) != LOWER($1)', [excludeUsername || '']);
+    const rows = await pool.query(
+      `SELECT pt.token FROM push_tokens pt
+       JOIN users u ON LOWER(u.username) = LOWER(pt.username)
+       WHERE LOWER(pt.username) != LOWER($1)
+         AND ($2::text IS NULL OR NOT (COALESCE(u."mutedChats", '[]')::jsonb ? LOWER($2::text)))`,
+      [excludeUsername || '', muteChatId || null]
+    );
     await sendPushToTokens(rows.rows.map(r => r.token), payload);
   } catch (e) {
     console.error('[FCM] sendPushBroadcastExcept error:', e.message);
@@ -690,7 +707,8 @@ class SupabaseAdapter {
         'verificationToken', 'resetToken', 'resetTokenExpiry', 'displayName', 
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
         'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
-        'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus'
+        'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus',
+        'mutedChats'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -1320,6 +1338,14 @@ const migrationsReady = (async () => {
   // apple_sub: Apple's stable per-account subject ID, same purpose as google_sub above.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] apple_sub:', e.message);
+  });
+  // mutedChats: JSON array of chat keys (DM partner usernames / room IDs, lowercased)
+  // this user has muted — same shape as the existing muted_chats_<user> localStorage
+  // array, just also persisted server-side so push notifications (which fire from
+  // the backend, with no access to any one device's localStorage) can respect mute
+  // too, not just the in-app toast.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "mutedChats" TEXT DEFAULT '[]'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] mutedChats:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -3416,7 +3442,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, role FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     const [followersRow, followingRow] = await Promise.all([
       queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
@@ -3470,6 +3496,25 @@ app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(req.user.username);
     res.json({ message: 'Pinned rooms updated', pinnedRooms: jsonStr });
+  });
+});
+
+// ─── UPDATE Muted Chats ───
+// Keeps the server's copy of this device's muted_chats_<user> localStorage
+// list in sync, so push notifications (sent from the backend, with no
+// access to any device's localStorage) can also respect mute — see
+// notifyChatMessage below, which is the actual enforcement point.
+app.post('/api/profile/muted-chats', authenticateToken, (req, res) => {
+  const { mutedChats } = req.body;
+  if (!Array.isArray(mutedChats)) return res.status(400).json({ error: 'mutedChats must be an array' });
+  let jsonStr = '[]';
+  try {
+    jsonStr = JSON.stringify(mutedChats.map(c => String(c).toLowerCase()));
+  } catch (e) {}
+  db.run('UPDATE users SET mutedChats = ? WHERE id = ?', [jsonStr, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Muted chats updated', mutedChats: jsonStr });
   });
 });
 
@@ -4520,7 +4565,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
           body: actualMessage || 'New announcement',
           data: { type: 'room', chatId: SAHAPLAY_OFFICIAL_ROOM_ID },
           tag: SAHAPLAY_OFFICIAL_ROOM_ID,
-        });
+        }, SAHAPLAY_OFFICIAL_ROOM_ID);
       } else {
         // Ordinary watch-together rooms: no persistent "membership" like a
         // DM has, so notify everyone who has ever opened this room's chat
