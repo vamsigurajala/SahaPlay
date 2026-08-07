@@ -10,7 +10,7 @@ import { getRoomThumbnailUrl } from '../utils/avatarUtils';
 export default function RoomThumbnail({ thumbnailPath, imgClassName, alt, onLoad }) {
   const url = getRoomThumbnailUrl(thumbnailPath);
   if (url) {
-    return <img src={url} alt={alt || 'Room Cover'} className={imgClassName} onLoad={onLoad} />;
+    return <img src={url} alt={alt || 'Room Cover'} className={imgClassName} onLoad={onLoad} loading="lazy" decoding="async" />;
   }
   return (
     <div className="room-thumb-fallback">

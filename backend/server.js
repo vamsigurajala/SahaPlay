@@ -3139,7 +3139,14 @@ app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('
         .from('room-thumbnails')
         .upload(filename, req.file.buffer, {
           contentType: req.file.mimetype,
-          upsert: true
+          upsert: true,
+          // Safe to cache "forever" — the filename is timestamp-unique per
+          // upload (never overwritten in place) and the old file is deleted
+          // below, so a changed thumbnail is always a brand-new URL, not a
+          // stale cache of this one. This is what makes reopening the app
+          // show thumbnails instantly from local disk cache instead of
+          // re-fetching every image from Supabase on every cold start.
+          cacheControl: '31536000',
         });
 
       if (uploadError) {
@@ -4889,7 +4896,11 @@ app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar')
         .from('avatars')
         .upload(filename, req.file.buffer, {
           contentType: req.file.mimetype,
-          upsert: true
+          upsert: true,
+          // Same reasoning as room thumbnails: filename is unique per
+          // upload and the old file is removed below, so caching this URL
+          // permanently is safe — a changed avatar is always a new URL.
+          cacheControl: '31536000',
         });
 
       if (uploadError) {
