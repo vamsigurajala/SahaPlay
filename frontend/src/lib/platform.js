@@ -17,19 +17,25 @@ export function isCapacitorApp() {
   return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
 }
 
-// Detects the installed-PWA / Android TWA context so app-shell chrome (like
-// the bottom nav bar) can render only there, never in a regular mobile
-// browser tab. Three signals, since no single one covers every launch path:
-// `display-mode: standalone` covers installed PWAs and Chrome TWAs,
-// `navigator.standalone` is Safari's pre-standard iOS equivalent, and the
-// `android-app://` referrer is Google's documented way to confirm a TWA
-// launch specifically (Play-installed TWAs can report display-mode oddly on
-// some OEM builds, so this is a useful fallback signal, not redundant).
+// Detects the installed-PWA / Android TWA / Capacitor context so app-shell
+// chrome (like the bottom nav bar and the centered script wordmark) renders
+// only there, never in a regular mobile browser tab. Four signals, since no
+// single one covers every launch path: `display-mode: standalone` covers
+// installed PWAs and Chrome TWAs, `navigator.standalone` is Safari's
+// pre-standard iOS equivalent, the `android-app://` referrer is Google's
+// documented way to confirm a TWA launch specifically (Play-installed TWAs
+// can report display-mode oddly on some OEM builds, so this is a useful
+// fallback signal, not redundant), and `isCapacitorApp()` covers the native
+// wrapper — a Capacitor WebView is its own distinct launch mechanism that
+// trips none of the other three (no PWA display-mode, no TWA referrer), so
+// without it every "installed app" UI treatment silently never activated
+// there and the app rendered exactly like a plain mobile browser tab.
 export function isStandalonePWA() {
   if (typeof window === 'undefined') return false;
   return (
     window.matchMedia?.('(display-mode: standalone)').matches ||
     window.navigator.standalone === true ||
-    document.referrer.startsWith('android-app://')
+    document.referrer.startsWith('android-app://') ||
+    isCapacitorApp()
   );
 }

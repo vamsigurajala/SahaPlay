@@ -41,9 +41,19 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Install Capacitor CLI + Android platform
+      # All Capacitor-related packages installed in ONE call, deliberately —
+      # confirmed locally that separate/later `npm install` calls on top of
+      # an already-installed tree can silently re-resolve and prune hundreds
+      # of unrelated packages (caught this by reproducing it: a lone
+      # `npm install fs-extra` after installing @capacitor/core/cli/android
+      # dropped 384 already-installed packages). fs-extra is included
+      # explicitly because @capacitor/assets (used below to generate real
+      # app icons) depends on it transitively but doesn't reliably pull it
+      # in on its own — also confirmed by reproducing the resulting
+      # "Cannot find module 'fs-extra'" crash locally.
+      - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
+        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's
@@ -66,6 +76,21 @@ jobs:
       - name: Generate Android project (cap add android)
         working-directory: frontend
         run: npx cap add android
+
+      # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
+      # from manifest.json), `cap add android` ships Capacitor's own generic
+      # placeholder icon and does nothing with our actual logo — this is why
+      # the installed app showed no real icon. dark_appstore.png is the
+      # highest-resolution square logo asset in the repo (1254x1254); the
+      # brand indigo/near-black pair matches the manifest's theme_color/
+      # background_color so the generated adaptive-icon backdrop looks
+      # consistent with the rest of the PWA install experience.
+      - name: Generate real app icons
+        working-directory: frontend
+        run: |
+          mkdir -p resources
+          cp public/logos/dark_appstore.png resources/icon.png
+          npx @capacitor/assets generate --android --iconBackgroundColor '#6366F1' --iconBackgroundColorDark '#0F0F1A'
 
       # Our own native code — a small custom plugin exposing real device
       # volume/brightness to the web player's swipe gestures, plus a
