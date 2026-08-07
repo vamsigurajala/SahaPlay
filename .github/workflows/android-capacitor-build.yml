@@ -51,15 +51,35 @@ jobs:
       # app icons) depends on it transitively but doesn't reliably pull it
       # in on its own — also confirmed by reproducing the resulting
       # "Cannot find module 'fs-extra'" crash locally.
+      #
+      # No --no-save here (unlike the first Capacitor migration) — confirmed
+      # locally that `cap sync`'s plugin autolinking discovers plugins by
+      # scanning package.json's dependencies, not just node_modules
+      # presence. With --no-save, @capacitor/status-bar and @capacitor/app
+      # below were installed but silently never linked into the native
+      # project ("Updating Android plugins" found 0 plugins), so their Java
+      # code never made it into the built app. This only edits package.json
+      # inside the ephemeral CI checkout — nothing is committed back.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install --no-save @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's
       # twa-manifest.json. server.url keeps this pointed at the live prod
       # site instead of the bundled (webDir) copy, so normal web deploys
       # reach app users instantly without a native rebuild.
+      #
+      # plugins.StatusBar.overlaysWebView: false is the fix for the top nav
+      # bar/wordmark rendering underneath the phone's clock/wifi/battery
+      # icons — Capacitor's generated project draws the WebView full-screen
+      # behind the status bar by default (Android's edge-to-edge behavior),
+      # and the web app's own safe-area CSS (meant for browser/PWA display)
+      # doesn't cover this native-only overlap. This makes the native shell
+      # reserve real space for the status bar instead, matching what the PWA
+      # already looked like. backgroundColor/style here are just the
+      # first-frame default (matches the default 'dark' theme); App.jsx
+      # syncs both live on every theme toggle via nativeShell.js.
       - name: Write Capacitor project config
         working-directory: frontend
         run: |
@@ -69,7 +89,14 @@ jobs:
             "appName": "SahaPlay",
             "webDir": "dist",
             "server": { "url": "https://sahaplay.com", "cleartext": false },
-            "android": { "backgroundColor": "#0F0F1A" }
+            "android": { "backgroundColor": "#0F0F1A" },
+            "plugins": {
+              "StatusBar": {
+                "overlaysWebView": false,
+                "style": "LIGHT",
+                "backgroundColor": "#0b0c10"
+              }
+            }
           }
           EOF
 
@@ -94,16 +121,22 @@ jobs:
 
       # Our own native code — a small custom plugin exposing real device
       # volume/brightness to the web player's swipe gestures, plus a
-      # MainActivity that registers it. Both are hand-written and committed
-      # under capacitor-android-plugin/, copied into the freshly generated
+      # MainActivity that registers it, plus a manifest override adding the
+      # camera/mic permissions the generated default omits (without them,
+      # Capacitor's built-in getUserMedia permission bridge auto-denies with
+      # no system dialog ever shown — confirmed by reading
+      # BridgeWebChromeClient.onPermissionRequest in @capacitor/android
+      # locally). All hand-written and committed under
+      # capacitor-android-plugin/, copied into the freshly generated
       # (never-committed) android/ tree on every run rather than living
       # inside it directly, same "regenerate from source of truth" approach
       # the old TWA build used for its own android-twa/ directory.
-      - name: Add SahaplayMedia native plugin
+      - name: Add native plugin, MainActivity, and manifest permissions
         working-directory: frontend
         run: |
           cp capacitor-android-plugin/SahaplayMediaPlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayMediaPlugin.java
           cp capacitor-android-plugin/MainActivity.java android/app/src/main/java/com/sahaplay/app/MainActivity.java
+          cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
       - name: Sync Capacitor project
         working-directory: frontend

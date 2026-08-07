@@ -8,6 +8,7 @@ import { CryptoProvider } from './contexts/CryptoContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp } from './lib/platform';
+import { syncStatusBarTheme } from './lib/nativeShell';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
 const Home = lazy(() => import('./Home'));
@@ -1064,6 +1065,7 @@ function App() {
     const applyTheme = () => {
       const savedTheme = localStorage.getItem('watch_theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
+      syncStatusBarTheme(savedTheme);
 
       // Remove existing injected style
       const existing = document.getElementById(LIGHT_STYLE_ID);
