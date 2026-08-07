@@ -11,7 +11,7 @@ import PinSetupModal from './PinSetupModal';
 import { API } from '../lib/api';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
 import { getAvatarUrl } from '../utils/avatarUtils';
@@ -19,10 +19,42 @@ import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
-import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
+import { isCapacitorApp } from '../lib/platform';
+
+// Desktop-browser equivalent of the native app's push notifications — the
+// in-page toast below only helps while this tab is actually visible, so a
+// message that arrives while the user is on a different tab (browser open,
+// just not looking at this one) previously produced nothing at all. This is
+// exactly what WhatsApp Web does: no real Push subscription, just the
+// Notifications API firing from the already-open tab's live socket
+// connection. Skipped entirely on the native app (isCapacitorApp) — FCM
+// already covers that case, and Notification permission prompts don't apply
+// there anyway.
+let desktopNotifyPermissionRequested = false;
+function ensureDesktopNotifyPermission() {
+  if (isCapacitorApp() || desktopNotifyPermissionRequested) return;
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  desktopNotifyPermissionRequested = true;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+function showDesktopNotification(title, body, tag) {
+  if (isCapacitorApp()) return;
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  // Tab is visible AND focused — the in-page toast already covers this;
+  // showing an OS notification too would just be a redundant duplicate.
+  if (!document.hidden && document.hasFocus()) return;
+  try {
+    const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch {}
+}
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -1387,14 +1419,11 @@ const GlobalChatWidget = forwardRef(({
   // push-notification tap handler (see lib/nativePush.js). Shape:
   // { partner, type: 'private' | 'room' }.
   pendingOpenChat,
-  onPendingOpenChatHandled,
-  // Called right before this overlay closes to let a viewed profile open —
-  // lets the parent remember which chat was open so a real back/swipe-back
-  // gesture from that profile can reopen it (see leaveChatToViewProfile).
-  onLeaveToProfile
+  onPendingOpenChatHandled
 }, ref) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const vaultMenuRef = useRef(null);
   const myUsername = (localStorage.getItem('watch_username') || '').toLowerCase();
   // ─── E2EE Keys ───
@@ -1790,7 +1819,7 @@ const GlobalChatWidget = forwardRef(({
     : view === 'chat' ? (anyChatOverlayOpen ? 4 : 3)
     : anyFolderOpen ? 2
     : 1;
-  const { skipNextClose: gcwSkipNextClose } = useBackIntercept(gcwLevel, (newLevel) => {
+  useBackIntercept(gcwLevel, (newLevel) => {
     if (newLevel === 0) {
       onClose && onClose();
     } else if (newLevel === 1) {
@@ -1809,20 +1838,25 @@ const GlobalChatWidget = forwardRef(({
     }
   });
 
-  // Leaving to view someone's profile from within an open chat closes this
-  // full-screen overlay first (it and the page underneath can never both be
-  // visible — see `if (!isOpen) return null` below), but shouldn't just
-  // discard which chat was open: onLeaveToProfile lets the parent (BottomNav)
-  // remember it, so a real back/swipe-back gesture from that profile reopens
-  // the same chat instead of landing on a bare Home screen.
+  // Leaving to view someone's profile from within an open chat does NOT
+  // close this overlay (unlike every other "leave" path) — it stays fully
+  // mounted with its state untouched (activeChat, view, scroll position...)
+  // and is only visually hidden below (`hiddenByProfileRoute`) while the
+  // profile route is showing. A real back/swipe-back gesture off that route
+  // then just reveals the exact same chat again, same as leaving one
+  // Activity and returning to the last one on Android — no explicit
+  // "restore" step needed since nothing was ever torn down.
+  // suppressNextPop() tells the shared back-intercept listener (see
+  // useBackIntercept.js) that the popstate this navigate() eventually
+  // consumes on the way back isn't one of this widget's own tracked levels
+  // — without it, that pop gets misattributed to whichever level is on top
+  // of the shared stack and incorrectly collapses the chat view instead of
+  // just revealing it.
   const leaveChatToViewProfile = (targetUsername) => {
-    if (activeChat?.partner) {
-      onLeaveToProfile?.({ partner: activeChat.partner, type: activeChat.type });
-    }
-    gcwSkipNextClose();
-    onClose && onClose();
+    suppressNextPop();
     navigate(`/profile/${targetUsername}`);
   };
+  const hiddenByProfileRoute = location.pathname.startsWith('/profile');
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -2371,6 +2405,7 @@ const GlobalChatWidget = forwardRef(({
     const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
     socketTokenRef.current = token;
+    ensureDesktopNotifyPermission();
 
     sock.on('connect', () => {
       console.log('[WIDGET SOCKET] Connected/Reconnected');
@@ -2917,6 +2952,9 @@ const GlobalChatWidget = forwardRef(({
                   : `${msgSender}: ${finalizedPreview}`);
 
               toast(textToDisplay, { id: `msg-${msgKey || Date.now()}`, icon: '💬', duration: 3500 });
+
+              const notifBody = isHidden ? msgStr : finalizedPreview;
+              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower);
             }
           }
         }
@@ -5173,7 +5211,7 @@ const GlobalChatWidget = forwardRef(({
   if (!isOpen) return null;
 
   return (
-    <div ref={wrapperRef} style={{ display: 'contents' }}>
+    <div ref={wrapperRef} style={{ display: hiddenByProfileRoute ? 'none' : 'contents' }}>
       <style>{typingCss}</style>
     {/* In-widget notice banner — portalled above the widget's own high z-index so it's
         never hidden behind it (unlike a page-level react-hot-toast). */}

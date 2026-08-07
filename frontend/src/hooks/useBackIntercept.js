@@ -34,6 +34,22 @@ const sharedStack = [];
 let suppressCount = 0;
 let listenerAttached = false;
 
+/**
+ * Tells the shared popstate listener to ignore the very next popstate event
+ * instead of popping (and firing) an entry off sharedStack. For a real
+ * router navigation (e.g. `navigate('/profile/x')`) pushed on TOP of one or
+ * more still-open levels this hook already tracks (left inert on purpose —
+ * see skipNextClose above) — call this immediately before that navigate()
+ * so the eventual back gesture that leaves that route is correctly treated
+ * as "not one of ours", instead of being misattributed to whichever level
+ * happens to be on top of sharedStack. Without this, e.g. viewing a profile
+ * from an open chat and swiping back would incorrectly collapse the chat
+ * view instead of just landing back on the still-open chat.
+ */
+export function suppressNextPop() {
+  suppressCount += 1;
+}
+
 function ensureListener() {
   if (listenerAttached) return;
   listenerAttached = true;

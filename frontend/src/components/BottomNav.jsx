@@ -150,32 +150,6 @@ export default function BottomNav() {
   // rendered in standalone mode, which is the only mode pushes fire in.
   const [pendingOpenChat, setPendingOpenChat] = useState(null);
 
-  // Tapping a message sender's name/avatar or the chat header inside
-  // GlobalChatWidget navigates to /profile/:username, which requires the
-  // full-screen chat overlay to close first (see GlobalChatWidget's own
-  // `if (!isOpen) return null`). That used to be a dead end: hitting back
-  // or swiping back from the profile just landed on a bare Home screen
-  // instead of "going back" to the chat, like leaving an Activity on
-  // Android normally would. GlobalChatWidget's onLeaveToProfile stashes
-  // which chat was open here; a real back/swipe-back gesture (popstate —
-  // NOT a deliberate tab tap, which uses pushState and never fires this)
-  // that lands back on '/' reopens it. Cleared on any deliberate
-  // navigation so a stale stash never resurfaces on an unrelated visit.
-  const returnChatRef = React.useRef(null);
-  useEffect(() => {
-    const handlePop = () => {
-      const pending = returnChatRef.current;
-      if (!pending || window.location.pathname !== '/') return;
-      returnChatRef.current = null;
-      setShowSearch(false);
-      setShowProfile(false);
-      setShowChat(true);
-      setPendingOpenChat({ partner: pending.partner, type: pending.type || 'private' });
-    };
-    window.addEventListener('popstate', handlePop);
-    return () => window.removeEventListener('popstate', handlePop);
-  }, []);
-
   useEffect(() => {
     const handler = (e) => {
       const data = e.detail;
@@ -213,10 +187,7 @@ export default function BottomNav() {
   // of / cover its own bottom-anchored UI (e.g. table pagination controls).
   if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/') || location.pathname.startsWith('/admin')) return null;
 
-  // Any deliberate close/switch invalidates a pending "reopen this chat on
-  // back" stash — it only makes sense to honor the very next back gesture
-  // right after leaving to a profile, never a later, unrelated one.
-  const closeAll = () => { returnChatRef.current = null; setShowChat(false); closeOverlays(); };
+  const closeAll = () => { setShowChat(false); closeOverlays(); };
   // Any handler that closes Search/Profile AND navigates to a different
   // route in the same click needs this — otherwise this hook's own
   // history.go() cleanup (triggered by the overlay closing) races the
@@ -372,7 +343,6 @@ export default function BottomNav() {
           onNewMessage={handleNewMessage}
           pendingOpenChat={pendingOpenChat}
           onPendingOpenChatHandled={() => setPendingOpenChat(null)}
-          onLeaveToProfile={(chat) => { returnChatRef.current = chat; }}
         />
       )}
 
