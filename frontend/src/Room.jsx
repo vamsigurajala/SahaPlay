@@ -9175,7 +9175,7 @@ const Room = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 350, overflowY: 'auto', paddingRight: 4 }} className="custom-scrollbar">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }} className="custom-scrollbar">
                   {/* — Pending Joins (if host) — */}
                   {isEffectiveHost && joinRequests.length > 0 && (
                     <div style={{ marginBottom: 16 }}>

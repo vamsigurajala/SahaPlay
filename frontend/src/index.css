@@ -1654,7 +1654,7 @@ body.sp-mobile-fs-active .room-player-col {
   /* Participants panel: full-width fixed sheet on mobile */
   .room-participants-panel {
     position: fixed !important;
-    top: 64px !important;
+    top: calc(64px + var(--sp-status-bar-inset, 0px)) !important;
     right: 0 !important;
     left: 0 !important;
     width: 100% !important;

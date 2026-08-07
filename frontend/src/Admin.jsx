@@ -280,6 +280,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px',
+          paddingTop: 'calc(20px + var(--sp-status-bar-inset, 0px))',
           borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.08)',
           flexShrink: 0
         }}>
@@ -3701,7 +3702,7 @@ export default function Admin() {
         }}
       >
         {/* Logo */}
-        <div style={{ padding: '24px 20px 16px', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '24px 20px 16px', paddingTop: 'calc(24px + var(--sp-status-bar-inset, 0px))', borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 28, height: 28 }} />
             <div>

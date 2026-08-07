@@ -184,15 +184,15 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
             </div>
           )}
 
-          {hasMultiple && index > 0 && showArrows && (
+          {hasMultiple && index > 0 && (
             <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
-              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, opacity: showArrows ? 1 : 0, pointerEvents: showArrows ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronLeft size={20} /></span>
             </button>
           )}
-          {hasMultiple && index < items.length - 1 && showArrows && (
+          {hasMultiple && index < items.length - 1 && (
             <button onClick={e => { e.stopPropagation(); onNext?.(); }}
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2 }}>
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, opacity: showArrows ? 1 : 0, pointerEvents: showArrows ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronRight size={20} /></span>
             </button>
           )}
