@@ -104,6 +104,42 @@ jobs:
         working-directory: frontend
         run: npx cap add android
 
+      # @capacitor/browser (added for native Google Sign-In — opened in a
+      # Chrome Custom Tab since Google blocks its OAuth screen inside any
+      # embedded WebView) pulls in androidx.browser 1.9.0, which refuses to
+      # build against Capacitor's generated project defaults (compileSdk 35,
+      # Android Gradle Plugin 8.7.2) — confirmed by the exact
+      # ":app:checkReleaseAarMetadata FAILED" error this produces, naming
+      # both the required compileSdk 36 and AGP 8.9.1+.
+      #
+      # variables.gradle: appended rather than sed-patched — its exact
+      # generated formatting is Capacitor-version-dependent and not safe to
+      # pattern-match sight-unseen, but Gradle evaluates the file top to
+      # bottom, so a later plain reassignment of the same ext properties
+      # reliably wins regardless of how the originals above it are written.
+      #
+      # build.gradle: the AGP version lives inside a buildscript{} block,
+      # which Gradle evaluates before anything else — unlike variables.gradle
+      # above, a later override can't retroactively change which AGP already
+      # started evaluating the rest of the file, so this has to actually
+      # replace the classpath line in place. The surrounding
+      # `classpath 'com.android.tools.build:gradle:...'` syntax is stable,
+      # well-known Capacitor boilerplate (unlike the version number itself,
+      # which isn't pinned against), so the match target itself is safe.
+      # Gradle 8.11.1 (already in use per the CI log) satisfies AGP 8.9.1's
+      # minimum Gradle requirement, so the wrapper itself needs no change.
+      - name: Bump compileSdk/targetSdk and AGP for androidx.browser
+        working-directory: frontend
+        run: |
+          cat >> android/variables.gradle <<'EOF'
+
+          ext.compileSdkVersion = 36
+          ext.targetSdkVersion = 36
+          EOF
+          sed -i "s/classpath 'com.android.tools.build:gradle:[^']*'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle
+          cat android/variables.gradle
+          cat android/build.gradle
+
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic
       # placeholder icon and does nothing with our actual logo — this is why
