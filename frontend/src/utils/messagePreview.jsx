@@ -1,5 +1,6 @@
 import React from 'react'
 import { Image, Video, Mic, FileText, Paperclip, File } from 'lucide-react'
+import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial'
 
 const ICON_SIZE = 11
 
@@ -104,7 +105,9 @@ export function getMessagePreview(chat, myUsername) {
   }
 
   if (chat.lastSenderName) {
-    const name = chat.lastSenderName
+    // Recipients should see "SahaPlay" as the sender here too, not whichever
+    // admin account actually posted — same reasoning as the message bubbles.
+    const name = isSahaplayOfficialGroup(chat) ? 'SahaPlay' : chat.lastSenderName
     const short = name.length > 12 ? name.substring(0, 12) + '…' : name
     return <span style={rowStyle}>{short}:&nbsp;{content}</span>
   }

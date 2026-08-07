@@ -152,14 +152,20 @@ export default function BottomNav() {
   useEffect(() => {
     const handler = (e) => {
       const data = e.detail;
-      if (!data?.chatId) return;
+      if (!data) return;
+      setShowSearch(false);
+      setShowProfile(false);
+      if (data.type === 'friend_request' || data.type === 'friend_accept') {
+        setShowChat(false);
+        navigate(`/profile/${data.username}`);
+        return;
+      }
+      if (!data.chatId) return;
       // Room/Admin routes make this component return null (see below) even
       // though its hooks/state still run — force back to a route where the
       // chat overlay actually renders, same as tapping a notification in
       // any native app takes you out of whatever you were doing.
       navigate('/');
-      setShowSearch(false);
-      setShowProfile(false);
       setShowChat(true);
       setPendingOpenChat({ partner: data.chatId, type: data.type === 'dm' ? 'private' : 'room' });
     };

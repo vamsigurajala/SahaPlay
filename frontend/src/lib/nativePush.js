@@ -14,6 +14,7 @@ import { API } from './api';
 // via the screen-share addListener().then() crash), so nothing below
 // chains .then() off an addListener() call.
 const plugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.PushNotifications : null);
+const appPlugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.App : null);
 
 // Cached so a later login (fresh install → straight to Signup, before any
 // token exists) can resend the token that arrived too early to register.
@@ -60,12 +61,36 @@ export function initNativePush(onNotificationTap) {
     console.error('[Push] registration error:', err);
   });
 
+  // Friend-request live updates already run on a socket event + 3s poll
+  // fallback (see useFollowRequests.js/Profile.jsx) — this adds a THIRD,
+  // more mobile-reliable path: a push arriving (even while the app is
+  // foregrounded — pushNotificationReceived, not the tap-only
+  // ActionPerformed above) is a strong enough signal on its own to trigger
+  // the same refresh, without waiting on a socket connection that may be
+  // mid-reconnect after the app was backgrounded.
+  p.addListener('pushNotificationReceived', (notification) => {
+    const data = notification?.data;
+    if (data?.type === 'friend_request' || data?.type === 'friend_accept') {
+      window.dispatchEvent(new Event('follow_status_updated'));
+    }
+  });
+
   // Fires when the user taps the system notification (app was backgrounded
-  // or fully killed) — data mirrors what sendPushToUser/sendPushBroadcastExcept
-  // set server-side in backend/server.js.
+  // or fully killed) — data mirrors what notifyChatMessage/sendPushToUser/
+  // sendPushBroadcastExcept set server-side in backend/server.js. Chat
+  // notifications carry chatId; friend-request ones carry username instead.
   p.addListener('pushNotificationActionPerformed', (action) => {
     const data = action?.notification?.data;
-    if (data?.chatId) onNotificationTap?.(data);
+    if (data?.chatId || data?.username) onNotificationTap?.(data);
+  });
+
+  // "Once app is opened, all notifications should be closed" — clears
+  // every SahaPlay notification from the tray whenever the app comes to
+  // the foreground, whether that's from tapping a notification, tapping
+  // the launcher icon, or switching back from another app.
+  const app = appPlugin();
+  app?.addListener('appStateChange', (state) => {
+    if (state?.isActive) p.removeAllDeliveredNotifications?.().catch(() => {});
   });
 }
 

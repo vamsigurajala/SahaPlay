@@ -311,7 +311,12 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
 // data payload values must all be strings for FCM; notification.title/body
 // stay as-is. `data` always carries enough for the tap handler (see
 // nativePush.js) to open the right chat directly without a round-trip.
-async function sendPushToTokens(tokens, { title, body, data = {} } = {}) {
+// `tag` (Android-only) is what makes repeat notifications for the same chat
+// REPLACE the previous one in the system tray instead of stacking up as
+// separate entries — this is the actual fix for "4 messages, 4 separate
+// notifications": every push for the same chat/room/broadcast reuses the
+// same tag, so at most one notification for it is ever visible at once.
+async function sendPushToTokens(tokens, { title, body, data = {}, tag } = {}) {
   if (!firebaseAdmin || !tokens || tokens.length === 0) return;
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
   const deadTokens = [];
@@ -321,6 +326,7 @@ async function sendPushToTokens(tokens, { title, body, data = {} } = {}) {
     try {
       const resp = await firebaseAdmin.messaging().sendEachForMulticast({
         notification: { title, body },
+        android: tag ? { notification: { tag } } : undefined,
         data: stringData,
         tokens: batch,
       });
@@ -348,8 +354,88 @@ async function sendPushToUser(username, payload) {
   }
 }
 
+// Everyone who has ever opened this room's chat (see getOrInitFirstJoined —
+// firstJoined is a JSON map of roomId -> first-open timestamp, already
+// tracked for the unrelated "don't show history from before you joined"
+// feature). There's no persistent "room membership" concept otherwise —
+// watch-together rooms are ephemeral sessions — so this is the closest
+// durable stand-in for "people who'd plausibly want to know this room's
+// chat got a new message."
+async function getRoomParticipantUsernames(roomId) {
+  try {
+    const rows = await pool.query(`SELECT username FROM users WHERE "firstJoined"::jsonb ? $1`, [(roomId || '').toLowerCase()]);
+    return rows.rows.map(r => r.username);
+  } catch (e) {
+    console.error('[FCM] getRoomParticipantUsernames error:', e.message);
+    return [];
+  }
+}
+
+function formatSenderList(senders) {
+  if (senders.length === 1) return senders[0];
+  if (senders.length === 2) return `${senders[0]} and ${senders[1]}`;
+  return `${senders[0]}, ${senders[1]} and ${senders.length - 2} other${senders.length - 2 > 1 ? 's' : ''}`;
+}
+
+// Per-recipient-per-chat aggregation so a burst of messages while the app
+// is closed shows as ONE updating notification ("4 new messages" / "krish
+// and sam sent new messages in Movie Night") instead of one entry per
+// message — combines with sendPushToTokens' tag-based replacement above so
+// the tray only ever holds the latest, most complete summary.
+async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel }) {
+  if (!firebaseAdmin || !recipients || recipients.length === 0) return;
+  const targets = recipients.filter(u => u && u.toLowerCase() !== (senderUsername || '').toLowerCase());
+  for (const recipient of targets) {
+    try {
+      // pending_notifications is Postgres-only (no SQLite mirror), so this
+      // uses `pool` directly rather than the queryGet() helper other code
+      // in this file uses for the (dual-written) users table.
+      const existing = await pool.query(
+        'SELECT senders, msg_count FROM pending_notifications WHERE LOWER(username) = LOWER($1) AND chat_id = $2',
+        [recipient, chatId]
+      ).then(r => r.rows[0]);
+
+      let senders = [];
+      try { senders = existing?.senders ? JSON.parse(existing.senders) : []; } catch { senders = []; }
+      if (!senders.some(s => s.toLowerCase() === senderUsername.toLowerCase())) senders.push(senderUsername);
+      const count = (existing?.msg_count || 0) + 1;
+
+      await pool.query(
+        `INSERT INTO pending_notifications (username, chat_id, chat_type, chat_label, senders, msg_count, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (username, chat_id) DO UPDATE SET
+           chat_type = $3, chat_label = $4, senders = $5, msg_count = $6, updated_at = NOW()`,
+        [recipient, chatId, chatType, chatLabel || null, JSON.stringify(senders), count]
+      );
+
+      const tokensRes = await pool.query('SELECT token FROM push_tokens WHERE LOWER(username) = LOWER($1)', [recipient]);
+      const tokens = tokensRes.rows.map(r => r.token);
+      if (tokens.length === 0) continue;
+
+      let title, body;
+      if (chatType === 'dm') {
+        title = senderUsername;
+        body = count > 1 ? `${count} new messages` : 'Sent you a message';
+      } else {
+        title = chatLabel || 'Group chat';
+        body = count > 1
+          ? `${formatSenderList(senders)} sent new messages`
+          : `${senderUsername} sent a message`;
+      }
+
+      await sendPushToTokens(tokens, { title, body, data: { type: chatType, chatId }, tag: chatId });
+    } catch (e) {
+      console.error('[FCM] notifyChatMessage error for', recipient, ':', e.message);
+    }
+  }
+}
+
 // Used for the SahaPlay official announcements channel — every registered
-// device except the admin who just posted.
+// device except the admin who just posted. Kept separate from
+// notifyChatMessage: there's no multi-sender aggregation concern (every
+// post reads as "from SahaPlay" regardless of which admin sent it — see
+// the display-name override in messagePreview.jsx/GlobalChatWidget.jsx),
+// just tag-based replacement so a burst of announcements doesn't stack.
 async function sendPushBroadcastExcept(excludeUsername, payload) {
   if (!firebaseAdmin) return;
   try {
@@ -1455,6 +1541,24 @@ const migrationsReady = (async () => {
   `).catch(e => console.warn('[Migration] push_tokens table:', e.message));
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_username ON push_tokens (LOWER(username))`)
     .catch(e => console.warn('[Migration] idx_push_tokens_username:', e.message));
+
+  // Per-recipient-per-chat pending notification aggregation — lets a burst
+  // of messages while the app is closed show as one updating notification
+  // ("4 new messages", "krish and sam sent new messages") instead of one
+  // per message. Cleared via /api/push/chat-opened when the recipient
+  // actually opens that chat.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS pending_notifications (
+      username TEXT NOT NULL,
+      chat_id TEXT NOT NULL,
+      chat_type TEXT NOT NULL,
+      chat_label TEXT,
+      senders TEXT NOT NULL DEFAULT '[]',
+      msg_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (username, chat_id)
+    )
+  `).catch(e => console.warn('[Migration] pending_notifications table:', e.message));
 
   // ─── Phase 3: Database Integrity Hardening ───────────────────────────────
   // bans table
@@ -4162,6 +4266,22 @@ app.post('/api/push/unregister', authenticateToken, async (req, res) => {
   }
 });
 
+// Called when a chat is actually opened (see doOpenChat in
+// GlobalChatWidget.jsx) so the NEXT burst of messages for it starts a
+// fresh count/sender-list instead of continuing to add to a stale one from
+// before this visit.
+app.post('/api/push/chat-opened', authenticateToken, async (req, res) => {
+  const { chatId } = req.body || {};
+  if (!chatId) return res.status(400).json({ error: 'chatId required' });
+  try {
+    await pool.query('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER($1) AND chat_id = $2', [req.user.username, chatId]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] chat-opened error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/chats/send', authenticateToken, async (req, res) => {
   // [VERIFIED D-1] senderName from authenticated req.user.username, not req.body
   const username = req.user.username.toLowerCase();
@@ -4279,11 +4399,14 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Fire-and-forget — response already sent, don't make the sender wait
       // on FCM. No preview text: DMs are end-to-end encrypted, the server
-      // never has the plaintext to put in a notification body.
-      sendPushToUser(partner, {
-        title: username,
-        body: mediaUrl ? 'Sent you media' : 'Sent you a message',
-        data: { type: 'dm', chatId: username },
+      // never has the plaintext to put in a notification body. chatId is
+      // the SENDER's username since that's what identifies this DM thread
+      // from the RECIPIENT's side.
+      notifyChatMessage({
+        recipients: [partner],
+        senderUsername: username,
+        chatId: username,
+        chatType: 'dm',
       });
     } else if (type === 'room') {
       // ─── Mandatory SahaPlay announcements group: admin-only send ───
@@ -4295,7 +4418,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       }
 
       // ─── Room Permissions Check ───
-      const roomRow = await queryGet('SELECT hostUsername, permissions FROM room_names WHERE roomId = ?', [partner]);
+      const roomRow = await queryGet('SELECT hostUsername, permissions, roomName FROM room_names WHERE roomId = ?', [partner]);
       if (roomRow) {
         const perms = roomRow.permissions ? JSON.parse(roomRow.permissions) : {};
         // Admins have the same send privileges as the host.
@@ -4387,19 +4510,37 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       invalidateCacheForUser(username);
       res.json({ success: true, timestamp: ts, id: roomDbId });
 
-      // Push only for the SahaPlay official channel — it's the one group
-      // with a stable, app-wide "membership" (everyone) and unencrypted
-      // content, so a real text preview is both meaningful and possible.
-      // Ordinary watch-together rooms are deliberately excluded: room
-      // "membership" is ephemeral/session-based, not a persistent list to
-      // notify, and their chat is E2EE so no preview text could be shown
-      // anyway (see the DM branch above for the same reasoning).
       if (partner === SAHAPLAY_OFFICIAL_ROOM_ID) {
+        // Real preview text is both meaningful and possible here — the
+        // channel is unencrypted and every post reads as "from SahaPlay"
+        // regardless of which admin sent it. tag = the channel id, so a
+        // burst of announcements replaces in the tray instead of stacking.
         sendPushBroadcastExcept(username, {
           title: SAHAPLAY_OFFICIAL_DISPLAY_NAME,
           body: actualMessage || 'New announcement',
           data: { type: 'room', chatId: SAHAPLAY_OFFICIAL_ROOM_ID },
+          tag: SAHAPLAY_OFFICIAL_ROOM_ID,
         });
+      } else {
+        // Ordinary watch-together rooms: no persistent "membership" like a
+        // DM has, so notify everyone who has ever opened this room's chat
+        // (see getRoomParticipantUsernames) MINUS whoever is currently
+        // live in the room right now — if you're actively connected to it,
+        // you're not the "app is closed" case this is for, and you're
+        // already seeing the message over the socket in real time.
+        (async () => {
+          const participants = await getRoomParticipantUsernames(partner);
+          const activeUsernames = new Set((rooms.get(partner)?.users || []).map(u => (u.username || '').toLowerCase()));
+          const recipients = participants.filter(u => !activeUsernames.has((u || '').toLowerCase()));
+          const roomLabel = (rooms.get(partner)?.roomName) || roomRow?.roomName || partner;
+          await notifyChatMessage({
+            recipients,
+            senderUsername: username,
+            chatId: partner,
+            chatType: 'room',
+            chatLabel: roomLabel,
+          });
+        })().catch(e => console.error('[FCM] room notify error:', e.message));
       }
     }
   } catch (err) {
@@ -4856,6 +4997,12 @@ app.post('/api/follow/:username', authenticateTokenOptional, async (req, res) =>
     // Notify the user being followed so their UI updates immediately
     emitToUser(following, 'follow_request', { follower, following });
 
+    sendPushToUser(following, {
+      title: 'New Friend Request',
+      body: `${follower} sent you a friend request`,
+      data: { type: 'friend_request', username: follower },
+    });
+
     res.json({ success: true, status: 'pending' });
   } catch (err) {
     console.error('Follow error:', err);
@@ -4878,6 +5025,12 @@ app.post('/api/follow/:username/accept', authenticateTokenOptional, (req, res) =
     // Notify both users in real-time
     emitToUser(requester, 'follow_accepted', { accepter, requester });
     emitToUser(accepter, 'follow_accepted', { accepter, requester });
+
+    sendPushToUser(requester, {
+      title: 'Friend Request Accepted',
+      body: `${accepter} accepted your friend request`,
+      data: { type: 'friend_accept', username: accepter },
+    });
 
     res.json({ success: true, status: 'accepted' });
   });

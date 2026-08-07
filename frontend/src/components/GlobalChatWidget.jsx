@@ -4060,6 +4060,17 @@ const GlobalChatWidget = forwardRef(({
   const doOpenChat = async (chat) => {
     // Ensure we have the correct identifier for history
     const targetPartner = chat.id || chat.partner;
+    // Resets the server-side pending-notification aggregation for this chat
+    // (see backend/server.js's notifyChatMessage) so the next burst of
+    // messages starts a fresh count instead of continuing a stale one.
+    // Harmless no-op for guests/web — only matters for the native push path.
+    if (token && targetPartner) {
+      fetch(`${API}/api/push/chat-opened`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ chatId: targetPartner }),
+      }).catch(() => {});
+    }
     setReactionPreviewOverrides(prev => {
       const key = (targetPartner || '').toLowerCase();
       if (!(key in prev)) return prev;
@@ -6635,15 +6646,21 @@ const GlobalChatWidget = forwardRef(({
                          })()}
                         <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                           {!isMe && activeChat?.type === 'room' && (
+                            isSahaplayOfficialGroup(activeChat) ? (
+                              // Broadcast channel — recipients should see "SahaPlay" as the
+                              // sender, not whichever admin account actually posted it.
+                              <span style={{ fontSize: 10, color: '#888', marginBottom: 1 }}>SahaPlay</span>
+                            ) : (
                             <span
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const sName = msg.senderName || msg.username;
                                 if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { gcwSkipNextClose(); onClose && onClose(); navigate(`/profile/${sName}`); }
                               }}
                               style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
+                            )
                           )}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)}

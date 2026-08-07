@@ -216,6 +216,37 @@ jobs:
             --iconBackgroundColor '#6366F1' --iconBackgroundColorDark '#0F0F1A' \
             --splashBackgroundColor '#FFFFFF' --splashBackgroundColorDark '#FFFFFF'
 
+      # The white splash above is what @capacitor/splash-screen (a JS-driven
+      # overlay) shows — but on Android 12+, the OS itself shows its OWN
+      # native splash FIRST, for the brief window before the WebView/JS
+      # engine has even started, using a completely separate theme
+      # attribute (windowSplashScreenBackground) that @capacitor/assets'
+      # splash generation does not touch. Without overriding it, that first
+      # frame falls back to whatever the base AppTheme resolves to — which
+      # is what was still showing as a black flash before our white splash
+      # ever got a chance to render. `parent="AppTheme.NoActionBarLaunch"`
+      # (same name as the style, defined in the unqualified values/
+      # styles.xml cap add android already generated) is the standard
+      # Android resource-qualifier pattern for "extend the base theme, only
+      # overriding this one attribute, on API 31+ devices" — deliberately
+      # NOT setting windowSplashScreenAnimatedIcon here: Android 12 has
+      # strict size/padding constraints on that icon that are easy to get
+      # wrong blind, and omitting it just makes the OS fall back to the
+      # app's regular launcher icon automatically, which is a safe default.
+      - name: Force white background for the Android 12+ native splash screen
+        working-directory: frontend
+        run: |
+          mkdir -p android/app/src/main/res/values-v31
+          cat > android/app/src/main/res/values-v31/styles.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBarLaunch">
+                  <item name="android:windowSplashScreenBackground">#FFFFFF</item>
+              </style>
+          </resources>
+          EOF
+          cat android/app/src/main/res/values-v31/styles.xml
+
       # Our own native code — a small custom plugin exposing real device
       # volume/brightness/orientation-lock/screen-capture to the web app
       # (nothing a plain WebView/browser can do), a foreground Service the
