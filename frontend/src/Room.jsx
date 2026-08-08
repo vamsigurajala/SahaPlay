@@ -38,7 +38,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -295,6 +295,10 @@ const CAMERA_MANAGED_LAYOUT_THRESHOLD = 8;
 const TV_FLOATING_CAM_LIMIT = 6;
 // TV-only: tiles per page in the paginated grid (2 columns x 3 rows).
 const TV_PANEL_PAGE_SIZE = 6;
+// TV-only: floating camera tile size range — width in px at 0% and 100% zoom.
+const TV_CAM_MIN_W = 190;
+const TV_CAM_MAX_W = 520;
+const TV_CAM_DEFAULT_ZOOM = 45;
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
@@ -1068,6 +1072,34 @@ const Room = () => {
   // Kept separate from camPage (used by the floating overlay's own
   // pagination) since both can theoretically be relevant at once.
   const [tvPanelCamPage, setTvPanelCamPage] = useState(0);
+  // TV-only: floating camera tiles (≤ TV_FLOATING_CAM_LIMIT active). Click-to-
+  // carry instead of hold-to-drag — a TV remote/air-mouse pointer can't easily
+  // hold a button down while moving, so a click "picks up" the tile (it then
+  // follows the pointer every mousemove) and the next click anywhere "drops"
+  // it there. tvCamFreePos stores each tile's CENTER point (consistent
+  // whether carrying or already dropped, so there's no jump on drop); unset
+  // means "use the default right-edge stacked position". All purely local —
+  // never sent to the server, so it never affects what other participants see.
+  const [tvCarryingCamId, setTvCarryingCamId] = useState(null);
+  const [tvCamFreePos, setTvCamFreePos] = useState({});
+  const [tvCamZoom, setTvCamZoom] = useState({});
+  useEffect(() => {
+    if (!isTvMode || !tvCarryingCamId) return;
+    const onMove = (e) => {
+      setTvCamFreePos(prev => ({ ...prev, [tvCarryingCamId]: { x: e.clientX, y: e.clientY } }));
+    };
+    const onClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setTvCarryingCamId(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('click', onClick, true);
+    };
+  }, [isTvMode, tvCarryingCamId]);
   const [showCameraMenu, setShowCameraMenu] = useState(false);
   const cameraMenuRef = useRef(null);
   // Ref for the right column div — used to compute focus-popout fixed position
@@ -2865,6 +2897,12 @@ const Room = () => {
   useEffect(() => { isMicOnCamRef.current = isMicOnCam; }, [isMicOnCam]);
   const [camPage, setCamPage] = useState(0);
   const localCamRef = useRef(null);
+  // Which physical camera is currently feeding localCamRef — only meaningful on
+  // phones/tablets (most have both a front and a rear camera; laptops don't).
+  // Drives the front-camera mirror effect and lets flipCamera() know which
+  // facingMode to request next.
+  const [camFacingMode, setCamFacingMode] = useState('user');
+  const [isFlippingCam, setIsFlippingCam] = useState(false);
   const cameraPcRefs = useRef({});
   const [remoteStreams, setRemoteStreams] = useState({});
   // Kept in sync every render so the socket-effect (which only mounts once) can always
@@ -7904,8 +7942,20 @@ const Room = () => {
         console.log('Requesting getUserMedia... mic:', isMicOnCam);
         const selectedCam = localStorage.getItem('watch_selected_cam');
         const selectedMic = localStorage.getItem('watch_selected_mic');
+        // Capped resolution/framerate — camera tiles only ever render small (a
+        // few hundred px at most), so requesting the device's default/max
+        // resolution (often 1080p+) wastes bandwidth and CPU encoding detail
+        // nobody sees. This matters most when a camera turns on while a TV is
+        // also streaming the main video over the same network/device — the
+        // uncapped camera stream was competing hard enough for bandwidth to
+        // stall the video's own playback (visible buffering). 640x480@24fps
+        // is still clearly sharp for a camera tile and dramatically lighter.
+        const videoConstraints = {
+          width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 },
+          ...(selectedCam ? { deviceId: { exact: selectedCam } } : {}),
+        };
         const constraints = {
-          video: selectedCam ? { deviceId: { exact: selectedCam } } : true,
+          video: videoConstraints,
           audio: selectedMic ? { deviceId: { exact: selectedMic } } : true
         };
         let stream;
@@ -7913,7 +7963,10 @@ const Room = () => {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch (exactErr) {
           console.warn('Failed with exact device constraints, falling back to defaults', exactErr);
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+            audio: true,
+          });
         }
         console.log('getUserMedia success', stream.getTracks());
 
@@ -7928,6 +7981,10 @@ const Room = () => {
         setIsCamOn(true);
         isCamOnRef.current = true;
         setHasStartedCamOnce(true);
+        // Some browsers report the active facingMode on the track's settings; fall
+        // back to 'user' (front) since that's what getUserMedia({video:true}) picks
+        // by default on essentially every phone/tablet when unconstrained.
+        setCamFacingMode(stream.getVideoTracks()[0]?.getSettings?.()?.facingMode || 'user');
         socket?.emit('cam_started', { roomId: (roomId || '').toLowerCase() });
 
         // If others already have cameras on but we just joined, we need to renegotiate with them
@@ -7937,6 +7994,43 @@ const Room = () => {
         toast.error(`Camera error: ${err.name} - ${err.message}. ${err.name === 'NotAllowedError' ? 'Check browser site settings.' : 'Device might be in use by another app.'}`);
         console.error('getUserMedia error:', err);
       }
+    }
+  };
+
+  // ── Flip Camera (front/back) ── Phone/tablet only (see isCoarsePointer gating
+  // on the button itself) — laptops don't have a rear camera to switch to.
+  // Grafts a fresh video track onto the SAME MediaStream object (same pattern as
+  // toggleMic's mic-track graft above) rather than replacing localCamRef.current
+  // wholesale, so the local <video> preview (bound via srcObject) updates itself
+  // automatically, and swaps the track on every open peer connection via
+  // replaceTrack so remote viewers see the switch too, without a full
+  // renegotiation/reconnect.
+  const flipCamera = async () => {
+    if (!localCamRef.current || isFlippingCam) return;
+    const oldTrack = localCamRef.current.getVideoTracks()[0];
+    if (!oldTrack) return;
+    const nextFacing = camFacingMode === 'environment' ? 'user' : 'environment';
+    setIsFlippingCam(true);
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: nextFacing }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+        audio: false,
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      oldTrack.stop();
+      localCamRef.current.removeTrack(oldTrack);
+      localCamRef.current.addTrack(newTrack);
+      Object.values(cameraPcRefs.current).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) sender.replaceTrack(newTrack).catch(() => {});
+        else pc.addTrack(newTrack, localCamRef.current);
+      });
+      setCamFacingMode(newTrack.getSettings?.()?.facingMode || nextFacing);
+    } catch (err) {
+      console.error('flipCamera error:', err);
+      toast.error('Could not switch camera — this device may only have one.');
+    } finally {
+      setIsFlippingCam(false);
     }
   };
 
@@ -8407,7 +8501,7 @@ const Room = () => {
               isMuted={cam.isMuted || cam.isLocal}
               isLocal={cam.isLocal}
               debugLabel="renderCamerasPanel"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, transform: (cam.isLocal && camFacingMode === 'user') ? 'scaleX(-1)' : 'none' }}
             />
           ) : (
             <div style={{
@@ -8436,6 +8530,24 @@ const Room = () => {
               padding: '2px 7px', fontSize: 10, fontWeight: 800, color: '#fff',
               pointerEvents: 'none', letterSpacing: '0.5px'
             }}>FOCUSED</div>
+          )}
+
+          {/* Flip camera (front/back) — phone/tablet only, own tile only */}
+          {cam.isLocal && isCoarsePointer && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); flipCamera(); }}
+              title="Switch camera"
+              style={{
+                position: 'absolute', top: 6, left: 6, zIndex: 4,
+                width: 24, height: 24, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
+                border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', opacity: isFlippingCam ? 0.5 : 1,
+              }}
+            >
+              <SwitchCamera size={12} />
+            </button>
           )}
 
           {/* Focus hint overlay (only in focus mode, not focused) */}
@@ -8533,6 +8645,128 @@ const Room = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 10px' }}>
         {allCams.map(renderTile)}
       </div>
+    );
+  };
+
+  // ── TV: floating, freely-placeable camera tiles (≤ TV_FLOATING_CAM_LIMIT) ──
+  // See the tvCarryingCamId effect above for the click-to-carry/click-to-drop
+  // mechanics. Bigger default size than the desktop/mobile floating bubbles
+  // (renderCameras below) since a TV is viewed from across a room.
+  const renderTvFloatingCameras = () => {
+    if (mediaUrl?.includes('videocall') || mediaUrl?.includes('voicecall')) return null;
+    const allCams = [];
+    const seenUsers = new Set();
+    if (hasStartedCamOnce) {
+      allCams.push({ id: 'local', isLocal: true, stream: localCamRef.current, username, isMuted: !isMicOnCam });
+      seenUsers.add(username);
+    }
+    Object.entries(remoteStreams).forEach(([sid, { stream, username: uname }]) => {
+      if (uname === username || seenUsers.has(uname)) return;
+      const uObj = userList.find(u => u.username?.toLowerCase() === uname?.toLowerCase());
+      allCams.push({ id: sid, isLocal: false, stream, username: uname, isMuted: uObj?.isMuted });
+      seenUsers.add(uname);
+    });
+    const filteredCams = allCams.filter(c => !hiddenCams.has(c.id));
+    if (filteredCams.length === 0) return null;
+
+    const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    let stackCenterY = 100;
+
+    return (
+      <>
+        {filteredCams.map(cam => {
+          const zoom = tvCamZoom[cam.id] ?? TV_CAM_DEFAULT_ZOOM;
+          const width = TV_CAM_MIN_W + (TV_CAM_MAX_W - TV_CAM_MIN_W) * (zoom / 100);
+          const height = width * 0.72;
+          const defaultCenter = { x: viewportW - width / 2 - 32, y: stackCenterY + height / 2 };
+          stackCenterY += height + 20;
+          const center = tvCamFreePos[cam.id] || defaultCenter;
+          const isCarrying = tvCarryingCamId === cam.id;
+          const vTracks = cam.stream ? cam.stream.getVideoTracks() : [];
+          const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
+          const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
+          const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
+          const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5) ? getAvatarUrl(rawAvatar) : null;
+
+          return (
+            <React.Fragment key={cam.id}>
+              <div
+                className="cam-container"
+                style={{
+                  position: 'fixed', left: center.x - width / 2, top: center.y - height / 2, width, height,
+                  borderRadius: 18, overflow: 'hidden', background: '#000',
+                  border: isCarrying ? '2px solid var(--brand-1-light)' : '1px solid rgba(255,255,255,0.12)',
+                  boxShadow: isCarrying ? '0 0 0 3px rgba(129,140,248,0.4), 0 24px 60px rgba(0,0,0,0.7)' : '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: isCarrying ? 100000 : 998,
+                  pointerEvents: isCarrying ? 'none' : 'auto',
+                  transition: isCarrying ? 'none' : 'left 0.15s, top 0.15s, width 0.2s, height 0.2s, box-shadow 0.15s',
+                }}
+              >
+                {hasVideo ? (
+                  <VideoTile
+                    stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} isLocal={cam.isLocal}
+                    debugLabel="renderTvFloatingCameras"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, transform: (cam.isLocal && camFacingMode === 'user') ? 'scaleX(-1)' : 'none' }}
+                  />
+                ) : (
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #312e81, #1e1b4b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {avatarSrc ? (
+                      <img src={avatarSrc} style={{ width: width * 0.3, height: width * 0.3, borderRadius: '50%', objectFit: 'cover' }} alt="" />
+                    ) : (
+                      <div style={{ width: width * 0.3, height: width * 0.3, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: width * 0.1 }}>
+                        {cam.username?.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Name bar */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)', padding: '22px 12px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {cam.isMuted && <MicOff size={13} color="#fff" />}
+                  <span style={{ fontSize: 13, color: '#fff', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>{cam.username}{cam.isLocal ? ' (You)' : ''}</span>
+                </div>
+
+                {/* Hover-revealed move handle */}
+                <div className="cam-ui-overlay" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setTvCarryingCamId(cam.id); }}
+                    title="Move"
+                    style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto' }}
+                  >
+                    <Move size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Zoom controls — sit just under the tile, always visible (not
+                  clipped by the tile's own overflow:hidden, so rendered as a
+                  sibling using the same position math instead of nested inside). */}
+              {!isCarrying && (
+                <div style={{
+                  position: 'fixed', left: center.x, top: center.y + height / 2 + 8, transform: 'translate(-50%, 0)',
+                  display: 'flex', gap: 6, zIndex: 998, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
+                  borderRadius: 20, padding: 4, border: '1px solid rgba(255,255,255,0.15)',
+                }}>
+                  <button
+                    onClick={() => setTvCamZoom(prev => ({ ...prev, [cam.id]: Math.max(15, (prev[cam.id] ?? TV_CAM_DEFAULT_ZOOM) - 15) }))}
+                    title="Smaller"
+                    style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    <Minus size={13} />
+                  </button>
+                  <button
+                    onClick={() => setTvCamZoom(prev => ({ ...prev, [cam.id]: Math.min(100, (prev[cam.id] ?? TV_CAM_DEFAULT_ZOOM) + 15) }))}
+                    title="Bigger"
+                    style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
+                    <Plus size={13} />
+                  </button>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </>
     );
   };
 
@@ -8713,8 +8947,29 @@ const Room = () => {
                   touchAction: 'none'
                 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: isCircle ? '50%' : 14, overflow: 'hidden', zIndex: 1 }}>
-                  <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} isLocal={cam.isLocal} debugLabel="renderCameras(floating)" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }} />
+                  <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} isLocal={cam.isLocal} debugLabel="renderCameras(floating)" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, transform: (cam.isLocal && camFacingMode === 'user') ? 'scaleX(-1)' : 'none' }} />
                 </div>
+
+                {/* Flip camera (front/back) — phone/tablet only, own tile only */}
+                {cam.isLocal && isCoarsePointer && (
+                  <button
+                    data-drag-handle="true"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); flipCamera(); }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    title="Switch camera"
+                    style={{
+                      position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)',
+                      zIndex: 11, width: 26, height: 26, borderRadius: '50%',
+                      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
+                      border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', pointerEvents: 'auto', opacity: isFlippingCam ? 0.5 : 1,
+                    }}
+                  >
+                    <SwitchCamera size={13} />
+                  </button>
+                )}
 
                 {/* Resize Handles - High-end Glassmorphic Overlays */}
                 {isDraggable && (
@@ -9060,13 +9315,14 @@ const Room = () => {
           zIndex:999 keeps it below the nav header (zIndex:1000).
           In fullscreen mode the overlay inside player-wrap is used instead.
 
-          TV mode reuses this exact floating/draggable overlay (instead of
-          being excluded from it) whenever active cameras are within
-          TV_FLOATING_CAM_LIMIT — same drag-anywhere/resize interaction as
-          desktop, purely local to this TV (never synced to other
-          participants), which is exactly what a TV cast viewer wants.
-          Above that limit, TV switches to the fixed paginated grid in the
-          right panel instead (see the right-panel render below).
+          TV mode shows cameras here too (instead of being excluded from it)
+          whenever active cameras are within TV_FLOATING_CAM_LIMIT, via the
+          dedicated renderTvFloatingCameras() (click-to-carry/click-to-drop,
+          bigger tiles — see its own comment above) rather than the desktop
+          hold-drag renderCameras() used below for non-TV. Purely local to
+          this TV, never synced to other participants. Above the limit, TV
+          switches to the fixed paginated grid in the right panel instead
+          (see the right-panel render further down).
       ══════════════════════════════════════════════════════════════ */}
       {!isFullscreen && !areCamerasHidden && (isTvMode ? activeCameraUsers.length <= TV_FLOATING_CAM_LIMIT : !shouldUseManagedCameraLayout) && (
         <>
@@ -9077,11 +9333,11 @@ const Room = () => {
             pointerEvents: 'none',
             overflow: 'visible'
           }}>
-            {renderCameras(true)}
+            {isTvMode ? renderTvFloatingCameras() : renderCameras(true)}
           </div>
 
           {/* Drag-to-Remove Zone — also in the root overlay so it receives correct coords */}
-          {isDraggingCam && (
+          {!isTvMode && isDraggingCam && (
             <div
               id="cam-remove-zone"
               style={{
