@@ -4952,6 +4952,7 @@ const Room = () => {
       if (localCamRef.current) {
         console.log('Adding local tracks to new PC for', uname);
         localCamRef.current.getTracks().forEach(t => pc.addTrack(t, localCamRef.current));
+        applyCamBitrateCap(pc);
       }
       pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true }).then(o => {
         console.log('Sending cam_offer to', uname);
@@ -5011,6 +5012,7 @@ const Room = () => {
       };
       if (localCamRef.current) {
         localCamRef.current.getTracks().forEach(t => pc.addTrack(t, localCamRef.current));
+        applyCamBitrateCap(pc);
       }
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -7909,6 +7911,24 @@ const Room = () => {
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Camera / Mic Toggle Ã¢â€â‚¬Ã¢â€â‚¬
   // ─── Camera / Mic Toggle ───
+  // Caps the encoded bitrate of a camera peer connection's video sender.
+  // Camera tiles render small everywhere they're shown (a corner bubble, a
+  // grid tile) — nobody needs a webcam encoding at multiple Mbps for that,
+  // and an uncapped stream is heavy enough to visibly stall a TV's own main
+  // video playback (bandwidth/decode contention on the same device/network)
+  // the moment a camera turns on. Called right after addTrack on every
+  // camera RTCPeerConnection, both directions (offer and answer sides).
+  const applyCamBitrateCap = (pc) => {
+    try {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (!sender) return;
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 350_000;
+      sender.setParameters(params).catch(() => {});
+    } catch {}
+  };
+
   const toggleCamera = async () => {
     console.log('toggleCamera clicked. isCamOn:', isCamOn);
     if (isCamOn) {
@@ -8011,24 +8031,59 @@ const Room = () => {
     if (!oldTrack) return;
     const nextFacing = camFacingMode === 'environment' ? 'user' : 'environment';
     setIsFlippingCam(true);
+
+    const requestCamera = (facing, strict) => navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: strict ? { exact: facing } : facing,
+        width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 },
+      },
+      audio: false,
+    });
+
+    // Release the current camera BEFORE requesting the other one. Requesting
+    // a second physical camera while the first is still open is what was
+    // actually throwing here — many phones/mobile browsers only allow one
+    // getUserMedia video stream at a time regardless of which camera it's
+    // from, and surface that conflict as an "OverconstrainedError" that
+    // looks identical to "this device only has one camera" even on phones
+    // with both.
+    oldTrack.stop();
+    localCamRef.current.removeTrack(oldTrack);
+
     try {
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: nextFacing }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
-        audio: false,
-      });
+      let newStream;
+      try {
+        newStream = await requestCamera(nextFacing, true);
+      } catch (exactErr) {
+        // Some browsers reject facingMode `exact` even when the camera
+        // genuinely exists — retry as a soft preference before giving up.
+        newStream = await requestCamera(nextFacing, false);
+      }
       const newTrack = newStream.getVideoTracks()[0];
-      oldTrack.stop();
-      localCamRef.current.removeTrack(oldTrack);
       localCamRef.current.addTrack(newTrack);
       Object.values(cameraPcRefs.current).forEach(pc => {
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
         if (sender) sender.replaceTrack(newTrack).catch(() => {});
-        else pc.addTrack(newTrack, localCamRef.current);
+        else { pc.addTrack(newTrack, localCamRef.current); applyCamBitrateCap(pc); }
       });
       setCamFacingMode(newTrack.getSettings?.()?.facingMode || nextFacing);
     } catch (err) {
       console.error('flipCamera error:', err);
       toast.error('Could not switch camera — this device may only have one.');
+      // We already released the old camera above — restore it rather than
+      // leaving the tile frozen/black after a failed flip.
+      try {
+        const restored = await requestCamera(camFacingMode, false);
+        const restoredTrack = restored.getVideoTracks()[0];
+        localCamRef.current.addTrack(restoredTrack);
+        Object.values(cameraPcRefs.current).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) sender.replaceTrack(restoredTrack).catch(() => {});
+          else { pc.addTrack(restoredTrack, localCamRef.current); applyCamBitrateCap(pc); }
+        });
+      } catch (restoreErr) {
+        console.error('flipCamera restore error:', restoreErr);
+      }
     } finally {
       setIsFlippingCam(false);
     }
@@ -8746,6 +8801,7 @@ const Room = () => {
                   position: 'fixed', left: center.x, top: center.y + height / 2 + 8, transform: 'translate(-50%, 0)',
                   display: 'flex', gap: 6, zIndex: 998, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
                   borderRadius: 20, padding: 4, border: '1px solid rgba(255,255,255,0.15)',
+                  pointerEvents: 'auto',
                 }}>
                   <button
                     onClick={() => setTvCamZoom(prev => ({ ...prev, [cam.id]: Math.max(15, (prev[cam.id] ?? TV_CAM_DEFAULT_ZOOM) - 15) }))}
