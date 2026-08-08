@@ -20,6 +20,7 @@ import { encryptDM, decryptDM } from '../lib/crypto';
 import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
+import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable } from '../lib/nativeMedia';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
@@ -99,8 +100,21 @@ export function CallProvider({ children }) {
   const [remoteMicOn, setRemoteMicOn] = useState(true);
   const [remoteCamOn, setRemoteCamOn] = useState(false);
   const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+  // 'earpiece' | 'speaker' | 'bluetooth' — WhatsApp-style default: voice
+  // calls start on the earpiece, video calls start on speaker (you're
+  // usually holding the phone up to look at the screen, not your ear).
+  const [audioRoute, setAudioRouteState] = useState('earpiece');
+  const [bluetoothAudioAvailable, setBluetoothAudioAvailable] = useState(false);
+  const [myAvatarUrl, setMyAvatarUrl] = useState(null);
 
   const myUsername = (localStorage.getItem('watch_username') || '').replace(/^guest_/i, '');
+
+  // Own avatar for the call screen's "your avatar is shown to them" PiP/main
+  // tile — fetched once (rarely changes) rather than re-fetched per call.
+  useEffect(() => {
+    if (!myUsername) return;
+    fetchUserBrief(myUsername).then(brief => { if (brief?.avatarUrl) setMyAvatarUrl(brief.avatarUrl); });
+  }, [myUsername]);
 
   // ─── Socket lifecycle ───
   useEffect(() => {
@@ -409,6 +423,8 @@ export function CallProvider({ children }) {
     setIsMicOn(false);
     setIsCamOn(false);
     setCallState(null);
+    resetNativeAudioRoute();
+    setAudioRouteState('earpiece');
   }
 
   // ─── Public API ───
@@ -422,7 +438,12 @@ export function CallProvider({ children }) {
       type,
       peerUsername,
       peerDisplayName: peerDisplayName || peerUsername,
-      peerAvatar: peerAvatar || null,
+      // Callers pass activeChat.partnerAvatar straight from the chat list,
+      // which (unlike fetchUserBrief's result used on the callee side below)
+      // isn't guaranteed to already be resolved to an absolute URL — run it
+      // through the same resolver so both sides of the call see a real image
+      // instead of a broken relative path for legacy local-stored avatars.
+      peerAvatar: getAvatarUrl(peerAvatar) || null,
       startedAt: Date.now(),
       answeredAt: null,
     });
@@ -508,9 +529,13 @@ export function CallProvider({ children }) {
     }
   }, [sendSignal]);
 
-  // Same release-then-acquire, exact→soft fallback pattern used for the
-  // room's own camera flip — concurrent dual-camera getUserMedia requests
-  // are commonly rejected by mobile browsers/OS.
+  // Acquire the new-facing camera BEFORE releasing the old one (exact→soft
+  // facingMode fallback, same as the room's own camera flip) — the previous
+  // stop-then-acquire order left the local preview on a blank/frozen frame
+  // for however long getUserMedia took to hand back the other camera, which
+  // is the "cutting video" the flip button visibly did. Swapping the track
+  // on the still-live stream/sender first, and only stopping the old track
+  // once the new one is already flowing, keeps the preview continuous.
   const flipCamera = useCallback(async () => {
     const stream = localStreamRef.current;
     const pc = pcRef.current;
@@ -519,8 +544,6 @@ export function CallProvider({ children }) {
     const currentFacing = oldTrack.getSettings?.().facingMode || 'user';
     const nextFacing = currentFacing === 'environment' ? 'user' : 'environment';
     const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-    oldTrack.stop();
-    stream.removeTrack(oldTrack);
     try {
       let newStream;
       try {
@@ -531,17 +554,31 @@ export function CallProvider({ children }) {
       const newTrack = newStream.getVideoTracks()[0];
       stream.addTrack(newTrack);
       if (sender) await sender.replaceTrack(newTrack);
+      stream.removeTrack(oldTrack);
+      oldTrack.stop();
     } catch (e) {
-      console.error('[Call] flipCamera failed, restoring previous camera:', e);
-      try {
-        const restored = await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: currentFacing } });
-        const restoredTrack = restored.getVideoTracks()[0];
-        stream.addTrack(restoredTrack);
-        if (sender) await sender.replaceTrack(restoredTrack);
-      } catch (e2) {
-        console.error('[Call] flipCamera restore also failed:', e2);
-      }
+      console.error('[Call] flipCamera failed, keeping previous camera:', e);
     }
+  }, []);
+
+  // WhatsApp-style default: voice calls start on the earpiece, video calls
+  // start on speaker. Runs once per call (on the outgoing→active / incoming→
+  // active transition), not on every render, so a user's manual route pick
+  // via setAudioRoute below isn't stomped back to the default afterward.
+  const audioRouteInitializedForCallId = useRef(null);
+  useEffect(() => {
+    if (callState?.phase !== 'active') return;
+    if (audioRouteInitializedForCallId.current === callState.callId) return;
+    audioRouteInitializedForCallId.current = callState.callId;
+    const initial = callState.type === 'video' ? 'speaker' : 'earpiece';
+    setNativeAudioRoute(initial);
+    setAudioRouteState(initial);
+    isNativeBluetoothAudioAvailable().then(setBluetoothAudioAvailable);
+  }, [callState?.phase, callState?.callId, callState?.type]);
+
+  const setAudioRoute = useCallback((route) => {
+    setNativeAudioRoute(route);
+    setAudioRouteState(route);
   }, []);
 
   const value = {
@@ -554,6 +591,7 @@ export function CallProvider({ children }) {
     remoteStreamVersion,
     localStream: localStreamRef.current,
     myUsername,
+    myAvatarUrl,
     startCall,
     acceptCall,
     declineCall,
@@ -562,6 +600,9 @@ export function CallProvider({ children }) {
     toggleMic,
     toggleCamera,
     flipCamera,
+    audioRoute,
+    setAudioRoute,
+    bluetoothAudioAvailable,
   };
 
   return (

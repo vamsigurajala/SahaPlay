@@ -42,3 +42,28 @@ export function setNativeOrientation(value) {
 export function unlockNativeOrientation() {
   plugin()?.unlockOrientation().catch(() => {});
 }
+
+// Real call-audio output routing (earpiece / speaker / bluetooth headset) —
+// same "no browser API for this" gap as volume/brightness. Used by
+// CallContext/GlobalCallOverlay's in-call speaker button; a no-op everywhere
+// outside the Capacitor app, where the WebView's own default WebRTC audio
+// routing (earpiece-by-default via Chromium) is all that's available.
+export function setNativeAudioRoute(route) {
+  plugin()?.setAudioRoute({ route }).catch(() => {});
+}
+
+export async function isNativeBluetoothAudioAvailable() {
+  try {
+    const result = await plugin()?.getAvailableAudioRoutes();
+    return !!result?.bluetoothAvailable;
+  } catch {
+    return false;
+  }
+}
+
+// Called once a call ends — restores AudioManager's normal (non-VoIP) mode
+// so nothing about the phone's audio routing lingers changed for whatever
+// the user does next (media playback, other calls, etc).
+export function resetNativeAudioRoute() {
+  plugin()?.setAudioRoute({ route: 'normal' }).catch(() => {});
+}

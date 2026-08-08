@@ -378,7 +378,7 @@ const SupportModal = ({ isOpen, onClose }) => {
           }
           .support-modal-overlay {
             align-items: flex-start !important;
-            padding-top: max(env(safe-area-inset-top, 0px), 32px) !important;
+            padding-top: max(var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)), 32px) !important;
           }
           .support-modal-card {
             max-height: 78vh !important;

@@ -1,6 +1,7 @@
 import React from 'react'
-import { Image, Video, Mic, FileText, Paperclip, File } from 'lucide-react'
+import { Image, Video, Mic, FileText, Paperclip, File, Phone, PhoneMissed } from 'lucide-react'
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial'
+import { CALL_LOG_PREFIX } from '../contexts/CallContext'
 
 const ICON_SIZE = 11
 
@@ -59,6 +60,24 @@ function mediaContent(mediaType, fileName, mediaDuration) {
   return <><PreviewIcon Icon={FileText} color={color} />{fileName || 'File'}</>
 }
 
+function callLogContent(text, isMe, myUsername) {
+  const raw = text.slice(CALL_LOG_PREFIX.length)
+  let data
+  try { data = JSON.parse(raw) } catch { return null }
+  const { callType, status, initiatedBy } = data || {}
+  const isVideo = callType === 'video'
+  const Icon = isVideo ? Video : Phone
+  const iWasCaller = !!(initiatedBy && myUsername && initiatedBy.toLowerCase() === myUsername.toLowerCase())
+  const missedForMe = status === 'missed' && !iWasCaller
+  const label = isVideo ? 'Video call' : 'Voice call'
+  return (
+    <>
+      <PreviewIcon Icon={missedForMe ? PhoneMissed : Icon} color={missedForMe ? '#ef4444' : (isMe ? undefined : '#10b981')} />
+      {label}
+    </>
+  )
+}
+
 export function getMessagePreview(chat, myUsername) {
   if (!chat) return null
 
@@ -77,7 +96,9 @@ export function getMessagePreview(chat, myUsername) {
     content = media
   } else {
     const text = chat.decryptedText || chat.message || ''
-    if (!text || looksLikeCiphertext(text)) {
+    if (text && text.startsWith(CALL_LOG_PREFIX)) {
+      content = callLogContent(text, isMe, myUsername) || 'Call'
+    } else if (!text || looksLikeCiphertext(text)) {
       content = isMe ? 'Message sent' : 'Message'
     } else {
       // Infer media type from filename extension when lastMediaType is missing.

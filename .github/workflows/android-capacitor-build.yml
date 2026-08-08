@@ -79,17 +79,39 @@ jobs:
       # site instead of the bundled (webDir) copy, so normal web deploys
       # reach app users instantly without a native rebuild.
       #
-      # plugins.StatusBar.overlaysWebView: false is the fix for the top nav
-      # bar/wordmark rendering underneath the phone's clock/wifi/battery
-      # icons — Capacitor's generated project draws the WebView full-screen
-      # behind the status bar by default (Android's edge-to-edge behavior),
-      # and the web app's own safe-area CSS (meant for browser/PWA display)
-      # doesn't cover this native-only overlap. This makes the native shell
-      # reserve real space for the status bar instead, matching what the PWA
-      # already looked like. backgroundColor/style here are just the
-      # first-frame default (matches the default 'dark' theme); App.jsx
-      # syncs both live on every theme toggle via nativeShell.js.
+      # plugins.StatusBar.overlaysWebView: true (NOT false — see below) plus
+      # nativeShell.js's initNativeStatusBarInset(), which republishes the
+      # real measured status-bar height as the --sp-status-bar-inset CSS var
+      # that every top-of-screen bar/header in the app pads against instead
+      # of the (broken in this WebView) env(safe-area-inset-top).
       #
+      # This used to be overlaysWebView: false, on the theory that it makes
+      # the native shell reserve real space for the status bar so the app's
+      # own CSS never has to. That was true on Android <15 — false made
+      # Capacitor call WindowCompat.setDecorFitsSystemWindows(window, true),
+      # which the OS actually honored, auto-shifting the WebView down. But
+      # Android 15 (API 35) enforces edge-to-edge for every app process-wide
+      # with no per-app opt-out: setDecorFitsSystemWindows(true) is silently
+      # ignored on any Android 15+ device regardless of this setting, so the
+      # WebView drew full-bleed behind the status bar there anyway — while
+      # our own JS-computed --sp-status-bar-inset padding was ALSO applying
+      # on top, since it can't detect which behavior the OS actually gave it.
+      # Net effect: fine on Android 15+, but on Android <15 (still common —
+      # e.g. most budget phones) the real reserved space AND our own CSS
+      # padding both applied, stacking into the reported "so much space
+      # under the nav bar" gap — while a handful of other devices reportedly
+      # lost the status bar's icons entirely, consistent with an OEM-skinned
+      # WebView getting confused by the OS auto-reservation conflicting with
+      # a page that also expects edge-to-edge (exact mechanism not provable
+      # without those specific physical devices).
+      #
+      # Setting this true makes the WebView ALWAYS draw edge-to-edge, on
+      # every Android version, matching what 15+ already forces unconditionally
+      # — so there is exactly one inset mechanism (our own JS/CSS one) on
+      # every device instead of two different ones depending on OS version.
+      # backgroundColor/style below are just the first-frame default (matches
+      # the default 'dark' theme); App.jsx syncs both live on every theme
+      # toggle via nativeShell.js's syncStatusBarTheme().
       - name: Write Capacitor project config
         working-directory: frontend
         run: |
@@ -102,7 +124,7 @@ jobs:
             "android": { "backgroundColor": "#0F0F1A" },
             "plugins": {
               "StatusBar": {
-                "overlaysWebView": false,
+                "overlaysWebView": true,
                 "style": "LIGHT",
                 "backgroundColor": "#0b0c10"
               }

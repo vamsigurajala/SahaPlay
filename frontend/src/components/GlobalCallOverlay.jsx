@@ -1,12 +1,13 @@
 // GlobalCallOverlay.jsx — renders on top of everything (any route) whenever
 // CallContext has an active call/ring state: the incoming "ringing" screen
 // with Answer/Decline, the outgoing "Calling…" screen with Cancel, and the
-// live call itself (reusing CallingActivity.jsx, the same component the
-// room's own video/voice calls use).
+// live call itself (OneOnOneCallScreen.jsx — a WhatsApp-style screen built
+// specifically for 1:1 DM calls, separate from CallingActivity.jsx which
+// the room's own multi-participant camera calls still use).
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Video, X, Maximize2, Minimize2 } from 'lucide-react';
+import { Phone, PhoneOff, Video, X } from 'lucide-react';
 import { useCall } from '../contexts/CallContext';
-import CallingActivity from './CallingActivity';
+import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
@@ -67,7 +68,6 @@ function Avatar({ url, name, size = 96, pulsing }) {
 export default function GlobalCallOverlay() {
   const call = useCall();
   const { callState } = call;
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCoarsePointer, setIsCoarsePointer] = useState(
     () => typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
   );
@@ -95,32 +95,29 @@ export default function GlobalCallOverlay() {
   };
 
   if (callState.phase === 'active') {
-    const remoteStreams = {
-      [callState.peerUsername]: {
-        stream: call.remoteStream,
-        username: callState.peerDisplayName,
-        isMuted: !call.remoteMicOn,
-      },
-    };
     return (
       <div style={{ ...overlayStyle, borderRadius: 0 }}>
-        <CallingActivity
+        <OneOnOneCallScreen
           mode={isVideo ? 'video' : 'voice'}
           isCamOn={call.isCamOn}
           isMicOn={call.isMicOn}
-          localCamStream={call.localStream}
-          remoteStreams={remoteStreams}
+          localStream={call.localStream}
+          remoteStream={call.remoteStream}
+          remoteMicOn={call.remoteMicOn}
+          remoteCamOn={call.remoteCamOn}
+          peerUsername={callState.peerUsername}
+          peerDisplayName={callState.peerDisplayName}
+          peerAvatarUrl={callState.peerAvatar}
+          myAvatarUrl={call.myAvatarUrl}
+          answeredAt={callState.answeredAt}
           toggleCamera={call.toggleCamera}
           toggleMic={call.toggleMic}
           flipCamera={call.flipCamera}
+          audioRoute={call.audioRoute}
+          setAudioRoute={call.setAudioRoute}
+          bluetoothAudioAvailable={call.bluetoothAudioAvailable}
           isCoarsePointer={isCoarsePointer}
-          username={call.myUsername}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={() => setIsFullscreen(v => !v)}
           onEndCall={call.endCall}
-          onStopCall={call.endCall}
-          localAvatarUrl={null}
-          knownAvatars={{ [callState.peerUsername]: callState.peerAvatar }}
         />
       </div>
     );

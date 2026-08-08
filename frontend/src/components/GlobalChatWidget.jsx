@@ -5498,7 +5498,7 @@ const GlobalChatWidget = forwardRef(({
           alignItems: 'center', 
           justifyContent: 'space-between', 
           padding: '16px 20px',
-          paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
+          paddingTop: 'calc(16px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
           background: transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)',
           borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)' 
         }}>
@@ -5539,7 +5539,8 @@ const GlobalChatWidget = forwardRef(({
               const callBtnStyle = {
                 background: 'transparent', border: 'none', color: busy ? 'var(--header-btn)' : 'var(--header-btn)',
                 opacity: busy ? 0.4 : 1, cursor: busy ? 'not-allowed' : 'pointer',
-                display: 'flex', padding: 4, borderRadius: '50%', transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 28, height: 28, padding: 0, borderRadius: '50%', transition: 'all 0.2s',
               };
               return (
                 <>
@@ -5551,7 +5552,11 @@ const GlobalChatWidget = forwardRef(({
                     onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
                   >
-                    <Phone size={19} />
+                    {/* Phone's glyph is a thin open curve that reads visually smaller
+                        than Video's filled rect+lens at the same numeric size — bumped
+                        up to match Video's optical weight (WhatsApp's own call icons are
+                        the same optical size; lucide's aren't at equal `size` props). */}
+                    <Phone size={21} strokeWidth={2.1} />
                   </button>
                   <button
                     onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
@@ -5561,7 +5566,7 @@ const GlobalChatWidget = forwardRef(({
                     onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
                   >
-                    <Video size={19} />
+                    <Video size={19} strokeWidth={2.1} />
                   </button>
                 </>
               );
@@ -5834,7 +5839,7 @@ const GlobalChatWidget = forwardRef(({
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20000,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 20px', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
+            padding: '16px 20px', paddingTop: 'calc(16px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
             background: transparentMode ? 'rgba(10,10,10,0.92)' : '#0a0a0a',
             borderBottom: '1px solid rgba(255,255,255,0.06)'
           }}>
