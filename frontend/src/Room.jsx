@@ -292,8 +292,7 @@ const CAMERA_MANAGED_LAYOUT_THRESHOLD = 8;
 // TV-only: with this many or fewer active cameras, tiles float freely over the
 // video (draggable/resizable, local to the TV only). Above it, TV switches to
 // a fixed, paginated Teams-style grid in the right panel instead.
-// TEMP: set to 2 for testing per explicit request — raise back once verified.
-const TV_FLOATING_CAM_LIMIT = 2;
+const TV_FLOATING_CAM_LIMIT = 6;
 // TV-only: tiles per page in the paginated grid (2 columns x 3 rows).
 const TV_PANEL_PAGE_SIZE = 6;
 // TV-only: floating camera tile size range — width in px at 0% and 100% zoom.
@@ -10509,17 +10508,14 @@ const Room = () => {
             }}>
               {/* Right: Management Actions (Chat, Fullscreen) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, pointerEvents: 'auto' }}>
-                {/* Chat Toggle (Fullscreen Only or Always) — also shown during the mobile
-                    virtual-browser takeover (isMobileFsMode without real browser Fullscreen),
-                    same overlay-on-top-of-video pattern as desktop Fullscreen instead of a
-                    separate bespoke control. Widened to any mediaUrl on mobile (not just
-                    isMobileFsMode) — this is the only unread-badge-carrying chat access
-                    point once media is loaded (the bottom nav's own badge is hidden behind
-                    the player at that point), and was previously invisible on mobile
-                    whenever media was playing but the special mobile-fullscreen mode
-                    hadn't been explicitly entered (e.g. a call, or normal portrait
-                    playback), silently hiding the unread badge along with it. */}
-                {(isFullscreen || (isTouchPlayer && (isMobileFsMode || !!mediaUrl))) && (
+                {/* Chat Toggle (Fullscreen Only) — also shown during the mobile
+                    virtual-browser takeover and calls (both set isMobileFsMode),
+                    same overlay-on-top-of-video pattern as desktop Fullscreen.
+                    Deliberately NOT shown for plain portrait playback (no
+                    isMobileFsMode) — that view already has the full chat panel
+                    visible below the video, so a second floating chat icon on
+                    top of it is redundant clutter, not a missing feature. */}
+                {(isFullscreen || (isTouchPlayer && isMobileFsMode)) && (
                   <div ref={fsGlobalChatBtnRef} style={{ position: 'relative' }}>
                     <button
                       className="player-ctrl-btn stay-white"
@@ -10720,6 +10716,8 @@ const Room = () => {
                     remoteStreams={remoteStreams}
                     toggleCamera={toggleCamera}
                     toggleMic={toggleMic}
+                    flipCamera={flipCamera}
+                    isCoarsePointer={isCoarsePointer}
                     username={username}
                     isFullscreen={isFullscreen}
                     onToggleFullscreen={handleFullscreen}

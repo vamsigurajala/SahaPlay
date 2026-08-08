@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Lock, Maximize2, Minimize2, Grid, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Lock, Maximize2, Minimize2, Grid, VolumeX, SwitchCamera } from 'lucide-react';
 import { getAvatarUrl } from '../utils/avatarUtils';
 
 export default function CallingActivity({
@@ -11,6 +11,8 @@ export default function CallingActivity({
   remoteStreams,
   toggleCamera,
   toggleMic,
+  flipCamera,
+  isCoarsePointer,
   username,
   isFullscreen,
   onToggleFullscreen,
@@ -21,6 +23,36 @@ export default function CallingActivity({
 }) {
   const [joined, setJoined] = useState(false);
   const localVideoRef = useRef(null);
+
+  // Auto-hiding call chrome (name/mic overlay + the controls dock) — tap
+  // anywhere on the call to toggle it, mouse movement (desktop) reveals it,
+  // and it fades out again after 3s with no further tap/movement. Mirrors
+  // the main video player's own showControls/resetControlsTimer pattern,
+  // reimplemented locally since this is a separate component.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const hideTimerRef = useRef(null);
+  const controlsVisibleRef = useRef(true);
+  useEffect(() => { controlsVisibleRef.current = controlsVisible; }, [controlsVisible]);
+
+  const resetHideTimer = () => {
+    setControlsVisible(true);
+    clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 3000);
+  };
+
+  const handleStageTap = () => {
+    if (controlsVisibleRef.current) {
+      clearTimeout(hideTimerRef.current);
+      setControlsVisible(false);
+    } else {
+      resetHideTimer();
+    }
+  };
+
+  useEffect(() => {
+    resetHideTimer();
+    return () => clearTimeout(hideTimerRef.current);
+  }, [joined]);
 
   // WhatsApp-style main/PiP layout state (1-on-1 video calls only)
   const [mainParticipantId, setMainParticipantId] = useState(null);
@@ -197,7 +229,28 @@ export default function CallingActivity({
   // Shared tile content: video, or avatar + (for remote participants) hidden audio playback
   const renderParticipantMedia = (p) => (
     mode === 'video' && p.hasVideo ? (
-      <VideoTileRenderer stream={p.stream} isLocal={p.isLocal} />
+      <>
+        <VideoTileRenderer stream={p.stream} isLocal={p.isLocal} />
+        {/* Flip camera (front/back) — phone/tablet only, own tile only, same
+            as the room's camera bubbles. Laptops have no rear camera. */}
+        {p.isLocal && isCoarsePointer && (
+          <button
+            onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
+            title="Switch camera"
+            style={{
+              position: 'absolute', top: 8, right: 8, zIndex: 5,
+              width: 30, height: 30, borderRadius: '50%',
+              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', opacity: controlsVisible ? 1 : 0,
+              transition: 'opacity 0.3s ease', pointerEvents: controlsVisible ? 'auto' : 'none',
+            }}
+          >
+            <SwitchCamera size={14} />
+          </button>
+        )}
+      </>
     ) : (
       <div className="participant-voice-avatar-wrapper">
         {p.avatarUrl ? (
@@ -230,7 +283,10 @@ export default function CallingActivity({
   );
 
   const renderOverlayInfo = (p, compact) => (
-    <div className={`tile-overlay-info ${compact ? 'compact' : ''}`}>
+    <div
+      className={`tile-overlay-info ${compact ? 'compact' : ''}`}
+      style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}
+    >
       <span className="p-name stay-white">{p.username}</span>
       <div className="p-icons">
         {p.isMuted ? (
@@ -243,7 +299,11 @@ export default function CallingActivity({
   );
 
   return (
-    <div className="calling-container">
+    <div
+      className="calling-container"
+      onMouseMove={joined ? resetHideTimer : undefined}
+      onClick={joined ? handleStageTap : undefined}
+    >
 
       {/* E2EE badge — only in lobby, hidden once call is active */}
       {!joined && (
@@ -336,6 +396,7 @@ export default function CallingActivity({
                   onPointerMove={handlePipPointerMove}
                   onPointerUp={handlePipPointerUp}
                   onPointerCancel={handlePipPointerUp}
+                  onClick={(e) => e.stopPropagation()}
                   title="Drag to move · Tap to switch"
                 >
                   {renderParticipantMedia(pipParticipant)}
@@ -354,8 +415,14 @@ export default function CallingActivity({
             </div>
           )}
 
-          {/* Active Call Controls Dock */}
-          <div className="call-controls-dock">
+          {/* Active Call Controls Dock — auto-hides after 3s with no tap/movement,
+              tap anywhere on the call to toggle it back. stopPropagation so tapping
+              a button here doesn't also count as the "tap the stage" toggle. */}
+          <div
+            className="call-controls-dock"
+            onClick={(e) => e.stopPropagation()}
+            style={{ opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}
+          >
             <button
               onClick={toggleMic}
               title={isMicOn ? 'Mute Mic' : 'Unmute Mic'}
