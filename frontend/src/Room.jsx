@@ -3447,10 +3447,16 @@ const Room = () => {
       setIsWaitingApproval(false);
       setIsConnecting(false);
       
-      // Frontend Security Fail-Safe: Enforce Members Only lock proactively
+      // Frontend Security Fail-Safe: Enforce Members Only lock proactively.
+      // Paired TVs (watch_is_tv) are exempt from the kick — the person casting
+      // is already an authenticated member who passed this same gate on their
+      // phone/laptop; the TV is just a mirror display, not an independent
+      // unauthenticated guest. It still goes through verification like any
+      // other guest session, just never gets kicked for onlyLoggedIn.
       const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+      const isTvSession = localStorage.getItem('watch_is_tv') === 'true';
       if (isGuest) {
-        if (state.settings?.onlyLoggedIn) {
+        if (state.settings?.onlyLoggedIn && !isTvSession) {
           setKickedReason('members_only');
           sock.disconnect();
           return;
@@ -3550,8 +3556,9 @@ const Room = () => {
         if (updatedData.settings) {
           nextState.settings = updatedData.settings;
           
-          // Frontend Security Fail-Safe: Retroactive eviction if host turns on Members Only
-          const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+          // Frontend Security Fail-Safe: Retroactive eviction if host turns on Members Only.
+          // Paired TVs are exempt — see the same exemption in the room_state handler above.
+          const isGuest = localStorage.getItem('watch_is_guest') === 'true' && localStorage.getItem('watch_is_tv') !== 'true';
           if (updatedData.settings.onlyLoggedIn && isGuest) {
             setKickedReason('members_only');
             sock.disconnect();
@@ -8160,7 +8167,7 @@ const Room = () => {
     };
   }, [isTouchPlayer, isMobileFsMode]);
 
-  const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true';
+  const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true' && localStorage.getItem('watch_is_tv') !== 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
 
   // ─── Guest Security & Loading Screens ───

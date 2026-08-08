@@ -138,6 +138,11 @@ export default function TvPairing() {
         localStorage.setItem('watch_username', guestUsername || 'smart_tv');
       }
       localStorage.setItem('watch_is_guest', 'true');
+      // Marks this session as a paired TV mirror (not an independent
+      // unauthenticated guest) — Room.jsx uses this to exempt it from the
+      // Members Only kick, since the person casting already passed that
+      // gate themselves on the device that generated the pairing code.
+      localStorage.setItem('watch_is_tv', 'true');
       setTimeout(() => {
         window.location.href = `/room/${roomId}?mode=tv`;
       }, 1800);
