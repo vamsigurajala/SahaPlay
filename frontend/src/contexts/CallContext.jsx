@@ -1,4 +1,6 @@
-// CallContext.jsx — WhatsApp-style 1:1 voice/video calling for private chats.
+// CallContext.jsx — WhatsApp-style voice/video calling for private chats,
+// starting as 1:1 and optionally growing into a small mesh group call via
+// "Add to call".
 //
 // Mounted once at the App root (see App.jsx), independent of BottomNav's
 // isStandalonePWA()-only gating, so incoming calls can ring on the regular
@@ -13,8 +15,20 @@
 // ever relays ciphertext it cannot read. The call media itself is protected
 // by WebRTC's mandatory DTLS-SRTP, same guarantee as the app's existing
 // room camera calls.
+//
+// Group calling architecture: rather than one shared connection, each
+// participant holds a DIRECT RTCPeerConnection to every OTHER participant
+// (a mesh) — no server-side media relay exists in this app, so this is the
+// only topology possible without adding one. Each of those pairwise
+// connections is end-to-end encrypted exactly like the base 1:1 case (its
+// own NaCl-wrapped SDP/ICE exchange, keyed to that specific person's public
+// key) — group calling doesn't weaken the encryption model at all, it just
+// runs the same pairwise handshake N times. This scales fine for the small
+// group sizes ("add a person or two") this feature is built for; a real
+// SFU would be needed for anything larger, which is out of scope here.
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import toast from 'react-hot-toast';
 import { encodeBase64 } from 'tweetnacl-util';
 import { encryptDM, decryptDM } from '../lib/crypto';
 import { useCrypto } from './CryptoContext';
@@ -27,7 +41,7 @@ import GlobalCallOverlay from '../components/GlobalCallOverlay';
 // user-typed text — a control character sequence a human could never type,
 // so it can never collide with real content. Exported so GlobalChatWidget
 // can recognize + specially render it after normal decryption.
-export const CALL_LOG_PREFIX = 'sahaplay_call';
+export const CALL_LOG_PREFIX = 'sahaplay_call';
 
 const CallContext = createContext(null);
 
@@ -84,21 +98,31 @@ export function CallProvider({ children }) {
   useEffect(() => { keyPairRef.current = keyPair; }, [keyPair]);
 
   const socketRef = useRef(null);
-  const pcRef = useRef(null);
+  // Per-peer mesh state — keyed by the OTHER participant's lowercased
+  // username. localStreamRef stays singular: one mic/camera capture, shared
+  // as the track source across every peer connection in the mesh.
+  const pcsRef = useRef(new Map());
   const localStreamRef = useRef(null);
-  const remoteStreamRef = useRef(null);
-  const iceBufferRef = useRef([]); // buffered remote candidates until remoteDescription is set
-  const peerPublicKeyRef = useRef(null);
+  const remoteStreamsRef = useRef(new Map());
+  const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
+  const peerPublicKeysRef = useRef(new Map());
+  const connectPromisesRef = useRef(new Map()); // per-peer connect caching — see connectToPeer
 
   const [callState, setCallState] = useState(null);
-  // { phase: 'outgoing'|'incoming'|'active', callId, type, peerUsername, peerDisplayName, peerAvatar, startedAt, answeredAt }
+  // { phase: 'outgoing'|'incoming'|'active', callId, type, peerUsername,
+  //   peerDisplayName, peerAvatar, startedAt, answeredAt,
+  //   isGroupJoin: true if this incoming call is "join an existing call"
+  //     rather than a fresh 1:1 (peerUsername is then "who invited me"),
+  //   groupMembers: [{username, displayName, avatarUrl}] — everyone in the
+  //     call beyond the original caller/callee pair. }
   const callStateRef = useRef(null);
   useEffect(() => { callStateRef.current = callState; }, [callState]);
 
   const [isMicOn, setIsMicOn] = useState(false);
   const [isCamOn, setIsCamOn] = useState(false);
-  const [remoteMicOn, setRemoteMicOn] = useState(true);
-  const [remoteCamOn, setRemoteCamOn] = useState(false);
+  // Per-participant mic/cam state, keyed by username — covers the original
+  // peer and every added member uniformly.
+  const [participantMeta, setParticipantMeta] = useState({});
   const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
   // 'earpiece' | 'speaker' | 'bluetooth' — WhatsApp-style default: voice
   // calls start on the earpiece, video calls start on speaker (you're
@@ -126,11 +150,22 @@ export function CallProvider({ children }) {
     const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
 
-    sock.on('call:incoming', async ({ callId, callerUsername, callType }) => {
+    sock.on('call:incoming', async ({ callId, callerUsername, callType, groupParticipants }) => {
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.
       if (callStateRef.current) return;
-      peerPublicKeyRef.current = null;
+      peerPublicKeysRef.current = new Map();
       const brief = await fetchUserBrief(callerUsername);
+      // groupParticipants (when present) is the full list of everyone
+      // already active in the call, INCLUDING whoever is inviting me — see
+      // backend/server.js's call:add-member, which computes it before
+      // adding me. That's exactly who I'll need to connect to once I join.
+      let groupMembers = [];
+      if (Array.isArray(groupParticipants) && groupParticipants.length > 0) {
+        groupMembers = await Promise.all(groupParticipants.map(async (u) => {
+          const b = await fetchUserBrief(u);
+          return { username: u, displayName: b?.displayName || u, avatarUrl: b?.avatarUrl || null };
+        }));
+      }
       setCallState({
         phase: 'incoming',
         callId,
@@ -140,6 +175,8 @@ export function CallProvider({ children }) {
         peerAvatar: brief?.avatarUrl || null,
         startedAt: Date.now(),
         answeredAt: null,
+        isGroupJoin: groupMembers.length > 0,
+        groupMembers,
       });
     });
 
@@ -150,16 +187,22 @@ export function CallProvider({ children }) {
     // via its own imperative function; the other side's socket handler here
     // just tears down. The exception is an abrupt disconnect (reason ===
     // 'disconnect', set server-side) — there the acting side's client is
-    // gone, so the surviving side logs it instead.
+    // gone, so the surviving side logs it instead. Call-log messages only
+    // ever cover the ORIGINAL 1:1 pair's chat — added members joining/
+    // leaving a call don't have a group chat to log into, so those events
+    // (call:member-*) intentionally never call writeCallLog.
     sock.on('call:busy', ({ callId }) => {
       if (callStateRef.current?.callId !== callId) return;
       writeCallLog(callStateRef.current, 'busy');
       teardownCall();
     });
 
-    sock.on('call:invalid', ({ callId }) => {
+    sock.on('call:invalid', ({ callId, reason }) => {
       if (callStateRef.current?.callId !== callId) return;
-      teardownCall(); // never reached the other side — nothing worth logging
+      if (reason === 'not_friends') toast('You can only add mutual friends to a call');
+      else if (reason === 'blocked') toast('Could not add that person to the call');
+      else if (reason === 'already_in_call') toast('They’re already in this call');
+      teardownCall();
     });
 
     sock.on('call:cancelled', ({ callId, reason }) => {
@@ -184,74 +227,125 @@ export function CallProvider({ children }) {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId || cs.phase !== 'outgoing') return;
       setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
-      await startMediaAndConnect({ isCaller: true, callId, peerUsername: cs.peerUsername, type: cs.type });
+      await connectToPeer(cs.peerUsername, { isCaller: true, callId, type: cs.type });
     });
 
-    sock.on('call:offer', async ({ callId, sdp }) => {
+    sock.on('call:offer', async ({ callId, fromUsername, sdp }) => {
       const cs = callStateRef.current;
-      if (!cs || cs.callId !== callId) return;
+      if (!cs || cs.callId !== callId || !fromUsername) return;
       try {
         const kp = keyPairRef.current;
         const plaintext = decryptDM(sdp.ciphertext, sdp.nonce, sdp.ephemeralPublicKey, encodeBase64(kp.secretKey));
         if (!plaintext) return;
         const { sdp: offerSdp } = JSON.parse(plaintext);
-        // No-op if a connection already exists (e.g. this is a mid-call
-        // renegotiation offer, not the initial one) — startMediaAndConnect
-        // caches its promise, so this just awaits the existing connection.
-        await startMediaAndConnect({ isCaller: false, callId, peerUsername: cs.peerUsername, type: cs.type });
-        await pcRef.current.setRemoteDescription({ type: 'offer', sdp: offerSdp });
-        await flushIceBuffer();
-        const answer = await pcRef.current.createAnswer();
-        await pcRef.current.setLocalDescription(answer);
-        await sendSignal('call:answer', callId, cs.peerUsername, { type: 'answer', sdp: answer.sdp });
+        // No-op if a connection to this peer already exists (e.g. this is a
+        // mid-call renegotiation offer, not the initial one) —
+        // connectToPeer caches its promise per-peer, so this just awaits it.
+        await connectToPeer(fromUsername, { isCaller: false, callId, type: cs.type });
+        const pc = pcsRef.current.get(fromUsername);
+        if (!pc) return;
+        await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
+        await flushIceBuffer(fromUsername);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await sendSignal('call:answer', callId, fromUsername, { type: 'answer', sdp: answer.sdp });
       } catch (e) {
         console.error('[Call] offer handling failed:', e);
       }
     });
 
-    sock.on('call:answer', async ({ callId, sdp }) => {
+    sock.on('call:answer', async ({ callId, fromUsername, sdp }) => {
       const cs = callStateRef.current;
-      if (!cs || cs.callId !== callId || !pcRef.current) return;
+      const pc = fromUsername ? pcsRef.current.get(fromUsername) : null;
+      if (!cs || cs.callId !== callId || !pc) return;
       try {
         const kp = keyPairRef.current;
         const plaintext = decryptDM(sdp.ciphertext, sdp.nonce, sdp.ephemeralPublicKey, encodeBase64(kp.secretKey));
         if (!plaintext) return;
         const { sdp: answerSdp } = JSON.parse(plaintext);
-        await pcRef.current.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-        await flushIceBuffer();
+        await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+        await flushIceBuffer(fromUsername);
       } catch (e) {
         console.error('[Call] answer handling failed:', e);
       }
     });
 
-    sock.on('call:ice', async ({ callId, candidate }) => {
+    sock.on('call:ice', async ({ callId, fromUsername, candidate }) => {
       const cs = callStateRef.current;
-      if (!cs || cs.callId !== callId) return;
+      if (!cs || cs.callId !== callId || !fromUsername) return;
       try {
         const kp = keyPairRef.current;
         const plaintext = decryptDM(candidate.ciphertext, candidate.nonce, candidate.ephemeralPublicKey, encodeBase64(kp.secretKey));
         if (!plaintext) return;
         const cand = JSON.parse(plaintext);
-        if (!pcRef.current || !pcRef.current.remoteDescription) {
-          iceBufferRef.current.push(cand);
+        const pc = pcsRef.current.get(fromUsername);
+        if (!pc || !pc.remoteDescription) {
+          if (!iceBuffersRef.current.has(fromUsername)) iceBuffersRef.current.set(fromUsername, []);
+          iceBuffersRef.current.get(fromUsername).push(cand);
         } else {
-          await pcRef.current.addIceCandidate(cand).catch(() => {});
+          await pc.addIceCandidate(cand).catch(() => {});
         }
       } catch (e) {
         console.error('[Call] ice handling failed:', e);
       }
     });
 
-    sock.on('call:state', ({ callId, micOn, camOn }) => {
-      if (callStateRef.current?.callId !== callId) return;
-      setRemoteMicOn(!!micOn);
-      setRemoteCamOn(!!camOn);
+    sock.on('call:state', ({ callId, fromUsername, micOn, camOn }) => {
+      if (callStateRef.current?.callId !== callId || !fromUsername) return;
+      setParticipantMeta(prev => ({ ...prev, [fromUsername]: { micOn: !!micOn, camOn: !!camOn } }));
     });
 
     sock.on('call:ended', ({ callId, reason }) => {
       if (callStateRef.current?.callId !== callId) return;
       if (reason === 'disconnect') writeCallLog(callStateRef.current, 'ended');
       teardownCall();
+    });
+
+    // ─── Group calling ("Add to call") ───
+    // Someone else in the call invited a new person — nothing to connect to
+    // yet (they haven't joined), this is purely informational.
+    sock.on('call:member-invited', () => {});
+
+    // A person I (or someone else) invited has joined — I wait for THEM to
+    // send me an offer (handled by the generic call:offer handler above,
+    // which lazily creates a connection for an unrecognized fromUsername)
+    // rather than racing to connect myself; the newly-joining side is
+    // always the one that initiates, see call:joined-call below.
+    sock.on('call:member-joined', async ({ callId, username }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || !username) return;
+      const brief = await fetchUserBrief(username);
+      setCallState(prev => {
+        if (!prev || prev.callId !== callId) return prev;
+        if ((prev.groupMembers || []).some(m => m.username === username)) return prev;
+        return { ...prev, groupMembers: [...(prev.groupMembers || []), { username, displayName: brief?.displayName || username, avatarUrl: brief?.avatarUrl || null }] };
+      });
+    });
+
+    // I just joined an existing call as an added member — server tells me
+    // exactly who's already there; I initiate the offer to each of them
+    // (mirrors the base 1:1 flow, where the original caller — the side that
+    // was "already waiting" — is the one call:answered triggers to offer).
+    sock.on('call:joined-call', async ({ callId, participants, type }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId) return;
+      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+      for (const username of participants || []) {
+        connectToPeer(username, { isCaller: true, callId, type: type || cs.type });
+      }
+    });
+
+    sock.on('call:member-left', ({ callId, username, reason }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || !username) return;
+      closePeerConnection(username);
+      setCallState(prev => (prev ? { ...prev, groupMembers: (prev.groupMembers || []).filter(m => m.username !== username) } : prev));
+      if (reason === 'missed') toast(`${username} didn’t answer`);
+      else if (reason === 'declined') toast(`${username} declined`);
+    });
+
+    sock.on('call:member-busy', ({ username }) => {
+      toast(`${username} is on another call`);
     });
 
     return () => {
@@ -291,53 +385,35 @@ export function CallProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callState]);
 
-  async function flushIceBuffer() {
-    const buffered = iceBufferRef.current;
-    iceBufferRef.current = [];
+  async function flushIceBuffer(username) {
+    const buffered = iceBuffersRef.current.get(username);
+    if (!buffered) return;
+    iceBuffersRef.current.delete(username);
+    const pc = pcsRef.current.get(username);
     for (const cand of buffered) {
-      await pcRef.current?.addIceCandidate(cand).catch(() => {});
+      await pc?.addIceCandidate(cand).catch(() => {});
     }
   }
 
   const sendSignal = useCallback(async (event, callId, targetUsername, payload) => {
     const sock = socketRef.current;
     const kp = keyPairRef.current;
-    if (!sock || !kp) return;
-    if (!peerPublicKeyRef.current) peerPublicKeyRef.current = await fetchPublicKey(targetUsername);
-    if (!peerPublicKeyRef.current) return;
-    const enc = encryptDM(JSON.stringify(payload), peerPublicKeyRef.current, encodeBase64(kp.publicKey));
+    if (!sock || !kp || !targetUsername) return;
+    let pubKey = peerPublicKeysRef.current.get(targetUsername);
+    if (!pubKey) {
+      pubKey = await fetchPublicKey(targetUsername);
+      if (pubKey) peerPublicKeysRef.current.set(targetUsername, pubKey);
+    }
+    if (!pubKey) return;
+    const enc = encryptDM(JSON.stringify(payload), pubKey, encodeBase64(kp.publicKey));
     const wrapped = { ciphertext: enc.ciphertext, nonce: enc.nonce, ephemeralPublicKey: enc.ephemeralPublicKey };
-    if (event === 'call:offer' || event === 'call:answer') sock.emit(event, { callId, sdp: wrapped });
-    else if (event === 'call:ice') sock.emit(event, { callId, candidate: wrapped });
+    if (event === 'call:offer' || event === 'call:answer') sock.emit(event, { callId, targetUsername, sdp: wrapped });
+    else if (event === 'call:ice') sock.emit(event, { callId, targetUsername, candidate: wrapped });
   }, []);
 
-  // ─── Media + RTCPeerConnection ───
-  // connectPromiseRef caches the in-flight/completed connect so a second,
-  // near-simultaneous call — e.g. acceptCall()'s proactive connect racing
-  // the 'call:offer' handler's own fallback connect — awaits the SAME
-  // RTCPeerConnection instead of racing to create a second one (and,
-  // critically, doesn't proceed to use pcRef.current before it exists).
-  const connectPromiseRef = useRef(null);
-  function startMediaAndConnect(args) {
-    if (!connectPromiseRef.current) connectPromiseRef.current = doConnect(args);
-    return connectPromiseRef.current;
-  }
-  async function doConnect({ isCaller, callId, peerUsername, type }) {
-    const iceServers = await fetchIceServers();
-    const pc = new RTCPeerConnection({ iceServers });
-    pcRef.current = pc;
-    remoteStreamRef.current = new MediaStream();
-
-    pc.ontrack = (e) => {
-      remoteStreamRef.current.addTrack(e.track);
-      setRemoteStreamVersion(v => v + 1);
-      if (e.track.kind === 'video') setRemoteCamOn(true);
-    };
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendSignal('call:ice', callId, peerUsername, e.candidate.toJSON());
-    };
-
+  // ─── Local media (shared capture, one mic/camera feed sent to every peer) ───
+  async function ensureLocalStream(type) {
+    if (localStreamRef.current) return localStreamRef.current;
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -350,20 +426,76 @@ export function CallProvider({ children }) {
     }
     if (stream) {
       localStreamRef.current = stream;
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
       setIsMicOn(stream.getAudioTracks().some(t => t.enabled));
       setIsCamOn(stream.getVideoTracks().some(t => t.enabled));
-      broadcastState(callId, peerUsername);
+    }
+    return stream;
+  }
+
+  // ─── Per-peer RTCPeerConnection (the mesh) ───
+  // connectPromisesRef caches the in-flight/completed connect PER PEER so a
+  // second, near-simultaneous connect attempt to the SAME person — e.g. the
+  // 'call:offer' handler's fallback connect racing an explicit caller-side
+  // connect — awaits the SAME RTCPeerConnection instead of racing to create
+  // a second one (and, critically, doesn't proceed to use it before it
+  // exists). Different peers always get independent connections/promises.
+  function connectToPeer(targetUsername, args) {
+    if (!connectPromisesRef.current.has(targetUsername)) {
+      connectPromisesRef.current.set(targetUsername, doConnect(targetUsername, args));
+    }
+    return connectPromisesRef.current.get(targetUsername);
+  }
+
+  async function doConnect(targetUsername, { isCaller, callId, type }) {
+    const iceServers = await fetchIceServers();
+    const pc = new RTCPeerConnection({ iceServers });
+    pcsRef.current.set(targetUsername, pc);
+    const remoteStream = new MediaStream();
+    remoteStreamsRef.current.set(targetUsername, remoteStream);
+
+    pc.ontrack = (e) => {
+      remoteStream.addTrack(e.track);
+      setRemoteStreamVersion(v => v + 1);
+      if (e.track.kind === 'video') {
+        setParticipantMeta(prev => ({ ...prev, [targetUsername]: { ...(prev[targetUsername] || {}), camOn: true } }));
+      }
+    };
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal('call:ice', callId, targetUsername, e.candidate.toJSON());
+    };
+
+    const stream = await ensureLocalStream(type);
+    if (stream) {
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      broadcastState(callId);
     }
 
     if (isCaller) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await sendSignal('call:offer', callId, peerUsername, { type: 'offer', sdp: offer.sdp });
+      await sendSignal('call:offer', callId, targetUsername, { type: 'offer', sdp: offer.sdp });
     }
   }
 
-  function broadcastState(callId, peerUsername) {
+  // Tears down and forgets ONE peer's connection only — used when a single
+  // added member leaves/is removed while the rest of the call continues.
+  // Deliberately does NOT touch localStreamRef: the mic/camera capture is
+  // shared across the whole mesh, closing one peer connection must never
+  // stop it for everyone else still on the call.
+  function closePeerConnection(username) {
+    const pc = pcsRef.current.get(username);
+    if (pc) { try { pc.close(); } catch {} }
+    pcsRef.current.delete(username);
+    remoteStreamsRef.current.delete(username);
+    iceBuffersRef.current.delete(username);
+    connectPromisesRef.current.delete(username);
+    peerPublicKeysRef.current.delete(username);
+    setParticipantMeta(prev => { const next = { ...prev }; delete next[username]; return next; });
+    setRemoteStreamVersion(v => v + 1);
+  }
+
+  function broadcastState(callId) {
     socketRef.current?.emit('call:state', {
       callId,
       micOn: localStreamRef.current?.getAudioTracks().some(t => t.enabled) ?? false,
@@ -378,14 +510,15 @@ export function CallProvider({ children }) {
   // an accompanying mediaUrl at several points and blanks decryptedText
   // whenever mediaType is set at all, which would silently break the
   // sender's own copy of this message. A recognizable plaintext prefix is
-  // simpler and touches none of that fragile logic.
+  // simpler and touches none of that fragile logic. Always logs against the
+  // ORIGINAL 1:1 pair's chat — see the note above the socket handlers.
   async function writeCallLog(cs, status) {
     if (!cs || !cs.peerUsername) return;
     const token = localStorage.getItem('watch_token');
     const kp = keyPairRef.current;
     if (!token || !kp) return;
     try {
-      const targetPubKey = peerPublicKeyRef.current || await fetchPublicKey(cs.peerUsername);
+      const targetPubKey = peerPublicKeysRef.current.get(cs.peerUsername) || await fetchPublicKey(cs.peerUsername);
       if (!targetPubKey) return;
       const durationSeconds = cs.answeredAt ? Math.max(0, Math.round((Date.now() - cs.answeredAt) / 1000)) : 0;
       const payload = CALL_LOG_PREFIX + JSON.stringify({ callType: cs.type, status, durationSeconds, initiatedBy: cs.phase === 'outgoing' ? myUsername : cs.peerUsername });
@@ -409,17 +542,15 @@ export function CallProvider({ children }) {
   }
 
   function teardownCall() {
-    try { pcRef.current?.getSenders().forEach(s => s.track && s.track.stop()); } catch {}
-    try { pcRef.current?.close(); } catch {}
-    pcRef.current = null;
-    connectPromiseRef.current = null;
+    for (const pc of pcsRef.current.values()) { try { pc.close(); } catch {} }
+    pcsRef.current.clear();
+    remoteStreamsRef.current.clear();
+    iceBuffersRef.current.clear();
+    connectPromisesRef.current.clear();
+    peerPublicKeysRef.current.clear();
     try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     localStreamRef.current = null;
-    remoteStreamRef.current = null;
-    iceBufferRef.current = [];
-    peerPublicKeyRef.current = null;
-    setRemoteMicOn(true);
-    setRemoteCamOn(false);
+    setParticipantMeta({});
     setIsMicOn(false);
     setIsCamOn(false);
     setCallState(null);
@@ -431,7 +562,7 @@ export function CallProvider({ children }) {
   const startCall = useCallback(async (peerUsername, type, peerDisplayName, peerAvatar) => {
     if (callStateRef.current || !socketRef.current) return;
     const callId = newCallId();
-    peerPublicKeyRef.current = null;
+    peerPublicKeysRef.current = new Map();
     setCallState({
       phase: 'outgoing',
       callId,
@@ -446,6 +577,8 @@ export function CallProvider({ children }) {
       peerAvatar: getAvatarUrl(peerAvatar) || null,
       startedAt: Date.now(),
       answeredAt: null,
+      isGroupJoin: false,
+      groupMembers: [],
     });
     socketRef.current.emit('call:invite', { callId, calleeUsername: peerUsername, callType: type });
   }, []);
@@ -453,16 +586,29 @@ export function CallProvider({ children }) {
   const acceptCall = useCallback(() => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming' || !socketRef.current) return;
-    socketRef.current.emit('call:accept', { callId: cs.callId });
-    setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
-    startMediaAndConnect({ isCaller: false, callId: cs.callId, peerUsername: cs.peerUsername, type: cs.type });
+    if (cs.isGroupJoin) {
+      // Who to connect to is confirmed by the server's own reply
+      // (call:joined-call) rather than acted on here — the groupMembers
+      // snapshot on callState was taken at invite time and could be stale
+      // by the time I actually accept.
+      socketRef.current.emit('call:member-join', { callId: cs.callId });
+      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+    } else {
+      socketRef.current.emit('call:accept', { callId: cs.callId });
+      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+      connectToPeer(cs.peerUsername, { isCaller: false, callId: cs.callId, type: cs.type });
+    }
   }, []);
 
   const declineCall = useCallback(() => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming') return;
-    socketRef.current?.emit('call:decline', { callId: cs.callId });
-    writeCallLog(cs, 'declined');
+    if (cs.isGroupJoin) {
+      socketRef.current?.emit('call:member-decline', { callId: cs.callId });
+    } else {
+      socketRef.current?.emit('call:decline', { callId: cs.callId });
+      writeCallLog(cs, 'declined');
+    }
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -476,13 +622,33 @@ export function CallProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Leaving a call means different things depending on who I am: the
+  // original caller/callee ending it ends the WHOLE call (everyone,
+  // including any added members — call:end, unchanged from the base 1:1
+  // behavior); an added member leaving only removes themselves
+  // (call:member-leave) and the rest of the call continues. See the
+  // deliberate scoping note above activeCalls in backend/server.js.
   const endCall = useCallback(() => {
     const cs = callStateRef.current;
     if (!cs) return;
-    socketRef.current?.emit('call:end', { callId: cs.callId });
-    writeCallLog(cs, 'ended');
+    if (cs.isGroupJoin) {
+      socketRef.current?.emit('call:member-leave', { callId: cs.callId });
+    } else {
+      socketRef.current?.emit('call:end', { callId: cs.callId });
+      writeCallLog(cs, 'ended');
+    }
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Invite one more person into the current active call — only the picker
+  // (private chats only, per the product ask) calls this, already filtered
+  // to mutual friends isn't required client-side since the server enforces
+  // it anyway (same areFriends/block checks call:invite already used).
+  const addMemberToCall = useCallback((username) => {
+    const cs = callStateRef.current;
+    if (!cs || cs.phase !== 'active' || !socketRef.current || !username) return;
+    socketRef.current.emit('call:add-member', { callId: cs.callId, newMemberUsername: username.toLowerCase() });
   }, []);
 
   const toggleMic = useCallback(() => {
@@ -492,23 +658,24 @@ export function CallProvider({ children }) {
     stream.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
     const nowOn = stream.getAudioTracks().some(t => t.enabled);
     setIsMicOn(nowOn);
-    if (cs) broadcastState(cs.callId, cs.peerUsername);
+    if (cs) broadcastState(cs.callId);
   }, []);
 
   // Adds a video track (voice → video upgrade, WhatsApp-style) the first
   // time, then just enables/disables it afterwards — avoids a second
-  // getUserMedia + renegotiation cycle for every toggle.
+  // getUserMedia + renegotiation cycle for every toggle. Upgrading applies
+  // to every peer in the mesh: the new track is added to (and renegotiated
+  // with) each existing connection, not just one.
   const toggleCamera = useCallback(async () => {
     const cs = callStateRef.current;
-    const pc = pcRef.current;
-    if (!cs || !pc) return;
+    if (!cs || pcsRef.current.size === 0) return;
     const stream = localStreamRef.current;
     const existingVideoTrack = stream?.getVideoTracks()[0];
 
     if (existingVideoTrack) {
       existingVideoTrack.enabled = !existingVideoTrack.enabled;
       setIsCamOn(existingVideoTrack.enabled);
-      broadcastState(cs.callId, cs.peerUsername);
+      broadcastState(cs.callId);
       return;
     }
 
@@ -517,33 +684,36 @@ export function CallProvider({ children }) {
       const videoTrack = camStream.getVideoTracks()[0];
       if (!videoTrack) return;
       stream.addTrack(videoTrack);
-      pc.addTrack(videoTrack, stream);
       setIsCamOn(true);
       setCallState(prev => (prev ? { ...prev, type: 'video' } : prev));
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await sendSignal('call:offer', cs.callId, cs.peerUsername, { type: 'offer', sdp: offer.sdp });
-      broadcastState(cs.callId, cs.peerUsername);
+      // Tells the server too — otherwise anyone added to this call later
+      // (call:joined-call) is handed the stale 'voice' type from invite
+      // time and joins audio-only by default. See call:mark-video.
+      socketRef.current?.emit('call:mark-video', { callId: cs.callId });
+      for (const [username, pc] of pcsRef.current) {
+        pc.addTrack(videoTrack, stream);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendSignal('call:offer', cs.callId, username, { type: 'offer', sdp: offer.sdp });
+      }
+      broadcastState(cs.callId);
     } catch (e) {
       console.error('[Call] toggleCamera (add video) failed:', e);
     }
   }, [sendSignal]);
 
   // Acquire the new-facing camera BEFORE releasing the old one (exact→soft
-  // facingMode fallback, same as the room's own camera flip) — the previous
-  // stop-then-acquire order left the local preview on a blank/frozen frame
-  // for however long getUserMedia took to hand back the other camera, which
-  // is the "cutting video" the flip button visibly did. Swapping the track
-  // on the still-live stream/sender first, and only stopping the old track
-  // once the new one is already flowing, keeps the preview continuous.
+  // facingMode fallback, same as the room's own camera flip) — acquiring
+  // first and only stopping the old track once the new one is already
+  // flowing keeps the local preview continuous instead of freezing/blanking
+  // for however long getUserMedia takes. Replaces the track on every peer
+  // connection's sender in the mesh, not just one.
   const flipCamera = useCallback(async () => {
     const stream = localStreamRef.current;
-    const pc = pcRef.current;
     const oldTrack = stream?.getVideoTracks()[0];
-    if (!stream || !pc || !oldTrack) return;
+    if (!stream || !oldTrack || pcsRef.current.size === 0) return;
     const currentFacing = oldTrack.getSettings?.().facingMode || 'user';
     const nextFacing = currentFacing === 'environment' ? 'user' : 'environment';
-    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
     try {
       let newStream;
       try {
@@ -553,7 +723,10 @@ export function CallProvider({ children }) {
       }
       const newTrack = newStream.getVideoTracks()[0];
       stream.addTrack(newTrack);
-      if (sender) await sender.replaceTrack(newTrack);
+      for (const pc of pcsRef.current.values()) {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) await sender.replaceTrack(newTrack);
+      }
       stream.removeTrack(oldTrack);
       oldTrack.stop();
     } catch (e) {
@@ -585,9 +758,8 @@ export function CallProvider({ children }) {
     callState,
     isMicOn,
     isCamOn,
-    remoteMicOn,
-    remoteCamOn,
-    remoteStream: remoteStreamRef.current,
+    participantMeta,
+    remoteStreams: Object.fromEntries(remoteStreamsRef.current),
     remoteStreamVersion,
     localStream: localStreamRef.current,
     myUsername,
@@ -597,6 +769,7 @@ export function CallProvider({ children }) {
     declineCall,
     cancelOutgoingCall,
     endCall,
+    addMemberToCall,
     toggleMic,
     toggleCamera,
     flipCamera,

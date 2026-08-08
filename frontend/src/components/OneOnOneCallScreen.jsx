@@ -1,16 +1,24 @@
-// OneOnOneCallScreen.jsx — WhatsApp-style active-call screen for 1:1 DM
-// calls (CallContext.jsx / GlobalCallOverlay.jsx). Deliberately a separate
-// component from CallingActivity.jsx rather than a rework of it: that
-// component is also reused by Room.jsx for the room's own multi-participant
-// camera calls, and this screen's behavior (avatar-only by default, tap
-// anywhere to hide/show all chrome together, speaker/Bluetooth picker,
-// PiP-tap-to-swap, camera flip without a black-frame gap) is specific to a
-// two-person call — building it standalone avoids risking a regression in
-// the already-shipped room group-call UI.
+// OneOnOneCallScreen.jsx — WhatsApp-style active-call screen for private
+// DM calls (CallContext.jsx / GlobalCallOverlay.jsx), covering both the
+// original 1:1 case and a call grown via "Add to call". Deliberately a
+// separate component from CallingActivity.jsx rather than a rework of it:
+// that component is also reused by Room.jsx for the room's own
+// multi-participant camera calls, and this screen's behavior (avatar-only
+// by default, tap anywhere to hide/show all chrome together — including the
+// Add button, speaker/Bluetooth picker, PiP-tap-to-swap, camera flip
+// without a black-frame gap) is specific to this feature, built standalone
+// to avoid risking a regression in the already-shipped room group-call UI.
+//
+// Exactly one remote participant (the common case) keeps the original
+// polished main-stage/PiP-swap layout. Two or more (an "Add to call" grew
+// it past 1:1) switches to an equal-tile grid, everyone included — the
+// mesh model (CallContext.jsx) means every tile here really is a direct,
+// independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, SwitchCamera, UserPlus } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
+import AddToCallSheet from './AddToCallSheet';
 
 function Avatar({ url, name, size, pulsing }) {
   return (
@@ -70,33 +78,59 @@ function fmtDuration(secs) {
   return `${m}:${String(r).padStart(2, '0')}`;
 }
 
+// Normalizes "everyone else in the call" into one list regardless of
+// whether I'm the original caller/callee or someone added later — see the
+// comment on callState.groupMembers in CallContext.jsx for why those two
+// cases start from different shapes.
+function getRemoteParticipants(callState, remoteStreams, participantMeta) {
+  const members = callState.groupMembers || [];
+  const base = callState.isGroupJoin
+    ? members
+    : [{ username: callState.peerUsername, displayName: callState.peerDisplayName, avatarUrl: callState.peerAvatar },
+       ...members.filter(m => m.username !== callState.peerUsername)];
+  return base.map(m => {
+    const meta = participantMeta[m.username] || {};
+    const stream = remoteStreams[m.username] || null;
+    return {
+      username: m.username,
+      displayName: m.displayName || m.username,
+      avatarUrl: m.avatarUrl || null,
+      stream,
+      micOn: meta.micOn !== false,
+      camOn: !!meta.camOn,
+      hasVideo: !!meta.camOn && !!stream?.getVideoTracks().length,
+    };
+  });
+}
+
 export default function OneOnOneCallScreen({
   mode, // 'voice' | 'video'
   isMicOn,
   isCamOn,
   localStream,
-  remoteStream,
-  remoteMicOn,
-  remoteCamOn,
-  peerUsername,
-  peerDisplayName,
-  peerAvatarUrl,
+  myUsername,
   myAvatarUrl,
-  answeredAt,
+  callState,
+  remoteStreams,
+  participantMeta,
   toggleMic,
   toggleCamera,
   flipCamera,
   audioRoute,
   setAudioRoute,
   bluetoothAudioAvailable,
+  addMemberToCall,
   isCoarsePointer,
   onEndCall,
 }) {
   const isVideo = mode === 'video';
-  const remoteHasVideo = isVideo && remoteCamOn && !!remoteStream?.getVideoTracks().length;
-  const localHasVideo = isVideo && isCamOn && !!localStream;
+  const remotes = getRemoteParticipants(callState, remoteStreams, participantMeta);
+  const isGroup = remotes.length > 1;
+  const answeredAt = callState.answeredAt;
 
-  // Tap-anywhere-to-toggle chrome — top bar + bottom dock fade together.
+  // Tap-anywhere-to-toggle chrome — top bar + bottom dock (and, per the
+  // product ask, the Add-to-call button that lives in the top bar) fade
+  // together.
   const [chromeVisible, setChromeVisible] = useState(true);
   const hideTimerRef = useRef(null);
   const resetHideTimer = () => {
@@ -113,12 +147,6 @@ export default function OneOnOneCallScreen({
     else resetHideTimer();
   };
 
-  // Which video fills the main stage — defaults to the remote person, tap
-  // the PiP (my own video) to swap, matching WhatsApp exactly.
-  const [mainIsLocal, setMainIsLocal] = useState(false);
-  // Once a call becomes voice-only again there's nothing to swap — keep it reset.
-  useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
-
   const [durationSecs, setDurationSecs] = useState(0);
   useEffect(() => {
     if (!answeredAt) return;
@@ -129,17 +157,18 @@ export default function OneOnOneCallScreen({
   }, [answeredAt]);
 
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
-
-  const remoteIsMuted = !remoteMicOn;
-
-  const mainHasVideo = mainIsLocal ? localHasVideo : remoteHasVideo;
-  const mainAvatarUrl = mainIsLocal ? myAvatarUrl : peerAvatarUrl;
-  const mainName = mainIsLocal ? 'You' : peerDisplayName;
-  const pipHasVideo = mainIsLocal ? remoteHasVideo : localHasVideo;
-  const pipAvatarUrl = mainIsLocal ? peerAvatarUrl : myAvatarUrl;
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
 
   const routeIcon = audioRoute === 'bluetooth' ? Bluetooth : Volume2;
   const RouteIcon = routeIcon;
+
+  const headerLine = isGroup
+    ? remotes.map(r => r.displayName).join(', ')
+    : remotes[0]?.displayName;
+  const mutedOthers = remotes.filter(r => !r.micOn).map(r => r.displayName);
+  const statusLine = mutedOthers.length > 0
+    ? (mutedOthers.length === 1 ? `${mutedOthers[0]} is muted` : `${mutedOthers.length} people muted`)
+    : (answeredAt ? fmtDuration(durationSecs) : 'Connecting…');
 
   return (
     <div className="ooc-root" onClick={handleStageTap}>
@@ -193,86 +222,85 @@ export default function OneOnOneCallScreen({
           color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
         }
         .ooc-route-opt.active { background: rgba(var(--brand-1-rgb), 0.18); color: var(--brand-1-light); }
+        .ooc-grid {
+          position: absolute; inset: 0; display: grid; gap: 6px; padding: 6px;
+          padding-top: calc(6px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)) + 76px);
+          padding-bottom: 120px;
+        }
+        .ooc-grid.n-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+        .ooc-grid.n-3, .ooc-grid.n-4 { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(2, 1fr); }
+        .ooc-grid.n-5, .ooc-grid.n-6 { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 1fr); }
+        .ooc-tile {
+          position: relative; border-radius: 14px; overflow: hidden; background: #131928;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .ooc-tile-label {
+          position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px;
+          background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 700;
+          opacity: ${chromeVisible ? 1 : 0}; transition: opacity 0.3s ease;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
         @media (max-width: 380px) {
           .ooc-dock { gap: 12px; }
           .ooc-ctrl-btn { width: 48px; height: 48px; }
         }
       `}</style>
 
-      {/* ── Main stage ── */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {mainHasVideo ? (
-          <VideoTile stream={mainIsLocal ? localStream : remoteStream} muted={mainIsLocal} />
-        ) : (
-          <Avatar url={mainAvatarUrl} name={mainName} size={132} pulsing={mainIsLocal ? isMicOn : !remoteIsMuted} />
-        )}
-        {/* Remote audio must always play even when they're the PiP tile (or
-            have no video at all) — a plain <video> only exists for whichever
-            side is showing video, so this covers every other case. */}
-        {!mainIsLocal && !mainHasVideo && <AudioRenderer stream={remoteStream} />}
-        {mainIsLocal && pipHasVideo === false && <AudioRenderer stream={remoteStream} />}
-      </div>
-
-      {/* ── PiP (the other participant) — video calls only, tap to swap ── */}
-      {isVideo && (
-        <div
-          className="ooc-pip"
-          style={{ top: 'calc(96px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))', right: 16 }}
-          onClick={(e) => { e.stopPropagation(); setMainIsLocal(v => !v); }}
-        >
-          {pipHasVideo ? (
-            <VideoTile stream={mainIsLocal ? remoteStream : localStream} muted={!mainIsLocal} />
-          ) : (
-            <Avatar url={pipAvatarUrl} name={mainIsLocal ? peerDisplayName : 'You'} size={56} />
-          )}
-          {/* Camera flip lives on MY OWN tile specifically — when I'm in the PiP
-              (the default), that's here; when I've swapped to main, the other
-              flip button below (rendered over the main stage) takes over. */}
-          {isCoarsePointer && !mainIsLocal && localHasVideo && (
-            <button
-              onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
-              title="Switch camera"
-              style={{
-                position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              }}
-            >
-              <SwitchCamera size={13} />
-            </button>
-          )}
+      {!isGroup ? (
+        <SoloStage
+          remote={remotes[0]}
+          isVideo={isVideo}
+          localStream={localStream}
+          isCamOn={isCamOn}
+          isMicOn={isMicOn}
+          myAvatarUrl={myAvatarUrl}
+          isCoarsePointer={isCoarsePointer}
+          flipCamera={flipCamera}
+          chromeVisible={chromeVisible}
+        />
+      ) : (
+        <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
+          {remotes.map(r => (
+            <div key={r.username} className="ooc-tile">
+              {r.hasVideo ? (
+                <VideoTile stream={r.stream} muted={false} />
+              ) : (
+                <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={r.micOn} />
+              )}
+              {!r.hasVideo && <AudioRenderer stream={r.stream} />}
+              <div className="ooc-tile-label">
+                {!r.micOn && <MicOff size={11} color="#f87171" />}
+                {r.displayName}
+              </div>
+            </div>
+          ))}
+          <div className="ooc-tile">
+            {isVideo && isCamOn && localStream ? (
+              <VideoTile stream={localStream} muted />
+            ) : (
+              <Avatar url={myAvatarUrl} name={myUsername} size={64} pulsing={isMicOn} />
+            )}
+            <div className="ooc-tile-label">
+              {!isMicOn && <MicOff size={11} color="#f87171" />}
+              You
+            </div>
+          </div>
         </div>
       )}
-      {/* When my own video is the main stage, the flip button belongs there instead. */}
-      {isVideo && mainIsLocal && isCoarsePointer && localHasVideo && (
-        <button
-          onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
-          title="Switch camera"
-          style={{
-            position: 'absolute', bottom: chromeVisible ? 110 : 24, right: 16, zIndex: 16,
-            width: 40, height: 40, borderRadius: '50%',
-            background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            transition: 'bottom 0.3s ease',
-          }}
-        >
-          <SwitchCamera size={18} />
-        </button>
-      )}
 
-      {/* ── Top bar: name + duration/mute status + add-person ── */}
+      {/* ── Top bar: name(s) + duration/mute status + add-person ── */}
       <div className={`ooc-topbar ${chromeVisible ? '' : 'ooc-hidden'}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ minWidth: 0 }}>
           <div className="stay-white" style={{ color: '#fff', fontWeight: 800, fontSize: 17, textShadow: '0 1px 3px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {peerDisplayName}
+            {headerLine}
           </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: remoteIsMuted ? '#fbbf24' : 'rgba(255,255,255,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-            {remoteIsMuted ? `${peerDisplayName} is muted` : (answeredAt ? fmtDuration(durationSecs) : 'Connecting…')}
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? '#fbbf24' : 'rgba(255,255,255,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+            {statusLine}
           </div>
         </div>
         <button
           title="Add to call"
-          onClick={() => toast('Group calling is coming soon')}
+          onClick={() => setAddSheetOpen(true)}
           style={{
             width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)',
             background: 'rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center',
@@ -340,9 +368,94 @@ export default function OneOnOneCallScreen({
           <button className="ooc-ctrl-btn" onClick={onEndCall} style={{ background: '#ef4444' }}>
             <PhoneOff size={22} color="#fff" />
           </button>
-          <span className="ooc-ctrl-label">End</span>
+          <span className="ooc-ctrl-label">{isGroup ? 'Leave' : 'End'}</span>
         </div>
       </div>
+
+      {addSheetOpen && (
+        <AddToCallSheet
+          alreadyInCall={[myUsername, ...remotes.map(r => r.username)]}
+          onClose={() => setAddSheetOpen(false)}
+          onAdd={(username) => { addMemberToCall(username); toast(`Ringing ${username}…`); }}
+        />
+      )}
     </div>
+  );
+}
+
+// The original 2-person layout — main stage (defaults to the remote
+// person, tap the PiP to swap to my own video full-screen) unchanged from
+// before "Add to call" existed.
+function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl, isCoarsePointer, flipCamera, chromeVisible }) {
+  const [mainIsLocal, setMainIsLocal] = useState(false);
+  useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
+
+  const localHasVideo = isVideo && isCamOn && !!localStream;
+  const mainHasVideo = mainIsLocal ? localHasVideo : remote.hasVideo;
+  const mainAvatarUrl = mainIsLocal ? myAvatarUrl : remote.avatarUrl;
+  const mainName = mainIsLocal ? 'You' : remote.displayName;
+  const pipHasVideo = mainIsLocal ? remote.hasVideo : localHasVideo;
+  const pipAvatarUrl = mainIsLocal ? remote.avatarUrl : myAvatarUrl;
+
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {mainHasVideo ? (
+          <VideoTile stream={mainIsLocal ? localStream : remote.stream} muted={mainIsLocal} />
+        ) : (
+          <Avatar url={mainAvatarUrl} name={mainName} size={132} pulsing={mainIsLocal ? isMicOn : remote.micOn} />
+        )}
+        {/* Remote audio must always play even when they're the PiP tile (or
+            have no video at all) — a plain <video> only exists for whichever
+            side is showing video, so this covers every other case. */}
+        {!mainIsLocal && !mainHasVideo && <AudioRenderer stream={remote.stream} />}
+        {mainIsLocal && pipHasVideo === false && <AudioRenderer stream={remote.stream} />}
+      </div>
+
+      {isVideo && (
+        <div
+          className="ooc-pip"
+          style={{ top: 'calc(96px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))', right: 16 }}
+          onClick={(e) => { e.stopPropagation(); setMainIsLocal(v => !v); }}
+        >
+          {pipHasVideo ? (
+            <VideoTile stream={mainIsLocal ? remote.stream : localStream} muted={!mainIsLocal} />
+          ) : (
+            <Avatar url={pipAvatarUrl} name={mainIsLocal ? remote.displayName : 'You'} size={56} />
+          )}
+          {/* Camera flip lives on MY OWN tile specifically — when I'm in the PiP
+              (the default), that's here; when I've swapped to main, the other
+              flip button below (rendered over the main stage) takes over. */}
+          {isCoarsePointer && !mainIsLocal && localHasVideo && (
+            <button
+              onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
+              title="Switch camera"
+              style={{
+                position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}
+            >
+              <SwitchCamera size={13} />
+            </button>
+          )}
+        </div>
+      )}
+      {isVideo && mainIsLocal && isCoarsePointer && localHasVideo && (
+        <button
+          onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
+          title="Switch camera"
+          style={{
+            position: 'absolute', bottom: chromeVisible ? 110 : 24, right: 16, zIndex: 16,
+            width: 40, height: 40, borderRadius: '50%',
+            background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            transition: 'bottom 0.3s ease',
+          }}
+        >
+          <SwitchCamera size={18} />
+        </button>
+      )}
+    </>
   );
 }

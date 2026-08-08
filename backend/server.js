@@ -919,10 +919,46 @@ function emitToUser(username, event, data) {
 // No DB table: the only durable trace of a call is the E2E-encrypted call-
 // summary chat message the client writes via POST /api/chats/send once the
 // call resolves, stored in the same `messages` table as any other DM.
-const activeCalls = new Map(); // callId -> { caller, callee, type, status, startedAt, answeredAt, timeoutHandle }
+//
+// Group calling ("Add to call") is bolted onto this same 1:1 primitive
+// rather than replacing it: `caller`/`callee` remain the call's fixed
+// "core" pair exactly as before (every existing invite/cancel/accept/
+// decline/offer/answer/ice/timeout/disconnect code path below is
+// untouched), and `members` is an ADDITIONAL Map of anyone brought in later
+// via call:add-member — usernameLower -> { status: 'ringing'|'active',
+// timeoutHandle, invitedBy }. Deliberate simplification: if either half of
+// the core pair ends the call, the whole thing ends for every added member
+// too (see the cascade in endCallInternal below) — added members can leave
+// individually (call:member-leave) without affecting anyone else, but the
+// call's lifetime is still anchored to the original two people who started
+// it. A fully symmetric N-way model (any subset can outlive any other) would
+// need caller/callee themselves folded into `members`, which touches every
+// handler below — not worth the risk for what's fundamentally still a
+// "1:1 call some other people joined" feature.
+const activeCalls = new Map(); // callId -> { caller, callee, type, status, startedAt, answeredAt, timeoutHandle, members }
 const userActiveCallId = new Map(); // usernameLower -> callId (busy lookup + reconnect resync)
 
 const CALL_RING_TIMEOUT_MS = 45000;
+
+// All usernames currently actually connected to the call — the core pair
+// (only once the call itself is 'active', i.e. post-accept) plus any
+// members whose own status has flipped to 'active'. Ringing/not-yet-joined
+// members are deliberately excluded — signaling should never be routed to
+// someone who hasn't joined yet.
+function getCallActiveUsernames(call) {
+  const list = [];
+  if (call.status === 'active') { list.push(call.caller, call.callee); }
+  if (call.members) {
+    for (const [u, entry] of call.members) { if (entry.status === 'active') list.push(u); }
+  }
+  return list;
+}
+
+function isActiveCallParticipant(call, username) {
+  if (!call || !username) return false;
+  if (call.caller === username || call.callee === username) return call.status === 'active';
+  return call.members?.get(username)?.status === 'active';
+}
 
 function endCallInternal(callId) {
   const call = activeCalls.get(callId);
@@ -931,6 +967,18 @@ function endCallInternal(callId) {
   activeCalls.delete(callId);
   if (userActiveCallId.get(call.caller) === callId) userActiveCallId.delete(call.caller);
   if (userActiveCallId.get(call.callee) === callId) userActiveCallId.delete(call.callee);
+  // Cascade to any members added via call:add-member — the core pair ending
+  // leaves nothing for a bolted-on member to talk to either. Every existing
+  // call site that already calls endCallInternal (cancel/decline/end/
+  // timeout, the native decline route, disconnect cleanup) picks this up
+  // for free with no changes needed at those call sites.
+  if (call.members) {
+    for (const [u, entry] of call.members) {
+      clearTimeout(entry.timeoutHandle);
+      if (userActiveCallId.get(u) === callId) userActiveCallId.delete(u);
+      emitToUser(u, entry.status === 'ringing' ? 'call:cancelled' : 'call:ended', { callId, reason: 'core_ended' });
+    }
+  }
   return call;
 }
 
@@ -3647,6 +3695,34 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
 
 // â"€â"€ Promisify queries locally for cleaner async/await â"€â"€
 // (queryGet and queryAll moved above)
+
+// Lightweight distinct-partner list for the in-call "Add to call" picker —
+// deliberately not the full /api/chats/recent payload (which needs
+// lastSeen/localRooms and returns every last-message field this doesn't
+// need), and deliberately not the full friends list either: the user asked
+// for "only private chats" in the picker, i.e. people there's already a
+// conversation with, not every accepted-follow relationship.
+app.get('/api/chats/private-partners', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  try {
+    const rows = await queryAll(
+      `SELECT DISTINCT CASE WHEN LOWER(senderName) = LOWER(?) THEN targetName ELSE senderName END as partner
+       FROM messages WHERE type = 'private' AND (LOWER(senderName) = LOWER(?) OR LOWER(targetName) = LOWER(?))`,
+      [username, username, username]
+    );
+    const partnerUsernames = [...new Set(rows.map(r => r.partner))].filter(p => p && p.toLowerCase() !== username.toLowerCase());
+    if (partnerUsernames.length === 0) return res.json({ partners: [] });
+    const placeholders = partnerUsernames.map(() => '?').join(',');
+    const users = await queryAll(
+      `SELECT username, displayName, avatarPath FROM users WHERE LOWER(username) IN (${placeholders})`,
+      partnerUsernames.map(u => u.toLowerCase())
+    );
+    res.json({ partners: users.map(u => ({ username: u.username, displayName: u.displayName || u.username, avatarUrl: u.avatarPath || null })) });
+  } catch (e) {
+    console.error('[private-partners] error:', e.message);
+    res.status(500).json({ error: 'Failed to load private chats' });
+  }
+});
 
 // â"€â"€ GET Recent Chats â"€â"€
 app.get('/api/chats/recent', authenticateToken, async (req, res) => {
@@ -6487,10 +6563,22 @@ io.on('connection', (socket) => {
   // whatever sockets were live at invite time, so a socket connecting after
   // that moment needs it replayed or it never learns the call exists.
   if (socket.username) {
-    const existingCallId = userActiveCallId.get(socket.username.toLowerCase());
+    const meLower = socket.username.toLowerCase();
+    const existingCallId = userActiveCallId.get(meLower);
     const existingCall = existingCallId ? activeCalls.get(existingCallId) : null;
-    if (existingCall && existingCall.status === 'ringing' && existingCall.callee === socket.username.toLowerCase()) {
+    if (existingCall && existingCall.status === 'ringing' && existingCall.callee === meLower) {
       socket.emit('call:incoming', { callId: existingCallId, callerUsername: existingCall.caller, callType: existingCall.type });
+    }
+    // Same replay, for a member added to an already-active group call whose
+    // invite arrived before this particular socket existed.
+    const memberEntry = existingCall?.members?.get(meLower);
+    if (existingCall && memberEntry && memberEntry.status === 'ringing') {
+      socket.emit('call:incoming', {
+        callId: existingCallId,
+        callerUsername: memberEntry.invitedBy || existingCall.caller,
+        callType: existingCall.type,
+        groupParticipants: getCallActiveUsernames(existingCall),
+      });
     }
   }
 
@@ -8646,7 +8734,7 @@ io.on('connection', (socket) => {
         }
       }, CALL_RING_TIMEOUT_MS);
 
-      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle });
+      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map() });
       userActiveCallId.set(caller, callId);
       userActiveCallId.set(callee, callId);
 
@@ -8691,37 +8779,46 @@ io.on('connection', (socket) => {
     emitToUser(call.caller, 'call:declined', { callId });
   });
 
-  // Offer/answer/ICE are only relayed while the call is 'active' (post-accept) —
-  // callee's client sends 'call:accept' first, then both sides start the
-  // RTCPeerConnection handshake through these.
-  socket.on('call:offer', ({ callId, sdp }) => {
+  // Offer/answer/ICE are only relayed while the call is 'active' (post-accept)
+  // and only between two currently-active participants — target-routed
+  // (targetUsername) rather than "the other one in a pair" so this covers a
+  // mesh call's per-peer connections (A<->B, A<->C, B<->C, ...) the same way
+  // it always covered the base caller<->callee pair; for a plain 1:1 call
+  // this produces the exact same routing as before (only one other active
+  // participant to route to).
+  socket.on('call:offer', ({ callId, targetUsername, sdp }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (!call || call.status !== 'active' || (call.caller !== me && call.callee !== me)) return;
-    emitToUser(call.caller === me ? call.callee : call.caller, 'call:offer', { callId, sdp });
+    const target = (targetUsername || '').toLowerCase();
+    if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
+    emitToUser(target, 'call:offer', { callId, fromUsername: me, sdp });
   });
 
-  socket.on('call:answer', ({ callId, sdp }) => {
+  socket.on('call:answer', ({ callId, targetUsername, sdp }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (!call || call.status !== 'active' || (call.caller !== me && call.callee !== me)) return;
-    emitToUser(call.caller === me ? call.callee : call.caller, 'call:answer', { callId, sdp });
+    const target = (targetUsername || '').toLowerCase();
+    if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
+    emitToUser(target, 'call:answer', { callId, fromUsername: me, sdp });
   });
 
-  socket.on('call:ice', ({ callId, candidate }) => {
+  socket.on('call:ice', ({ callId, targetUsername, candidate }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (!call || (call.caller !== me && call.callee !== me)) return;
-    emitToUser(call.caller === me ? call.callee : call.caller, 'call:ice', { callId, candidate });
+    const target = (targetUsername || '').toLowerCase();
+    if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
+    emitToUser(target, 'call:ice', { callId, fromUsername: me, candidate });
   });
 
-  // Mic/cam on-off state — not SDP, not sensitive, sent plain so the other
-  // side's UI can show an accurate mute/camera-off indicator for you.
+  // Mic/cam on-off state — not SDP, not sensitive, sent plain so everyone
+  // else's UI can show an accurate mute/camera-off indicator for you.
+  // Broadcast to every other active participant (was: the single other
+  // party in a pair) so this scales to a mesh call unchanged.
   socket.on('call:state', ({ callId, micOn, camOn }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (!call || (call.caller !== me && call.callee !== me)) return;
-    emitToUser(call.caller === me ? call.callee : call.caller, 'call:state', { callId, micOn, camOn });
+    if (!call || !isActiveCallParticipant(call, me)) return;
+    getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToUser(u, 'call:state', { callId, fromUsername: me, micOn, camOn }));
   });
 
   socket.on('call:end', ({ callId }) => {
@@ -8730,6 +8827,123 @@ io.on('connection', (socket) => {
     const me = socket.username?.toLowerCase();
     const target = call.caller === me ? call.callee : call.caller;
     emitToUser(target, 'call:ended', { callId, endedBy: me });
+  });
+
+  // A voice call upgraded to video mid-call (CallContext.jsx's toggleCamera)
+  // — call.type was otherwise only ever set once, at call:invite time, and
+  // never updated again. That was invisible for a plain 1:1 call (nothing
+  // ever re-reads it afterward), but call:joined-call now hands call.type to
+  // anyone added to the call later as their initial "should my camera start
+  // on" hint — without this, a member added after a voice→video upgrade
+  // would join audio-only by default.
+  socket.on('call:mark-video', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || !isActiveCallParticipant(call, me)) return;
+    call.type = 'video';
+  });
+
+  // ─── Group calling ("Add to call") — bolted onto the 1:1 core above ───
+  // Any current active participant (core pair, or a previously-added member)
+  // can invite one more person. Reuses call:invite's exact busy/friends/
+  // block checks and push-notification shape, only reachable once the base
+  // call is already 'active' (there's nothing to add someone to before that).
+  socket.on('call:add-member', async ({ callId, newMemberUsername }) => {
+    try {
+      const call = activeCalls.get(callId);
+      const me = socket.username?.toLowerCase();
+      const target = (newMemberUsername || '').toLowerCase();
+      if (!call || !me || !target || me === target) return;
+      if (call.status !== 'active') return;
+      if (!isActiveCallParticipant(call, me)) return;
+
+      if (call.caller === target || call.callee === target || call.members.has(target)) {
+        socket.emit('call:invalid', { callId, reason: 'already_in_call' });
+        return;
+      }
+      if (userActiveCallId.has(target)) {
+        socket.emit('call:member-busy', { callId, username: target });
+        return;
+      }
+
+      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [me, target]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [target, me]);
+      if (!((rel1?.status === 'accepted') && (rel2?.status === 'accepted'))) {
+        socket.emit('call:invalid', { callId, reason: 'not_friends' });
+        return;
+      }
+      const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [me, target, target, me]);
+      if (blockCheck) { socket.emit('call:invalid', { callId, reason: 'blocked' }); return; }
+
+      const timeoutHandle = setTimeout(() => {
+        const c = activeCalls.get(callId);
+        const entry = c?.members.get(target);
+        if (c && entry && entry.status === 'ringing') {
+          c.members.delete(target);
+          if (userActiveCallId.get(target) === callId) userActiveCallId.delete(target);
+          getCallActiveUsernames(c).forEach(u => emitToUser(u, 'call:member-left', { callId, username: target, reason: 'missed' }));
+        }
+      }, CALL_RING_TIMEOUT_MS);
+
+      call.members.set(target, { status: 'ringing', joinedAt: null, timeoutHandle, invitedBy: me });
+      userActiveCallId.set(target, callId);
+
+      const activeParticipants = getCallActiveUsernames(call);
+      emitToUser(target, 'call:incoming', { callId, callerUsername: me, callType: call.type, groupParticipants: activeParticipants });
+      activeParticipants.filter(u => u !== me).forEach(u => emitToUser(u, 'call:member-invited', { callId, username: target, invitedBy: me }));
+
+      sendPushToUser(target, {
+        title: call.type === 'video' ? 'Incoming video call' : 'Incoming voice call',
+        body: `${me} is adding you to a call…`,
+        data: { type: 'call', callId, callerUsername: me, callType: call.type },
+        tag: `call-${callId}`,
+        dataOnly: true,
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[SOCKET] call:add-member error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // The invited person accepting — tells them who's already there
+  // (call:joined-call, to them only) so their client knows who to send a
+  // fresh mesh offer to, and tells every existing participant a new member
+  // has joined (call:member-joined) so THEY know to expect one.
+  socket.on('call:member-join', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    const entry = call?.members.get(me);
+    if (!call || !entry || entry.status !== 'ringing') { socket.emit('call:invalid', { callId }); return; }
+    clearTimeout(entry.timeoutHandle);
+    entry.status = 'active';
+    entry.joinedAt = Date.now();
+    const others = getCallActiveUsernames(call).filter(u => u !== me);
+    socket.emit('call:joined-call', { callId, participants: others, type: call.type });
+    others.forEach(u => emitToUser(u, 'call:member-joined', { callId, username: me }));
+  });
+
+  socket.on('call:member-decline', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    const entry = call?.members.get(me);
+    if (!call || !entry || entry.status !== 'ringing') return;
+    clearTimeout(entry.timeoutHandle);
+    call.members.delete(me);
+    if (userActiveCallId.get(me) === callId) userActiveCallId.delete(me);
+    getCallActiveUsernames(call).forEach(u => emitToUser(u, 'call:member-left', { callId, username: me, reason: 'declined' }));
+  });
+
+  // An already-joined added member leaving on their own — unlike call:end,
+  // this only removes THEM; the core pair (and any other members) keep
+  // talking. The core pair themselves still use call:end, which (via
+  // endCallInternal's cascade) ends the whole call including every member.
+  socket.on('call:member-leave', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    const entry = call?.members.get(me);
+    if (!call || !entry || entry.status !== 'active') return;
+    call.members.delete(me);
+    if (userActiveCallId.get(me) === callId) userActiveCallId.delete(me);
+    getCallActiveUsernames(call).forEach(u => emitToUser(u, 'call:member-left', { callId, username: me, reason: 'left' }));
   });
 
   // â"€â"€ Toggle Public Status â"€â"€

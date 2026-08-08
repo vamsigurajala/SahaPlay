@@ -119,20 +119,18 @@ export default function GlobalCallOverlay() {
           isCamOn={call.isCamOn}
           isMicOn={call.isMicOn}
           localStream={call.localStream}
-          remoteStream={call.remoteStream}
-          remoteMicOn={call.remoteMicOn}
-          remoteCamOn={call.remoteCamOn}
-          peerUsername={callState.peerUsername}
-          peerDisplayName={callState.peerDisplayName}
-          peerAvatarUrl={callState.peerAvatar}
+          myUsername={call.myUsername}
           myAvatarUrl={call.myAvatarUrl}
-          answeredAt={callState.answeredAt}
+          callState={callState}
+          remoteStreams={call.remoteStreams}
+          participantMeta={call.participantMeta}
           toggleCamera={call.toggleCamera}
           toggleMic={call.toggleMic}
           flipCamera={call.flipCamera}
           audioRoute={call.audioRoute}
           setAudioRoute={call.setAudioRoute}
           bluetoothAudioAvailable={call.bluetoothAudioAvailable}
+          addMemberToCall={call.addMemberToCall}
           isCoarsePointer={isCoarsePointer}
           onEndCall={call.endCall}
         />
