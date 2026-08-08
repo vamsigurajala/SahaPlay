@@ -185,6 +185,27 @@ jobs:
           grep -q "classpath 'com.google.gms:google-services:4.4.2'" android/build.gradle || { echo "::error::google-services classpath was not inserted into android/build.gradle"; exit 1; }
           grep -q "apply plugin: 'com.google.gms.google-services'" android/app/build.gradle || { echo "::error::google-services plugin was not applied in android/app/build.gradle — check its actual first lines above and fix the sed match"; exit 1; }
 
+          # SahaplayFirebaseMessagingService.java imports FirebaseMessagingService/
+          # RemoteMessage directly. @capacitor/push-notifications' own Android
+          # module already depends on firebase-messaging to compile ITS
+          # MessagingService.java (which ours subclasses), but Gradle doesn't
+          # guarantee that dependency is exposed transitively to this app
+          # module (depends on whether the plugin declared it as `api` or
+          # `implementation`) — declaring it here directly, same as Firebase's
+          # own official setup docs instruct any app module to do, removes
+          # that uncertainty rather than relying on an unverified transitive
+          # dependency. A second declaration of the same artifact is normal
+          # and harmless; Gradle just resolves one canonical version via the
+          # BoM below.
+          cat >> android/app/build.gradle <<'EOF'
+
+          dependencies {
+              implementation platform('com.google.firebase:firebase-bom:34.11.0')
+              implementation 'com.google.firebase:firebase-messaging'
+          }
+          EOF
+          cat android/app/build.gradle
+
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic
       # placeholder icon and does nothing with our actual logo — this is why
@@ -279,11 +300,19 @@ jobs:
       # rather than living inside it directly, same "regenerate from source
       # of truth" approach the old TWA build used for its own android-twa/
       # directory.
+      # SahaplayFirebaseMessagingService + IncomingCallActivity (WhatsApp-style
+      # 1:1 call ringing — full-screen lock-screen incoming-call UI, even with
+      # the app backgrounded or fully killed, which a plain WebView/PWA can
+      # never do): see the extensive comments in both files and in
+      # AndroidManifest.xml for how these fit together with Capacitor's own
+      # push-notifications plugin without breaking it.
       - name: Add native plugin, MainActivity, and manifest permissions
         working-directory: frontend
         run: |
           cp capacitor-android-plugin/SahaplayMediaPlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayMediaPlugin.java
           cp capacitor-android-plugin/SahaplayScreenCaptureService.java android/app/src/main/java/com/sahaplay/app/SahaplayScreenCaptureService.java
+          cp capacitor-android-plugin/SahaplayFirebaseMessagingService.java android/app/src/main/java/com/sahaplay/app/SahaplayFirebaseMessagingService.java
+          cp capacitor-android-plugin/IncomingCallActivity.java android/app/src/main/java/com/sahaplay/app/IncomingCallActivity.java
           cp capacitor-android-plugin/MainActivity.java android/app/src/main/java/com/sahaplay/app/MainActivity.java
           cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
@@ -336,6 +365,25 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # Informational only (never fails the build) — the merged-manifest
+      # intermediate's exact path shifts between AGP versions, so this is a
+      # best-effort `find` rather than a hardcoded path. Confirms
+      # SahaplayFirebaseMessagingService ended up as the ONLY service
+      # registered for MESSAGING_EVENT (see AndroidManifest.xml's
+      # tools:node="remove" of Capacitor's own one) — if Capacitor's own
+      # service is still present here too, FCM delivery for calls becomes
+      # ambiguous and needs a fix-and-rerun.
+      - name: Check merged manifest for FCM service conflicts
+        working-directory: frontend/android
+        run: |
+          manifest=$(find app/build/intermediates -iname "AndroidManifest.xml" -path "*merged*" | head -n1)
+          if [ -z "$manifest" ]; then
+            echo "::warning::Could not locate a merged manifest intermediate to check — skipping this diagnostic."
+          else
+            echo "Checking $manifest"
+            grep -B2 -A2 "MESSAGING_EVENT" "$manifest" || echo "::warning::No MESSAGING_EVENT service found in merged manifest"
+          fi
 
       - name: Upload signed .aab artifact
         uses: actions/upload-artifact@v4

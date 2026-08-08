@@ -316,17 +316,34 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
 // separate entries — this is the actual fix for "4 messages, 4 separate
 // notifications": every push for the same chat/room/broadcast reuses the
 // same tag, so at most one notification for it is ever visible at once.
-async function sendPushToTokens(tokens, { title, body, data = {}, tag } = {}) {
+// dataOnly (used for call invites) sends a data-only FCM message — no
+// `notification` block at all. That's deliberate: with a `notification`
+// block present, a backgrounded/killed app never runs any app code at all —
+// Android's system tray displays it automatically and skips
+// onMessageReceived() entirely. A pure data message is always handed to the
+// app's FirebaseMessagingService (SahaplayFirebaseMessagingService.java),
+// foreground or not, which is required for the native full-screen incoming-
+// call UI to have any chance of showing while the app is backgrounded or
+// fully killed. android.priority 'high' asks FCM to wake a killed/doze'd
+// app process for it, same as WhatsApp/Signal-style call pushes rely on.
+async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly = false } = {}) {
   if (!firebaseAdmin || !tokens || tokens.length === 0) return;
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
+  if (dataOnly) {
+    stringData.title = title || '';
+    stringData.body = body || '';
+  }
   const deadTokens = [];
   // FCM caps a single multicast call at 500 tokens.
   for (let i = 0; i < tokens.length; i += 500) {
     const batch = tokens.slice(i, i + 500);
     try {
       const resp = await firebaseAdmin.messaging().sendEachForMulticast({
-        notification: { title, body },
-        android: tag ? { notification: { tag } } : undefined,
+        notification: dataOnly ? undefined : { title, body },
+        android: {
+          priority: dataOnly ? 'high' : 'normal',
+          notification: (!dataOnly && tag) ? { tag } : undefined,
+        },
         data: stringData,
         tokens: batch,
       });
@@ -3501,6 +3518,28 @@ app.get('/api/turn-credentials', authenticateToken, async (_req, res) => {
     console.error('[TURN] Failed to fetch credentials:', err.message);
     res.status(502).json({ error: 'Failed to fetch TURN credentials' });
   }
+});
+
+// Native-only decline path for the Android full-screen incoming-call UI
+// (IncomingCallActivity.java) — that screen can be answered/declined with
+// the app process fully killed, where there is no live socket connection to
+// emit 'call:decline' over. Deliberately NOT behind authenticateToken: a
+// killed app has no running JS to attach a fresh Authorization header from,
+// and syncing the JWT into native storage just for this one low-stakes
+// action wasn't worth the extra attack surface (a stolen native prefs file
+// is a much bigger problem than this). Security instead comes from callId
+// itself being a high-entropy, single-use token that only reached this
+// specific device via an authenticated FCM push — knowing it only lets you
+// decline that one call, never read or join it.
+app.post('/api/calls/:callId/decline', (req, res) => {
+  const { callId } = req.params;
+  const calleeUsername = (req.body?.calleeUsername || '').toLowerCase();
+  if (!callId || !calleeUsername) return res.status(400).json({ error: 'callId and calleeUsername required' });
+  const call = activeCalls.get(callId);
+  if (!call || call.callee !== calleeUsername) return res.status(404).json({ error: 'No such ringing call' });
+  endCallInternal(callId);
+  emitToUser(call.caller, 'call:declined', { callId });
+  res.json({ success: true });
 });
 
 // â"€â"€ UPDATE Pinned Rooms â"€â"€
@@ -8621,6 +8660,7 @@ io.on('connection', (socket) => {
         body: `${caller} is calling…`,
         data: { type: 'call', callId, callerUsername: caller, callType },
         tag: `call-${callId}`,
+        dataOnly: true,
       }).catch(() => {});
     } catch (err) {
       console.error('[SOCKET] call:invite error:', err.message, 'user:', socket.username);

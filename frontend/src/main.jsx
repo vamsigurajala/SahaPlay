@@ -34,6 +34,7 @@ import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
+import { initNativeCallAnswerLink } from './lib/nativeCallBridge.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -54,6 +55,12 @@ if (isCapacitorApp()) {
   // picks this up to open the specific chat the notification was for.
   initNativePush((data) => {
     window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
+  });
+  // Rebroadcast the same way — CallContext.jsx (mounted globally, in every
+  // mode, unlike BottomNav above) picks this up to auto-accept the matching
+  // call once its own socket confirms it's still ringing.
+  initNativeCallAnswerLink((data) => {
+    window.dispatchEvent(new CustomEvent('native_call_answer', { detail: data }));
   });
 }
 

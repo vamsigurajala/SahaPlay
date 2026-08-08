@@ -247,6 +247,36 @@ export function CallProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cryptoReady]);
 
+  // ─── Native "Answer" deep link (see nativeCallBridge.js / IncomingCallActivity.java) ───
+  // Tapping Answer on the lock-screen call UI can't itself join the call (no
+  // getUserMedia/WebRTC outside a WebView) — it just hands off here via
+  // sahaplay://call-answer, and this auto-accepts the matching call once
+  // this socket has confirmed (live, or via the reconnect-resync in
+  // backend/server.js) that it's still actually ringing. Handles both
+  // orderings: the deep link can arrive before or after 'call:incoming'
+  // does, depending on how fast the app cold-starts vs. reconnects.
+  const pendingAutoAnswerCallIdRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      const callId = e.detail?.callId;
+      if (!callId) return;
+      pendingAutoAnswerCallIdRef.current = callId;
+      if (callStateRef.current?.callId === callId && callStateRef.current.phase === 'incoming') {
+        acceptCall();
+      }
+    };
+    window.addEventListener('native_call_answer', handler);
+    return () => window.removeEventListener('native_call_answer', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (callState?.phase === 'incoming' && callState.callId === pendingAutoAnswerCallIdRef.current) {
+      acceptCall();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [callState]);
+
   async function flushIceBuffer() {
     const buffered = iceBufferRef.current;
     iceBufferRef.current = [];

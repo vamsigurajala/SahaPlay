@@ -14,7 +14,8 @@
   the system permission dialog never even appears, which is exactly the
   "Camera access denied" toast the app showed with no prompt.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -56,7 +57,56 @@
                 <data android:scheme="sahaplay" android:host="auth-callback" />
             </intent-filter>
 
+            <!-- IncomingCallActivity's "Answer" button (and its notification
+                 action) hand off here — accepting a call needs real
+                 getUserMedia/RTCPeerConnection, which only exists in the
+                 WebView/JS layer. See nativeCallBridge.js, which listens for
+                 this exact deep link. Same singleTask-reuse benefit as the
+                 Google auth callback above: a cold-started app answers into
+                 the same instance an already-running one would. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sahaplay" android:host="call-answer" />
+            </intent-filter>
+
         </activity>
+
+        <!-- Full-screen, lock-screen-visible incoming call UI (see
+             IncomingCallActivity.java). singleInstance: this is a standalone
+             screen, not meant to share a back stack with MainActivity — a
+             second incoming call while one is already showing just updates
+             the same instance rather than stacking. excludeFromRecents: a
+             transient ringing screen has no business lingering in the
+             recent-apps switcher after being dismissed. -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:showOnLockScreen="true"
+            android:theme="@style/AppTheme.NoActionBarLaunch" />
+
+        <!-- Removes Capacitor's own FCM service registration (declared in its
+             bundled AAR manifest) so SahaplayFirebaseMessagingService below is
+             the ONLY thing registered for MESSAGING_EVENT — Android only ever
+             delivers to one FirebaseMessagingService; having both left in
+             would make delivery ambiguous. SahaplayFirebaseMessagingService
+             extends Capacitor's own class and calls super.onMessageReceived()
+             first, so nothing existing (chat/friend-request pushes, FCM token
+             registration) is lost by this removal. -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+
+        <service
+            android:name=".SahaplayFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -95,6 +145,11 @@
          already declares this in its own bundled manifest, but declaring it
          here too removes any doubt rather than relying on that unverified. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the incoming-call notification actually launch
+         IncomingCallActivity full-screen over a locked screen — without this,
+         Android 14+ silently downgrades it to a plain heads-up notification. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Not required so the app still installs on devices lacking a camera/mic. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
