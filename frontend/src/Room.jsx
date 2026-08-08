@@ -289,6 +289,12 @@ const ALL_EMOJIS = ['👍', '❤️', '😊', '😮', '😢', '😍', '🤣', '�
 // ─── Camera Layout Threshold ──────────────────────────────────────────────────
 // Managed Panel Mode activates when active camera users > this value.
 const CAMERA_MANAGED_LAYOUT_THRESHOLD = 8;
+// TV-only: with this many or fewer active cameras, tiles float freely over the
+// video (draggable/resizable, local to the TV only). Above it, TV switches to
+// a fixed, paginated Teams-style grid in the right panel instead.
+const TV_FLOATING_CAM_LIMIT = 6;
+// TV-only: tiles per page in the paginated grid (2 columns x 3 rows).
+const TV_PANEL_PAGE_SIZE = 6;
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
@@ -1057,6 +1063,11 @@ const Room = () => {
   );
   const [focusVideoEnabled, setFocusVideoEnabled] = useState(false);
   const [focusedCameraUserId, setFocusedCameraUserId] = useState(null);
+  // TV-only: page index for the paginated Teams-style camera grid shown in
+  // the right panel when more than TV_FLOATING_CAM_LIMIT cameras are active.
+  // Kept separate from camPage (used by the floating overlay's own
+  // pagination) since both can theoretically be relevant at once.
+  const [tvPanelCamPage, setTvPanelCamPage] = useState(0);
   const [showCameraMenu, setShowCameraMenu] = useState(false);
   const cameraMenuRef = useRef(null);
   // Ref for the right column div — used to compute focus-popout fixed position
@@ -8314,7 +8325,11 @@ const Room = () => {
   // ─── Managed Panel renderer ────────────────────────────────────────────────
   // Renders camera tiles for the right-side Cameras tab.
   // Supports: list view, grid view (2 columns), focus mode (click to enlarge).
-  const renderCamerasPanel = () => {
+  // opts.forceGrid/opts.paginate are TV-only additions (see the dedicated TV
+  // right-panel render below) — non-TV callers pass no opts, so their
+  // behavior (cameraLayoutMode-driven, unpaginated, scrollable) is unchanged.
+  const renderCamerasPanel = (opts = {}) => {
+    const { forceGrid = false, paginate = false } = opts;
     const allCams = [];
     const seenUsers = new Set();
     if (hasStartedCamOnce) {
@@ -8347,7 +8362,7 @@ const Room = () => {
     }
 
     // Tile height differs between grid and list
-    const isGrid = cameraLayoutMode === 'grid';
+    const isGrid = forceGrid || cameraLayoutMode === 'grid';
     const tileHeight = isGrid ? 118 : 160;
 
     const renderTile = (cam) => {
@@ -8467,6 +8482,41 @@ const Room = () => {
     };
 
     if (isGrid) {
+      if (paginate) {
+        const totalPages = Math.ceil(allCams.length / TV_PANEL_PAGE_SIZE);
+        const currentPage = Math.min(tvPanelCamPage, Math.max(0, totalPages - 1));
+        const pageCams = allCams.slice(currentPage * TV_PANEL_PAGE_SIZE, (currentPage + 1) * TV_PANEL_PAGE_SIZE);
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 10, padding: '8px 10px',
+            }}>
+              {pageCams.map(renderTile)}
+            </div>
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '10px 0 14px', flexShrink: 0 }}>
+                <button
+                  onClick={() => setTvPanelCamPage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPage === 0 ? '#555' : '#fff', cursor: currentPage === 0 ? 'default' : 'pointer' }}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#aaa' }}>{currentPage + 1} / {totalPages}</span>
+                <button
+                  onClick={() => setTvPanelCamPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPage >= totalPages - 1 ? '#555' : '#fff', cursor: currentPage >= totalPages - 1 ? 'default' : 'pointer' }}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
       return (
         <div style={{
           display: 'grid',
@@ -9009,8 +9059,16 @@ const Room = () => {
           When cameras are hidden, nothing is rendered here.
           zIndex:999 keeps it below the nav header (zIndex:1000).
           In fullscreen mode the overlay inside player-wrap is used instead.
+
+          TV mode reuses this exact floating/draggable overlay (instead of
+          being excluded from it) whenever active cameras are within
+          TV_FLOATING_CAM_LIMIT — same drag-anywhere/resize interaction as
+          desktop, purely local to this TV (never synced to other
+          participants), which is exactly what a TV cast viewer wants.
+          Above that limit, TV switches to the fixed paginated grid in the
+          right panel instead (see the right-panel render below).
       ══════════════════════════════════════════════════════════════ */}
-      {!isFullscreen && !isTvMode && !shouldUseManagedCameraLayout && !areCamerasHidden && (
+      {!isFullscreen && !areCamerasHidden && (isTvMode ? activeCameraUsers.length <= TV_FLOATING_CAM_LIMIT : !shouldUseManagedCameraLayout) && (
         <>
           <div style={{
             position: 'absolute',
@@ -12329,10 +12387,13 @@ const Room = () => {
           
         </div>
         
-        {/* — Right Column — was fully hidden for TV, stripping chat/camera tiles/game
-            state from the TV's screen entirely; now shown there too so the TV reflects
-            what's actually happening in the room, not just the raw video. */}
-        {(
+        {/* — Right Column — shows only camera tiles on TV, never chat (see the
+            isTvMode branch further down). With TV_FLOATING_CAM_LIMIT or fewer
+            active cameras, TV instead shows them floating freely over the
+            video (root-level overlay above), so this whole column is hidden
+            in that case to give the video the full width — it only reappears
+            once there are enough cameras to need the fixed grid. */}
+        {(!isTvMode || activeCameraUsers.length > TV_FLOATING_CAM_LIMIT) && (
         <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
           {/* Reels-style pull-down-to-expand handle — grab anywhere on this
               bar and drag down to grow the video over the chat panel; drag
@@ -12567,11 +12628,33 @@ const Room = () => {
             );
           })()}
 
-          {/* ── MANAGED LAYOUT: Tabbed Chat / Cameras panel ──────────────────────
-              Shown on ALL screen sizes (including mobile) when cameras > threshold.
-              Previously excluded !isMobile — now works on phone/tablet/desktop.
+          {/* ── TV: cameras-only right panel, never chat ──────────────────────────
+              Only reached when active cameras > TV_FLOATING_CAM_LIMIT — at or
+              below that, the whole right column is hidden (see above) and
+              cameras float freely over the video instead via the root-level
+              overlay. Fixed 2-column ("Teams style") grid, paginated instead
+              of scrollable, no drag/resize (disabled once there are this many
+              cameras), no chat tab at all.
           ─────────────────────────────────────────────────────────────────────── */}
-          {!isTvMode && shouldUseManagedCameraLayout ? (
+          {isTvMode ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
+              background: 'var(--room-sidebar-bg)',
+              borderRadius: 16, border: '1px solid var(--room-border)',
+            }}>
+              <div style={{ padding: '12px 14px 8px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: '1.2px', textTransform: 'uppercase', flex: 1, color: '#666' }}>
+                  Live Cameras
+                </span>
+                <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                  {activeCameraUsers.length} active
+                </span>
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                {renderCamerasPanel({ forceGrid: true, paginate: true })}
+              </div>
+            </div>
+          ) : shouldUseManagedCameraLayout ? (
             <div style={{
               display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
               background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
