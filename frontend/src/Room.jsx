@@ -292,7 +292,8 @@ const CAMERA_MANAGED_LAYOUT_THRESHOLD = 8;
 // TV-only: with this many or fewer active cameras, tiles float freely over the
 // video (draggable/resizable, local to the TV only). Above it, TV switches to
 // a fixed, paginated Teams-style grid in the right panel instead.
-const TV_FLOATING_CAM_LIMIT = 6;
+// TEMP: set to 2 for testing per explicit request — raise back once verified.
+const TV_FLOATING_CAM_LIMIT = 2;
 // TV-only: tiles per page in the paginated grid (2 columns x 3 rows).
 const TV_PANEL_PAGE_SIZE = 6;
 // TV-only: floating camera tile size range — width in px at 0% and 100% zoom.
@@ -1975,6 +1976,30 @@ const Room = () => {
   const [playerMuted, setPlayerMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const controlsTimerRef = useRef(null);
+  // Global "is the user actively doing something on screen right now" signal —
+  // separate from showControls (which is scoped to specific player elements)
+  // since this is meant to answer the same question anywhere on the page:
+  // camera tile name bars fade out after 3s of no mouse movement/touch,
+  // anywhere on the screen, and reappear on the next movement/touch.
+  const [screenActive, setScreenActive] = useState(true);
+  const screenActiveTimerRef = useRef(null);
+  useEffect(() => {
+    const markActive = () => {
+      setScreenActive(true);
+      clearTimeout(screenActiveTimerRef.current);
+      screenActiveTimerRef.current = setTimeout(() => setScreenActive(false), 3000);
+    };
+    markActive();
+    window.addEventListener('mousemove', markActive);
+    window.addEventListener('touchstart', markActive, { passive: true });
+    window.addEventListener('touchmove', markActive, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', markActive);
+      window.removeEventListener('touchstart', markActive);
+      window.removeEventListener('touchmove', markActive);
+      clearTimeout(screenActiveTimerRef.current);
+    };
+  }, []);
   // Mobile tap-gesture layer: double-tap left/right thirds of the video to seek ±10s
   // (with a transient ripple), single tap to toggle the control bar, center tap to
   // play/pause — mirrors standard mobile video player conventions (YouTube/Netflix).
@@ -7978,16 +8003,38 @@ const Room = () => {
           video: videoConstraints,
           audio: selectedMic ? { deviceId: { exact: selectedMic } } : true
         };
+        const acquireCamera = async () => {
+          try {
+            return await navigator.mediaDevices.getUserMedia(constraints);
+          } catch (exactErr) {
+            console.warn('Failed with exact device constraints, falling back to defaults', exactErr);
+            return await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+              audio: true,
+            });
+          }
+        };
+        // NotReadableError ("device might be in use by another app") and
+        // TrackStartError are usually transient — the OS/browser briefly
+        // couldn't grab the camera hardware (another app/tab momentarily
+        // held it, a driver hiccup, etc.) and it's often free again a moment
+        // later. Retry a couple of times with a short backoff before
+        // surfacing an error, instead of failing on the very first bump.
         let stream;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (exactErr) {
-          console.warn('Failed with exact device constraints, falling back to defaults', exactErr);
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
-            audio: true,
-          });
+        let lastErr = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            stream = await acquireCamera();
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            const transient = e?.name === 'NotReadableError' || e?.name === 'TrackStartError';
+            if (!transient || attempt === 2) break;
+            await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+          }
         }
+        if (lastErr) throw lastErr;
         console.log('getUserMedia success', stream.getTracks());
 
         if (localCamRef.current) {
@@ -8617,12 +8664,14 @@ const Room = () => {
             />
           )}
 
-          {/* Bottom name bar */}
+          {/* Bottom name bar — auto-hides after 3s with no mouse movement/touch
+              anywhere on screen, same as the video player's own controls. */}
           <div style={{
             position: 'absolute', bottom: 0, left: 0, right: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)',
             padding: isGrid ? '14px 8px 6px' : '18px 10px 8px',
-            display: 'flex', alignItems: 'center', gap: 5
+            display: 'flex', alignItems: 'center', gap: 5,
+            opacity: screenActive ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none'
           }}>
             {/* Mic muted badge */}
             {cam.isMuted && (
@@ -8775,8 +8824,8 @@ const Room = () => {
                   </div>
                 )}
 
-                {/* Name bar */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)', padding: '22px 12px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Name bar — auto-hides after 3s with no pointer movement/touch. */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)', padding: '22px 12px 8px', display: 'flex', alignItems: 'center', gap: 6, opacity: screenActive ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}>
                   {cam.isMuted && <MicOff size={13} color="#fff" />}
                   <span style={{ fontSize: 13, color: '#fff', fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>{cam.username}{cam.isLocal ? ' (You)' : ''}</span>
                 </div>
@@ -9162,9 +9211,14 @@ const Room = () => {
                   </div>
                 )}
                 
-                {/* Info Overlay - Only visible on hover */}
-                <div className="cam-ui-overlay" style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none' }}>
-                  <div className="cam-name-overlay stay-white" style={{ 
+                {/* Name/mic info — visible only while the screen is "active" (mouse
+                    moved or touched within the last 3s), on every device, matching
+                    the video player's own auto-hiding controls. Deliberately its own
+                    inline-opacity-driven overlay (not the shared cam-ui-overlay hover
+                    class used for the resize handles below) so it behaves the same
+                    on desktop and mobile instead of being forced always-on there. */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 3, pointerEvents: 'none', opacity: screenActive ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+                  <div className="cam-name-overlay stay-white" style={{
                     position: 'absolute', 
                     top: isCircle ? 'auto' : 10,
                     bottom: isCircle ? 14 : 'auto',
@@ -10445,8 +10499,12 @@ const Room = () => {
               zIndex: 99999,
               display: 'flex', alignItems: 'center', gap: 12,
               pointerEvents: 'none',
-              opacity: (isFullscreen || isMobileFsMode) ? (showControls ? 1 : 0) : (showControls || uiVisible) ? 1 : 0,
-              visibility: (isFullscreen || isMobileFsMode) ? (showControls ? 'visible' : 'hidden') : (showControls || uiVisible) ? 'visible' : 'hidden',
+              // screenActive folded in as an OR everywhere below — it's a global
+              // (whole-window, not just player-element) mouse-move/touch signal,
+              // so any movement anywhere reveals this rather than only movement
+              // directly over specific player sub-elements.
+              opacity: (isFullscreen || isMobileFsMode) ? ((showControls || screenActive) ? 1 : 0) : ((showControls || uiVisible || screenActive) ? 1 : 0),
+              visibility: (isFullscreen || isMobileFsMode) ? ((showControls || screenActive) ? 'visible' : 'hidden') : ((showControls || uiVisible || screenActive) ? 'visible' : 'hidden'),
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
             }}>
               {/* Right: Management Actions (Chat, Fullscreen) */}
@@ -10454,8 +10512,14 @@ const Room = () => {
                 {/* Chat Toggle (Fullscreen Only or Always) — also shown during the mobile
                     virtual-browser takeover (isMobileFsMode without real browser Fullscreen),
                     same overlay-on-top-of-video pattern as desktop Fullscreen instead of a
-                    separate bespoke control. */}
-                {(isFullscreen || (isTouchPlayer && isMobileFsMode)) && (
+                    separate bespoke control. Widened to any mediaUrl on mobile (not just
+                    isMobileFsMode) — this is the only unread-badge-carrying chat access
+                    point once media is loaded (the bottom nav's own badge is hidden behind
+                    the player at that point), and was previously invisible on mobile
+                    whenever media was playing but the special mobile-fullscreen mode
+                    hadn't been explicitly entered (e.g. a call, or normal portrait
+                    playback), silently hiding the unread badge along with it. */}
+                {(isFullscreen || (isTouchPlayer && (isMobileFsMode || !!mediaUrl))) && (
                   <div ref={fsGlobalChatBtnRef} style={{ position: 'relative' }}>
                     <button
                       className="player-ctrl-btn stay-white"
