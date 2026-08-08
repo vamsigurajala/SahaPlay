@@ -78,10 +78,15 @@ export function initNativePush(onNotificationTap) {
   // Fires when the user taps the system notification (app was backgrounded
   // or fully killed) — data mirrors what notifyChatMessage/sendPushToUser/
   // sendPushBroadcastExcept set server-side in backend/server.js. Chat
-  // notifications carry chatId; friend-request ones carry username instead.
+  // notifications carry chatId; friend-request ones carry username instead;
+  // call notifications (see call:invite in backend/server.js) carry callId —
+  // no extra navigation is needed for those (CallContext's own socket
+  // resyncs any still-ringing call the instant it connects, which is what a
+  // tap-triggered cold start does anyway), this just stops the tap from
+  // being silently dropped by the guard below.
   p.addListener('pushNotificationActionPerformed', (action) => {
     const data = action?.notification?.data;
-    if (data?.chatId || data?.username) onNotificationTap?.(data);
+    if (data?.chatId || data?.username || data?.callId) onNotificationTap?.(data);
   });
 
   // "Once app is opened, all notifications should be closed" — clears

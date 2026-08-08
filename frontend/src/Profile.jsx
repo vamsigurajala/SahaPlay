@@ -277,51 +277,79 @@ const Profile = () => {
   };
 
 
-  // Followers / Following modal
+  // Followers / Following modal — paginated + searchable per tab (infinite
+  // scroll inside the list itself, not the page behind it). Each tab tracks
+  // its own items/hasMore independently since the user can switch tabs and
+  // search each one separately.
+  const FOLLOW_PAGE_SIZE = 30;
   const [showFollowModal, setShowFollowModal] = useState(false);
   const [followModalTab, setFollowModalTab] = useState('followers'); // 'followers' | 'following'
-  const [followListData, setFollowListData] = useState({ followers: [], following: [] });
+  const [followModalTarget, setFollowModalTarget] = useState(null);
+  const [followSearch, setFollowSearch] = useState('');
+  const [followItems, setFollowItems] = useState({ followers: [], following: [] });
+  const [followHasMore, setFollowHasMore] = useState({ followers: true, following: true });
   const [followListLoading, setFollowListLoading] = useState(false);
-  const [followCache, setFollowCache] = useState({});
+  const [followLoadingMore, setFollowLoadingMore] = useState(false);
+  const followSearchDebounceRef = useRef(null);
 
-  useEffect(() => {
-    const target = isOwnProfile ? myUsername : viewingUsername;
-    if (target && !isGuest && token) {
-      fetch(`${API}/api/follow/${target}/list`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(data => {
-          const newData = { followers: data.followers || [], following: data.following || [] };
-          setFollowListData(newData);
-          setFollowCache(prev => ({ ...prev, [target]: newData }));
-        }).catch(() => {});
-    }
-  }, [isOwnProfile, myUsername, viewingUsername, token, isGuest]);
+  const fetchFollowPage = useCallback((tab, targetUsername, offset, searchTerm, reset) => {
+    if (!targetUsername) return;
+    if (reset) setFollowListLoading(true); else setFollowLoadingMore(true);
+    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
+    const params = new URLSearchParams({ type: tab, offset: String(offset), limit: String(FOLLOW_PAGE_SIZE) });
+    if (searchTerm && searchTerm.trim()) params.set('search', searchTerm.trim());
+    fetch(`${API}/api/follow/${targetUsername}/list?${params.toString()}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        const items = data.items || [];
+        setFollowItems(prev => ({ ...prev, [tab]: reset ? items : [...prev[tab], ...items] }));
+        setFollowHasMore(prev => ({ ...prev, [tab]: !!data.hasMore }));
+      })
+      .catch(() => { if (reset) setFollowItems(prev => ({ ...prev, [tab]: [] })); })
+      .finally(() => { setFollowListLoading(false); setFollowLoadingMore(false); });
+  }, [token, isGuest]);
 
   const openFollowModal = useCallback((tab, targetUsername) => {
     setFollowModalTab(tab);
+    setFollowModalTarget(targetUsername);
+    setFollowSearch('');
     setShowFollowModal(true);
-    
-    if (followCache[targetUsername]) {
-      setFollowListData(followCache[targetUsername]);
-      setFollowListLoading(false);
-    } else {
-      setFollowListLoading(true);
-    }
-    
-    const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
-    fetch(`${API}/api/follow/${targetUsername}/list`, { headers })
-      .then(res => res.json())
-      .then(data => {
-        const newData = { followers: data.followers || [], following: data.following || [] };
-        setFollowListData(newData);
-        setFollowCache(prev => ({ ...prev, [targetUsername]: newData }));
-        setFollowListLoading(false);
-      })
-      .catch(() => {
-        if (!followCache[targetUsername]) setFollowListData({ followers: [], following: [] });
-        setFollowListLoading(false);
+    setFollowItems({ followers: [], following: [] });
+    setFollowHasMore({ followers: true, following: true });
+    fetchFollowPage(tab, targetUsername, 0, '', true);
+  }, [fetchFollowPage]);
+
+  const closeFollowModal = useCallback(() => {
+    setShowFollowModal(false);
+    clearTimeout(followSearchDebounceRef.current);
+  }, []);
+
+  const switchFollowTab = useCallback((tab) => {
+    setFollowModalTab(tab);
+    setFollowItems(prev => {
+      if (prev[tab].length === 0 && followModalTarget) fetchFollowPage(tab, followModalTarget, 0, followSearch, true);
+      return prev;
+    });
+  }, [fetchFollowPage, followModalTarget, followSearch]);
+
+  const handleFollowSearchChange = useCallback((value) => {
+    setFollowSearch(value);
+    clearTimeout(followSearchDebounceRef.current);
+    followSearchDebounceRef.current = setTimeout(() => {
+      setFollowModalTab(currentTab => {
+        fetchFollowPage(currentTab, followModalTarget, 0, value, true);
+        return currentTab;
       });
-  }, [token, isGuest, followCache]);
+    }, 300);
+  }, [fetchFollowPage, followModalTarget]);
+
+  const handleFollowListScroll = useCallback((e) => {
+    if (followListLoading || followLoadingMore || !followHasMore[followModalTab]) return;
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      fetchFollowPage(followModalTab, followModalTarget, followItems[followModalTab].length, followSearch, false);
+    }
+  }, [followListLoading, followLoadingMore, followHasMore, followModalTab, followModalTarget, followItems, followSearch, fetchFollowPage]);
 
   const ReactIsAwesome = React; // just dummy not to conflict
   const navIconsRef = ReactIsAwesome.useRef(null);
@@ -498,7 +526,7 @@ const Profile = () => {
 
   // Mobile/iPad swipe-back should close these modals instead of navigating away.
   useBackIntercept((showFollowModal || showCropModal) ? 1 : 0, (newLevel) => {
-    if (newLevel === 0) { setShowFollowModal(false); setShowCropModal(false); }
+    if (newLevel === 0) { closeFollowModal(); setShowCropModal(false); }
   });
 
   const fetchProfile = useCallback(() => {
@@ -1111,13 +1139,19 @@ const Profile = () => {
         html[data-theme='light'] .crop-btn:hover { background: #e2e8f0 !important; }
         html[data-theme='light'] .crop-zoom-label { color: #64748b !important; }
         
-        /* Followers / Following Modal */
-        .follow-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20000; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .follow-modal-content { background: #111217; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 380px; max-height: 72vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,0.9); animation: slideDown 0.25s cubic-bezier(0.16,1,0.3,1); }
+        /* Followers / Following Modal — anchored near the top of the viewport
+           (not vertically centered) so it isn't hidden behind a mobile
+           on-screen keyboard when the search input is focused. */
+        .follow-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 20000; display: flex; align-items: flex-start; justify-content: center; padding: 20px; padding-top: max(10vh, 56px); overflow-y: auto; }
+        .follow-modal-content { background: #111217; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; width: 380px; max-width: calc(100vw - 40px); max-height: 72vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 24px 80px rgba(0,0,0,0.9); animation: slideDown 0.25s cubic-bezier(0.16,1,0.3,1); }
         .follow-modal-close { position: absolute; top: -2px; right: -48px; width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1; transition: background 0.2s; }
         .follow-modal-close:hover { background: rgba(255,255,255,0.22); }
         .follow-tab-btn { flex: 1; padding-bottom: 14px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 700; color: #555; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .follow-tab-btn.active { color: #fff; border-bottom: 2px solid var(--brand-2); }
+        .follow-search-wrap { display: flex; align-items: center; gap: 8px; margin: 12px 16px 4px; padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+        .follow-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #fff; font-size: 13px; }
+        .follow-search-input::placeholder { color: #666; }
+        .follow-modal-list { overflow-y: auto; padding: 8px 6px 16px; flex: 1; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .follow-user-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s; }
         .follow-user-item:hover { background: rgba(255,255,255,0.05); }
         .follow-user-name { color: #fff; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1128,6 +1162,9 @@ const Profile = () => {
         html[data-theme='light'] .follow-modal-close:hover { background: #e2e8f0 !important; color: #0f172a !important; }
         html[data-theme='light'] .follow-tab-btn { color: #64748b !important; }
         html[data-theme='light'] .follow-tab-btn.active { color: #111 !important; border-bottom: 2px solid var(--brand-2) !important; }
+        html[data-theme='light'] .follow-search-wrap { background: #f1f5f9 !important; border: 1px solid #e2e8f0 !important; }
+        html[data-theme='light'] .follow-search-input { color: #111 !important; }
+        html[data-theme='light'] .follow-search-input::placeholder { color: #94a3b8 !important; }
         html[data-theme='light'] .follow-user-item:hover { background: rgba(0,0,0,0.05) !important; }
         html[data-theme='light'] .follow-user-name { color: #111 !important; }
         
@@ -2184,43 +2221,61 @@ const Profile = () => {
       )}
       {/* ── Followers / Following Modal ── */}
       {showFollowModal && (
-        <div className="follow-modal-overlay" onClick={() => setShowFollowModal(false)}>
+        <div className="follow-modal-overlay" onClick={closeFollowModal}>
           {/* X button outside the box */}
           <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <button className="follow-modal-close" onClick={() => setShowFollowModal(false)}>
+            <button className="follow-modal-close" onClick={closeFollowModal}>
               <X size={16} />
             </button>
             <div className="follow-modal-content">
               {/* Tab header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '18px 24px 0' }}>
-                <button className={`follow-tab-btn ${followModalTab === 'followers' ? 'active' : ''}`} onClick={() => setFollowModalTab('followers')}>
+                <button className={`follow-tab-btn ${followModalTab === 'followers' ? 'active' : ''}`} onClick={() => switchFollowTab('followers')}>
                   {t('followersTabTitle', 'Followers')}
                 </button>
                 <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.1)', marginBottom: 14, flexShrink: 0 }} />
-                <button className={`follow-tab-btn ${followModalTab === 'following' ? 'active' : ''}`} onClick={() => setFollowModalTab('following')}>
+                <button className={`follow-tab-btn ${followModalTab === 'following' ? 'active' : ''}`} onClick={() => switchFollowTab('following')}>
                   {t('followingTabTitle', 'Following')}
                 </button>
               </div>
-              {/* User list */}
-              <div style={{ overflowY: 'auto', padding: '8px 6px 16px', flex: 1 }}>
+              {/* Search */}
+              <div className="follow-search-wrap">
+                <Search size={15} color="#666" style={{ flexShrink: 0 }} />
+                <input
+                  type="text"
+                  value={followSearch}
+                  onChange={(e) => handleFollowSearchChange(e.target.value)}
+                  placeholder={t('searchUsers', 'Search users...')}
+                  className="follow-search-input"
+                />
+              </div>
+              {/* User list — scrolls internally; background page never scrolls */}
+              <div className="follow-modal-list" onScroll={handleFollowListScroll}>
                 {followListLoading ? (
                   <div style={{ textAlign: 'center', color: '#555', padding: 40, fontSize: 14 }}>{t('loading', 'Loading...')}</div>
-                ) : (followListData[followModalTab] || []).length === 0 ? (
+                ) : (followItems[followModalTab] || []).length === 0 ? (
                   <div style={{ textAlign: 'center', color: '#444', padding: 48, fontSize: 14 }}>
-                    {followModalTab === 'followers' ? t('noFollowersYet', 'No followers yet') : t('notFollowingAnyoneYet', 'Not following anyone yet')}
+                    {followSearch.trim()
+                      ? t('noUsersFound', 'No users found')
+                      : (followModalTab === 'followers' ? t('noFollowersYet', 'No followers yet') : t('notFollowingAnyoneYet', 'Not following anyone yet'))}
                   </div>
                 ) : (
-                  (followListData[followModalTab] || []).map(u => (
-                    <div key={u.username} className="follow-user-item" onClick={() => { setShowFollowModal(false); navigate(`/profile/${u.username}`); }}>
-                      <div style={{ width: 42, height: 42, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="var(--brand-1)" />}
+                  <>
+                    {(followItems[followModalTab] || []).map(u => (
+                      <div key={u.username} className="follow-user-item" onClick={() => { closeFollowModal(); navigate(`/profile/${u.username}`); }}>
+                        <div style={{ width: 42, height: 42, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="var(--brand-1)" />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="follow-user-name">{u.displayName || u.username}</div>
+                          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 1 }}>@{u.username}</div>
+                        </div>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="follow-user-name">{u.displayName || u.username}</div>
-                        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 1 }}>@{u.username}</div>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                    {followLoadingMore && (
+                      <div style={{ textAlign: 'center', color: '#555', padding: '14px 0', fontSize: 12 }}>{t('loading', 'Loading...')}</div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

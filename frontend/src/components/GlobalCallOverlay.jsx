@@ -1,0 +1,182 @@
+// GlobalCallOverlay.jsx — renders on top of everything (any route) whenever
+// CallContext has an active call/ring state: the incoming "ringing" screen
+// with Answer/Decline, the outgoing "Calling…" screen with Cancel, and the
+// live call itself (reusing CallingActivity.jsx, the same component the
+// room's own video/voice calls use).
+import React, { useEffect, useRef, useState } from 'react';
+import { Phone, PhoneOff, Video, X, Maximize2, Minimize2 } from 'lucide-react';
+import { useCall } from '../contexts/CallContext';
+import CallingActivity from './CallingActivity';
+import { getInitials } from '../utils/avatarUtils';
+
+// Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
+// app can get to a real ringtone without native code. Note this only plays
+// while the app is foregrounded and the tab/webview has already had some
+// user interaction (browser/WebView autoplay policy); it cannot ring a
+// backgrounded or fully-killed app the way a native VoIP-push integration
+// would — that needs a native Android module (a follow-up, not this).
+function useRingSound(active) {
+  const stopRef = useRef(null);
+  useEffect(() => {
+    if (!active) { stopRef.current?.(); stopRef.current = null; return; }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    ctx.resume?.().catch(() => {});
+    let stopped = false;
+    const beep = () => {
+      if (stopped) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 480;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.06);
+      gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 1);
+    };
+    beep();
+    const interval = setInterval(beep, 1600);
+    stopRef.current = () => { stopped = true; clearInterval(interval); ctx.close().catch(() => {}); };
+    return () => stopRef.current?.();
+  }, [active]);
+}
+
+function Avatar({ url, name, size = 96, pulsing }) {
+  return (
+    <div
+      className={pulsing ? 'gco-avatar-pulse' : ''}
+      style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: url ? undefined : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
+        overflow: 'hidden', boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+      }}
+    >
+      {url ? (
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: size * 0.34 }}>{getInitials(name)}</span>
+      )}
+    </div>
+  );
+}
+
+export default function GlobalCallOverlay() {
+  const call = useCall();
+  const { callState } = call;
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () => typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
+  );
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsCoarsePointer(mq.matches);
+    if (mq.addEventListener) mq.addEventListener('change', update); else mq.addListener(update);
+    return () => { if (mq.removeEventListener) mq.removeEventListener('change', update); else mq.removeListener(update); };
+  }, []);
+
+  useRingSound(callState?.phase === 'incoming');
+  useRingSound(callState?.phase === 'outgoing');
+
+  if (!callState) return null;
+
+  const isVideo = callState.type === 'video';
+
+  const overlayStyle = {
+    position: 'fixed', inset: 0, zIndex: 2147483500,
+    background: '#0b0f1a', color: '#fff',
+    display: 'flex', flexDirection: 'column',
+    fontFamily: "'Outfit', 'Inter', sans-serif",
+  };
+
+  if (callState.phase === 'active') {
+    const remoteStreams = {
+      [callState.peerUsername]: {
+        stream: call.remoteStream,
+        username: callState.peerDisplayName,
+        isMuted: !call.remoteMicOn,
+      },
+    };
+    return (
+      <div style={{ ...overlayStyle, borderRadius: 0 }}>
+        <CallingActivity
+          mode={isVideo ? 'video' : 'voice'}
+          isCamOn={call.isCamOn}
+          isMicOn={call.isMicOn}
+          localCamStream={call.localStream}
+          remoteStreams={remoteStreams}
+          toggleCamera={call.toggleCamera}
+          toggleMic={call.toggleMic}
+          flipCamera={call.flipCamera}
+          isCoarsePointer={isCoarsePointer}
+          username={call.myUsername}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setIsFullscreen(v => !v)}
+          onEndCall={call.endCall}
+          onStopCall={call.endCall}
+          localAvatarUrl={null}
+          knownAvatars={{ [callState.peerUsername]: callState.peerAvatar }}
+        />
+      </div>
+    );
+  }
+
+  // ─── Incoming / Outgoing ringing screens ───
+  const isIncoming = callState.phase === 'incoming';
+  return (
+    <div style={overlayStyle}>
+      <style>{`
+        @keyframes gco-pulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--brand-1-rgb), 0.35); }
+          50% { transform: scale(1.06); box-shadow: 0 0 0 18px rgba(var(--brand-1-rgb), 0); }
+        }
+        .gco-avatar-pulse { animation: gco-pulse 1.8s infinite ease-in-out; }
+        .gco-ring-btn { width: 62px; height: 62px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease; }
+        .gco-ring-btn:hover { transform: scale(1.08); }
+        .gco-ring-btn:active { transform: scale(0.96); }
+      `}</style>
+
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 18 }}>
+        <Avatar url={callState.peerAvatar} name={callState.peerDisplayName} size={112} pulsing />
+        <div style={{ textAlign: 'center' }}>
+          <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800 }}>{callState.peerDisplayName}</h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.55)', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+            {isVideo ? <Video size={14} /> : <Phone size={14} />}
+            {isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call…` : `Calling ${isVideo ? '(video)' : '(voice)'}…`}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isIncoming ? 56 : 0, paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
+        {isIncoming ? (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <button className="gco-ring-btn" onClick={call.declineCall} style={{ background: '#ef4444' }} aria-label="Decline">
+                <PhoneOff size={26} color="#fff" />
+              </button>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Decline</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <button className="gco-ring-btn" onClick={call.acceptCall} style={{ background: '#22c55e' }} aria-label="Answer">
+                {isVideo ? <Video size={26} color="#fff" /> : <Phone size={26} color="#fff" />}
+              </button>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Answer</span>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+            <button className="gco-ring-btn" onClick={call.cancelOutgoingCall} style={{ background: '#ef4444' }} aria-label="Cancel">
+              <X size={26} color="#fff" />
+            </button>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Cancel</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -5,6 +5,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { HelmetProvider } from 'react-helmet-async';
 import * as Sentry from '@sentry/react';
 import { CryptoProvider } from './contexts/CryptoContext';
+import { CallProvider } from './contexts/CallContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp } from './lib/platform';
@@ -1193,6 +1194,7 @@ function App() {
             }}
           />
           <ScrollToTop />
+          <CallProvider>
           <Suspense fallback={<RouteLoadingFallback />}>
           <Routes>
             <Route path="/login" element={<Login />} />
@@ -1223,6 +1225,7 @@ function App() {
           </Routes>
           </Suspense>
           <BottomNav />
+          </CallProvider>
         </Router>
       </GoogleOAuthProvider>
     </CryptoProvider>

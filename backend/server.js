@@ -898,6 +898,25 @@ function emitToUser(username, event, data) {
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
 
+// ─── 1:1 DM voice/video calls — ephemeral signaling only (mirrors `rooms`) ───
+// No DB table: the only durable trace of a call is the E2E-encrypted call-
+// summary chat message the client writes via POST /api/chats/send once the
+// call resolves, stored in the same `messages` table as any other DM.
+const activeCalls = new Map(); // callId -> { caller, callee, type, status, startedAt, answeredAt, timeoutHandle }
+const userActiveCallId = new Map(); // usernameLower -> callId (busy lookup + reconnect resync)
+
+const CALL_RING_TIMEOUT_MS = 45000;
+
+function endCallInternal(callId) {
+  const call = activeCalls.get(callId);
+  if (!call) return null;
+  clearTimeout(call.timeoutHandle);
+  activeCalls.delete(callId);
+  if (userActiveCallId.get(call.caller) === callId) userActiveCallId.delete(call.caller);
+  if (userActiveCallId.get(call.callee) === callId) userActiveCallId.delete(call.callee);
+  return call;
+}
+
 // WhatsApp-style delivery ticks: a message is "delivered" the instant at least one
 // other participant was reachable. For a DM that's just "is the target online right
 // now" (connectedSockets). For a group, check the room's live socket set for anyone
@@ -5132,6 +5151,34 @@ app.get('/api/follow/requests', authenticateToken, (req, res) => {
 // â"€â"€ GET Followers / Following list for a user â"€â"€
 app.get('/api/follow/:username/list', authenticateTokenOptional, (req, res) => {
   const { username } = req.params;
+  const { type, search } = req.query;
+
+  // Paginated, searchable single-list fetch — used by the Followers/Following
+  // modal's infinite scroll. `type` selects which side of the follows table
+  // to walk: followers of `username` are rows where followingId = username
+  // (the follower's own identity lives in followerId), and vice versa.
+  if (type === 'followers' || type === 'following') {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 50);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const idCol = type === 'followers' ? 'followerId' : 'followingId';
+    const matchCol = type === 'followers' ? 'followingId' : 'followerId';
+    const term = (search || '').trim();
+    const searchClause = term ? `AND (u.username ILIKE ? OR u.displayName ILIKE ?)` : '';
+    const params = [username];
+    if (term) params.push(`%${term}%`, `%${term}%`);
+    params.push(limit + 1, offset);
+    db.all(
+      `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.${idCol}) WHERE LOWER(f.${matchCol}) = LOWER(?) AND f.status = 'accepted' ${searchClause} ORDER BY f.createdAt DESC LIMIT ? OFFSET ?`,
+      params,
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        const items = rows || [];
+        res.json({ items: items.slice(0, limit), hasMore: items.length > limit });
+      }
+    );
+    return;
+  }
+
   db.all(
     `SELECT u.username, u.displayName, u.avatarPath FROM follows f JOIN users u ON LOWER(u.username) = LOWER(f.followerId) WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' ORDER BY f.createdAt DESC LIMIT 50`,
     [username],
@@ -6395,6 +6442,19 @@ io.on('connection', (socket) => {
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
 
+  // Call resync: this socket may be a brand-new app launch (e.g. the user
+  // tapped an incoming-call push notification after the app was backgrounded
+  // or fully killed) — 'call:incoming' was only ever emitted once, to
+  // whatever sockets were live at invite time, so a socket connecting after
+  // that moment needs it replayed or it never learns the call exists.
+  if (socket.username) {
+    const existingCallId = userActiveCallId.get(socket.username.toLowerCase());
+    const existingCall = existingCallId ? activeCalls.get(existingCallId) : null;
+    if (existingCall && existingCall.status === 'ringing' && existingCall.callee === socket.username.toLowerCase()) {
+      socket.emit('call:incoming', { callId: existingCallId, callerUsername: existingCall.caller, callType: existingCall.type });
+    }
+  }
+
   // Delivered-tick catch-up: this user just came online — flip any of their pending
   // DM messages (sent while they were offline) from single to double-grey tick, live,
   // without them needing to open the chat first (that's what flips seenBy → blue).
@@ -6538,6 +6598,25 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     try {
     unregisterSocket(socket.username, socket.id);
+
+    // If this was the user's LAST connected socket and they were in a call
+    // (ringing or active), end it — a multi-tab/multi-device user keeps the
+    // call alive as long as any one of their sockets is still connected.
+    if (socket.username) {
+      const uname = socket.username.toLowerCase();
+      const stillConnected = connectedSockets.has(uname);
+      if (!stillConnected) {
+        const callId = userActiveCallId.get(uname);
+        if (callId) {
+          const call = endCallInternal(callId);
+          if (call) {
+            const other = call.caller === uname ? call.callee : call.caller;
+            emitToUser(other, call.status === 'ringing' ? 'call:cancelled' : 'call:ended', { callId, endedBy: uname, reason: 'disconnect' });
+          }
+        }
+      }
+    }
+
     chatRateBuckets.delete(socket.id);
     mediaControlBuckets.delete(socket.id);
     joinRateBuckets.delete(socket.id);
@@ -8492,6 +8571,125 @@ io.on('connection', (socket) => {
   socket.on('cam_ice', ({ targetSocketId, candidate }) => {
     if (!sameRoomTarget(targetSocketId)) return;
     io.to(targetSocketId).emit('cam_ice', { senderSocketId: socket.id, candidate });
+  });
+
+  // ─── 1:1 DM voice/video calls ───
+  // Relayed by username via emitToUser (not targetSocketId + room membership
+  // like cam_*  above) — a DM call has no room, callers/callees are
+  // addressed by their account, same as chat delivery already is.
+  // SDP/ICE payloads themselves are opaque here — the client encrypts them
+  // with the same NaCl DM keypair used for chat text before sending, so this
+  // server only ever relays ciphertext it cannot read.
+  socket.on('call:invite', async ({ callId, calleeUsername, callType }) => {
+    try {
+      const caller = socket.username?.toLowerCase();
+      const callee = (calleeUsername || '').toLowerCase();
+      if (!caller || !callee || caller === callee || !callId || !['voice', 'video'].includes(callType)) return;
+
+      if (userActiveCallId.has(caller) || userActiveCallId.has(callee)) {
+        socket.emit('call:busy', { callId });
+        return;
+      }
+
+      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [caller, callee]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [callee, caller]);
+      const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
+      if (!areFriends) { socket.emit('call:invalid', { callId, reason: 'not_friends' }); return; }
+
+      const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
+      if (blockCheck) { socket.emit('call:invalid', { callId, reason: 'blocked' }); return; }
+
+      const timeoutHandle = setTimeout(() => {
+        const call = endCallInternal(callId);
+        if (call) {
+          emitToUser(call.caller, 'call:timeout', { callId });
+          emitToUser(call.callee, 'call:timeout', { callId });
+        }
+      }, CALL_RING_TIMEOUT_MS);
+
+      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle });
+      userActiveCallId.set(caller, callId);
+      userActiveCallId.set(callee, callId);
+
+      emitToUser(callee, 'call:incoming', { callId, callerUsername: caller, callType });
+
+      // Best-effort — wakes a backgrounded/killed callee. Foreground callees
+      // already get 'call:incoming' above; this just also puts a tappable
+      // system notification in the tray for when they aren't looking at the app.
+      sendPushToUser(callee, {
+        title: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
+        body: `${caller} is calling…`,
+        data: { type: 'call', callId, callerUsername: caller, callType },
+        tag: `call-${callId}`,
+      }).catch(() => {});
+    } catch (err) {
+      console.error('[SOCKET] call:invite error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  socket.on('call:cancel', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    if (!call || call.caller !== socket.username?.toLowerCase() || call.status !== 'ringing') return;
+    endCallInternal(callId);
+    emitToUser(call.callee, 'call:cancelled', { callId });
+  });
+
+  socket.on('call:accept', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || call.callee !== me || call.status !== 'ringing') { socket.emit('call:invalid', { callId }); return; }
+    clearTimeout(call.timeoutHandle);
+    call.status = 'active';
+    call.answeredAt = Date.now();
+    emitToUser(call.caller, 'call:answered', { callId });
+  });
+
+  socket.on('call:decline', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    if (!call || call.callee !== socket.username?.toLowerCase()) return;
+    endCallInternal(callId);
+    emitToUser(call.caller, 'call:declined', { callId });
+  });
+
+  // Offer/answer/ICE are only relayed while the call is 'active' (post-accept) —
+  // callee's client sends 'call:accept' first, then both sides start the
+  // RTCPeerConnection handshake through these.
+  socket.on('call:offer', ({ callId, sdp }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || call.status !== 'active' || (call.caller !== me && call.callee !== me)) return;
+    emitToUser(call.caller === me ? call.callee : call.caller, 'call:offer', { callId, sdp });
+  });
+
+  socket.on('call:answer', ({ callId, sdp }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || call.status !== 'active' || (call.caller !== me && call.callee !== me)) return;
+    emitToUser(call.caller === me ? call.callee : call.caller, 'call:answer', { callId, sdp });
+  });
+
+  socket.on('call:ice', ({ callId, candidate }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || (call.caller !== me && call.callee !== me)) return;
+    emitToUser(call.caller === me ? call.callee : call.caller, 'call:ice', { callId, candidate });
+  });
+
+  // Mic/cam on-off state — not SDP, not sensitive, sent plain so the other
+  // side's UI can show an accurate mute/camera-off indicator for you.
+  socket.on('call:state', ({ callId, micOn, camOn }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || (call.caller !== me && call.callee !== me)) return;
+    emitToUser(call.caller === me ? call.callee : call.caller, 'call:state', { callId, micOn, camOn });
+  });
+
+  socket.on('call:end', ({ callId }) => {
+    const call = endCallInternal(callId);
+    if (!call) return;
+    const me = socket.username?.toLowerCase();
+    const target = call.caller === me ? call.callee : call.caller;
+    emitToUser(target, 'call:ended', { callId, endedBy: me });
   });
 
   // â"€â"€ Toggle Public Status â"€â"€

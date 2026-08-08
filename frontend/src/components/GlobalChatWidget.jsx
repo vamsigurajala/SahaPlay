@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed } from 'lucide-react';
+import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
@@ -1043,6 +1044,42 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// WhatsApp-style call-summary bubble — renders in place of plain text
+// whenever a decrypted DM message starts with CALL_LOG_PREFIX (see
+// CallContext.writeCallLog). Tap to redial, mirroring WhatsApp.
+function CallLogBubble({ data, isMe, myUsername, onRedial }) {
+  const { callType, status, durationSeconds, initiatedBy } = data || {};
+  const isVideo = callType === 'video';
+  const Icon = isVideo ? Video : Phone;
+  const iWasCaller = !!(initiatedBy && myUsername && initiatedBy.toLowerCase() === myUsername.toLowerCase());
+  let sub = '';
+  let missedForMe = false;
+  if (status === 'ended') {
+    const secs = Math.max(0, Number(durationSeconds) || 0);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    sub = `${m}:${String(s).padStart(2, '0')}`;
+  } else if (status === 'missed') {
+    sub = iWasCaller ? 'No answer' : 'Missed call';
+    missedForMe = !iWasCaller;
+  } else if (status === 'declined') {
+    sub = iWasCaller ? 'Call declined' : 'You declined';
+  } else if (status === 'busy') {
+    sub = 'Unavailable';
+  }
+  return (
+    <div onClick={onRedial} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: onRedial ? 'pointer' : 'default', minWidth: 130 }}>
+      <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: missedForMe ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.14)' }}>
+        {missedForMe ? <PhoneMissed size={15} color="#ef4444" /> : <Icon size={15} color={isMe ? '#fff' : 'var(--brand-1-light)'} />}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{isVideo ? 'Video call' : 'Voice call'}</div>
+        <div style={{ fontSize: 11, opacity: 0.8, color: missedForMe ? '#f87171' : undefined }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
 // Snapshot of the message being replied to, sent alongside a reply so the
 // recipient can render a preview. Keeps mediaType/mediaFileName (rather than
 // collapsing every non-video media type to a hardcoded 'Photo' string) so a
@@ -1428,6 +1465,7 @@ const GlobalChatWidget = forwardRef(({
   const myUsername = (localStorage.getItem('watch_username') || '').toLowerCase();
   // ─── E2EE Keys ───
   const { keyPair, setKeyPair, needsReauth, reloadPrivateKeyWithPassword, isReady } = useCrypto();
+  const call = useCall();
   // keyPairRef lets socket event handlers (stale closures from mount time) always see the
   // latest key pair — without this, handlers capture keyPair=null and silently fail to decrypt.
   const keyPairRef = useRef(null);
@@ -5493,6 +5531,41 @@ const GlobalChatWidget = forwardRef(({
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {view === 'chat' && activeChat?.type === 'private' && (() => {
+              const partnerLower = (activeChat.partner || '').toLowerCase();
+              const isBlocked = blockingMe.some(u => u.toLowerCase() === partnerLower) || blockedChats.some(u => u.toLowerCase() === partnerLower);
+              if (isBlocked) return null;
+              const busy = !!call.callState;
+              const callBtnStyle = {
+                background: 'transparent', border: 'none', color: busy ? 'var(--header-btn)' : 'var(--header-btn)',
+                opacity: busy ? 0.4 : 1, cursor: busy ? 'not-allowed' : 'pointer',
+                display: 'flex', padding: 4, borderRadius: '50%', transition: 'all 0.2s',
+              };
+              return (
+                <>
+                  <button
+                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'voice', activeChat.displayName, activeChat.partnerAvatar); }}
+                    disabled={busy}
+                    title={t('voiceCall', 'Voice call')}
+                    style={callBtnStyle}
+                    onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
+                  >
+                    <Phone size={19} />
+                  </button>
+                  <button
+                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
+                    disabled={busy}
+                    title={t('videoCall', 'Video call')}
+                    style={callBtnStyle}
+                    onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
+                  >
+                    <Video size={19} />
+                  </button>
+                </>
+              );
+            })()}
             {view === 'chat' && activeChat && (
               <div style={{ position: 'relative' }} ref={chatMenuRef}>
                 <button 
@@ -6801,6 +6874,20 @@ const GlobalChatWidget = forwardRef(({
                                 )}
                                 {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                   <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                ) : (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) ? (
+                                  (() => {
+                                    let callData = null;
+                                    try { callData = JSON.parse(msg.decryptedText.slice(CALL_LOG_PREFIX.length)); } catch {}
+                                    if (!callData) return <MessageText text="Call" isMe={isMe} isLight={isLight} />;
+                                    return (
+                                      <CallLogBubble
+                                        data={callData}
+                                        isMe={isMe}
+                                        myUsername={myUsername}
+                                        onRedial={activeChat?.type === 'private' && !call.callState ? () => call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar) : undefined}
+                                      />
+                                    );
+                                  })()
                                 ) : msg.decryptedText !== null ? (
                                   <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
                                 ) : (
