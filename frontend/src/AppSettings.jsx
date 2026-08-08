@@ -1291,8 +1291,8 @@ const AppSettings = () => {
       </nav>
 
 
-      <section style={{ maxWidth: '620px', margin: '40px auto 80px', padding: '0 20px' }}>
-        <h2 style={{ fontSize: '32px', fontWeight: 800, margin: '0 0 40px', color: '#fff' }}>{t('appSettings', 'App Settings')}</h2>
+      <section style={{ maxWidth: '620px', margin: isMobile ? '14px auto 80px' : '40px auto 80px', padding: '0 20px' }}>
+        <h2 style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 800, margin: '0 0 24px', color: '#fff' }}>{t('appSettings', 'App Settings')}</h2>
 
         {/* Language */}
         <div className="settings-card">

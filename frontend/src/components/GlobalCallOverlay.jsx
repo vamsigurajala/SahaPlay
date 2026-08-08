@@ -11,11 +11,16 @@ import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
-// app can get to a real ringtone without native code. Note this only plays
-// while the app is foregrounded and the tab/webview has already had some
-// user interaction (browser/WebView autoplay policy); it cannot ring a
-// backgrounded or fully-killed app the way a native VoIP-push integration
-// would — that needs a native Android module (a follow-up, not this).
+// app can get to a real ringtone without native code. This only plays while
+// the app is foregrounded and the WebView/tab has already had some user
+// interaction (browser autoplay policy) — it covers plain web/PWA and the
+// "app already open" case on Android. Backgrounded/fully-killed-app ringing
+// on Android instead goes through IncomingCallActivity.java (native, plays
+// the phone's own default ringtone) via a data-only FCM push — see
+// SahaplayFirebaseMessagingService.java and CALL_RING_TIMEOUT_MS in
+// backend/server.js. That path only exists in a build that includes it —
+// dispatch "Android — Build Capacitor app (.aab)" and install the result to
+// pick it up.
 function useRingSound(active) {
   const stopRef = useRef(null);
   useEffect(() => {
@@ -25,21 +30,33 @@ function useRingSound(active) {
     const ctx = new AudioCtx();
     ctx.resume?.().catch(() => {});
     let stopped = false;
-    const beep = () => {
-      if (stopped) return;
+
+    // Two-note ascending chime (D5 -> A5), warm triangle wave with an
+    // exponential attack/decay envelope — reads as a real ring/ringback tone
+    // instead of the flat single-frequency sine beep this replaced, closer
+    // to the short chime cadence WhatsApp/Skype use for calling/ringing.
+    const playTone = (freq, startTime, duration) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 480;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.06);
-      gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.9);
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.22, startTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
       osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 1);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.02);
     };
-    beep();
-    const interval = setInterval(beep, 1600);
+
+    const playChime = () => {
+      if (stopped) return;
+      const now = ctx.currentTime;
+      playTone(587.33, now, 0.22);       // D5
+      playTone(880.0, now + 0.2, 0.34);  // A5
+    };
+
+    playChime();
+    const interval = setInterval(playChime, 2000);
     stopRef.current = () => { stopped = true; clearInterval(interval); ctx.close().catch(() => {}); };
     return () => stopRef.current?.();
   }, [active]);

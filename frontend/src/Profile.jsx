@@ -1735,8 +1735,8 @@ const Profile = () => {
 
       {/* ── Own Profile ── */}
       {isOwnProfile && (
-        <section style={{ maxWidth: '620px', margin: '40px auto 80px', padding: '0 20px' }}>
-          <h2 style={{ fontSize: '32px', fontWeight: 800, margin: '0 0 40px', color: '#fff' }}>{t('accountSettings', 'Account Settings')}</h2>
+        <section style={{ maxWidth: '620px', margin: isMobile ? '14px auto 80px' : '40px auto 80px', padding: '0 20px' }}>
+          <h2 style={{ fontSize: isMobile ? '24px' : '32px', fontWeight: 800, margin: '0 0 24px', color: '#fff' }}>{t('accountSettings', 'Account Settings')}</h2>
 
           {/* Avatar + name header with stats on the right */}
           {isMobile ? (
