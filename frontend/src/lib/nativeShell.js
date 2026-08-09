@@ -13,22 +13,28 @@ const THEME_COLORS = {
   light: { backgroundColor: '#f7fafc', style: 'LIGHT' },
 };
 
-// Capacitor's Style enum is inverted from what it sounds like: Style.Dark
-// means dark *icons* (for light backgrounds), Style.Light means light icons
-// (for dark backgrounds) — the opposite of THEME_COLORS' dark/light keys.
-const ICON_STYLE = { dark: 'LIGHT', light: 'DARK' };
-
 // Keeps the status bar's background/icon color in sync with the app's
 // light/dark theme toggle. Config-time defaults in capacitor.config.json
 // cover the very first frame before this runs; this covers every theme
 // switch after that (including at launch, since App.jsx's theme effect
 // calls this unconditionally on mount).
+//
+// Style.Dark = dark background, light (white) icons. Style.Light = light
+// background, dark icons — a direct, non-inverted match to THEME_COLORS'
+// own dark/light keys (confirmed against @capacitor/status-bar's Android
+// source: setStyle('DARK') calls setAppearanceLightStatusBars(false), which
+// is what produces white icons). A previous version of this file routed
+// through a separate, inverted ICON_STYLE lookup ('dark' theme -> 'LIGHT'
+// style), which asked for dark icons on the dark theme's near-black
+// background and light icons on the light theme's near-white background —
+// invisible either way, matching the reported "status bar icons are white
+// and invisible" bug on light theme.
 export function syncStatusBarTheme(theme) {
   const sb = statusBar();
   if (!sb) return;
   const colors = THEME_COLORS[theme] || THEME_COLORS.dark;
   sb.setBackgroundColor({ color: colors.backgroundColor }).catch(() => {});
-  sb.setStyle({ style: ICON_STYLE[theme] || ICON_STYLE.dark }).catch(() => {});
+  sb.setStyle({ style: colors.style }).catch(() => {});
 }
 
 // Without this, Capacitor's Android bridge exits the app on every hardware
