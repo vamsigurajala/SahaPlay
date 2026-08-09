@@ -36,6 +36,8 @@ import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable } from '../lib/nativeMedia';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
+import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
+import { isCapacitorApp } from '../lib/platform';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
@@ -111,6 +113,14 @@ export function CallProvider({ children }) {
   // always request 'environment' again on every tap, never actually
   // toggling back to the front camera.
   const currentFacingRef = useRef('user');
+  // Screen share (see startScreenShare/stopScreenShare below): the camera
+  // track is paused (not stopped — kept alive so it can resume instantly)
+  // and every peer's video sender is swapped to the screen-capture track
+  // instead, same replaceTrack pattern flipCamera uses.
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenShareTrackRef = useRef(null);
+  const screenShareCleanupRef = useRef(null); // tears down native MediaProjection capture, if used
+  const cameraTrackDuringShareRef = useRef(null);
   const remoteStreamsRef = useRef(new Map());
   const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
   const peerPublicKeysRef = useRef(new Map());
@@ -633,6 +643,14 @@ export function CallProvider({ children }) {
 
   function teardownCall() {
     clearPendingNativeCallAnswer();
+    if (screenShareTrackRef.current) {
+      try { screenShareCleanupRef.current?.(); } catch {}
+      try { screenShareTrackRef.current.stop(); } catch {}
+      screenShareTrackRef.current = null;
+      screenShareCleanupRef.current = null;
+      cameraTrackDuringShareRef.current = null;
+      setIsScreenSharing(false);
+    }
     for (const pc of pcsRef.current.values()) { try { pc.close(); } catch {} }
     pcsRef.current.clear();
     remoteStreamsRef.current.clear();
@@ -844,18 +862,100 @@ export function CallProvider({ children }) {
     }
   }, []);
 
-  // WhatsApp-style default: voice calls start on the earpiece, video calls
-  // start on speaker. Runs once per call (on the outgoing→active / incoming→
-  // active transition), not on every render, so a user's manual route pick
-  // via setAudioRoute below isn't stomped back to the default afterward.
+  // stopScreenShare is referenced inside startScreenShare below (native-
+  // capture-stopped / track-ended callbacks) before it's actually defined —
+  // a plain ref sidesteps needing to restructure both into one another's
+  // dependency array; assigned once stopScreenShare itself is declared.
+  const stopScreenShareRef = useRef(null);
+
+  // Same replaceTrack pattern as flipCamera above, but swapping in a
+  // screen-capture track instead of another camera. The camera track itself
+  // is only disabled (not stopped) so it keeps the hardware warm and comes
+  // back instantly on stopScreenShare — "our video should be stopped" is
+  // satisfied by disabling it (nothing captured/sent while sharing), not by
+  // releasing the camera outright and needing a fresh getUserMedia prompt
+  // to resume.
+  const startScreenShare = useCallback(async () => {
+    if (pcsRef.current.size === 0 || screenShareTrackRef.current) return;
+    try {
+      let rawStream, cleanup = null;
+      if (isCapacitorApp()) {
+        const res = await getNativeScreenCaptureStream({ onUnexpectedStop: () => stopScreenShareRef.current?.() });
+        rawStream = res.stream;
+        cleanup = res.cleanup;
+      } else if (navigator.mediaDevices?.getDisplayMedia) {
+        rawStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      } else {
+        toast.error("Screen sharing isn't supported here.");
+        return;
+      }
+      const screenTrack = rawStream.getVideoTracks()[0];
+      if (!screenTrack) return;
+
+      const stream = localStreamRef.current;
+      const cameraTrack = stream?.getVideoTracks()[0] || null;
+      cameraTrackDuringShareRef.current = cameraTrack;
+      if (cameraTrack) cameraTrack.enabled = false;
+
+      for (const pc of pcsRef.current.values()) {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) await sender.replaceTrack(screenTrack);
+      }
+
+      screenShareTrackRef.current = screenTrack;
+      screenShareCleanupRef.current = cleanup;
+      // The OS's own "stop sharing" affordance (a system bar/notification on
+      // desktop getDisplayMedia, or the MediaProjection stop action natively)
+      // ends the track directly — this is the only way to hear about that.
+      screenTrack.onended = () => stopScreenShareRef.current?.();
+      setIsScreenSharing(true);
+    } catch (e) {
+      if (e?.name !== 'AbortError' && e?.name !== 'NotAllowedError') {
+        console.error('[Call] startScreenShare failed:', e);
+        toast.error('Could not start screen share');
+      }
+    }
+  }, []);
+
+  const stopScreenShare = useCallback(async () => {
+    const screenTrack = screenShareTrackRef.current;
+    if (!screenTrack) return;
+    try { screenShareCleanupRef.current?.(); } catch {}
+    try { screenTrack.stop(); } catch {}
+    screenShareTrackRef.current = null;
+    screenShareCleanupRef.current = null;
+
+    const cameraTrack = cameraTrackDuringShareRef.current;
+    cameraTrackDuringShareRef.current = null;
+    if (cameraTrack) {
+      cameraTrack.enabled = isCamOn;
+      for (const pc of pcsRef.current.values()) {
+        const sender = pc.getSenders().find(s => s.track === screenTrack || (s.track && s.track.kind === 'video'));
+        if (sender) await sender.replaceTrack(cameraTrack).catch(() => {});
+      }
+    }
+    setIsScreenSharing(false);
+  }, [isCamOn]);
+
+  useEffect(() => { stopScreenShareRef.current = stopScreenShare; }, [stopScreenShare]);
+
+  // Every call - voice or video - starts on the earpiece: loud external
+  // audio should only ever happen because the user explicitly tapped the
+  // speaker button, never automatically. This used to default video calls
+  // to speaker (a deliberate WhatsApp-style choice on the theory that
+  // you're holding the phone up to look at the screen), but that meant
+  // audio came out loud the moment a video call connected with no action
+  // from the user - reported as unwanted. Runs once per call (on the
+  // outgoing→active / incoming→active transition), not on every render, so
+  // a user's manual route pick via setAudioRoute below isn't stomped back
+  // to the default afterward.
   const audioRouteInitializedForCallId = useRef(null);
   useEffect(() => {
     if (callState?.phase !== 'active') return;
     if (audioRouteInitializedForCallId.current === callState.callId) return;
     audioRouteInitializedForCallId.current = callState.callId;
-    const initial = callState.type === 'video' ? 'speaker' : 'earpiece';
-    setNativeAudioRoute(initial);
-    setAudioRouteState(initial);
+    setNativeAudioRoute('earpiece');
+    setAudioRouteState('earpiece');
     isNativeBluetoothAudioAvailable().then(setBluetoothAudioAvailable);
   }, [callState?.phase, callState?.callId, callState?.type]);
 
@@ -883,6 +983,9 @@ export function CallProvider({ children }) {
     toggleMic,
     toggleCamera,
     flipCamera,
+    isScreenSharing,
+    startScreenShare,
+    stopScreenShare,
     audioRoute,
     setAudioRoute,
     bluetoothAudioAvailable,

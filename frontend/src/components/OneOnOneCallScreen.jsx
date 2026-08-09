@@ -16,7 +16,7 @@
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, SwitchCamera, UserPlus } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 
@@ -122,6 +122,10 @@ export default function OneOnOneCallScreen({
   addMemberToCall,
   isCoarsePointer,
   onEndCall,
+  isScreenSharing,
+  startScreenShare,
+  stopScreenShare,
+  onSendMessage,
 }) {
   const isVideo = mode === 'video';
   const remotes = getRemoteParticipants(callState, remoteStreams, participantMeta);
@@ -158,6 +162,8 @@ export default function OneOnOneCallScreen({
 
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const primaryRemote = remotes[0];
 
   const routeIcon = audioRoute === 'bluetooth' ? Bluetooth : Volume2;
   const RouteIcon = routeIcon;
@@ -203,6 +209,28 @@ export default function OneOnOneCallScreen({
         }
         .ooc-ctrl-btn:active { transform: scale(0.92); }
         .ooc-ctrl-label { font-size: 10px; color: rgba(255,255,255,0.6); text-align: center; margin-top: 6px; }
+        /* Same reasoning as the top bar's Add button: buttons/labels sitting
+           directly on top of a bright/light background (a plain window
+           gradient scrim isn't always enough contrast) were hard to read.
+           One rounded box behind the whole control row fixes that
+           regardless of what's behind the call screen. */
+        .ooc-dock-box {
+          display: flex; align-items: center; justify-content: center; gap: 18px;
+          background: rgba(20,20,20,0.55); border-radius: 28px;
+          padding: 14px 18px;
+        }
+        .ooc-more-menu {
+          position: absolute; z-index: 40; bottom: 108px; left: 16px;
+          background: rgba(24,26,36,0.97); border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 16px; padding: 6px; min-width: 190px;
+          box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+        }
+        .ooc-more-opt {
+          display: flex; align-items: center; gap: 10px; width: 100%;
+          padding: 12px 14px; background: transparent; border: none; border-radius: 10px;
+          color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+        }
+        .ooc-more-opt:active { background: rgba(255,255,255,0.08); }
         .ooc-pip {
           position: absolute; width: 104px; height: 148px; border-radius: 14px;
           overflow: hidden; z-index: 15;
@@ -241,8 +269,8 @@ export default function OneOnOneCallScreen({
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         @media (max-width: 380px) {
-          .ooc-dock { gap: 12px; }
-          .ooc-ctrl-btn { width: 48px; height: 48px; }
+          .ooc-dock-box { gap: 10px; padding: 12px 14px; }
+          .ooc-ctrl-btn { width: 46px; height: 46px; }
         }
         /* Desktop web: same full-window call takeover (matches how WhatsApp
            Web/Meet/Discord's own web call views behave), but keep the grid
@@ -337,50 +365,85 @@ export default function OneOnOneCallScreen({
         </div>
       )}
 
+      {/* ── More options: screen share / send message ── */}
+      {moreMenuOpen && (
+        <div className="ooc-more-menu" onClick={(e) => e.stopPropagation()}>
+          {isVideo && (
+            <button
+              className="ooc-more-opt"
+              onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
+            >
+              <ScreenShare size={17} /> {isScreenSharing ? 'Stop screen share' : 'Screen share'}
+            </button>
+          )}
+          {primaryRemote && (
+            <button
+              className="ooc-more-opt"
+              onClick={() => { setMoreMenuOpen(false); onSendMessage?.(primaryRemote.username); }}
+            >
+              <MessageCircle size={17} /> Send message
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Bottom controls dock ── */}
       <div className={`ooc-dock ${chromeVisible ? '' : 'ooc-hidden'}`} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <button
-            className="ooc-ctrl-btn"
-            onClick={() => setRoutePickerOpen(v => !v)}
-            style={{ background: audioRoute !== 'earpiece' ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
-          >
-            <RouteIcon size={22} color="#fff" />
-          </button>
-          <span className="ooc-ctrl-label">{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Audio'}</span>
-        </div>
+        <div className="ooc-dock-box">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              className="ooc-ctrl-btn"
+              onClick={() => setMoreMenuOpen(v => !v)}
+              style={{ width: 46, height: 46, background: moreMenuOpen ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
+            >
+              <MoreVertical size={20} color="#fff" />
+            </button>
+            <span className="ooc-ctrl-label">More</span>
+          </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <button
-            className="ooc-ctrl-btn"
-            onClick={toggleCamera}
-            style={{ background: (isVideo && isCamOn) ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
-          >
-            {/* Voice call: tapping upgrades to video (toggleCamera handles both
-                the upgrade AND, once already video, the plain on/off toggle —
-                see CallContext.jsx's toggleCamera). Icon tracks whether the
-                camera is actually on, not just whether this is a video call. */}
-            {isVideo && !isCamOn ? <VideoOff size={22} color="#fff" /> : <Video size={22} color="#fff" />}
-          </button>
-          <span className="ooc-ctrl-label">Video</span>
-        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              className="ooc-ctrl-btn"
+              onClick={() => setRoutePickerOpen(v => !v)}
+              style={{ background: audioRoute !== 'earpiece' ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
+            >
+              <RouteIcon size={22} color="#fff" />
+            </button>
+            <span className="ooc-ctrl-label">{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Audio'}</span>
+          </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <button
-            className="ooc-ctrl-btn"
-            onClick={toggleMic}
-            style={{ background: isMicOn ? 'rgba(255,255,255,0.14)' : '#ef4444' }}
-          >
-            {isMicOn ? <Mic size={22} color="#fff" /> : <MicOff size={22} color="#fff" />}
-          </button>
-          <span className="ooc-ctrl-label">{isMicOn ? 'Mute' : 'Muted'}</span>
-        </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              className="ooc-ctrl-btn"
+              onClick={toggleCamera}
+              style={{ background: (isVideo && isCamOn) ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
+            >
+              {/* Voice call: tapping upgrades to video (toggleCamera handles both
+                  the upgrade AND, once already video, the plain on/off toggle —
+                  see CallContext.jsx's toggleCamera). Icon tracks whether the
+                  camera is actually on, not just whether this is a video call. */}
+              {isVideo && !isCamOn ? <VideoOff size={22} color="#fff" /> : <Video size={22} color="#fff" />}
+            </button>
+            <span className="ooc-ctrl-label">Video</span>
+          </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <button className="ooc-ctrl-btn" onClick={onEndCall} style={{ background: '#ef4444' }}>
-            <PhoneOff size={22} color="#fff" />
-          </button>
-          <span className="ooc-ctrl-label">{isGroup ? 'Leave' : 'End'}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              className="ooc-ctrl-btn"
+              onClick={toggleMic}
+              style={{ background: isMicOn ? 'rgba(255,255,255,0.14)' : '#ef4444' }}
+            >
+              {isMicOn ? <Mic size={22} color="#fff" /> : <MicOff size={22} color="#fff" />}
+            </button>
+            <span className="ooc-ctrl-label">{isMicOn ? 'Mute' : 'Muted'}</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button className="ooc-ctrl-btn" onClick={onEndCall} style={{ background: '#ef4444' }}>
+              <PhoneOff size={22} color="#fff" />
+            </button>
+            <span className="ooc-ctrl-label">{isGroup ? 'Leave' : 'End'}</span>
+          </div>
         </div>
       </div>
 
@@ -398,6 +461,12 @@ export default function OneOnOneCallScreen({
 // The original 2-person layout — main stage (defaults to the remote
 // person, tap the PiP to swap to my own video full-screen) unchanged from
 // before "Add to call" existed.
+// Free-drag position, matching the width/height/margins .ooc-pip's own CSS
+// already used for its fixed corner spot (kept as plain constants here
+// instead of reading them back from the stylesheet).
+const PIP_W = 104, PIP_H = 148, PIP_MARGIN = 16, PIP_PEEK = 18;
+const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed position
+
 function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl, isCoarsePointer, flipCamera, chromeVisible }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
@@ -408,6 +477,77 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
   const mainName = mainIsLocal ? 'You' : remote.displayName;
   const pipHasVideo = mainIsLocal ? remote.hasVideo : localHasVideo;
   const pipAvatarUrl = mainIsLocal ? remote.avatarUrl : myAvatarUrl;
+
+  // ── Freely draggable PiP, WhatsApp-style edge "peek" ──
+  // null = the original default top-right spot. Once dragged, {x, y} is the
+  // top-left corner in px and persists exactly where it was dropped — a
+  // plain tap (no movement) still swaps main/PiP, same as before; a real
+  // drag moves it. Dragging past the left/right edge lets it follow the
+  // finger off-screen, and on release it "parks" there showing only a
+  // sliver (PIP_PEEK) instead of snapping back — tap that sliver to bring
+  // it back on-screen.
+  const [pipPos, setPipPos] = useState(null);
+  const pipElRef = useRef(null);
+  const dragRef = useRef(null);
+
+  const viewport = () => ({ w: window.innerWidth, h: window.innerHeight });
+  const verticalBounds = () => {
+    const { h } = viewport();
+    return { min: PIP_DEFAULT_TOP, max: h - PIP_H - 140 };
+  };
+  const currentPipXY = () => {
+    if (pipPos) return pipPos;
+    const { w } = viewport();
+    return { x: w - PIP_W - PIP_MARGIN, y: PIP_DEFAULT_TOP };
+  };
+
+  const onPipPointerDown = (e) => {
+    e.stopPropagation();
+    const pos = currentPipXY();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y, moved: false };
+    try { pipElRef.current?.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onPipPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) > 6) d.moved = true;
+    if (!d.moved) return;
+    const { w } = viewport();
+    const vb = verticalBounds();
+    const nx = Math.max(-(PIP_W - PIP_PEEK), Math.min(w - PIP_PEEK, d.origX + dx));
+    const ny = Math.max(vb.min, Math.min(vb.max, d.origY + dy));
+    setPipPos({ x: nx, y: ny });
+  };
+  const onPipPointerUp = (e) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    const { w } = viewport();
+    if (!d.moved) {
+      // Plain tap. If it was already parked off an edge, bring it back into
+      // full view instead of swapping main/PiP — matches the sliver being
+      // "pull to bring back" rather than an immediate stage swap.
+      const wasParked = d.origX < 0 || d.origX > w - PIP_W;
+      if (wasParked) {
+        setPipPos({ x: Math.max(0, Math.min(w - PIP_W, d.origX)), y: d.origY });
+      } else {
+        setMainIsLocal(v => !v);
+      }
+      return;
+    }
+    // Dragged past an edge — park it there (only PIP_PEEK px stay visible)
+    // rather than leaving it half-off-screen at an arbitrary position.
+    setPipPos(prev => {
+      if (!prev) return prev;
+      if (prev.x < 0) return { ...prev, x: -(PIP_W - PIP_PEEK) };
+      if (prev.x > w - PIP_W) return { ...prev, x: w - PIP_PEEK };
+      return prev;
+    });
+  };
+  const pipXY = currentPipXY();
+  const pipParked = pipXY.x < 0 || pipXY.x > viewport().w - PIP_W;
 
   return (
     <>
@@ -426,9 +566,17 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
 
       {isVideo && (
         <div
+          ref={pipElRef}
           className="ooc-pip"
-          style={{ top: 'calc(96px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))', right: 16 }}
-          onClick={(e) => { e.stopPropagation(); setMainIsLocal(v => !v); }}
+          style={{
+            top: pipXY.y, left: pipXY.x, touchAction: 'none',
+            opacity: pipParked ? 0.6 : 1, transition: dragRef.current ? 'none' : 'opacity 0.2s ease',
+          }}
+          onPointerDown={onPipPointerDown}
+          onPointerMove={onPipPointerMove}
+          onPointerUp={onPipPointerUp}
+          onPointerCancel={onPipPointerUp}
+          onClick={(e) => e.stopPropagation()}
         >
           {pipHasVideo ? (
             <VideoTile stream={mainIsLocal ? remote.stream : localStream} muted={!mainIsLocal} />

@@ -84,12 +84,86 @@ function Avatar({ url, name, size = 96, pulsing }) {
   );
 }
 
+function fmtDuration(secs) {
+  const s = Math.max(0, Math.floor(secs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+// Shown instead of the full call screen while "Send message" has minimized
+// it — a small always-on-top bar (call keeps running underneath regardless;
+// CallContext owns the RTCPeerConnections independently of this component's
+// own visibility) so there's always a way back into the full call UI.
+function MinimizedCallBar({ callState, onRestore, onEndCall }) {
+  const [durationSecs, setDurationSecs] = useState(0);
+  useEffect(() => {
+    if (!callState.answeredAt) return;
+    const tick = () => setDurationSecs(Math.floor((Date.now() - callState.answeredAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [callState.answeredAt]);
+
+  return (
+    <div
+      onClick={onRestore}
+      style={{
+        position: 'fixed', left: 12, right: 12,
+        top: 'calc(10px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
+        zIndex: 2147483500, display: 'flex', alignItems: 'center', gap: 10,
+        background: 'rgba(20,20,20,0.92)', borderRadius: 20, padding: '10px 14px',
+        boxShadow: '0 10px 24px rgba(0,0,0,0.5)', cursor: 'pointer',
+        fontFamily: "'Outfit', 'Inter', sans-serif",
+      }}
+    >
+      <div className="gco-avatar-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {callState.peerDisplayName || callState.peerUsername}
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>
+          {callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…'} — tap to return
+        </div>
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); onEndCall(); }}
+        title="End call"
+        style={{
+          width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#ef4444',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+        }}
+      >
+        <PhoneOff size={15} color="#fff" />
+      </button>
+    </div>
+  );
+}
+
 export default function GlobalCallOverlay() {
   const call = useCall();
   const { callState } = call;
   const [isCoarsePointer, setIsCoarsePointer] = useState(
     () => typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches
   );
+
+  // "Send message" minimizes this overlay (instead of hiding it entirely)
+  // so the call keeps running - CallContext/its RTCPeerConnections are
+  // mounted independently of whether this UI is showing - while the normal
+  // chat UI becomes reachable underneath. A small floating bar stays on top
+  // so there's always a way back into the full call screen. Resets whenever
+  // there's no call to minimize, so a NEW call never starts already
+  // minimized because of a stale flag from a previous one.
+  const [minimized, setMinimized] = useState(false);
+  useEffect(() => { if (!callState) setMinimized(false); }, [callState]);
+  const handleSendMessage = (peerUsername) => {
+    if (!peerUsername) return;
+    setMinimized(true);
+    // Same event BottomNav.jsx already listens for (push-notification deep
+    // link) — navigates home and opens this exact DM, a proven path rather
+    // than a new one.
+    window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: { chatId: peerUsername, type: 'dm' } }));
+  };
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
@@ -113,15 +187,15 @@ export default function GlobalCallOverlay() {
   // theme's icons the moment it's gone, fixes that without touching the
   // theme-vs-icon mapping fix from before (that one was correct for every
   // normal page, just not for this permanently-dark surface).
-  const hasCallState = !!callState;
+  const showingCallSurface = !!callState && !minimized;
   useEffect(() => {
-    if (!hasCallState) return;
+    if (!showingCallSurface) return;
     syncStatusBarTheme('dark');
     return () => {
       const savedTheme = localStorage.getItem('watch_theme') || 'dark';
       syncStatusBarTheme(savedTheme);
     };
-  }, [hasCallState]);
+  }, [showingCallSurface]);
 
   if (!callState) return null;
 
@@ -133,6 +207,16 @@ export default function GlobalCallOverlay() {
     display: 'flex', flexDirection: 'column',
     fontFamily: "'Outfit', 'Inter', sans-serif",
   };
+
+  if (minimized) {
+    return (
+      <MinimizedCallBar
+        callState={callState}
+        onRestore={() => setMinimized(false)}
+        onEndCall={call.endCall}
+      />
+    );
+  }
 
   if (callState.phase === 'active') {
     return (
@@ -150,12 +234,16 @@ export default function GlobalCallOverlay() {
           toggleCamera={call.toggleCamera}
           toggleMic={call.toggleMic}
           flipCamera={call.flipCamera}
+          isScreenSharing={call.isScreenSharing}
+          startScreenShare={call.startScreenShare}
+          stopScreenShare={call.stopScreenShare}
           audioRoute={call.audioRoute}
           setAudioRoute={call.setAudioRoute}
           bluetoothAudioAvailable={call.bluetoothAudioAvailable}
           addMemberToCall={call.addMemberToCall}
           isCoarsePointer={isCoarsePointer}
           onEndCall={call.endCall}
+          onSendMessage={handleSendMessage}
         />
       </div>
     );
