@@ -563,6 +563,18 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
 
   const onPipPointerDown = (e) => {
     e.stopPropagation();
+    // A tap starting on the flip-camera button (inside the PiP) must NOT be
+    // treated as a drag/tap-to-swap gesture — this handler used to fire
+    // regardless of what was actually touched, so tapping the flip button
+    // both (a) swapped main/PiP (since a no-movement pointerup always did
+    // that) AND (b) ate the native click the button needed to actually flip
+    // the camera — the swap re-render removed this exact button from the
+    // tree (its "only when I'm the PiP" condition flipped) before the
+    // browser's click event for that same tap ever fired, so flipCamera()
+    // silently never ran. Bailing out here — no dragRef, no pointer capture
+    // — leaves this tap alone entirely, so the button gets its own ordinary
+    // click.
+    if (e.target.closest('[data-pip-flip]')) return;
     const pos = currentPipXY();
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y, moved: false };
     try { pipElRef.current?.setPointerCapture(e.pointerId); } catch {}
@@ -648,6 +660,7 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
               flip button below (rendered over the main stage) takes over. */}
           {isCoarsePointer && !mainIsLocal && localHasVideo && (
             <button
+              data-pip-flip="true"
               onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
               title="Switch camera"
               style={{
