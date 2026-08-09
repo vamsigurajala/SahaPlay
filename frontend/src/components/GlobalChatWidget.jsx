@@ -5553,10 +5553,11 @@ const GlobalChatWidget = forwardRef(({
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
                   >
                     {/* Phone's glyph is a thin open curve that reads visually smaller
-                        than Video's filled rect+lens at the same numeric size — bumped
-                        up to match Video's optical weight (WhatsApp's own call icons are
-                        the same optical size; lucide's aren't at equal `size` props). */}
-                    <Phone size={21} strokeWidth={2.1} />
+                        than Video's filled rect+lens at the same numeric size — a
+                        previous attempt to compensate for that by bumping Phone to
+                        size={21} overshot and read as visibly bigger than Video, so
+                        both are back to an equal literal size. */}
+                    <Phone size={20} strokeWidth={2.1} />
                   </button>
                   <button
                     onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
@@ -5566,7 +5567,7 @@ const GlobalChatWidget = forwardRef(({
                     onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
                   >
-                    <Video size={19} strokeWidth={2.1} />
+                    <Video size={20} strokeWidth={2.1} />
                   </button>
                 </>
               );

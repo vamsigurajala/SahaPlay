@@ -104,6 +104,13 @@ export function CallProvider({ children }) {
   // as the track source across every peer connection in the mesh.
   const pcsRef = useRef(new Map());
   const localStreamRef = useRef(null);
+  // Tracked explicitly rather than read back from the camera track's own
+  // getSettings().facingMode - that field is unreliably reported (often
+  // just undefined) on a lot of Android Chromium/WebView builds, which made
+  // flipCamera() below always fall back to assuming 'user' and therefore
+  // always request 'environment' again on every tap, never actually
+  // toggling back to the front camera.
+  const currentFacingRef = useRef('user');
   const remoteStreamsRef = useRef(new Map());
   const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
   const peerPublicKeysRef = useRef(new Map());
@@ -497,6 +504,7 @@ export function CallProvider({ children }) {
     }
     if (stream) {
       localStreamRef.current = stream;
+      currentFacingRef.current = 'user';
       setIsMicOn(stream.getAudioTracks().some(t => t.enabled));
       setIsCamOn(stream.getVideoTracks().some(t => t.enabled));
     }
@@ -785,6 +793,7 @@ export function CallProvider({ children }) {
       const videoTrack = camStream.getVideoTracks()[0];
       if (!videoTrack) return;
       stream.addTrack(videoTrack);
+      currentFacingRef.current = 'user';
       setIsCamOn(true);
       setCallState(prev => (prev ? { ...prev, type: 'video' } : prev));
       // Tells the server too — otherwise anyone added to this call later
@@ -813,8 +822,7 @@ export function CallProvider({ children }) {
     const stream = localStreamRef.current;
     const oldTrack = stream?.getVideoTracks()[0];
     if (!stream || !oldTrack || pcsRef.current.size === 0) return;
-    const currentFacing = oldTrack.getSettings?.().facingMode || 'user';
-    const nextFacing = currentFacing === 'environment' ? 'user' : 'environment';
+    const nextFacing = currentFacingRef.current === 'environment' ? 'user' : 'environment';
     try {
       let newStream;
       try {
@@ -830,6 +838,7 @@ export function CallProvider({ children }) {
       }
       stream.removeTrack(oldTrack);
       oldTrack.stop();
+      currentFacingRef.current = nextFacing;
     } catch (e) {
       console.error('[Call] flipCamera failed, keeping previous camera:', e);
     }

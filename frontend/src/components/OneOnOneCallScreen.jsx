@@ -205,7 +205,7 @@ export default function OneOnOneCallScreen({
         .ooc-ctrl-label { font-size: 10px; color: rgba(255,255,255,0.6); text-align: center; margin-top: 6px; }
         .ooc-pip {
           position: absolute; width: 104px; height: 148px; border-radius: 14px;
-          overflow: hidden; z-index: 15; border: 2px solid rgba(255,255,255,0.5);
+          overflow: hidden; z-index: 15;
           box-shadow: 0 10px 26px rgba(0,0,0,0.55); cursor: pointer;
           background: #131928; display: flex; align-items: center; justify-content: center;
           transition: opacity 0.3s ease;
@@ -296,13 +296,17 @@ export default function OneOnOneCallScreen({
         </div>
       )}
 
-      {/* ── Top bar: name(s) + duration/mute status + add-person ── */}
+      {/* ── Top bar: name(s) + duration/mute status (centered) + add-person ── */}
       <div className={`ooc-topbar ${chromeVisible ? '' : 'ooc-hidden'}`} onClick={(e) => e.stopPropagation()}>
-        <div style={{ minWidth: 0 }}>
-          <div className="stay-white" style={{ color: '#fff', fontWeight: 800, fontSize: 17, textShadow: '0 1px 3px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {/* Invisible spacer matching the Add button's width, so the centered
+            name/status block is centered against the FULL bar width, not
+            just the remaining space next to the button. */}
+        <div style={{ width: 38, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+          <div className="stay-white" style={{ color: '#fff', fontWeight: 800, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {headerLine}
           </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? '#fbbf24' : 'rgba(255,255,255,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)' }}>
             {statusLine}
           </div>
         </div>
@@ -310,12 +314,12 @@ export default function OneOnOneCallScreen({
           title="Add to call"
           onClick={() => setAddSheetOpen(true)}
           style={{
-            width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)',
-            background: 'rgba(255,255,255,0.1)', color: '#fff', display: 'flex', alignItems: 'center',
+            width: 38, height: 38, borderRadius: '50%', border: 'none',
+            background: 'rgba(20,20,20,0.55)', display: 'flex', alignItems: 'center',
             justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
           }}
         >
-          <UserPlus size={17} />
+          <UserPlus size={17} color="#fff" />
         </button>
       </div>
 
@@ -439,12 +443,12 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
               onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
               title="Switch camera"
               style={{
-                position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
+                position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+                background: 'rgba(20,20,20,0.6)', border: 'none', color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
               }}
             >
-              <SwitchCamera size={13} />
+              <SwitchCamera size={13} color="#fff" />
             </button>
           )}
         </div>
@@ -454,14 +458,14 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
           onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
           title="Switch camera"
           style={{
-            position: 'absolute', bottom: chromeVisible ? 110 : 24, right: 16, zIndex: 16,
+            position: 'absolute', top: 'calc(96px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))', right: 16, zIndex: 16,
             width: 40, height: 40, borderRadius: '50%',
-            background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
+            background: 'rgba(20,20,20,0.6)', border: 'none', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            transition: 'bottom 0.3s ease',
+            opacity: chromeVisible ? 1 : 0, transition: 'opacity 0.3s ease',
           }}
         >
-          <SwitchCamera size={18} />
+          <SwitchCamera size={18} color="#fff" />
         </button>
       )}
     </>
