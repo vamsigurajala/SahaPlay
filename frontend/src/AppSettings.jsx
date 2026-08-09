@@ -305,7 +305,20 @@ const AppSettings = () => {
   const standalone = isStandalonePWA();
 
   // Settings state
-  const [settings, setSettings] = useState(null);
+  // Cache-first, same reasoning as Profile.jsx's own-profile fix: this page's
+  // skeleton is gated purely on `!settings`, and /api/settings was refetched
+  // from scratch (no cache) on every visit — invisible on a warm connection,
+  // but a long visible skeleton whenever the request is slow (e.g. the
+  // Render backend cold-starting after being idle). Hydrating from the last
+  // response shows real data immediately; fetchSettings() below silently
+  // refreshes it.
+  const [settings, setSettings] = useState(() => {
+    if (isGuest) return null;
+    try {
+      const cached = localStorage.getItem(`app_settings_cache_${(myUsername || '').toLowerCase()}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
   const hasLoadedSettingsOnce = useRef(false);
   const [language, setLanguage] = useState(() => (localStorage.getItem('watch_language') || i18n.language || 'en').split('-')[0].toLowerCase());
   const [country, setCountry] = useState('');
@@ -334,6 +347,11 @@ const AppSettings = () => {
         isGuest: true
       };
     }
+    try {
+      const username = localStorage.getItem('watch_username');
+      const cached = username ? localStorage.getItem(`profile_cache_${username.toLowerCase()}`) : null;
+      if (cached) return JSON.parse(cached);
+    } catch {}
     return null;
   });
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
@@ -534,6 +552,9 @@ const AppSettings = () => {
         const apply = () => {
           hasLoadedSettingsOnce.current = true;
           setSettings(data);
+          if (!isGuest && myUsername) {
+            try { localStorage.setItem(`app_settings_cache_${myUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
+          }
           setLanguage((data.language || 'en').split('-')[0].toLowerCase());
           setCountry(data.country || '');
           setCountryCode(data.country_code || '');
@@ -555,7 +576,10 @@ const AppSettings = () => {
 
     fetch(`${API}/api/profile`, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setProfile(data))
+      .then(data => {
+        setProfile(data);
+        try { if (data?.username) localStorage.setItem(`profile_cache_${data.username.toLowerCase()}`, JSON.stringify(data)); } catch {}
+      })
       .catch(() => {});
   }, [token, isGuest]);
 
@@ -855,11 +879,17 @@ const AppSettings = () => {
             <div className="sk-shim" style={{ width: isMobile ? 38 : 100, height: 38, borderRadius: isMobile ? '50%' : 16 }} />
           </div>
           <div style={{ flex: 1 }}></div>
-          <div style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-          </div>
+          {/* Matches the real navbar's !standalone gate below — the native
+              app and installed PWA never show these icons once loaded, so
+              the skeleton shouldn't fake them either (was rendering as a
+              half-cut icon row next to the back button on mobile). */}
+          {!standalone && (
+            <div style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+            </div>
+          )}
         </nav>
 
         {/* Skeleton Content */}

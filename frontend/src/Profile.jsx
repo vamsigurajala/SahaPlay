@@ -98,6 +98,20 @@ const Profile = () => {
         isGuest: true
       };
     }
+    // otherProfile (below) already renders instantly from a per-username
+    // localStorage cache while a fresh fetch runs in the background; own
+    // profile used to start at null every time, forcing a full skeleton on
+    // every visit even seconds after the last one — normally invisible, but
+    // turns into a long visible blank/skeleton stretch whenever /api/profile
+    // is slow (e.g. the Render backend cold-starting after being idle).
+    // Mirroring the same cache-first pattern here fixes that: last-known
+    // profile shows immediately, fetchProfile() below silently replaces it
+    // once the network call resolves.
+    try {
+      const username = localStorage.getItem('watch_username');
+      const cached = username ? localStorage.getItem(`profile_cache_${username.toLowerCase()}`) : null;
+      if (cached) return JSON.parse(cached);
+    } catch {}
     return null;
   });
   const [displayName, setDisplayName] = useState('');
@@ -539,6 +553,7 @@ const Profile = () => {
         const apply = () => {
           hasLoadedProfileOnce.current = true;
           setProfile(data);
+          try { if (data?.username) localStorage.setItem(`profile_cache_${data.username.toLowerCase()}`, JSON.stringify(data)); } catch {}
           setDisplayName(prev => (prev && prev !== data.displayName && prev !== data.username) ? prev : (data.displayName || data.username || ''));
           setBio(prev => (prev && prev !== data.bio) ? prev : (data.bio || ''));
         };
@@ -863,11 +878,17 @@ const Profile = () => {
             <div className="sk-shim" style={{ width: isMobile ? 38 : 100, height: 38, borderRadius: isMobile ? '50%' : 16 }} />
           </div>
           <div style={{ flex: 1 }}></div>
-          <div style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-            <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
-          </div>
+          {/* Matches the real navbar's !standalone gate below — the native
+              app and installed PWA never show these icons once loaded, so
+              the skeleton shouldn't fake them either (was rendering as a
+              half-cut icon row next to the back button on mobile). */}
+          {!standalone && (
+            <div style={{ flex: 2, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+              <div className="sk-shim sk-circle" style={{ width: 34, height: 34 }} />
+            </div>
+          )}
         </nav>
 
         {/* Skeleton Content */}
