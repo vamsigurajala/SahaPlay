@@ -98,6 +98,15 @@ export async function ensureNativeMediaPermissions() {
   }
 }
 
+// Opens this app's own "App info" page in the system Settings app — the
+// only way to grant CAMERA/RECORD_AUDIO once the user has already denied
+// the in-app prompt (Android stops showing its own permission dialog after
+// that, see SahaplayMediaPlugin.openAppSettings). Used by
+// MediaPermissionModal.jsx's "Open Settings" fallback button.
+export function openNativeAppSettings() {
+  return plugin()?.openAppSettings().catch(() => {}) ?? Promise.resolve();
+}
+
 // Starts/stops SahaplayCallService — the foreground service + persistent
 // notification that keeps a call's WebRTC connections (and JS/socket layer)
 // alive while the app is backgrounded. See CallContext.jsx, which calls this

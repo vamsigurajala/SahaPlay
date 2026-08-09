@@ -340,6 +340,27 @@ public class SahaplayMediaPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    // Deep-links into this app's own page in the system Settings app (the
+    // same "App info -> Permissions" screen a user reaches manually) — the
+    // only way to grant a permission the user has already denied twice /
+    // denied with "Don't ask again" checked, since Android intentionally
+    // stops ActivityCompat.requestPermissions() from showing the system
+    // dialog again at that point (it would return DENIED instantly, with no
+    // UI at all). Used by MediaPermissionModal.jsx as the fallback action
+    // when a plain re-request (ensureMediaPermissions above) doesn't help.
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not open settings");
+        }
+    }
+
     // Mirrors the web app's light/dark theme preference into a plain native
     // SharedPreferences file — IncomingCallActivity.java reads this directly
     // (NOT through this plugin; it may run with the WebView/JS layer never

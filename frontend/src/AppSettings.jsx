@@ -14,6 +14,7 @@ import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA } from './lib/platform';
+import { requestMediaAccess } from './lib/mediaPermissionGate';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -112,6 +113,10 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice
     if (isStarting || active) return;
     setIsStarting(true);
     try {
+      // Native app: same permission gate call buttons/Room.jsx use — shows a
+      // real retry/Open-Settings modal instead of a dead-end toast if the
+      // camera isn't already allowed. No-op on plain web/PWA.
+      if (!(await requestMediaAccess())) return;
       let stream;
       try {
         const constraints = { video: selectedCam ? { deviceId: { exact: selectedCam } } : true };
@@ -746,6 +751,7 @@ const AppSettings = () => {
   // Mic test
   const startMicTest = async () => {
     try {
+      if (!(await requestMediaAccess())) return;
       let stream;
       try {
         const constraints = { audio: selectedMic ? { deviceId: { exact: selectedMic } } : true };

@@ -34,7 +34,8 @@ import { encryptDM, decryptDM } from '../lib/crypto';
 import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
-import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService, ensureNativeMediaPermissions } from '../lib/nativeMedia';
+import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService } from '../lib/nativeMedia';
+import { requestMediaAccess } from '../lib/mediaPermissionGate';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
@@ -705,11 +706,10 @@ export function CallProvider({ children }) {
     // Resolved BEFORE any call state exists yet — see the matching comment
     // on ensureNativeMediaPermissions in nativeMedia.js for why this has to
     // happen ahead of the 'outgoing' phase transition below, not reactively
-    // once getUserMedia() eventually runs.
-    if (!(await ensureNativeMediaPermissions())) {
-      toast.error('Camera and microphone access is required to make calls');
-      return;
-    }
+    // once getUserMedia() eventually runs. requestMediaAccess (not the raw
+    // native call directly) so a denial surfaces MediaPermissionModal's
+    // real retry/Open-Settings UI instead of a dead-end toast.
+    if (!(await requestMediaAccess())) return;
     const callId = newCallId();
     peerPublicKeysRef.current = new Map();
     peerGoneRef.current = false;
@@ -744,10 +744,9 @@ export function CallProvider({ children }) {
     // permission": the grant itself worked fine, but the foreground service
     // had already tried (and Android 14+ hard-crashed on) starting a moment
     // earlier in the same race, before this awaited.
-    const granted = await ensureNativeMediaPermissions();
+    const granted = await requestMediaAccess();
     if (callStateRef.current?.callId !== cs.callId) return; // call ended/changed while permission dialog was up
     if (!granted) {
-      toast.error('Camera and microphone access is required to answer calls');
       declineCall();
       return;
     }

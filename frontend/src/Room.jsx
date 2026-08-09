@@ -4,6 +4,7 @@ import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
+import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
@@ -7981,6 +7982,12 @@ const Room = () => {
         toast.error('Only the host can use their webcam in this room.');
         return;
       }
+      // Native app: resolve CAMERA/RECORD_AUDIO through the same gate calls
+      // use (see mediaPermissionGate.js) BEFORE getUserMedia below, so a
+      // denial surfaces a real retry/Open-Settings modal instead of the
+      // WebView's own getUserMedia prompt (which never reappears after one
+      // denial, leaving no way back in). No-ops to true on plain web/PWA.
+      if (!(await requestMediaAccess())) return;
 
       try {
         console.log('Requesting getUserMedia... mic:', isMicOnCam);
@@ -8144,6 +8151,7 @@ const Room = () => {
 
       if (!hasLiveAudio) {
         // No stream at all, or audio tracks were stopped — must acquire mic hardware fresh
+        if (!(await requestMediaAccess())) return;
         try {
           const selectedMic = localStorage.getItem('watch_selected_mic');
           let audioStream;
