@@ -262,10 +262,9 @@ export function CallProvider({ children }) {
     sock.on('call:declined', ({ callId }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId) return;
-      // The caller had no visible feedback at all when the other side
-      // declined - the ringing screen just silently disappeared, with
-      // nothing to tell them what happened.
-      toast(`${cs.peerDisplayName || cs.peerUsername} declined the call`);
+      // No toast here — the ringing screen disappearing (teardownCall)
+      // already tells the caller the call ended; a toast on top of that was
+      // unwanted noise, not extra information.
       teardownCall();
     });
 
@@ -274,7 +273,6 @@ export function CallProvider({ children }) {
       if (!cs || cs.callId !== callId) return;
       if (cs.phase === 'outgoing') {
         writeCallLog(cs, 'missed');
-        toast(`${cs.peerDisplayName || cs.peerUsername} didn’t answer`);
       }
       teardownCall();
     });
@@ -422,8 +420,6 @@ export function CallProvider({ children }) {
       if (!cs || cs.callId !== callId || !username) return;
       closePeerConnection(username);
       setCallState(prev => (prev ? { ...prev, groupMembers: (prev.groupMembers || []).filter(m => m.username !== username) } : prev));
-      if (reason === 'missed') toast(`${username} didn’t answer`);
-      else if (reason === 'declined') toast(`${username} declined`);
 
       // Call-log routing for someone I personally invited: they log their
       // own side when THEY explicitly leave/decline (their own endCall/

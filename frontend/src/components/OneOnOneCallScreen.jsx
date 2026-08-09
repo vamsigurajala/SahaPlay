@@ -233,9 +233,15 @@ export default function OneOnOneCallScreen({
     ? remotes.map(r => r.displayName).join(', ')
     : remotes[0]?.displayName;
   const mutedOthers = remotes.filter(r => !r.micOn).map(r => r.displayName);
-  const statusLine = mutedOthers.length > 0
+  // Duration and muted status used to be mutually exclusive (muted text
+  // replaced the timer entirely) — showing both together, duration first,
+  // is what was actually wanted: the call's still going, someone just also
+  // happens to be muted right now.
+  const durationOrConnecting = answeredAt ? fmtDuration(durationSecs) : 'Connecting…';
+  const mutedNote = mutedOthers.length > 0
     ? (mutedOthers.length === 1 ? `${mutedOthers[0]} is muted` : `${mutedOthers.length} people muted`)
-    : (answeredAt ? fmtDuration(durationSecs) : 'Connecting…');
+    : null;
+  const statusLine = mutedNote ? `${durationOrConnecting} · ${mutedNote}` : durationOrConnecting;
 
   return (
     <div className="ooc-root" onClick={handleStageTap}>
@@ -278,8 +284,12 @@ export default function OneOnOneCallScreen({
              narrow phones (~320-360px wide), which is exactly the "fits on
              some phones, cut off on others" report. Scaling fluidly with
              viewport width means there's no specific screen size this can
-             overflow at, from the narrowest phone up through iPad. */
-          width: clamp(38px, 11vw, 54px); height: clamp(38px, 11vw, 54px);
+             overflow at, from the narrowest phone up through iPad — the
+             bounds (40-58px) and the dock's own gap/padding below are tuned
+             together so even 6 buttons on a 320px-wide screen still fit,
+             while typical phones and tablets get noticeably bigger buttons
+             than a one-size-fits-all 54px could safely allow everywhere. */
+          width: clamp(40px, 11.5vw, 58px); height: clamp(40px, 11.5vw, 58px);
           border-radius: 50%; border: none;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: transform 0.15s ease; flex-shrink: 0;
@@ -287,11 +297,19 @@ export default function OneOnOneCallScreen({
         .ooc-ctrl-btn:active { transform: scale(0.92); }
         /* This whole screen is a permanently-dark surface by design
            regardless of the app's own light/dark theme setting (see
-           GlobalCallOverlay.jsx's matching status-bar-icon comment) — !important
-           here guards every text color below against whatever theme-aware
-           global color rule was otherwise bleeding through and turning these
-           dark-on-purpose labels unreadable on a light app theme. */
-        .ooc-ctrl-label { font-size: clamp(8.5px, 2.2vw, 10px); color: rgba(255,255,255,0.7) !important; text-align: center; margin-top: 6px; white-space: nowrap; }
+           GlobalCallOverlay.jsx's matching status-bar-icon comment). Plain
+           color: ... !important alone was NOT enough on the app's light
+           theme specifically — html[data-theme='light'] body sets a
+           -webkit-text-fill-color on the page (see index.css's own
+           .stay-white utility, which exists for exactly this reason).
+           WebKit/Chromium paints text glyphs from -webkit-text-fill-color
+           when it's present ANYWHERE in the inherited chain, ignoring
+           color for the actual paint even though color itself is
+           correctly white — that's why dark mode (no such rule active)
+           looked fine while light mode still rendered these dark. Forcing
+           -webkit-text-fill-color here too, everywhere color is forced,
+           is what actually fixes it in both themes. */
+        .ooc-ctrl-label { font-size: clamp(8.5px, 2.2vw, 10px); color: rgba(255,255,255,0.7) !important; -webkit-text-fill-color: rgba(255,255,255,0.7) !important; text-align: center; margin-top: 6px; white-space: nowrap; }
         /* Same reasoning as the top bar's Add button: buttons/labels sitting
            directly on top of a bright/light background (a plain window
            gradient scrim isn't always enough contrast) were hard to read.
@@ -299,9 +317,9 @@ export default function OneOnOneCallScreen({
            regardless of what's behind the call screen. */
         .ooc-dock-box {
           display: flex; align-items: center; justify-content: center;
-          gap: clamp(4px, 2vw, 18px);
+          gap: clamp(3px, 1.8vw, 16px);
           background: rgba(20,20,20,0.55); border-radius: 28px;
-          padding: clamp(8px, 2.5vw, 14px) clamp(8px, 2.5vw, 18px);
+          padding: clamp(6px, 2vw, 14px) clamp(6px, 2vw, 18px);
           max-width: 100%;
         }
         .ooc-more-menu {
@@ -313,7 +331,8 @@ export default function OneOnOneCallScreen({
         .ooc-more-opt {
           display: flex; align-items: center; gap: 10px; width: 100%;
           padding: 12px 14px; background: transparent; border: none; border-radius: 10px;
-          color: #fff !important; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+          color: #fff !important; -webkit-text-fill-color: #fff !important;
+          font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
         }
         .ooc-more-opt:active { background: rgba(255,255,255,0.08); }
         .ooc-pip {
@@ -332,9 +351,10 @@ export default function OneOnOneCallScreen({
         .ooc-route-opt {
           display: flex; align-items: center; gap: 10px; width: 100%;
           padding: 12px 14px; background: transparent; border: none; border-radius: 10px;
-          color: #fff !important; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+          color: #fff !important; -webkit-text-fill-color: #fff !important;
+          font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
         }
-        .ooc-route-opt.active { background: rgba(var(--brand-1-rgb), 0.18); color: var(--brand-1-light) !important; }
+        .ooc-route-opt.active { background: rgba(var(--brand-1-rgb), 0.18); color: var(--brand-1-light) !important; -webkit-text-fill-color: var(--brand-1-light) !important; }
         .ooc-grid {
           position: absolute; inset: 0; display: grid; gap: 6px; padding: 6px;
           padding-top: calc(6px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)) + 76px);
@@ -413,7 +433,7 @@ export default function OneOnOneCallScreen({
           <div className="stay-white" style={{ color: '#fff', fontWeight: 800, fontSize: 17, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {headerLine}
           </div>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)', WebkitTextFillColor: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)' }}>
             {statusLine}
           </div>
         </div>

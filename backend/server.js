@@ -999,11 +999,17 @@ function endCallInternal(callId) {
   activeCalls.delete(callId);
   if (userActiveCallId.get(call.caller) === callId) userActiveCallId.delete(call.caller);
   if (userActiveCallId.get(call.callee) === callId) userActiveCallId.delete(call.callee);
-  // Dismisses the callee's ring notification the instant the call is
-  // resolved any way (declined, timed out, or cancelled by the caller) —
-  // see sendCallCancelPush. Harmless no-op if there was never a push-based
-  // notification to begin with (foreground callees never show one).
+  // Dismisses both sides' notifications the instant the call is resolved
+  // any way (declined, timed out, or cancelled) — see sendCallCancelPush.
+  // Harmless no-op if there was never a push-based notification to begin
+  // with. The caller-side push matters even though they also get a live
+  // 'call:declined' emit just below — that emit only reaches them if their
+  // socket happens to be connected at this exact instant; the push is what
+  // reaches their ongoing-call notification (see SahaplayCallService.java)
+  // regardless, which is what was missing when a caller's phone kept
+  // showing "ringing" after the other side declined.
   sendCallCancelPush(call.callee, callId);
+  sendCallCancelPush(call.caller, callId);
   if (call.members) {
     for (const [u, entry] of call.members) {
       clearTimeout(entry.timeoutHandle);

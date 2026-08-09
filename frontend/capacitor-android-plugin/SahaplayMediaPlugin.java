@@ -69,6 +69,37 @@ public class SahaplayMediaPlugin extends Plugin {
         activeInstance.notifyListeners("screenCaptureStopped", new JSObject());
     }
 
+    // Called by CallActionReceiver after a notification Decline/Hang Up
+    // action posts to the backend — that HTTP call only tells the OTHER
+    // person the call is over, it does nothing for THIS device's own
+    // WebRTC/call state. If the app's JS layer is still alive (backgrounded
+    // but not killed — the common case, since SahaplayCallService's whole
+    // purpose is keeping it alive), that local state was never torn down by
+    // a background-only broadcast action, which is what made "Hang Up in
+    // the notification" look like it didn't work: the backend correctly
+    // told the other person, but THIS side's call screen/audio/
+    // RTCPeerConnection just kept running until the app was eventually
+    // backgrounded long enough to be killed. Runs the exact same
+    // window.dispatchEvent(new Event('native_call_end')) main.jsx already
+    // wires up via nativeCallBridge.js's initNativeCallEndLink (previously
+    // only reachable by deep-linking back into the app) — CallContext.jsx's
+    // hangup() already branches correctly on the current call phase
+    // (declining/ending/cancelling), so the same event works for both the
+    // Decline and Hang Up actions. A no-op if the process was fully killed
+    // (activeInstance null) — nothing to tear down locally in that case,
+    // the backend calls already covered everything that matters.
+    public static void notifyNativeCallEnded() {
+        if (activeInstance == null) return;
+        try {
+            activeInstance.getActivity().runOnUiThread(() -> {
+                try {
+                    activeInstance.getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new Event('native_call_end'));", null);
+                } catch (Exception ignored) {}
+            });
+        } catch (Exception ignored) {}
+    }
+
     // STREAM_MUSIC is the same system-wide media volume stream the phone's
     // physical volume buttons control — no manifest permission required.
     @PluginMethod

@@ -192,6 +192,74 @@ public class IncomingCallActivity extends android.app.Activity {
             .build();
 
         nm.notify(callId.hashCode(), notification);
+
+        // Swaps in the caller's real photo once it's loaded — showing only
+        // the instant-available initials placeholder above is deliberate
+        // (a network round-trip would delay the notification itself), but
+        // there's no reason to leave it on initials forever once the real
+        // photo is one cheap GET away. Re-posting a notification with the
+        // same ID replaces it in place, same as WhatsApp/Telegram swapping
+        // in a real photo shortly after their own initial ring notification.
+        fetchAndRefreshNotificationAvatar(ctx, callId, callerUsername, isVideo, declinePendingIntent, answerPendingIntent, fullScreenPendingIntent);
+    }
+
+    private static void fetchAndRefreshNotificationAvatar(Context ctx, String callId, String callerUsername, boolean isVideo,
+            PendingIntent declinePendingIntent, PendingIntent answerPendingIntent, PendingIntent fullScreenPendingIntent) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(API_BASE + "/api/users/" + Uri.encode(callerUsername));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                if (conn.getResponseCode() != 200) return;
+                StringBuilder sb = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) sb.append(line);
+                }
+                String avatarPath = extractJsonStringField(sb.toString(), "avatarPath");
+                if (avatarPath == null || avatarPath.isEmpty()) return;
+                String avatarUrl = avatarPath.startsWith("http") ? avatarPath : (API_BASE + avatarPath);
+                HttpURLConnection imgConn = (HttpURLConnection) new URL(avatarUrl).openConnection();
+                imgConn.setConnectTimeout(5000);
+                imgConn.setReadTimeout(5000);
+                if (imgConn.getResponseCode() != 200) return;
+                Bitmap photo;
+                try (InputStream is = imgConn.getInputStream()) {
+                    photo = BitmapFactory.decodeStream(is);
+                }
+                if (photo == null) return;
+
+                // No explicit "is this call still ringing" check needed here:
+                // if it was already resolved, cancelForCallId() already
+                // cancelled this notification ID outright, so re-notify()ing
+                // it here would just silently resurrect a very short-lived,
+                // already-inert notification — a harmless, rare edge case,
+                // not worth the extra state tracking to prevent.
+                NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                Person callerPerson = new Person.Builder()
+                    .setName(callerUsername)
+                    .setIcon(IconCompat.createWithBitmap(photo))
+                    .setImportant(true)
+                    .build();
+                NotificationCompat.CallStyle callStyle = NotificationCompat.CallStyle.forIncomingCall(
+                    callerPerson, declinePendingIntent, answerPendingIntent
+                );
+                Notification updated = new NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setContentTitle(callerUsername)
+                    .setContentText(isVideo ? "Incoming video call" : "Incoming voice call")
+                    .setSmallIcon(ctx.getApplicationInfo().icon)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setFullScreenIntent(fullScreenPendingIntent, true)
+                    .setContentIntent(fullScreenPendingIntent)
+                    .setStyle(callStyle)
+                    .setAutoCancel(true)
+                    .setOngoing(true)
+                    .build();
+                nm.notify(callId.hashCode(), updated);
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     // A plain colored-circle-with-initials avatar, drawn straight to a

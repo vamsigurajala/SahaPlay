@@ -70,6 +70,15 @@ public class CallActionReceiver extends BroadcastReceiver {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/end",
                 "{\"username\":\"" + escapeJson(username) + "\"}");
         }
+        // The HTTP calls above only tell the OTHER person the call is over —
+        // they do nothing for THIS device's own call screen/WebRTC state.
+        // If the app's JS layer is still alive (backgrounded, not killed),
+        // tell it too, so the call actually tears down here instead of
+        // continuing to run until the process eventually dies on its own.
+        // See SahaplayMediaPlugin.notifyNativeCallEnded() for the full
+        // reasoning — this is what fixes "I tapped Hang Up/Decline in the
+        // notification but the call kept going on my end."
+        SahaplayMediaPlugin.notifyNativeCallEnded();
     }
 
     private static String urlEncode(String s) {
