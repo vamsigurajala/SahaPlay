@@ -5,7 +5,7 @@
 // specifically for 1:1 DM calls, separate from CallingActivity.jsx which
 // the room's own multi-participant camera calls still use).
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Video, X } from 'lucide-react';
+import { Phone, PhoneOff, Video } from 'lucide-react';
 import { useCall } from '../contexts/CallContext';
 import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
@@ -303,7 +303,7 @@ export default function GlobalCallOverlay() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             <button className="gco-ring-btn" onClick={call.cancelOutgoingCall} style={{ background: '#ef4444' }} aria-label="Cancel">
-              <X size={26} color="#fff" />
+              <PhoneOff size={26} color="#fff" />
             </button>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>Cancel</span>
           </div>

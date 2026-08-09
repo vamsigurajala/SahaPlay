@@ -1,5 +1,6 @@
 package com.sahaplay.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -17,8 +18,11 @@ import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 // Exposes real device volume/brightness control to the web player's vertical
 // swipe gestures (see frontend/src/lib/nativeMedia.js and the
@@ -31,7 +35,12 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 // (.github/workflows/android-capacitor-build.yml) copies it into the
 // generated native project on every build rather than it living inside that
 // generated (never-committed) tree directly.
-@CapacitorPlugin(name = "SahaplayMedia")
+@CapacitorPlugin(
+    name = "SahaplayMedia",
+    permissions = {
+        @Permission(strings = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, alias = "media")
+    }
+)
 public class SahaplayMediaPlugin extends Plugin {
 
     // Screen-capture frames/events arrive from SahaplayScreenCaptureService
@@ -291,6 +300,40 @@ public class SahaplayMediaPlugin extends Plugin {
         intent.setAction(SahaplayCallService.ACTION_STOP);
         try { getContext().startService(intent); } catch (Exception ignored) {}
         call.resolve();
+    }
+
+    // Proactively resolves CAMERA + RECORD_AUDIO runtime permissions BEFORE
+    // any call setup begins — see CallContext.jsx's startCall/acceptCall,
+    // which now await this first thing. Capacitor's own WebView permission
+    // bridge would eventually request these reactively anyway once the web
+    // app calls getUserMedia(), but by then this call may have ALREADY
+    // started SahaplayCallService with foregroundServiceType
+    // "microphone|camera" (see startCallForegroundService above) — and
+    // Android 14+ throws a hard, uncaught SecurityException (crashing the
+    // whole app process, not just failing gracefully) if that foreground
+    // service type is declared before the matching runtime permission is
+    // actually granted. This was the real cause behind "app gets stuck and
+    // closes right after granting the permission" — the grant itself
+    // succeeded, but the foreground service had already tried (and failed)
+    // to start a moment earlier in the same race. Resolving permissions
+    // here first, awaited from JS before anything call-related happens,
+    // removes that race entirely.
+    @PluginMethod
+    public void ensureMediaPermissions(PluginCall call) {
+        if (getPermissionState("media") == PermissionState.GRANTED) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+            return;
+        }
+        requestPermissionForAlias("media", call, "mediaPermissionCallback");
+    }
+
+    @PermissionCallback
+    private void mediaPermissionCallback(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", getPermissionState("media") == PermissionState.GRANTED);
+        call.resolve(ret);
     }
 
     // Mirrors the web app's light/dark theme preference into a plain native

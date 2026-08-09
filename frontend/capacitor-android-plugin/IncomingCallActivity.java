@@ -10,7 +10,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioAttributes;
@@ -159,6 +161,7 @@ public class IncomingCallActivity extends android.app.Activity {
         RemoteViews customView = new RemoteViews(ctx.getPackageName(), R.layout.notification_incoming_call);
         customView.setTextViewText(R.id.call_title, isVideo ? "Incoming video call" : "Incoming voice call");
         customView.setTextViewText(R.id.call_caller, callerUsername);
+        customView.setImageViewBitmap(R.id.call_avatar, buildInitialsAvatarBitmap(callerUsername, 156));
         customView.setOnClickPendingIntent(R.id.btn_decline, declinePendingIntent);
         customView.setOnClickPendingIntent(R.id.btn_answer, answerPendingIntent);
 
@@ -171,7 +174,14 @@ public class IncomingCallActivity extends android.app.Activity {
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
             .setCustomContentView(customView)
-            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+            // Deliberately NOT using NotificationCompat.DecoratedCustomViewStyle
+            // here — that wraps the custom view with the system's own small
+            // icon/app-name/timestamp header row, drawn in the SYSTEM's card
+            // color/theme, sitting right above this view's own hardcoded dark
+            // background — exactly the "box inside a box" two-tone look this
+            // was already fixed away from once. A plain custom content view
+            // with no style shows ONLY this view, filling the whole
+            // notification uniformly.
             // No .addAction() chips here on top of the custom view's own
             // buttons above — that used to render as a SECOND, duplicate
             // Decline/Answer row (small grey system chips) underneath the
@@ -184,6 +194,37 @@ public class IncomingCallActivity extends android.app.Activity {
             .build();
 
         nm.notify(callId.hashCode(), notification);
+    }
+
+    // A plain colored-circle-with-initials avatar, drawn straight to a
+    // Bitmap — RemoteViews has no equivalent of the Activity's own
+    // RoundedBitmapDrawableFactory (that produces a Drawable for a real
+    // View tree, not something a remote notification process can render);
+    // a notification needs an actual Bitmap. Same palette/initials logic as
+    // the in-Activity avatar (colorForUsername/initialsFor below) so the
+    // notification and the full ring screen read as the same person's
+    // avatar rather than two different placeholder styles. Deliberately
+    // just the initials placeholder, not the user's real uploaded photo —
+    // fetching and decoding that would mean a network round-trip before
+    // this otherwise-instant notification could even show, and the
+    // real photo is already one tap away (opening the notification body
+    // shows the full ring screen, which does fetch+show it).
+    static Bitmap buildInitialsAvatarBitmap(String username, int sizePx) {
+        Bitmap bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bgPaint.setColor(Color.parseColor(colorForUsername(username)));
+        canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, bgPaint);
+
+        Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextSize(sizePx * 0.4f);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setFakeBoldText(true);
+        Paint.FontMetrics fm = textPaint.getFontMetrics();
+        float y = sizePx / 2f - (fm.ascent + fm.descent) / 2f;
+        canvas.drawText(initialsFor(username), sizePx / 2f, y, textPaint);
+        return bitmap;
     }
 
     // Same sahaplay://call-answer hand-off the in-Activity Answer button

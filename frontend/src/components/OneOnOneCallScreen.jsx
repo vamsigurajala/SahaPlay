@@ -419,14 +419,14 @@ export default function OneOnOneCallScreen({
       {routePickerOpen && (
         <div className="ooc-route-sheet" ref={routeMenuRef} onClick={(e) => e.stopPropagation()}>
           <button className={`ooc-route-opt ${audioRoute === 'earpiece' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('earpiece'); setRoutePickerOpen(false); }}>
-            <Ear size={17} color="#fff" /> Normal
+            <Ear size={17} color="#fff" /> <span style={{ color: audioRoute === 'earpiece' ? 'var(--brand-1-light)' : '#fff' }}>Normal</span>
           </button>
           <button className={`ooc-route-opt ${audioRoute === 'speaker' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('speaker'); setRoutePickerOpen(false); }}>
-            <Volume2 size={17} color="#fff" /> Speaker
+            <Volume2 size={17} color="#fff" /> <span style={{ color: audioRoute === 'speaker' ? 'var(--brand-1-light)' : '#fff' }}>Speaker</span>
           </button>
           {bluetoothAudioAvailable && (
             <button className={`ooc-route-opt ${audioRoute === 'bluetooth' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('bluetooth'); setRoutePickerOpen(false); }}>
-              <Bluetooth size={17} color="#fff" /> Bluetooth
+              <Bluetooth size={17} color="#fff" /> <span style={{ color: audioRoute === 'bluetooth' ? 'var(--brand-1-light)' : '#fff' }}>Bluetooth</span>
             </button>
           )}
         </div>
@@ -441,7 +441,7 @@ export default function OneOnOneCallScreen({
               style={{ color: '#fff' }}
               onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
             >
-              <ScreenShare size={17} color="#fff" /> {isScreenSharing ? 'Stop screen share' : 'Screen share'}
+              <ScreenShare size={17} color="#fff" /> <span style={{ color: '#fff' }}>{isScreenSharing ? 'Stop screen share' : 'Screen share'}</span>
             </button>
           )}
           {primaryRemote && (
@@ -450,7 +450,7 @@ export default function OneOnOneCallScreen({
               style={{ color: '#fff' }}
               onClick={() => { setMoreMenuOpen(false); onSendMessage?.(primaryRemote.username); }}
             >
-              <MessageCircle size={17} color="#fff" /> Send message
+              <MessageCircle size={17} color="#fff" /> <span style={{ color: '#fff' }}>Send message</span>
             </button>
           )}
         </div>
@@ -468,7 +468,7 @@ export default function OneOnOneCallScreen({
             >
               <MoreVertical size={20} color="#fff" />
             </button>
-            <span className="ooc-ctrl-label">More</span>
+            <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>More</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -483,7 +483,7 @@ export default function OneOnOneCallScreen({
             >
               <RouteIcon size={22} color="#fff" />
             </button>
-            <span className="ooc-ctrl-label">{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Normal'}</span>
+            <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Normal'}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -498,7 +498,7 @@ export default function OneOnOneCallScreen({
                   camera is actually on, not just whether this is a video call. */}
               {isVideo && !isCamOn ? <VideoOff size={22} color="#fff" /> : <Video size={22} color="#fff" />}
             </button>
-            <span className="ooc-ctrl-label">Video</span>
+            <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>Video</span>
           </div>
 
           {/* Moved here from a floating button on the PiP tile — that button
@@ -513,7 +513,7 @@ export default function OneOnOneCallScreen({
               <button className="ooc-ctrl-btn" onClick={flipCamera} style={{ background: 'rgba(255,255,255,0.14)' }}>
                 <SwitchCamera size={22} color="#fff" />
               </button>
-              <span className="ooc-ctrl-label">Flip</span>
+              <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>Flip</span>
             </div>
           )}
 
@@ -525,14 +525,14 @@ export default function OneOnOneCallScreen({
             >
               {isMicOn ? <Mic size={22} color="#fff" /> : <MicOff size={22} color="#fff" />}
             </button>
-            <span className="ooc-ctrl-label">{isMicOn ? 'Mute' : 'Muted'}</span>
+            <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>{isMicOn ? 'Mute' : 'Muted'}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button className="ooc-ctrl-btn" onClick={onEndCall} style={{ background: '#ef4444' }}>
               <PhoneOff size={22} color="#fff" />
             </button>
-            <span className="ooc-ctrl-label">{isGroup ? 'Leave' : 'End'}</span>
+            <span className="ooc-ctrl-label" style={{ color: 'rgba(255,255,255,0.7)' }}>{isGroup ? 'Leave' : 'End'}</span>
           </div>
         </div>
       </div>

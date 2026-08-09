@@ -78,11 +78,25 @@ public class SahaplayCallService extends Service {
         // every type this service might ever start with, and there's no
         // per-call-type native signal worth the complexity of varying it.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE | ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            );
+            try {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE | ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                );
+            } catch (Exception e) {
+                // Camera/mic runtime permission wasn't actually granted at
+                // this exact moment — Android 14+ throws here (a plain
+                // uncaught exception crashes the ENTIRE app process, not
+                // just this service) instead of failing gracefully.
+                // SahaplayMediaPlugin.ensureMediaPermissions() is meant to
+                // close this race before CallContext.jsx ever gets here, but
+                // this is the last-resort backstop: degrade to "no
+                // persistent notification for this call" rather than taking
+                // the whole app down with it.
+                stopSelf();
+                return START_NOT_STICKY;
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
@@ -121,6 +135,10 @@ public class SahaplayCallService extends Service {
 
         RemoteViews customView = new RemoteViews(getPackageName(), R.layout.notification_ongoing_call);
         customView.setTextViewText(R.id.ongoing_call_title, peerName);
+        // Same colored-initials avatar builder IncomingCallActivity uses for
+        // its own notification — package-private static, shared rather than
+        // duplicated.
+        customView.setImageViewBitmap(R.id.ongoing_call_avatar, IncomingCallActivity.buildInitialsAvatarBitmap(peerName, 132));
         customView.setViewVisibility(R.id.ongoing_call_status, isRinging ? View.VISIBLE : View.GONE);
         customView.setViewVisibility(R.id.ongoing_call_timer, isRinging ? View.GONE : View.VISIBLE);
         if (isRinging) {
@@ -138,7 +156,7 @@ public class SahaplayCallService extends Service {
             long elapsedBase = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt);
             customView.setChronometer(R.id.ongoing_call_timer, elapsedBase, null, true);
         }
-        customView.setTextViewText(R.id.btn_end_call, isRinging ? "Cancel" : "End call");
+        customView.setTextViewText(R.id.btn_end_call_label, isRinging ? "Cancel" : "Hang Up");
         customView.setOnClickPendingIntent(R.id.btn_end_call, endPendingIntent);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -148,7 +166,10 @@ public class SahaplayCallService extends Service {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setCustomContentView(customView)
-            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+            // No DecoratedCustomViewStyle here — same "box inside a box"
+            // reasoning as the incoming-call notification (see
+            // IncomingCallActivity.showIncomingCall()); this view's own
+            // hardcoded dark background fills the whole card on its own.
             .setOngoing(true)
             .setUsesChronometer(!isRinging)
             .setWhen(startedAt)

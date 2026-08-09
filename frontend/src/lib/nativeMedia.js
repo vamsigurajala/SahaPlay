@@ -76,6 +76,28 @@ export function setNativeThemePreference(theme) {
   plugin()?.setThemePreference({ theme }).catch(() => {});
 }
 
+// Resolves CAMERA + RECORD_AUDIO runtime permissions BEFORE any call setup
+// begins — see CallContext.jsx's startCall/acceptCall, which await this
+// first thing now. Without it, the WebView's own reactive getUserMedia()
+// permission prompt could arrive AFTER startNativeCallService() below had
+// already tried to start a foreground service declared with
+// foregroundServiceType="microphone|camera" — Android 14+ hard-crashes the
+// whole app in that race (see SahaplayMediaPlugin.ensureMediaPermissions
+// for the full explanation), which is what made answering/placing a call
+// sometimes "get stuck and close" right after granting the permission.
+// Resolves true on every non-Capacitor platform (plain web/PWA/desktop),
+// where the browser's own getUserMedia prompt is the only thing that exists
+// and this whole class of bug doesn't apply.
+export async function ensureNativeMediaPermissions() {
+  if (!isCapacitorApp()) return true;
+  try {
+    const result = await plugin()?.ensureMediaPermissions();
+    return !!result?.granted;
+  } catch {
+    return false;
+  }
+}
+
 // Starts/stops SahaplayCallService — the foreground service + persistent
 // notification that keeps a call's WebRTC connections (and JS/socket layer)
 // alive while the app is backgrounded. See CallContext.jsx, which calls this

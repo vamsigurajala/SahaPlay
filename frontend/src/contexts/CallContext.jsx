@@ -34,7 +34,7 @@ import { encryptDM, decryptDM } from '../lib/crypto';
 import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
-import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService } from '../lib/nativeMedia';
+import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService, ensureNativeMediaPermissions } from '../lib/nativeMedia';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
@@ -702,6 +702,14 @@ export function CallProvider({ children }) {
   // ─── Public API ───
   const startCall = useCallback(async (peerUsername, type, peerDisplayName, peerAvatar) => {
     if (callStateRef.current || !socketRef.current) return;
+    // Resolved BEFORE any call state exists yet — see the matching comment
+    // on ensureNativeMediaPermissions in nativeMedia.js for why this has to
+    // happen ahead of the 'outgoing' phase transition below, not reactively
+    // once getUserMedia() eventually runs.
+    if (!(await ensureNativeMediaPermissions())) {
+      toast.error('Camera and microphone access is required to make calls');
+      return;
+    }
     const callId = newCallId();
     peerPublicKeysRef.current = new Map();
     peerGoneRef.current = false;
@@ -725,10 +733,24 @@ export function CallProvider({ children }) {
     socketRef.current.emit('call:invite', { callId, calleeUsername: peerUsername, callType: type });
   }, []);
 
-  const acceptCall = useCallback(() => {
+  const acceptCall = useCallback(async () => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming' || !socketRef.current) return;
     clearPendingNativeCallAnswer();
+    // Same reasoning as startCall above — resolved BEFORE the phase flips
+    // to 'active' below, which is what triggers SahaplayCallService to
+    // start with foregroundServiceType "microphone|camera". This was the
+    // actual cause of "app gets stuck and closes right after granting the
+    // permission": the grant itself worked fine, but the foreground service
+    // had already tried (and Android 14+ hard-crashed on) starting a moment
+    // earlier in the same race, before this awaited.
+    const granted = await ensureNativeMediaPermissions();
+    if (callStateRef.current?.callId !== cs.callId) return; // call ended/changed while permission dialog was up
+    if (!granted) {
+      toast.error('Camera and microphone access is required to answer calls');
+      declineCall();
+      return;
+    }
     if (cs.isGroupJoin) {
       // Who to connect to is confirmed by the server's own reply
       // (call:joined-call) rather than acted on here — the groupMembers

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full-pill (fully rounded) button background for the incoming-call
+     notification's Decline button and the ongoing-call notification's Hang
+     Up button — radius set to exactly half the buttons' own height so the
+     ends come out as true semicircles, matching the reference call-UI style
+     (WhatsApp-style rounded pill, not a plain rectangle). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#EF4444" />
+    <corners android:radius="26dp" />
+</shape>

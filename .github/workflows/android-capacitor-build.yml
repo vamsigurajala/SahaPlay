@@ -341,6 +341,9 @@ jobs:
           mkdir -p android/app/src/main/res/layout
           cp capacitor-android-plugin/res/layout/notification_incoming_call.xml android/app/src/main/res/layout/notification_incoming_call.xml
           cp capacitor-android-plugin/res/layout/notification_ongoing_call.xml android/app/src/main/res/layout/notification_ongoing_call.xml
+          mkdir -p android/app/src/main/res/drawable
+          cp capacitor-android-plugin/res/drawable/pill_red.xml android/app/src/main/res/drawable/pill_red.xml
+          cp capacitor-android-plugin/res/drawable/pill_green.xml android/app/src/main/res/drawable/pill_green.xml
 
       - name: Sync Capacitor project
         working-directory: frontend
