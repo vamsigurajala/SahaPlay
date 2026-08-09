@@ -227,14 +227,22 @@ export function CallProvider({ children }) {
     });
 
     sock.on('call:declined', ({ callId }) => {
-      if (callStateRef.current?.callId !== callId) return;
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId) return;
+      // The caller had no visible feedback at all when the other side
+      // declined - the ringing screen just silently disappeared, with
+      // nothing to tell them what happened.
+      toast(`${cs.peerDisplayName || cs.peerUsername} declined the call`);
       teardownCall();
     });
 
     sock.on('call:timeout', ({ callId }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId) return;
-      if (cs.phase === 'outgoing') writeCallLog(cs, 'missed');
+      if (cs.phase === 'outgoing') {
+        writeCallLog(cs, 'missed');
+        toast(`${cs.peerDisplayName || cs.peerUsername} didn’t answer`);
+      }
       teardownCall();
     });
 
