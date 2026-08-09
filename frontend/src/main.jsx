@@ -34,7 +34,7 @@ import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
-import { initNativeCallAnswerLink } from './lib/nativeCallBridge.js';
+import { initNativeCallAnswerLink, initNativeCallEndLink } from './lib/nativeCallBridge.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -61,6 +61,12 @@ if (isCapacitorApp()) {
   // call once its own socket confirms it's still ringing.
   initNativeCallAnswerLink((data) => {
     window.dispatchEvent(new CustomEvent('native_call_answer', { detail: data }));
+  });
+  // Same rebroadcast pattern — the ongoing-call notification's End Call
+  // button (see SahaplayCallService.java). CallContext.jsx picks this up
+  // and calls its normal endCall().
+  initNativeCallEndLink(() => {
+    window.dispatchEvent(new Event('native_call_end'));
   });
 }
 

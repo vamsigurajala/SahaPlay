@@ -34,7 +34,7 @@ import { encryptDM, decryptDM } from '../lib/crypto';
 import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
-import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable } from '../lib/nativeMedia';
+import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService } from '../lib/nativeMedia';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
@@ -643,6 +643,8 @@ export function CallProvider({ children }) {
 
   function teardownCall() {
     clearPendingNativeCallAnswer();
+    stopNativeCallService();
+    callServiceStartedForCallId.current = null;
     if (screenShareTrackRef.current) {
       try { screenShareCleanupRef.current?.(); } catch {}
       try { screenShareTrackRef.current.stop(); } catch {}
@@ -958,6 +960,32 @@ export function CallProvider({ children }) {
     setAudioRouteState('earpiece');
     isNativeBluetoothAudioAvailable().then(setBluetoothAudioAvailable);
   }, [callState?.phase, callState?.callId, callState?.type]);
+
+  // Starts the persistent ongoing-call notification (see nativeMedia.js /
+  // SahaplayCallService.java) the moment a call connects, so it keeps
+  // running - and the WebRTC connections stay alive - if the app gets
+  // backgrounded. teardownCall() below stops it again for every possible
+  // end reason (declined, timeout, hung up either side, disconnected), so
+  // it never outlives the call it belongs to.
+  const callServiceStartedForCallId = useRef(null);
+  useEffect(() => {
+    if (callState?.phase !== 'active') return;
+    if (callServiceStartedForCallId.current === callState.callId) return;
+    callServiceStartedForCallId.current = callState.callId;
+    startNativeCallService(callState.peerDisplayName || callState.peerUsername, callState.answeredAt || Date.now());
+  }, [callState?.phase, callState?.callId]);
+
+  // Same sahaplay://call-end deep link SahaplayCallService's notification
+  // button uses — see nativeCallBridge.js/main.jsx. No pending-callId
+  // matching needed here (unlike the answer link): there's only ever one
+  // active call at a time, so ending "the current call" is unambiguous.
+  // endCall is declared above with an empty dependency array (a stable
+  // reference for the lifetime of this component), so it's safe to depend
+  // on directly here without a ref indirection.
+  useEffect(() => {
+    window.addEventListener('native_call_end', endCall);
+    return () => window.removeEventListener('native_call_end', endCall);
+  }, [endCall]);
 
   const setAudioRoute = useCallback((route) => {
     setNativeAudioRoute(route);

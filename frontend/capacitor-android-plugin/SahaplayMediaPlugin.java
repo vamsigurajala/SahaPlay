@@ -264,6 +264,33 @@ public class SahaplayMediaPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    // Starts/stops SahaplayCallService — the foreground service + persistent
+    // notification that keeps an active call's WebRTC connections alive
+    // while the app is backgrounded (see that file for the full reasoning).
+    // Called from CallContext.jsx the moment a call becomes active, and
+    // again to stop it the moment the call ends.
+    @PluginMethod
+    public void startCallForegroundService(PluginCall call) {
+        String peerName = call.getString("peerName", "Ongoing call");
+        // No PluginCall.getLong() in the Capacitor bridge API — every JS
+        // number crosses as a double, cast back to long here.
+        Double startedAtMillis = call.getDouble("startedAtMillis");
+        long startedAt = startedAtMillis != null ? startedAtMillis.longValue() : System.currentTimeMillis();
+        Intent intent = new Intent(getContext(), SahaplayCallService.class);
+        intent.putExtra(SahaplayCallService.EXTRA_PEER_NAME, peerName);
+        intent.putExtra(SahaplayCallService.EXTRA_STARTED_AT, startedAt);
+        androidx.core.content.ContextCompat.startForegroundService(getContext(), intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopCallForegroundService(PluginCall call) {
+        Intent intent = new Intent(getContext(), SahaplayCallService.class);
+        intent.setAction(SahaplayCallService.ACTION_STOP);
+        try { getContext().startService(intent); } catch (Exception ignored) {}
+        call.resolve();
+    }
+
     // Mirrors the web app's light/dark theme preference into a plain native
     // SharedPreferences file — IncomingCallActivity.java reads this directly
     // (NOT through this plugin; it may run with the WebView/JS layer never

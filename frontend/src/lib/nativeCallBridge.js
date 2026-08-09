@@ -59,3 +59,21 @@ export function isPendingNativeCallAnswer(callId) {
 export function clearPendingNativeCallAnswer() {
   delete window.__sahaplayPendingCallAnswer;
 }
+
+// Same deep-link mechanism as call-answer above, for the ongoing-call
+// notification's End Call button (see SahaplayCallService.java) — a
+// separate 'appUrlOpen' listener registered alongside the answer one
+// (Capacitor supports multiple listeners for the same event; each just
+// filters for its own URL prefix). No pending-state stash needed here the
+// way answer has one: ending an already-connected call doesn't have the
+// same "which screen shows what" race, CallContext.jsx just calls its
+// normal endCall() directly.
+const END_LINK_PREFIX = 'sahaplay://call-end';
+export function initNativeCallEndLink(onEnd) {
+  const app = capApp();
+  if (!app) return;
+  app.addListener('appUrlOpen', ({ url }) => {
+    if (!url || !url.startsWith(END_LINK_PREFIX)) return;
+    onEnd();
+  });
+}

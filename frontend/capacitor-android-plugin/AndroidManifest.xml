@@ -71,6 +71,20 @@
                 <data android:scheme="sahaplay" android:host="call-answer" />
             </intent-filter>
 
+            <!-- The ongoing-call notification's End Call button (see
+                 SahaplayCallService.java) hands off here the same way
+                 call-answer above does — nativeCallBridge.js listens for
+                 this too, and tells CallContext to run its real endCall()
+                 (call-log writing, peer teardown, stopping the foreground
+                 service) instead of a native shortcut that would skip all
+                 of that. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sahaplay" android:host="call-end" />
+            </intent-filter>
+
         </activity>
 
         <!-- Full-screen, lock-screen-visible incoming call UI (see
@@ -130,6 +144,17 @@
             android:name=".SahaplayScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- Keeps an active call's WebRTC connections alive while the app is
+             backgrounded, via a persistent notification (see
+             SahaplayCallService.java + res/layout/notification_ongoing_
+             call.xml). microphone + camera foregroundServiceType matches
+             what this service is actually for and requires the two
+             FOREGROUND_SERVICE_* permissions below on Android 14+. -->
+        <service
+            android:name=".SahaplayCallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
     </application>
 
     <!-- Permissions -->
@@ -140,6 +165,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Required (Android 14+) alongside SahaplayCallService's declared
+         foregroundServiceType="microphone|camera" — the ongoing-call
+         notification that keeps a call alive in the background. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <!-- Android 13+ requires this runtime permission before ANY notification
          (not just push) can be shown — @capacitor/push-notifications likely
          already declares this in its own bundled manifest, but declaring it

@@ -75,3 +75,16 @@ export function resetNativeAudioRoute() {
 export function setNativeThemePreference(theme) {
   plugin()?.setThemePreference({ theme }).catch(() => {});
 }
+
+// Starts/stops SahaplayCallService — the foreground service + persistent
+// notification (live duration, full-width End Call button) that keeps an
+// active call's WebRTC connections alive while the app is backgrounded. See
+// CallContext.jsx, which calls these the moment a call becomes active /
+// ends.
+export function startNativeCallService(peerName, startedAtMillis) {
+  plugin()?.startCallForegroundService({ peerName, startedAtMillis }).catch(() => {});
+}
+
+export function stopNativeCallService() {
+  plugin()?.stopCallForegroundService().catch(() => {});
+}
