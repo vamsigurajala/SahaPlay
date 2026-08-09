@@ -9,6 +9,7 @@ import { Phone, PhoneOff, Video, X } from 'lucide-react';
 import { useCall } from '../contexts/CallContext';
 import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
+import { syncStatusBarTheme } from '../lib/nativeShell';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
 // app can get to a real ringtone without native code. This only plays while
@@ -99,6 +100,27 @@ export default function GlobalCallOverlay() {
 
   useRingSound(callState?.phase === 'incoming');
   useRingSound(callState?.phase === 'outgoing');
+
+  // Every phase of this overlay (ringing or active) paints a permanently
+  // dark background regardless of the user's own light/dark app theme
+  // setting — call screens are dark on purpose, like every other calling
+  // app. But the status bar's icon color otherwise only follows that theme
+  // setting (see nativeShell.js's syncStatusBarTheme, called from App.jsx),
+  // so a user on light theme got dark/black status bar icons rendered over
+  // this always-dark call screen: invisible. Forcing 'dark' (white icons)
+  // for as long as any call phase is showing, then restoring the real
+  // theme's icons the moment it's gone, fixes that without touching the
+  // theme-vs-icon mapping fix from before (that one was correct for every
+  // normal page, just not for this permanently-dark surface).
+  const hasCallState = !!callState;
+  useEffect(() => {
+    if (!hasCallState) return;
+    syncStatusBarTheme('dark');
+    return () => {
+      const savedTheme = localStorage.getItem('watch_theme') || 'dark';
+      syncStatusBarTheme(savedTheme);
+    };
+  }, [hasCallState]);
 
   if (!callState) return null;
 
