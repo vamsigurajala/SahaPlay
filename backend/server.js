@@ -3585,9 +3585,14 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
 
     const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
+    // EXISTS-against-users mirrors the INNER JOIN /api/follow/:username/list
+    // uses to actually render the list — without it, a follow row left
+    // behind by a deleted account (account deletion doesn't clean up
+    // `follows`) still counts here but can never appear in the list itself,
+    // which is exactly the "count says 6, list shows 5" mismatch.
     const [followersRow, followingRow] = await Promise.all([
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE followingId = ? AND status = ?', [user.username, 'accepted']),
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE followerId = ? AND status = ?', [user.username, 'accepted'])
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followerId))`, [user.username]),
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followingId))`, [user.username])
     ]);
 
     res.json({
@@ -3744,9 +3749,13 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
     }
     delete user.showCountry;
     
+    // See the matching comment in /api/profile — counts have to agree with
+    // what /api/follow/:username/list can actually render (INNER JOIN
+    // users), or a follow row orphaned by a deleted account inflates the
+    // number without ever showing up in the list itself.
     const [followersRow, followingRow, followRow, theyFollowMeRow] = await Promise.all([
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE LOWER(followingId) = LOWER(?) AND status = ?', [user.username, 'accepted']),
-      queryGet('SELECT COUNT(*) as count FROM follows WHERE LOWER(followerId) = LOWER(?) AND status = ?', [user.username, 'accepted']),
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followerId))`, [user.username]),
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followingId))`, [user.username]),
       queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [viewerUsername, user.username]),
       queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [user.username, viewerUsername])
     ]);
@@ -5455,7 +5464,21 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
         console.error('DELETE ACCOUNT ERROR (users):', err);
         return res.status(500).json({ error: 'Failed to delete account (main table)' });
       }
-      
+
+      // follows/blocks rows referencing this username aren't cleaned up by
+      // a FK cascade (follows/blocks store usernames, not a users.id FK) —
+      // without this, every one of this account's old followers/following
+      // relationships lingers forever as a row the followers-count query
+      // still counts but the followers LIST can never render (it inner-
+      // joins users), silently drifting the two out of sync for everyone
+      // who was connected to this account.
+      db.run('DELETE FROM follows WHERE LOWER(followerId) = LOWER(?) OR LOWER(followingId) = LOWER(?)', [user.username, user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (follows):', err);
+      });
+      db.run('DELETE FROM blocks WHERE LOWER(blocker) = LOWER(?) OR LOWER(blocked) = LOWER(?)', [user.username, user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (blocks):', err);
+      });
+
       // Also delete any rooms they were hosting
       db.run('DELETE FROM room_names WHERE hostUsername = ?', [user.username], function(err) {
         if (err) console.error('DELETE ACCOUNT ERROR (room_names):', err);
