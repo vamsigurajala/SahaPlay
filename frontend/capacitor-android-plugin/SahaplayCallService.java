@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.view.View;
 import android.widget.RemoteViews;
 
@@ -125,7 +126,17 @@ public class SahaplayCallService extends Service {
         if (isRinging) {
             customView.setTextViewText(R.id.ongoing_call_status, "Calling…");
         } else {
-            customView.setChronometer(R.id.ongoing_call_timer, startedAt, null, true);
+            // Chronometer.setBase() is measured against SystemClock.
+            // elapsedRealtime() (time since device boot) — NOT
+            // System.currentTimeMillis()/JS Date.now() (wall-clock epoch
+            // millis), which is what startedAt actually is. Passing the
+            // epoch value straight through as the base made the widget
+            // compute "elapsed time since 1970" instead of "elapsed time
+            // since the call started," rendering as garbage like
+            // "-496021:34:56" — converting it into the equivalent
+            // elapsedRealtime instant fixes that.
+            long elapsedBase = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt);
+            customView.setChronometer(R.id.ongoing_call_timer, elapsedBase, null, true);
         }
         customView.setTextViewText(R.id.btn_end_call, isRinging ? "Cancel" : "End call");
         customView.setOnClickPendingIntent(R.id.btn_end_call, endPendingIntent);

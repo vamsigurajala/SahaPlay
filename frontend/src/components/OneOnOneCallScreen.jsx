@@ -151,6 +151,17 @@ export default function OneOnOneCallScreen({
     else resetHideTimer();
   };
 
+  // The more-options and speaker/route menus float above the dock and read
+  // as part of it — leaving them open after the dock itself has faded out
+  // from inactivity looked like a stray, disconnected popup with no visible
+  // way back to it. Closing them the moment the dock hides keeps the two in
+  // sync, same as they visually appear to be one unit.
+  useEffect(() => {
+    if (chromeVisible) return;
+    setMoreMenuOpen(false);
+    setRoutePickerOpen(false);
+  }, [chromeVisible]);
+
   const [durationSecs, setDurationSecs] = useState(0);
   useEffect(() => {
     if (!answeredAt) return;
@@ -257,7 +268,13 @@ export default function OneOnOneCallScreen({
           cursor: pointer; transition: transform 0.15s ease; flex-shrink: 0;
         }
         .ooc-ctrl-btn:active { transform: scale(0.92); }
-        .ooc-ctrl-label { font-size: 10px; color: rgba(255,255,255,0.6); text-align: center; margin-top: 6px; }
+        /* This whole screen is a permanently-dark surface by design
+           regardless of the app's own light/dark theme setting (see
+           GlobalCallOverlay.jsx's matching status-bar-icon comment) — !important
+           here guards every text color below against whatever theme-aware
+           global color rule was otherwise bleeding through and turning these
+           dark-on-purpose labels unreadable on a light app theme. */
+        .ooc-ctrl-label { font-size: 10px; color: rgba(255,255,255,0.7) !important; text-align: center; margin-top: 6px; }
         /* Same reasoning as the top bar's Add button: buttons/labels sitting
            directly on top of a bright/light background (a plain window
            gradient scrim isn't always enough contrast) were hard to read.
@@ -277,11 +294,11 @@ export default function OneOnOneCallScreen({
         .ooc-more-opt {
           display: flex; align-items: center; gap: 10px; width: 100%;
           padding: 12px 14px; background: transparent; border: none; border-radius: 10px;
-          color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+          color: #fff !important; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
         }
         .ooc-more-opt:active { background: rgba(255,255,255,0.08); }
         .ooc-pip {
-          position: absolute; width: 104px; height: 148px; border-radius: 14px;
+          position: absolute; width: 128px; height: 176px; border-radius: 14px;
           overflow: hidden; z-index: 15;
           box-shadow: 0 10px 26px rgba(0,0,0,0.55); cursor: pointer;
           background: #131928; display: flex; align-items: center; justify-content: center;
@@ -296,9 +313,9 @@ export default function OneOnOneCallScreen({
         .ooc-route-opt {
           display: flex; align-items: center; gap: 10px; width: 100%;
           padding: 12px 14px; background: transparent; border: none; border-radius: 10px;
-          color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
+          color: #fff !important; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left;
         }
-        .ooc-route-opt.active { background: rgba(var(--brand-1-rgb), 0.18); color: var(--brand-1-light); }
+        .ooc-route-opt.active { background: rgba(var(--brand-1-rgb), 0.18); color: var(--brand-1-light) !important; }
         .ooc-grid {
           position: absolute; inset: 0; display: grid; gap: 6px; padding: 6px;
           padding-top: calc(6px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)) + 76px);
@@ -339,9 +356,6 @@ export default function OneOnOneCallScreen({
           isCamOn={isCamOn}
           isMicOn={isMicOn}
           myAvatarUrl={myAvatarUrl}
-          isCoarsePointer={isCoarsePointer}
-          flipCamera={flipCamera}
-          chromeVisible={chromeVisible}
         />
       ) : (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
@@ -487,6 +501,22 @@ export default function OneOnOneCallScreen({
             <span className="ooc-ctrl-label">Video</span>
           </div>
 
+          {/* Moved here from a floating button on the PiP tile — that button
+              lived inside the SAME draggable element that handles PiP
+              drag/tap-to-swap, and a tap starting on it kept getting
+              swallowed by that gesture handling (see the PiP drag code
+              above), so it never reliably fired. An ordinary dock button has
+              no such conflict and just works. Only shown once the camera is
+              actually on — nothing to flip otherwise. */}
+          {isVideo && isCamOn && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <button className="ooc-ctrl-btn" onClick={flipCamera} style={{ background: 'rgba(255,255,255,0.14)' }}>
+                <SwitchCamera size={22} color="#fff" />
+              </button>
+              <span className="ooc-ctrl-label">Flip</span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
               className="ooc-ctrl-btn"
@@ -524,10 +554,10 @@ export default function OneOnOneCallScreen({
 // Free-drag position, matching the width/height/margins .ooc-pip's own CSS
 // already used for its fixed corner spot (kept as plain constants here
 // instead of reading them back from the stylesheet).
-const PIP_W = 104, PIP_H = 148, PIP_MARGIN = 16, PIP_PEEK = 18;
+const PIP_W = 128, PIP_H = 176, PIP_MARGIN = 16, PIP_PEEK = 18;
 const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed position
 
-function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl, isCoarsePointer, flipCamera, chromeVisible }) {
+function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
 
@@ -563,18 +593,6 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
 
   const onPipPointerDown = (e) => {
     e.stopPropagation();
-    // A tap starting on the flip-camera button (inside the PiP) must NOT be
-    // treated as a drag/tap-to-swap gesture — this handler used to fire
-    // regardless of what was actually touched, so tapping the flip button
-    // both (a) swapped main/PiP (since a no-movement pointerup always did
-    // that) AND (b) ate the native click the button needed to actually flip
-    // the camera — the swap re-render removed this exact button from the
-    // tree (its "only when I'm the PiP" condition flipped) before the
-    // browser's click event for that same tap ever fired, so flipCamera()
-    // silently never ran. Bailing out here — no dragRef, no pointer capture
-    // — leaves this tap alone entirely, so the button gets its own ordinary
-    // click.
-    if (e.target.closest('[data-pip-flip]')) return;
     const pos = currentPipXY();
     dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y, moved: false };
     try { pipElRef.current?.setPointerCapture(e.pointerId); } catch {}
@@ -655,39 +673,7 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
           ) : (
             <Avatar url={pipAvatarUrl} name={mainIsLocal ? remote.displayName : 'You'} size={56} />
           )}
-          {/* Camera flip lives on MY OWN tile specifically — when I'm in the PiP
-              (the default), that's here; when I've swapped to main, the other
-              flip button below (rendered over the main stage) takes over. */}
-          {isCoarsePointer && !mainIsLocal && localHasVideo && (
-            <button
-              data-pip-flip="true"
-              onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
-              title="Switch camera"
-              style={{
-                position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-                background: 'rgba(20,20,20,0.6)', border: 'none', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              }}
-            >
-              <SwitchCamera size={13} color="#fff" />
-            </button>
-          )}
         </div>
-      )}
-      {isVideo && mainIsLocal && isCoarsePointer && localHasVideo && (
-        <button
-          onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
-          title="Switch camera"
-          style={{
-            position: 'absolute', top: 'calc(96px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))', right: 16, zIndex: 16,
-            width: 40, height: 40, borderRadius: '50%',
-            background: 'rgba(20,20,20,0.6)', border: 'none', color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            opacity: chromeVisible ? 1 : 0, transition: 'opacity 0.3s ease',
-          }}
-        >
-          <SwitchCamera size={18} color="#fff" />
-        </button>
       )}
     </>
   );
