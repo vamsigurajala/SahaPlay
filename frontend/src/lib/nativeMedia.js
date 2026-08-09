@@ -77,12 +77,16 @@ export function setNativeThemePreference(theme) {
 }
 
 // Starts/stops SahaplayCallService — the foreground service + persistent
-// notification (live duration, full-width End Call button) that keeps an
-// active call's WebRTC connections alive while the app is backgrounded. See
-// CallContext.jsx, which calls these the moment a call becomes active /
-// ends.
-export function startNativeCallService(peerName, startedAtMillis) {
-  plugin()?.startCallForegroundService({ peerName, startedAtMillis }).catch(() => {});
+// notification that keeps a call's WebRTC connections (and JS/socket layer)
+// alive while the app is backgrounded. See CallContext.jsx, which calls this
+// as soon as a call is placed/ringing (status: 'ringing' — no elapsed time
+// yet, just a "Calling…"/Cancel notification) and again once it connects
+// (status: 'active' — live duration Chronometer, full-width End Call).
+// Starting it for the ringing phase too (not just once active) is what keeps
+// a backgrounded CALLER's app from being suspended before it can receive
+// 'call:declined'/'call:answered' over the socket.
+export function startNativeCallService(peerName, startedAtMillis, status = 'active') {
+  plugin()?.startCallForegroundService({ peerName, startedAtMillis, status }).catch(() => {});
 }
 
 export function stopNativeCallService() {

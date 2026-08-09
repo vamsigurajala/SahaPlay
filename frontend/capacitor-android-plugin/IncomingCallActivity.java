@@ -172,11 +172,13 @@ public class IncomingCallActivity extends android.app.Activity {
             .setContentIntent(fullScreenPendingIntent)
             .setCustomContentView(customView)
             .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-            // Kept as a fallback for any surface that can't render the custom
-            // view (e.g. a wearable/Android Auto companion) — same
-            // destinations as the custom view's own buttons above.
-            .addAction(0, "Decline", declinePendingIntent)
-            .addAction(0, "Answer", answerPendingIntent)
+            // No .addAction() chips here on top of the custom view's own
+            // buttons above — that used to render as a SECOND, duplicate
+            // Decline/Answer row (small grey system chips) underneath the
+            // real red/green ones, which is confusing and looks broken. This
+            // app has no wearable/Android Auto companion surface that would
+            // ever need that fallback, so there's nothing it was actually
+            // buying.
             .setAutoCancel(true)
             .setOngoing(true)
             .build();
@@ -196,6 +198,34 @@ public class IncomingCallActivity extends android.app.Activity {
         return PendingIntent.getActivity(ctx, callId.hashCode() ^ 2, intent, piFlags);
     }
 
+    // Tracks whichever instance of this Activity is currently on screen, if
+    // any — lets cancelForCallId() below reach into a live ring screen and
+    // close it, not just clear the notification tray entry. Plain static
+    // fields (not weak refs) are fine here: cleared unconditionally in
+    // onDestroy(), and there's only ever at most one of these on screen at a
+    // time (a second incoming call while one is already showing reuses this
+    // same Activity via FLAG_ACTIVITY_SINGLE_TOP rather than stacking).
+    private static IncomingCallActivity currentInstance;
+    private static String currentInstanceCallId;
+
+    // Called from SahaplayFirebaseMessagingService when a "call-cancel" data
+    // push arrives (see sendCallCancelPush in backend/server.js) — the call
+    // this callId refers to has been resolved some other way (declined,
+    // timed out, cancelled, answered elsewhere) since the original invite
+    // push was sent. Dismisses the tray notification unconditionally (covers
+    // the case where this Activity was never opened at all), and additionally
+    // closes the full ring screen if it happens to be open showing this exact
+    // call — tapping Answer/Decline on a call the server no longer knows
+    // about would otherwise silently do nothing.
+    public static void cancelForCallId(Context ctx, String callId) {
+        if (callId == null) return;
+        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        nm.cancel(callId.hashCode());
+        if (currentInstance != null && callId.equals(currentInstanceCallId)) {
+            currentInstance.finishAsMissed();
+        }
+    }
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -211,6 +241,9 @@ public class IncomingCallActivity extends android.app.Activity {
             finish();
             return;
         }
+
+        currentInstance = this;
+        currentInstanceCallId = callId;
 
         dismissNotification();
 
@@ -585,6 +618,10 @@ public class IncomingCallActivity extends android.app.Activity {
     protected void onDestroy() {
         stopRinging();
         handler.removeCallbacksAndMessages(null);
+        if (currentInstance == this) {
+            currentInstance = null;
+            currentInstanceCallId = null;
+        }
         super.onDestroy();
     }
 }

@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
+import android.view.View;
 import android.widget.RemoteViews;
 
 import androidx.annotation.Nullable;
@@ -42,6 +43,15 @@ public class SahaplayCallService extends Service {
 
     public static final String EXTRA_PEER_NAME = "peerName";
     public static final String EXTRA_STARTED_AT = "startedAtMillis";
+    // "ringing" (outgoing call, not yet answered — no elapsed time to show
+    // yet) or "active" (answered — Chronometer running). See CallContext.jsx,
+    // which starts this service the moment a call is placed (not just once
+    // active) so the JS/socket layer stays alive through the ring too — a
+    // backgrounded caller's app can otherwise be suspended by Android before
+    // 'call:declined'/'call:answered' ever arrives, which is what made a
+    // caller sometimes not learn a call was declined until they reopened the
+    // app much later.
+    public static final String EXTRA_STATUS = "status";
     public static final String ACTION_STOP = "com.sahaplay.app.action.STOP_CALL_SERVICE";
 
     @Override
@@ -54,9 +64,10 @@ public class SahaplayCallService extends Service {
 
         String peerName = (intent != null) ? intent.getStringExtra(EXTRA_PEER_NAME) : null;
         long startedAt = (intent != null) ? intent.getLongExtra(EXTRA_STARTED_AT, System.currentTimeMillis()) : System.currentTimeMillis();
+        boolean isRinging = intent != null && "ringing".equals(intent.getStringExtra(EXTRA_STATUS));
         if (peerName == null || peerName.isEmpty()) peerName = "Ongoing call";
 
-        Notification notification = buildNotification(peerName, startedAt);
+        Notification notification = buildNotification(peerName, startedAt, isRinging);
 
         // FOREGROUND_SERVICE_TYPE_MICROPHONE (+ CAMERA) matches what this
         // service is actually for on Android 10+ - required declaration
@@ -77,7 +88,7 @@ public class SahaplayCallService extends Service {
         return START_STICKY;
     }
 
-    private Notification buildNotification(String peerName, long startedAt) {
+    private Notification buildNotification(String peerName, long startedAt, boolean isRinging) {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Ongoing Call", NotificationManager.IMPORTANCE_LOW);
@@ -97,10 +108,10 @@ public class SahaplayCallService extends Service {
             : null;
 
         // Same sahaplay://call-end deep link nativeCallBridge.js listens for
-        // (mirrors call-answer) — ending the call always goes through
-        // CallContext's real endCall() (call-log writing, peer teardown,
-        // stopping this very service) rather than a native shortcut that
-        // would skip all of that.
+        // (mirrors call-answer) — routed through CallContext's unified
+        // hangup(), which does the RIGHT thing for whichever phase the call
+        // is actually in right now (cancel while ringing, hang up once
+        // active) rather than always assuming an active call.
         Uri endUri = Uri.parse("sahaplay://call-end");
         Intent endIntent = new Intent(Intent.ACTION_VIEW, endUri);
         endIntent.setPackage(getPackageName());
@@ -109,21 +120,28 @@ public class SahaplayCallService extends Service {
 
         RemoteViews customView = new RemoteViews(getPackageName(), R.layout.notification_ongoing_call);
         customView.setTextViewText(R.id.ongoing_call_title, peerName);
-        customView.setChronometer(R.id.ongoing_call_timer, startedAt, null, true);
+        customView.setViewVisibility(R.id.ongoing_call_status, isRinging ? View.VISIBLE : View.GONE);
+        customView.setViewVisibility(R.id.ongoing_call_timer, isRinging ? View.GONE : View.VISIBLE);
+        if (isRinging) {
+            customView.setTextViewText(R.id.ongoing_call_status, "Calling…");
+        } else {
+            customView.setChronometer(R.id.ongoing_call_timer, startedAt, null, true);
+        }
+        customView.setTextViewText(R.id.btn_end_call, isRinging ? "Cancel" : "End call");
         customView.setOnClickPendingIntent(R.id.btn_end_call, endPendingIntent);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(peerName)
-            .setContentText("Ongoing call")
+            .setContentText(isRinging ? "Calling…" : "Ongoing call")
             .setSmallIcon(getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setCustomContentView(customView)
             .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
             .setOngoing(true)
-            .setUsesChronometer(true)
+            .setUsesChronometer(!isRinging)
             .setWhen(startedAt)
-            .setShowWhen(true);
+            .setShowWhen(!isRinging);
         if (contentPendingIntent != null) builder.setContentIntent(contentPendingIntent);
         return builder.build();
     }

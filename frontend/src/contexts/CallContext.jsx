@@ -644,7 +644,7 @@ export function CallProvider({ children }) {
   function teardownCall() {
     clearPendingNativeCallAnswer();
     stopNativeCallService();
-    callServiceStartedForCallId.current = null;
+    callServiceStateRef.current = { callId: null, phase: null };
     if (screenShareTrackRef.current) {
       try { screenShareCleanupRef.current?.(); } catch {}
       try { screenShareTrackRef.current.stop(); } catch {}
@@ -769,6 +769,22 @@ export function CallProvider({ children }) {
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Single "hang up, whatever that means right now" entry point — used by
+  // the native ongoing-call notification's End Call/Cancel button (see
+  // SahaplayCallService.java), which is now reachable during the outgoing
+  // ring too, not just once a call is active. A ringing call has no
+  // 'call:end' concept server-side (only an active one does), so blindly
+  // calling endCall() there would silently no-op; this picks the function
+  // that's actually correct for whatever phase the call is in at the moment
+  // the button is tapped.
+  const hangup = useCallback(() => {
+    const cs = callStateRef.current;
+    if (!cs) return;
+    if (cs.phase === 'outgoing') cancelOutgoingCall();
+    else if (cs.phase === 'incoming') declineCall();
+    else endCall();
+  }, [cancelOutgoingCall, declineCall, endCall]);
 
   // Invite one more person into the current active call — only the picker
   // (private chats only, per the product ask) calls this, already filtered
@@ -961,31 +977,48 @@ export function CallProvider({ children }) {
     isNativeBluetoothAudioAvailable().then(setBluetoothAudioAvailable);
   }, [callState?.phase, callState?.callId, callState?.type]);
 
-  // Starts the persistent ongoing-call notification (see nativeMedia.js /
-  // SahaplayCallService.java) the moment a call connects, so it keeps
-  // running - and the WebRTC connections stay alive - if the app gets
-  // backgrounded. teardownCall() below stops it again for every possible
-  // end reason (declined, timeout, hung up either side, disconnected), so
-  // it never outlives the call it belongs to.
-  const callServiceStartedForCallId = useRef(null);
+  // Starts the persistent call notification (see nativeMedia.js /
+  // SahaplayCallService.java) as soon as there's a call to represent — for
+  // an OUTGOING ring (status: 'ringing', caller side) as well as once it
+  // connects (status: 'active'). Starting it for the ring too, not just once
+  // active, keeps a backgrounded caller's JS/socket layer alive long enough
+  // to actually receive 'call:declined'/'call:answered'/'call:timeout' —
+  // without it, Android is free to suspend the app the moment it's not in
+  // the foreground, and a fast decline on the other end could go unnoticed
+  // until the caller happens to reopen the app much later. Deliberately NOT
+  // started for an INCOMING ring: IncomingCallActivity + the FCM service
+  // already give the callee side a fully native, JS-independent ring
+  // experience, so a second notification here would just be a confusing
+  // duplicate of that one. teardownCall() stops this for every possible end
+  // reason (declined, timeout, cancelled, hung up either side,
+  // disconnected), so it never outlives the call it belongs to.
+  const callServiceStateRef = useRef({ callId: null, phase: null });
   useEffect(() => {
-    if (callState?.phase !== 'active') return;
-    if (callServiceStartedForCallId.current === callState.callId) return;
-    callServiceStartedForCallId.current = callState.callId;
-    startNativeCallService(callState.peerDisplayName || callState.peerUsername, callState.answeredAt || Date.now());
+    const isRinging = callState?.phase === 'outgoing';
+    const isActive = callState?.phase === 'active';
+    if (!isRinging && !isActive) return;
+    const prev = callServiceStateRef.current;
+    if (prev.callId === callState.callId && prev.phase === callState.phase) return;
+    callServiceStateRef.current = { callId: callState.callId, phase: callState.phase };
+    startNativeCallService(
+      callState.peerDisplayName || callState.peerUsername,
+      isActive ? (callState.answeredAt || Date.now()) : Date.now(),
+      isActive ? 'active' : 'ringing'
+    );
   }, [callState?.phase, callState?.callId]);
 
   // Same sahaplay://call-end deep link SahaplayCallService's notification
-  // button uses — see nativeCallBridge.js/main.jsx. No pending-callId
-  // matching needed here (unlike the answer link): there's only ever one
-  // active call at a time, so ending "the current call" is unambiguous.
-  // endCall is declared above with an empty dependency array (a stable
-  // reference for the lifetime of this component), so it's safe to depend
-  // on directly here without a ref indirection.
+  // button uses — see nativeCallBridge.js/main.jsx. Routed through the
+  // unified hangup() (declared below, after the functions it dispatches to)
+  // rather than always endCall() directly: the notification's End
+  // Call/Cancel button is now reachable during the outgoing ring too (see
+  // above), and a still-ringing call has no 'call:end' concept server-side —
+  // only an active one does. hangup has a stable identity (its own deps are
+  // all empty-dep useCallbacks), safe to depend on directly.
   useEffect(() => {
-    window.addEventListener('native_call_end', endCall);
-    return () => window.removeEventListener('native_call_end', endCall);
-  }, [endCall]);
+    window.addEventListener('native_call_end', hangup);
+    return () => window.removeEventListener('native_call_end', hangup);
+  }, [hangup]);
 
   const setAudioRoute = useCallback((route) => {
     setNativeAudioRoute(route);

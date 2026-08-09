@@ -371,6 +371,23 @@ async function sendPushToUser(username, payload) {
   }
 }
 
+// Tells a device to immediately dismiss/finish whatever incoming-call UI
+// it's showing for this callId (see SahaplayFirebaseMessagingService.java's
+// "call-cancel" handling) — the moment a ringing call is resolved ANY way
+// (declined, timed out, cancelled by the caller, answered on another
+// device), not just when the recipient happens to still be looking at it.
+// Without this, a call:invite push delayed by FCM/OS battery throttling
+// (common on real devices, especially with the screen off) could show a
+// ring notification for a call that's already long over — the callee taps
+// Answer/Decline on it and nothing happens (the server has no record of it
+// anymore), which reads as "the app is broken" rather than "this arrived
+// late." A dedicated, tiny data-only push is the only way to reach a
+// killed/backgrounded app's notification tray at all.
+function sendCallCancelPush(username, callId) {
+  if (!username || !callId) return;
+  sendPushToUser(username, { data: { type: 'call-cancel', callId }, dataOnly: true }).catch(() => {});
+}
+
 // Everyone who has ever opened this room's chat (see getOrInitFirstJoined —
 // firstJoined is a JSON map of roomId -> first-open timestamp, already
 // tracked for the unrelated "don't show history from before you joined"
@@ -982,11 +999,17 @@ function endCallInternal(callId) {
   activeCalls.delete(callId);
   if (userActiveCallId.get(call.caller) === callId) userActiveCallId.delete(call.caller);
   if (userActiveCallId.get(call.callee) === callId) userActiveCallId.delete(call.callee);
+  // Dismisses the callee's ring notification the instant the call is
+  // resolved any way (declined, timed out, or cancelled by the caller) —
+  // see sendCallCancelPush. Harmless no-op if there was never a push-based
+  // notification to begin with (foreground callees never show one).
+  sendCallCancelPush(call.callee, callId);
   if (call.members) {
     for (const [u, entry] of call.members) {
       clearTimeout(entry.timeoutHandle);
       if (userActiveCallId.get(u) === callId) userActiveCallId.delete(u);
       emitToUser(u, entry.status === 'ringing' ? 'call:cancelled' : 'call:ended', { callId, reason: 'core_ended' });
+      if (entry.status === 'ringing') sendCallCancelPush(u, callId);
     }
   }
   return call;
@@ -1022,6 +1045,12 @@ function leaveActiveCall(callId, username, { reason = 'left' } = {}) {
   if (call.caller) stillTracked.push(call.caller);
   if (call.callee) stillTracked.push(call.callee);
   for (const u of call.members.keys()) stillTracked.push(u);
+
+  // The departing member's own ring notification (if this was a still-
+  // 'ringing' member — e.g. a group-call invite that timed out or was
+  // declined before they ever joined) needs dismissing regardless of
+  // whether the call continues for everyone else — see sendCallCancelPush.
+  if (reason === 'missed' || reason === 'declined') sendCallCancelPush(username, callId);
 
   if (stillTracked.length < 2) {
     // Not enough people left for this to still be a call — end it
@@ -8875,6 +8904,11 @@ io.on('connection', (socket) => {
     call.status = 'active';
     call.answeredAt = Date.now();
     emitToUser(call.caller, 'call:answered', { callId });
+    // Covers a callee with more than one device logged in — the ring
+    // notification pushed to every device (see call:invite above) only gets
+    // dismissed locally on whichever one actually answered; the rest would
+    // otherwise keep ringing/showing a now-answered call indefinitely.
+    sendCallCancelPush(call.callee, callId);
   });
 
   socket.on('call:decline', ({ callId }) => {

@@ -276,9 +276,11 @@ public class SahaplayMediaPlugin extends Plugin {
         // number crosses as a double, cast back to long here.
         Double startedAtMillis = call.getDouble("startedAtMillis");
         long startedAt = startedAtMillis != null ? startedAtMillis.longValue() : System.currentTimeMillis();
+        String status = call.getString("status", "active");
         Intent intent = new Intent(getContext(), SahaplayCallService.class);
         intent.putExtra(SahaplayCallService.EXTRA_PEER_NAME, peerName);
         intent.putExtra(SahaplayCallService.EXTRA_STARTED_AT, startedAt);
+        intent.putExtra(SahaplayCallService.EXTRA_STATUS, status);
         androidx.core.content.ContextCompat.startForegroundService(getContext(), intent);
         call.resolve();
     }

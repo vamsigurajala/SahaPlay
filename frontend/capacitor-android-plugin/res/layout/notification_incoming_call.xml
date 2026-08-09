@@ -11,19 +11,27 @@
   a normal Activity view tree), so this is the one native UI piece in this
   plugin that has to be a real XML file rather than code — kept as small
   and static as this file's other "no XML" pieces would allow.
+
+  No background here (was a hardcoded dark navy panel) — that painted a
+  second, differently-colored box floating inside the system notification's
+  own card, reading as "a box inside a box." Leaving it transparent lets this
+  content sit flush in the same card the system already draws (matching
+  every other Android notification, including this app's own chat/message
+  ones), light or dark, so title/name use ?attr/textColor* system references
+  instead of hardcoded white — hardcoded white text would've gone invisible
+  the moment the system card itself is light (light system theme).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="14dp"
-    android:background="#0B0F1A">
+    android:padding="14dp">
 
     <TextView
         android:id="@+id/call_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
+        android:textColor="?android:attr/textColorPrimary"
         android:textSize="14sp"
         android:textStyle="bold" />
 
@@ -32,13 +40,13 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:textColor="#9CA3AF"
+        android:textColor="?android:attr/textColorSecondary"
         android:textSize="13sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="14dp"
         android:orientation="horizontal">
 
         <Button

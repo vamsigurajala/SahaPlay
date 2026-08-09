@@ -40,6 +40,16 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 data.get("callType"),
                 data.get("calleeUsername")
             );
+        } else if ("call-cancel".equals(data.get("type"))) {
+            // Sent the moment a ringing call is resolved any way (declined,
+            // timed out, cancelled, or answered on another device) — see
+            // sendCallCancelPush in backend/server.js. Without this, a
+            // call:invite push that arrived late (FCM/OS battery throttling
+            // is common on real devices with the screen off) could leave a
+            // ring notification showing for a call that's already over —
+            // tapping its Answer/Decline would silently do nothing, since
+            // the server no longer has any record of it.
+            IncomingCallActivity.cancelForCallId(this, data.get("callId"));
         }
     }
 
