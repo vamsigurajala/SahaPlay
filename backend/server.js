@@ -8851,7 +8851,7 @@ io.on('connection', (socket) => {
       sendPushToUser(callee, {
         title: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
         body: `${caller} is calling…`,
-        data: { type: 'call', callId, callerUsername: caller, callType },
+        data: { type: 'call', callId, callerUsername: caller, calleeUsername: callee, callType },
         tag: `call-${callId}`,
         dataOnly: true,
       }).catch(() => {});
@@ -9001,7 +9001,7 @@ io.on('connection', (socket) => {
       sendPushToUser(target, {
         title: call.type === 'video' ? 'Incoming video call' : 'Incoming voice call',
         body: `${me} is adding you to a call…`,
-        data: { type: 'call', callId, callerUsername: me, callType: call.type },
+        data: { type: 'call', callId, callerUsername: me, calleeUsername: target, callType: call.type },
         tag: `call-${callId}`,
         dataOnly: true,
       }).catch(() => {});

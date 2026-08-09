@@ -35,6 +35,7 @@ import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable } from '../lib/nativeMedia';
+import { consumePendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
@@ -427,6 +428,15 @@ export function CallProvider({ children }) {
       }
     };
     window.addEventListener('native_call_answer', handler);
+    // Covers the cold-start race where nativeCallBridge.js's 'appUrlOpen'
+    // listener (registered in main.jsx, before React even mounts) fires and
+    // dispatches 'native_call_answer' before this effect has run to listen
+    // for it — the event itself would otherwise be lost with nothing
+    // attached yet. consumePendingNativeCallAnswer() reads (and clears) the
+    // same callId stashed on `window` at dispatch time, so it's picked up
+    // here regardless of which side won that race.
+    const pending = consumePendingNativeCallAnswer();
+    if (pending) handler({ detail: { callId: pending } });
     return () => window.removeEventListener('native_call_answer', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

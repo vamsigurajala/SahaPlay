@@ -37,7 +37,8 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 this,
                 data.get("callId"),
                 data.get("callerUsername"),
-                data.get("callType")
+                data.get("callType"),
+                data.get("calleeUsername")
             );
         }
     }
