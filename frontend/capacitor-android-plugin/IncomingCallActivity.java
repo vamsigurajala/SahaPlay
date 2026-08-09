@@ -7,6 +7,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -26,10 +27,10 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RemoteViews;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
@@ -50,20 +51,22 @@ import java.nio.charset.StandardCharsets;
 // screen or rings while the app is fully killed). Built entirely in code
 // (no XML layout) since there is no way to visually iterate on a layout
 // resource without a real device in this environment — plain
-// LinearLayout/TextView/Button/ImageView composition keeps this
-// understandable without one.
+// LinearLayout/TextView/ImageView composition keeps this understandable
+// without one. (The one exception is the notification's OWN content view,
+// which has to be a real XML layout — see res/layout/notification_incoming_
+// call.xml — RemoteViews can't inflate a programmatic view tree.)
 //
 // Launched two ways: SahaplayFirebaseMessagingService.showIncomingCall()
 // when a call-type FCM data message arrives (app backgrounded/killed), or
-// directly by its own full-screen notification's PendingIntent. Decline
-// posts straight to POST /api/calls/:callId/decline (see backend/server.js)
-// over plain HTTPS — no JWT needed, this activity may be running with the
-// app process otherwise fully dead, so there is no live socket or JS
-// context to route the action through. Answer instead hands off to the
-// already-running (or freshly launched) web app via the sahaplay://call-answer
-// deep link (see AndroidManifest.xml's intent-filter + frontend/src/lib/
-// nativeCallBridge.js) — accepting a call needs real getUserMedia/WebRTC,
-// which only exists inside the WebView/JS layer.
+// directly by tapping the notification body. Decline posts straight to
+// POST /api/calls/:callId/decline (see backend/server.js) over plain HTTPS —
+// no JWT needed, this activity may be running with the app process
+// otherwise fully dead, so there is no live socket or JS context to route
+// the action through. Answer instead hands off to the already-running (or
+// freshly launched) web app via the sahaplay://call-answer deep link (see
+// AndroidManifest.xml's intent-filter + frontend/src/lib/nativeCallBridge.js)
+// — accepting a call needs real getUserMedia/WebRTC, which only exists
+// inside the WebView/JS layer.
 public class IncomingCallActivity extends android.app.Activity {
     private static final String CHANNEL_ID = "sahaplay_incoming_call";
     private static final String API_BASE = "https://sahaplay.com";
@@ -79,9 +82,9 @@ public class IncomingCallActivity extends android.app.Activity {
     // and remove the right side of the call (POST /api/calls/:callId/decline
     // matches this against the call's actual callee/member entry); this used
     // to be missing entirely, with decline() accidentally sending the
-    // CALLER's username in that field instead (see the fixed decline()
-    // below) — the backend could never match that against anything, so the
-    // POST silently 404'd and nothing happened for either side.
+    // CALLER's username in that field instead — the backend could never
+    // match that against anything, so the POST silently 404'd and nothing
+    // happened for either side.
     public static final String EXTRA_CALLEE = "calleeUsername";
     public static final String EXTRA_CALL_TYPE = "callType";
     public static final String EXTRA_AUTO_DECLINE = "autoDecline";
@@ -93,9 +96,21 @@ public class IncomingCallActivity extends android.app.Activity {
     private String callerUsername;
     private String calleeUsername;
 
-    // Builds and shows the full-screen notification. Safe to call from any
+    // Builds and shows the incoming-call notification. Safe to call from any
     // thread/context — used both from the FCM service (background/killed
     // app) and could be reused elsewhere if ever needed.
+    //
+    // Three distinct tap targets, matching what each one should actually do:
+    //  - Notification BODY -> opens this Activity's full ring screen
+    //    (avatar + Decline/Answer), for whoever wants to see who's calling
+    //    before deciding.
+    //  - The notification's OWN "Decline"/"Answer" buttons (both the plain
+    //    addAction chips AND the bigger custom RemoteViews row below) act
+    //    immediately, with NO intermediate screen - "Answer" used to reopen
+    //    this same Activity (a second ring prompt on top of the one just
+    //    tapped from), which was the "how many times do I have to click
+    //    Answer" bug. It now goes straight to the same sahaplay://call-answer
+    //    hand-off the in-Activity Answer button uses.
     public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername) {
         if (callId == null || callerUsername == null) return;
         boolean isVideo = "video".equals(callType);
@@ -118,6 +133,8 @@ public class IncomingCallActivity extends android.app.Activity {
         declineIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent declinePendingIntent = PendingIntent.getActivity(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
 
+        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags);
+
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Incoming Calls", NotificationManager.IMPORTANCE_HIGH);
@@ -135,6 +152,16 @@ public class IncomingCallActivity extends android.app.Activity {
             nm.createNotificationChannel(channel);
         }
 
+        // Custom content view: plain addAction() chips can't be resized,
+        // widened, or colored (confirmed on-device — small system-styled
+        // grey pills with dead space on the right of the row, not the
+        // full-width red/green split a call notification should have).
+        RemoteViews customView = new RemoteViews(ctx.getPackageName(), R.layout.notification_incoming_call);
+        customView.setTextViewText(R.id.call_title, isVideo ? "Incoming video call" : "Incoming voice call");
+        customView.setTextViewText(R.id.call_caller, callerUsername);
+        customView.setOnClickPendingIntent(R.id.btn_decline, declinePendingIntent);
+        customView.setOnClickPendingIntent(R.id.btn_answer, answerPendingIntent);
+
         Notification notification = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setContentTitle(isVideo ? "Incoming video call" : "Incoming voice call")
             .setContentText(callerUsername)
@@ -143,13 +170,30 @@ public class IncomingCallActivity extends android.app.Activity {
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
+            .setCustomContentView(customView)
+            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
+            // Kept as a fallback for any surface that can't render the custom
+            // view (e.g. a wearable/Android Auto companion) — same
+            // destinations as the custom view's own buttons above.
             .addAction(0, "Decline", declinePendingIntent)
-            .addAction(0, "Answer", fullScreenPendingIntent)
+            .addAction(0, "Answer", answerPendingIntent)
             .setAutoCancel(true)
             .setOngoing(true)
             .build();
 
         nm.notify(callId.hashCode(), notification);
+    }
+
+    // Same sahaplay://call-answer hand-off the in-Activity Answer button
+    // uses (see the instance answer() method below) — factored out so the
+    // notification's own Answer action can go straight there too, with no
+    // intermediate ring-screen prompt.
+    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags) {
+        Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.setPackage(ctx.getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return PendingIntent.getActivity(ctx, callId.hashCode() ^ 2, intent, piFlags);
     }
 
     @Override
@@ -204,12 +248,29 @@ public class IncomingCallActivity extends android.app.Activity {
     private TextView nameLabel;
     private ImageView avatarImage;
 
+    // Reads the theme SahaplayMediaPlugin.setThemePreference last mirrored
+    // from the web app (see App.jsx's applyTheme()) — a plain native
+    // SharedPreferences read, not a plugin call, since this Activity can be
+    // showing before the WebView/JS layer has ever started this launch.
+    // Defaults to dark (this app's default theme) if nothing's been mirrored
+    // yet, e.g. right after a fresh install before the app was ever opened.
+    private boolean isLightTheme() {
+        SharedPreferences prefs = getSharedPreferences(SahaplayMediaPlugin.THEME_PREFS_NAME, Context.MODE_PRIVATE);
+        return "light".equals(prefs.getString(SahaplayMediaPlugin.THEME_PREFS_KEY, "dark"));
+    }
+
     private void buildUi(String caller, boolean isVideo) {
+        boolean isLight = isLightTheme();
+        String bgColor = isLight ? "#F7FAFC" : "#0B0F1A";
+        String nameColor = isLight ? "#111111" : "#FFFFFF";
+        String subColor = isLight ? "#6B7280" : "#9CA3AF";
+        String labelColor = isLight ? "#4B5563" : "#B3B3B3";
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER_HORIZONTAL);
-        root.setBackgroundColor(Color.parseColor("#0B0F1A"));
-        root.setPadding(dp(24), dp(72), dp(24), dp(40));
+        root.setBackgroundColor(Color.parseColor(bgColor));
+        root.setPadding(dp(24), dp(72), dp(24), dp(48));
 
         // Spacer above the avatar — weights the avatar block toward the
         // upper-middle of the screen, buttons anchored to the bottom below.
@@ -244,7 +305,7 @@ public class IncomingCallActivity extends android.app.Activity {
 
         nameLabel = new TextView(this);
         nameLabel.setText(caller);
-        nameLabel.setTextColor(Color.WHITE);
+        nameLabel.setTextColor(Color.parseColor(nameColor));
         nameLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         nameLabel.setTypeface(nameLabel.getTypeface(), Typeface.BOLD);
         nameLabel.setGravity(Gravity.CENTER);
@@ -256,7 +317,7 @@ public class IncomingCallActivity extends android.app.Activity {
 
         TextView subLabel = new TextView(this);
         subLabel.setText(isVideo ? "Incoming video call" : "Incoming voice call");
-        subLabel.setTextColor(Color.parseColor("#9CA3AF"));
+        subLabel.setTextColor(Color.parseColor(subColor));
         subLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         subLabel.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
@@ -269,52 +330,57 @@ public class IncomingCallActivity extends android.app.Activity {
         // very bottom of the screen.
         root.addView(new LinearLayout(this), new LinearLayout.LayoutParams(0, 0, 1.4f));
 
-        // Button row: explicit MATCH_PARENT width (not left to inherited
-        // defaults) so it reliably spans the full content area edge to edge
-        // within root's own 24dp padding — the two pill buttons then split
-        // that width exactly in half with only a small fixed gap between
-        // them and NO extra outer margin, so neither side reads as leftover
-        // empty space.
+        // Circular icon buttons with a separate label underneath each,
+        // matching GlobalCallOverlay.jsx's own web ring screen exactly
+        // (same layout, same red/green, same icon-above-label shape) so the
+        // native and web incoming-call screens read as the same design
+        // instead of two different UIs.
         LinearLayout buttonRow = new LinearLayout(this);
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
+        buttonRow.setGravity(Gravity.CENTER);
         root.addView(buttonRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        Button declineBtn = pillButton("✕", "Decline", "#EF4444");
-        declineBtn.setOnClickListener(v -> { decline(); finish(); });
+        View declineCol = ringButtonColumn("✕", "Decline", "#EF4444", labelColor, v -> { decline(); finish(); });
+        View answerCol = ringButtonColumn("☎", "Answer", "#22C55E", labelColor, v -> { answer(); finish(); });
 
-        Button answerBtn = pillButton("☎", "Answer", "#22C55E");
-        answerBtn.setOnClickListener(v -> { answer(); finish(); });
-
-        LinearLayout.LayoutParams leftBtnParams = new LinearLayout.LayoutParams(0, dp(56), 1f);
-        leftBtnParams.setMargins(0, 0, dp(6), 0);
-        LinearLayout.LayoutParams rightBtnParams = new LinearLayout.LayoutParams(0, dp(56), 1f);
-        rightBtnParams.setMargins(dp(6), 0, 0, 0);
-
-        buttonRow.addView(declineBtn, leftBtnParams);
-        buttonRow.addView(answerBtn, rightBtnParams);
+        LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        colParams.setMargins(dp(28), 0, dp(28), 0);
+        buttonRow.addView(declineCol, colParams);
+        buttonRow.addView(answerCol, colParams);
 
         setContentView(root);
     }
 
-    // Icon glyph + label pill button — rounded corners at half the button's
-    // own height (dp(56) in buildUi() above) reads as a fully smooth pill
-    // rather than a rounded rectangle. Plain Unicode glyphs (no new drawable
-    // resources/icon library needed): a plain telephone glyph reliably
-    // renders on Android's default system font.
-    private Button pillButton(String icon, String label, String colorHex) {
-        Button btn = new Button(this);
-        btn.setText(icon + "   " + label);
-        btn.setAllCaps(false);
-        btn.setTextColor(Color.WHITE);
-        btn.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
-        btn.setTypeface(btn.getTypeface(), Typeface.BOLD);
-        btn.setPadding(0, 0, 0, 0);
-        btn.setStateListAnimator(null); // no default Material press elevation/shadow jump
+    // One circular icon button (62dp, matching gco-ring-btn in
+    // GlobalCallOverlay.jsx) with its label centered underneath.
+    private View ringButtonColumn(String icon, String label, String bgColorHex, String labelColorHex, View.OnClickListener onClick) {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+
+        int size = dp(62);
+        TextView circle = new TextView(this);
+        circle.setText(icon);
+        circle.setTextColor(Color.WHITE);
+        circle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        circle.setGravity(Gravity.CENTER);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.parseColor(colorHex));
-        bg.setCornerRadius(dp(28));
-        btn.setBackground(bg);
-        return btn;
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(Color.parseColor(bgColorHex));
+        circle.setBackground(bg);
+        circle.setOnClickListener(onClick);
+        col.addView(circle, new LinearLayout.LayoutParams(size, size));
+
+        TextView labelView = new TextView(this);
+        labelView.setText(label);
+        labelView.setTextColor(Color.parseColor(labelColorHex));
+        labelView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        labelView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        labelParams.topMargin = dp(8);
+        col.addView(labelView, labelParams);
+
+        return col;
     }
 
     private static String initialsFor(String name) {

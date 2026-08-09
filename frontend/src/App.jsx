@@ -10,6 +10,7 @@ import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp } from './lib/platform';
 import { syncStatusBarTheme } from './lib/nativeShell';
+import { setNativeThemePreference } from './lib/nativeMedia';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
 import AnimatedSplash from './components/AnimatedSplash';
@@ -1069,6 +1070,7 @@ function App() {
       const savedTheme = localStorage.getItem('watch_theme') || 'dark';
       document.documentElement.setAttribute('data-theme', savedTheme);
       syncStatusBarTheme(savedTheme);
+      setNativeThemePreference(savedTheme);
 
       // Remove existing injected style
       const existing = document.getElementById(LIGHT_STYLE_ID);

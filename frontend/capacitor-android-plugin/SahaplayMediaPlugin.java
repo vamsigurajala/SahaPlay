@@ -264,6 +264,25 @@ public class SahaplayMediaPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    // Mirrors the web app's light/dark theme preference into a plain native
+    // SharedPreferences file — IncomingCallActivity.java reads this directly
+    // (NOT through this plugin; it may run with the WebView/JS layer never
+    // having started at all, e.g. answering a call on a killed app) to make
+    // its lock-screen call UI match the user's actual theme instead of being
+    // hardcoded to one look. App.jsx calls this every time the theme is
+    // applied (on toggle, and once on startup) so the native copy is never
+    // more than one theme change stale.
+    @PluginMethod
+    public void setThemePreference(PluginCall call) {
+        String theme = call.getString("theme", "dark");
+        getContext().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(THEME_PREFS_KEY, theme).apply();
+        call.resolve();
+    }
+
+    static final String THEME_PREFS_NAME = "sahaplay_native_prefs";
+    static final String THEME_PREFS_KEY = "theme";
+
     private static void stopBluetoothScoQuietly(AudioManager am) {
         try {
             am.setBluetoothScoOn(false);

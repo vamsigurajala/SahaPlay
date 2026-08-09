@@ -67,3 +67,11 @@ export async function isNativeBluetoothAudioAvailable() {
 export function resetNativeAudioRoute() {
   plugin()?.setAudioRoute({ route: 'normal' }).catch(() => {});
 }
+
+// Mirrors the current light/dark theme into native SharedPreferences (see
+// SahaplayMediaPlugin.setThemePreference) so IncomingCallActivity.java can
+// match it even when the WebView/JS layer has never run in this app launch
+// (answering a call while the app was fully killed).
+export function setNativeThemePreference(theme) {
+  plugin()?.setThemePreference({ theme }).catch(() => {});
+}

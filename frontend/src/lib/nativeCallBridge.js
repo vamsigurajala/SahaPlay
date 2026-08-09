@@ -38,9 +38,24 @@ export function initNativeCallAnswerLink(onAnswer) {
 
 // CallContext.jsx calls this once on mount to pick up an answer that arrived
 // before its own event listener was attached (see the race explained above).
-// Clears the stash after reading so it's never reapplied to a later call.
-export function consumePendingNativeCallAnswer() {
-  const callId = window.__sahaplayPendingCallAnswer;
-  if (callId) delete window.__sahaplayPendingCallAnswer;
-  return callId || null;
+// Deliberately a non-destructive peek, not a consume - GlobalCallOverlay.jsx
+// also reads this (via isPendingNativeCallAnswer below) for as long as the
+// matching call is still ringing, to suppress its own Answer/Decline prompt
+// in favor of a plain "Connecting…" state. Showing that prompt at all after
+// the user already tapped Answer once natively is the "how many times do I
+// have to click Answer" bug this exists to prevent - even if the auto-accept
+// below ends up delayed for some reason, the user is never asked to answer
+// the same call a second time. Cleared via clearPendingNativeCallAnswer()
+// once the call actually connects or ends (see CallContext.jsx's acceptCall
+// and teardownCall), so it can't wrongly suppress a later, unrelated call.
+export function peekPendingNativeCallAnswer() {
+  return window.__sahaplayPendingCallAnswer || null;
+}
+
+export function isPendingNativeCallAnswer(callId) {
+  return !!callId && window.__sahaplayPendingCallAnswer === callId;
+}
+
+export function clearPendingNativeCallAnswer() {
+  delete window.__sahaplayPendingCallAnswer;
 }

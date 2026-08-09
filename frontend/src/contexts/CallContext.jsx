@@ -35,7 +35,7 @@ import { useCrypto } from './CryptoContext';
 import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable } from '../lib/nativeMedia';
-import { consumePendingNativeCallAnswer } from '../lib/nativeCallBridge';
+import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
@@ -443,7 +443,7 @@ export function CallProvider({ children }) {
     // attached yet. consumePendingNativeCallAnswer() reads (and clears) the
     // same callId stashed on `window` at dispatch time, so it's picked up
     // here regardless of which side won that race.
-    const pending = consumePendingNativeCallAnswer();
+    const pending = peekPendingNativeCallAnswer();
     if (pending) handler({ detail: { callId: pending } });
     return () => window.removeEventListener('native_call_answer', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -624,6 +624,7 @@ export function CallProvider({ children }) {
   }
 
   function teardownCall() {
+    clearPendingNativeCallAnswer();
     for (const pc of pcsRef.current.values()) { try { pc.close(); } catch {} }
     pcsRef.current.clear();
     remoteStreamsRef.current.clear();
@@ -670,6 +671,7 @@ export function CallProvider({ children }) {
   const acceptCall = useCallback(() => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming' || !socketRef.current) return;
+    clearPendingNativeCallAnswer();
     if (cs.isGroupJoin) {
       // Who to connect to is confirmed by the server's own reply
       // (call:joined-call) rather than acted on here — the groupMembers

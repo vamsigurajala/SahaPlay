@@ -10,6 +10,7 @@ import { useCall } from '../contexts/CallContext';
 import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 import { syncStatusBarTheme } from '../lib/nativeShell';
+import { isPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
 // app can get to a real ringtone without native code. This only plays while
@@ -162,6 +163,13 @@ export default function GlobalCallOverlay() {
 
   // ─── Incoming / Outgoing ringing screens ───
   const isIncoming = callState.phase === 'incoming';
+  // Tapping Answer on the native lock-screen call UI already told us
+  // (nativeCallBridge.js) which callId to auto-accept — if that's THIS call,
+  // don't show the Answer/Decline prompt again just because this screen
+  // hasn't caught up to CallContext's auto-accept yet. Showing it anyway is
+  // exactly the "how many times do I have to click Answer" bug: the user
+  // already answered once, natively.
+  const isAutoAnswering = isIncoming && isPendingNativeCallAnswer(callState.callId);
   return (
     <div style={overlayStyle}>
       <style>{`
@@ -181,13 +189,15 @@ export default function GlobalCallOverlay() {
           <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800 }}>{callState.peerDisplayName}</h2>
           <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.55)', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
             {isVideo ? <Video size={14} /> : <Phone size={14} />}
-            {isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call…` : `Calling ${isVideo ? '(video)' : '(voice)'}…`}
+            {isAutoAnswering ? 'Connecting…' : isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call…` : `Calling ${isVideo ? '(video)' : '(voice)'}…`}
           </p>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isIncoming ? 56 : 0, paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
-        {isIncoming ? (
+        {isAutoAnswering ? (
+          <div className="gco-avatar-pulse" style={{ width: 14, height: 14, borderRadius: '50%', background: '#22c55e' }} />
+        ) : isIncoming ? (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <button className="gco-ring-btn" onClick={call.declineCall} style={{ background: '#ef4444' }} aria-label="Decline">
