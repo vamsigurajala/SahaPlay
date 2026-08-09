@@ -244,6 +244,14 @@ export default function OneOnOneCallScreen({
           .ooc-dock { gap: 12px; }
           .ooc-ctrl-btn { width: 48px; height: 48px; }
         }
+        /* Desktop web: same full-window call takeover (matches how WhatsApp
+           Web/Meet/Discord's own web call views behave), but keep the grid
+           and floating sheets from stretching edge-to-edge across a wide
+           monitor — centers everything in a comfortably call-sized column
+           instead of a giant blown-up mobile layout. */
+        @media (min-width: 900px) {
+          .ooc-grid { max-width: 1100px; margin: 0 auto; }
+        }
       `}</style>
 
       {!isGroup ? (

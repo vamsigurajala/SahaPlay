@@ -947,7 +947,13 @@ const CALL_RING_TIMEOUT_MS = 45000;
 // someone who hasn't joined yet.
 function getCallActiveUsernames(call) {
   const list = [];
-  if (call.status === 'active') { list.push(call.caller, call.callee); }
+  // caller/callee can be null once vacated by leaveActiveCall — filtered
+  // out rather than pushed, since a departed core participant leaves no
+  // trace here once they're gone (same as a departed member).
+  if (call.status === 'active') {
+    if (call.caller) list.push(call.caller);
+    if (call.callee) list.push(call.callee);
+  }
   if (call.members) {
     for (const [u, entry] of call.members) { if (entry.status === 'active') list.push(u); }
   }
@@ -960,6 +966,15 @@ function isActiveCallParticipant(call, username) {
   return call.members?.get(username)?.status === 'active';
 }
 
+// Full teardown — used for the PRE-ACCEPT flows only (call:cancel,
+// call:decline, the original invite's ring timeout, the native decline
+// route, and a core participant disconnecting before ever answering).
+// Before the call has actually connected there's no group yet to "keep
+// going" — only caller/callee exist at that point (members only get added
+// via call:add-member, which itself requires the call to already be
+// active), so an unconditional full end is still correct here. Once the
+// call IS active, leaveActiveCall (below) is used instead — it only ends
+// the call completely when fewer than 2 people would be left in it.
 function endCallInternal(callId) {
   const call = activeCalls.get(callId);
   if (!call) return null;
@@ -967,11 +982,6 @@ function endCallInternal(callId) {
   activeCalls.delete(callId);
   if (userActiveCallId.get(call.caller) === callId) userActiveCallId.delete(call.caller);
   if (userActiveCallId.get(call.callee) === callId) userActiveCallId.delete(call.callee);
-  // Cascade to any members added via call:add-member — the core pair ending
-  // leaves nothing for a bolted-on member to talk to either. Every existing
-  // call site that already calls endCallInternal (cancel/decline/end/
-  // timeout, the native decline route, disconnect cleanup) picks this up
-  // for free with no changes needed at those call sites.
   if (call.members) {
     for (const [u, entry] of call.members) {
       clearTimeout(entry.timeoutHandle);
@@ -980,6 +990,53 @@ function endCallInternal(callId) {
     }
   }
   return call;
+}
+
+// Post-accept departure — ANY current participant (original caller,
+// original callee, or an added member, ringing or already joined) leaving
+// or being removed goes through here. Removes just that one person; the
+// call only ends completely once that leaves fewer than 2 people still in
+// it at all — this is what lets, say, the original caller hang up while
+// the callee and someone added later keep talking, instead of a call
+// always dying the moment either of the original two people leaves.
+// `caller`/`callee` become null (vacated) rather than the call losing its
+// core identity — every other read of call.caller/call.callee already
+// treats a mismatch as "not this person," so a null there behaves
+// correctly as "nobody."
+function leaveActiveCall(callId, username, { reason = 'left' } = {}) {
+  const call = activeCalls.get(callId);
+  if (!call) return;
+
+  if (call.caller === username) call.caller = null;
+  else if (call.callee === username) call.callee = null;
+  else if (call.members.has(username)) {
+    const entry = call.members.get(username);
+    clearTimeout(entry.timeoutHandle);
+    call.members.delete(username);
+  } else {
+    return; // not part of this call
+  }
+  if (userActiveCallId.get(username) === callId) userActiveCallId.delete(username);
+
+  const stillTracked = [];
+  if (call.caller) stillTracked.push(call.caller);
+  if (call.callee) stillTracked.push(call.callee);
+  for (const u of call.members.keys()) stillTracked.push(u);
+
+  if (stillTracked.length < 2) {
+    // Not enough people left for this to still be a call — end it
+    // completely for whoever's left (0 or 1 people).
+    for (const u of stillTracked) {
+      if (call.members.has(u)) { clearTimeout(call.members.get(u).timeoutHandle); call.members.delete(u); }
+      if (u === call.caller) call.caller = null;
+      if (u === call.callee) call.callee = null;
+      if (userActiveCallId.get(u) === callId) userActiveCallId.delete(u);
+      emitToUser(u, 'call:ended', { callId, endedBy: username, reason });
+    }
+    activeCalls.delete(callId);
+  } else {
+    getCallActiveUsernames(call).forEach(u => emitToUser(u, 'call:member-left', { callId, username, reason }));
+  }
 }
 
 // WhatsApp-style delivery ticks: a message is "delivered" the instant at least one
@@ -3584,10 +3641,24 @@ app.post('/api/calls/:callId/decline', (req, res) => {
   const calleeUsername = (req.body?.calleeUsername || '').toLowerCase();
   if (!callId || !calleeUsername) return res.status(400).json({ error: 'callId and calleeUsername required' });
   const call = activeCalls.get(callId);
-  if (!call || call.callee !== calleeUsername) return res.status(404).json({ error: 'No such ringing call' });
-  endCallInternal(callId);
-  emitToUser(call.caller, 'call:declined', { callId });
-  res.json({ success: true });
+  if (!call) return res.status(404).json({ error: 'No such ringing call' });
+  // Original callee, still ringing (the common case).
+  if (call.callee === calleeUsername && call.status === 'ringing') {
+    endCallInternal(callId);
+    emitToUser(call.caller, 'call:declined', { callId });
+    res.json({ success: true });
+    return;
+  }
+  // Someone added to an already-active call via call:add-member, declining
+  // from the native lock-screen UI with the app otherwise killed — same
+  // callId-gated reasoning as above, just routed through leaveActiveCall
+  // since only removing THEM (not the whole call) is correct here.
+  if (call.members.get(calleeUsername)?.status === 'ringing') {
+    leaveActiveCall(callId, calleeUsername, { reason: 'declined' });
+    res.json({ success: true });
+    return;
+  }
+  res.status(404).json({ error: 'No such ringing call' });
 });
 
 // â"€â"€ UPDATE Pinned Rooms â"€â"€
@@ -6726,19 +6797,30 @@ io.on('connection', (socket) => {
     try {
     unregisterSocket(socket.username, socket.id);
 
-    // If this was the user's LAST connected socket and they were in a call
-    // (ringing or active), end it — a multi-tab/multi-device user keeps the
-    // call alive as long as any one of their sockets is still connected.
+    // If this was the user's LAST connected socket and they were in a call,
+    // remove them from it — a multi-tab/multi-device user keeps the call
+    // alive as long as any one of their sockets is still connected. Before
+    // the call was ever answered (still 'ringing', core pair only), a
+    // disconnect still fully ends it — nothing to keep going pre-accept.
+    // Once active, this goes through the same leaveActiveCall path a
+    // deliberate call:end would (so e.g. an added member's dropped
+    // connection doesn't kill the call for the people still on it).
     if (socket.username) {
       const uname = socket.username.toLowerCase();
       const stillConnected = connectedSockets.has(uname);
       if (!stillConnected) {
         const callId = userActiveCallId.get(uname);
-        if (callId) {
-          const call = endCallInternal(callId);
-          if (call) {
-            const other = call.caller === uname ? call.callee : call.caller;
-            emitToUser(other, call.status === 'ringing' ? 'call:cancelled' : 'call:ended', { callId, endedBy: uname, reason: 'disconnect' });
+        const call = callId ? activeCalls.get(callId) : null;
+        if (call) {
+          const isCore = call.caller === uname || call.callee === uname;
+          if (isCore && call.status === 'ringing') {
+            const ended = endCallInternal(callId);
+            if (ended) {
+              const other = ended.caller === uname ? ended.callee : ended.caller;
+              if (other) emitToUser(other, 'call:cancelled', { callId, endedBy: uname, reason: 'disconnect' });
+            }
+          } else {
+            leaveActiveCall(callId, uname, { reason: 'disconnect' });
           }
         }
       }
@@ -8821,12 +8903,18 @@ io.on('connection', (socket) => {
     getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToUser(u, 'call:state', { callId, fromUsername: me, micOn, camOn }));
   });
 
+  // Anyone currently in the call — original caller, original callee, or
+  // someone added later — leaving. See leaveActiveCall: it only ends the
+  // call completely once fewer than 2 people would be left, so e.g. the
+  // original caller hanging up on a call they grew to 3 people leaves the
+  // other two still talking instead of always ending it for everyone.
   socket.on('call:end', ({ callId }) => {
-    const call = endCallInternal(callId);
-    if (!call) return;
+    const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    const target = call.caller === me ? call.callee : call.caller;
-    emitToUser(target, 'call:ended', { callId, endedBy: me });
+    if (!call) return;
+    const isParticipant = call.caller === me || call.callee === me || call.members.has(me);
+    if (!isParticipant) return;
+    leaveActiveCall(callId, me, { reason: 'left' });
   });
 
   // A voice call upgraded to video mid-call (CallContext.jsx's toggleCamera)
@@ -8877,12 +8965,7 @@ io.on('connection', (socket) => {
 
       const timeoutHandle = setTimeout(() => {
         const c = activeCalls.get(callId);
-        const entry = c?.members.get(target);
-        if (c && entry && entry.status === 'ringing') {
-          c.members.delete(target);
-          if (userActiveCallId.get(target) === callId) userActiveCallId.delete(target);
-          getCallActiveUsernames(c).forEach(u => emitToUser(u, 'call:member-left', { callId, username: target, reason: 'missed' }));
-        }
+        if (c?.members.get(target)?.status === 'ringing') leaveActiveCall(callId, target, { reason: 'missed' });
       }, CALL_RING_TIMEOUT_MS);
 
       call.members.set(target, { status: 'ringing', joinedAt: null, timeoutHandle, invitedBy: me });
@@ -8907,7 +8990,10 @@ io.on('connection', (socket) => {
   // The invited person accepting — tells them who's already there
   // (call:joined-call, to them only) so their client knows who to send a
   // fresh mesh offer to, and tells every existing participant a new member
-  // has joined (call:member-joined) so THEY know to expect one.
+  // has joined (call:member-joined) so THEY know to expect one. invitedBy
+  // lets the specific person who added this member recognize "that's my
+  // invitee" client-side, for the per-invitee call-log message (see
+  // CallContext.jsx) — everyone else just uses it to render the mesh.
   socket.on('call:member-join', ({ callId }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
@@ -8918,32 +9004,18 @@ io.on('connection', (socket) => {
     entry.joinedAt = Date.now();
     const others = getCallActiveUsernames(call).filter(u => u !== me);
     socket.emit('call:joined-call', { callId, participants: others, type: call.type });
-    others.forEach(u => emitToUser(u, 'call:member-joined', { callId, username: me }));
+    others.forEach(u => emitToUser(u, 'call:member-joined', { callId, username: me, invitedBy: entry.invitedBy }));
   });
 
+  // Declining an invite to join an already-active call — the member was
+  // never 'active' yet, so this can never be the thing that drops the call
+  // below 2 people; leaveActiveCall's bottom-out check is a correct no-op
+  // here, this is really just "remove one still-ringing invite."
   socket.on('call:member-decline', ({ callId }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    const entry = call?.members.get(me);
-    if (!call || !entry || entry.status !== 'ringing') return;
-    clearTimeout(entry.timeoutHandle);
-    call.members.delete(me);
-    if (userActiveCallId.get(me) === callId) userActiveCallId.delete(me);
-    getCallActiveUsernames(call).forEach(u => emitToUser(u, 'call:member-left', { callId, username: me, reason: 'declined' }));
-  });
-
-  // An already-joined added member leaving on their own — unlike call:end,
-  // this only removes THEM; the core pair (and any other members) keep
-  // talking. The core pair themselves still use call:end, which (via
-  // endCallInternal's cascade) ends the whole call including every member.
-  socket.on('call:member-leave', ({ callId }) => {
-    const call = activeCalls.get(callId);
-    const me = socket.username?.toLowerCase();
-    const entry = call?.members.get(me);
-    if (!call || !entry || entry.status !== 'active') return;
-    call.members.delete(me);
-    if (userActiveCallId.get(me) === callId) userActiveCallId.delete(me);
-    getCallActiveUsernames(call).forEach(u => emitToUser(u, 'call:member-left', { callId, username: me, reason: 'left' }));
+    if (call?.members.get(me)?.status !== 'ringing') return;
+    leaveActiveCall(callId, me, { reason: 'declined' });
   });
 
   // â"€â"€ Toggle Public Status â"€â"€

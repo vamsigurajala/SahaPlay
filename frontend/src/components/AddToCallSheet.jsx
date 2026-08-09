@@ -66,6 +66,13 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
           .atc-username { color: rgba(255,255,255,0.5); font-size: 12px; }
           .atc-empty { color: rgba(255,255,255,0.5); text-align: center; padding: 40px 20px; font-size: 13px; }
           .atc-add-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+          /* Desktop web: a bottom sheet stretched across a full monitor width
+             doesn't read as intentional — center it as a normal modal card
+             instead, same content and behavior either way. */
+          @media (min-width: 640px) {
+            .atc-overlay { align-items: center; justify-content: center; }
+            .atc-sheet { width: 420px; max-height: 68vh; border-radius: 20px; }
+          }
         `}</style>
         <div className="atc-header">
           <span className="atc-title">Add to call</span>

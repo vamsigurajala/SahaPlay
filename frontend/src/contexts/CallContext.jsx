@@ -107,6 +107,19 @@ export function CallProvider({ children }) {
   const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
   const peerPublicKeysRef = useRef(new Map());
   const connectPromisesRef = useRef(new Map()); // per-peer connect caching — see connectToPeer
+  // People I personally added to this call who are currently active —
+  // username -> joinedAt (ms). Used to write a call-log message into MY OWN
+  // DM with each of them once they (or I) leave, separate from the original
+  // caller/callee pair's own call-log message. See writeCallLogTo.
+  const myInviteesRef = useRef(new Map());
+  // True once callState.peerUsername (the original other party in MY OWN
+  // call — "who I'm calling," or "who invited me") has left the call
+  // before I have, in a call that outlived them. Without this, if I later
+  // also leave, my own explicit-leave logging would write a second,
+  // wrongly-inflated-duration call-log message to their (already-departed)
+  // relationship — they already logged their own accurate exit when they
+  // left; see the call:member-left handler.
+  const peerGoneRef = useRef(false);
 
   const [callState, setCallState] = useState(null);
   // { phase: 'outgoing'|'incoming'|'active', callId, type, peerUsername,
@@ -154,6 +167,7 @@ export function CallProvider({ children }) {
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.
       if (callStateRef.current) return;
       peerPublicKeysRef.current = new Map();
+      peerGoneRef.current = false;
       const brief = await fetchUserBrief(callerUsername);
       // groupParticipants (when present) is the full list of everyone
       // already active in the call, INCLUDING whoever is inviting me — see
@@ -296,8 +310,15 @@ export function CallProvider({ children }) {
     });
 
     sock.on('call:ended', ({ callId, reason }) => {
-      if (callStateRef.current?.callId !== callId) return;
-      if (reason === 'disconnect') writeCallLog(callStateRef.current, 'ended');
+      const cs = callStateRef.current;
+      if (cs?.callId !== callId) return;
+      // peerGoneRef guards against double-logging: if my own direct peer
+      // already left earlier in a call that outlived them (see
+      // call:member-left), they logged their own exit already — this
+      // final call:ended is the server cascading ME out too (e.g. the call
+      // dropped below 2 people), not a fresh reason to log the same
+      // relationship again.
+      if (reason === 'disconnect' && !peerGoneRef.current) writeCallLog(cs, 'ended');
       teardownCall();
     });
 
@@ -311,9 +332,14 @@ export function CallProvider({ children }) {
     // which lazily creates a connection for an unrecognized fromUsername)
     // rather than racing to connect myself; the newly-joining side is
     // always the one that initiates, see call:joined-call below.
-    sock.on('call:member-joined', async ({ callId, username }) => {
+    sock.on('call:member-joined', async ({ callId, username, invitedBy }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId || !username) return;
+      // I'm the one who added them — track when, so I can write a call-log
+      // message to our own DM once they (or I) leave the call. Everyone
+      // else in the call just renders them; only their actual inviter logs
+      // this specific relationship.
+      if (invitedBy === myUsername) myInviteesRef.current.set(username, { joinedAt: Date.now() });
       const brief = await fetchUserBrief(username);
       setCallState(prev => {
         if (!prev || prev.callId !== callId) return prev;
@@ -342,6 +368,33 @@ export function CallProvider({ children }) {
       setCallState(prev => (prev ? { ...prev, groupMembers: (prev.groupMembers || []).filter(m => m.username !== username) } : prev));
       if (reason === 'missed') toast(`${username} didn’t answer`);
       else if (reason === 'declined') toast(`${username} declined`);
+
+      // Call-log routing for someone I personally invited: they log their
+      // own side when THEY explicitly leave/decline (their own endCall/
+      // declineCall already does this — see below), so this only needs to
+      // fire when I'm the survivor of an abrupt disconnect (no client of
+      // theirs left to log it). Non-disconnect departures are intentionally
+      // skipped here to avoid writing the same call-log message twice.
+      const invitee = myInviteesRef.current.get(username);
+      if (invitee) {
+        myInviteesRef.current.delete(username);
+        if (reason === 'disconnect') {
+          writeCallLogTo(username, cs.type, 'ended', Math.max(0, Math.round((Date.now() - invitee.joinedAt) / 1000)));
+        }
+      }
+      // My own direct peer left before I did — whether that's "whoever
+      // invited me" (isGroupJoin) or "the original other party" (core
+      // caller/callee), in a call that outlived them. They already logged
+      // their own accurate exit via their own explicit leave (endCall/
+      // declineCall) unless this was an abrupt disconnect, in which case
+      // there's no client of theirs left to have logged it — I do it
+      // instead, same "survivor logs it" rule used everywhere else. Setting
+      // peerGoneRef either way stops MY OWN later endCall() from writing a
+      // second, wrongly-inflated-duration message once I finally leave too.
+      if (username === cs.peerUsername) {
+        peerGoneRef.current = true;
+        if (reason === 'disconnect') writeCallLog(cs, 'ended');
+      }
     });
 
     sock.on('call:member-busy', ({ username }) => {
@@ -514,21 +567,32 @@ export function CallProvider({ children }) {
   // ORIGINAL 1:1 pair's chat — see the note above the socket handlers.
   async function writeCallLog(cs, status) {
     if (!cs || !cs.peerUsername) return;
+    const durationSeconds = cs.answeredAt ? Math.max(0, Math.round((Date.now() - cs.answeredAt) / 1000)) : 0;
+    await writeCallLogTo(cs.peerUsername, cs.type, status, durationSeconds, cs.phase === 'outgoing' ? myUsername : cs.peerUsername);
+  }
+
+  // Generalized form of the above — writes a call-summary message to MY DM
+  // with `targetUsername` specifically, rather than always the original
+  // 1:1 peer. Used for people added to the call mid-way: whoever added them
+  // gets this in THEIR OWN DM with that person once the two of them stop
+  // being on the call together, separate from (and in addition to) the
+  // original caller/callee pair's own call-log message.
+  async function writeCallLogTo(targetUsername, callType, status, durationSeconds, initiatedBy) {
+    if (!targetUsername) return;
     const token = localStorage.getItem('watch_token');
     const kp = keyPairRef.current;
     if (!token || !kp) return;
     try {
-      const targetPubKey = peerPublicKeysRef.current.get(cs.peerUsername) || await fetchPublicKey(cs.peerUsername);
+      const targetPubKey = peerPublicKeysRef.current.get(targetUsername) || await fetchPublicKey(targetUsername);
       if (!targetPubKey) return;
-      const durationSeconds = cs.answeredAt ? Math.max(0, Math.round((Date.now() - cs.answeredAt) / 1000)) : 0;
-      const payload = CALL_LOG_PREFIX + JSON.stringify({ callType: cs.type, status, durationSeconds, initiatedBy: cs.phase === 'outgoing' ? myUsername : cs.peerUsername });
+      const payload = CALL_LOG_PREFIX + JSON.stringify({ callType, status, durationSeconds, initiatedBy: initiatedBy || myUsername });
       const enc = encryptDM(payload, targetPubKey, encodeBase64(kp.publicKey));
       await fetch(`${API}/api/chats/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           type: 'private',
-          partner: cs.peerUsername,
+          partner: targetUsername,
           message: enc.ciphertext,
           senderMessage: enc.senderCiphertext,
           nonce: enc.nonce,
@@ -548,6 +612,7 @@ export function CallProvider({ children }) {
     iceBuffersRef.current.clear();
     connectPromisesRef.current.clear();
     peerPublicKeysRef.current.clear();
+    myInviteesRef.current.clear();
     try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     localStreamRef.current = null;
     setParticipantMeta({});
@@ -563,6 +628,7 @@ export function CallProvider({ children }) {
     if (callStateRef.current || !socketRef.current) return;
     const callId = newCallId();
     peerPublicKeysRef.current = new Map();
+    peerGoneRef.current = false;
     setCallState({
       phase: 'outgoing',
       callId,
@@ -622,20 +688,35 @@ export function CallProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Leaving a call means different things depending on who I am: the
-  // original caller/callee ending it ends the WHOLE call (everyone,
-  // including any added members — call:end, unchanged from the base 1:1
-  // behavior); an added member leaving only removes themselves
-  // (call:member-leave) and the rest of the call continues. See the
-  // deliberate scoping note above activeCalls in backend/server.js.
+  // Leaving a call — ANY current participant, core or added, just removes
+  // themselves; the server (leaveActiveCall) only ends the whole call
+  // completely once that would leave fewer than 2 people in it. So the
+  // original caller can hang up on a call they grew to 3 people and the
+  // other two keep talking, instead of it always ending for everyone.
+  //
+  // Call-log writing on the way out, one message per relationship I'm
+  // responsible for:
+  // - The original 1:1 pair's chat, if I'm the original caller/callee
+  //   (unchanged from before "Add to call" existed).
+  // - My inviter's chat, if I was added to this call myself — previously
+  //   missing entirely; an added member leaving wrote no log at all.
+  // - My own DM with each person *I* added who's still on the call — see
+  //   myInviteesRef; this is what makes "B added C, call ends, B and C's
+  //   own DM shows the call duration" work regardless of who ends the call
+  //   or whether B/C are core participants.
   const endCall = useCallback(() => {
     const cs = callStateRef.current;
     if (!cs) return;
-    if (cs.isGroupJoin) {
-      socketRef.current?.emit('call:member-leave', { callId: cs.callId });
-    } else {
-      socketRef.current?.emit('call:end', { callId: cs.callId });
-      writeCallLog(cs, 'ended');
+    socketRef.current?.emit('call:end', { callId: cs.callId });
+    // peerUsername means "the original other party" for a core caller/
+    // callee, or "whoever invited me" for an added member — either way,
+    // this is always the one relationship this call's own state directly
+    // represents. Skipped if they already left earlier (peerGoneRef) —
+    // they logged their own accurate exit at the time, this would just
+    // double up with an inflated duration.
+    if (!peerGoneRef.current) writeCallLog(cs, 'ended');
+    for (const [username, invitee] of myInviteesRef.current) {
+      writeCallLogTo(username, cs.type, 'ended', Math.max(0, Math.round((Date.now() - invitee.joinedAt) / 1000)), myUsername);
     }
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
