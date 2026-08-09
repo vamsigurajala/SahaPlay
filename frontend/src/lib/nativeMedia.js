@@ -82,17 +82,47 @@ export function setNativeThemePreference(theme) {
 // permission prompt could arrive AFTER startNativeCallService() below had
 // already tried to start a foreground service declared with
 // foregroundServiceType="microphone|camera" — Android 14+ hard-crashes the
-// whole app in that race (see SahaplayMediaPlugin.ensureMediaPermissions
-// for the full explanation), which is what made answering/placing a call
+// whole app in that race, which is what made answering/placing a call
 // sometimes "get stuck and close" right after granting the permission.
+//
+// Deliberately calls getUserMedia() directly rather than going through
+// SahaplayMediaPlugin's own custom @Permission alias / requestPermissionForAlias
+// mechanism (a prior version of this function did) — that path was
+// confirmed, via bundletool dump manifest against a real shipped .aab, to
+// NOT be a manifest-declaration problem (CAMERA/RECORD_AUDIO are correctly
+// declared) but still silently resolved to "not granted" on a genuinely
+// fresh install without Android's system dialog ever appearing, which is
+// not something the OS can legitimately do for a manifest-declared
+// permission on its first-ever request. getUserMedia(), by contrast, goes
+// through Capacitor's own well-established WebView permission bridge
+// (BridgeWebChromeClient.onPermissionRequest) — the exact same real Android
+// system dialog every other WebView-based camera/mic prompt uses, matching
+// how the push-notification permission prompt already looks. The tracks
+// are stopped immediately after — this call exists purely to resolve the
+// permission and confirm hardware access works, not to keep the camera/mic
+// open.
+//
+// navigator.permissions.query is tried first (no hardware activation) so
+// this doesn't re-flash the camera/mic on every single call once already
+// granted — only the very first grant (or a retry after denial) actually
+// opens the camera/mic briefly.
+//
 // Resolves true on every non-Capacitor platform (plain web/PWA/desktop),
 // where the browser's own getUserMedia prompt is the only thing that exists
 // and this whole class of bug doesn't apply.
 export async function ensureNativeMediaPermissions() {
   if (!isCapacitorApp()) return true;
   try {
-    const result = await plugin()?.ensureMediaPermissions();
-    return !!result?.granted;
+    if (navigator.permissions?.query) {
+      const [cam, mic] = await Promise.all([
+        navigator.permissions.query({ name: 'camera' }).catch(() => null),
+        navigator.permissions.query({ name: 'microphone' }).catch(() => null),
+      ]);
+      if (cam?.state === 'granted' && mic?.state === 'granted') return true;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    stream.getTracks().forEach((t) => t.stop());
+    return true;
   } catch {
     return false;
   }
