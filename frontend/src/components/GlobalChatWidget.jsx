@@ -5552,12 +5552,11 @@ const GlobalChatWidget = forwardRef(({
                     onMouseEnter={e => { if (!busy) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#fff'; } }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--header-btn)'; }}
                   >
-                    {/* Phone's glyph is a thin open curve that reads visually smaller
-                        than Video's filled rect+lens at the same numeric size — a
-                        previous attempt to compensate for that by bumping Phone to
-                        size={21} overshot and read as visibly bigger than Video, so
-                        both are back to an equal literal size. */}
-                    <Phone size={20} strokeWidth={2.1} />
+                    {/* Confirmed on-device: Phone's solid handset silhouette carries
+                        more visual weight than Video's outlined rect+lens at the same
+                        numeric size, so it reads bigger even though the bounding boxes
+                        are identical — sized down slightly to actually match. */}
+                    <Phone size={18} strokeWidth={2.1} />
                   </button>
                   <button
                     onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
