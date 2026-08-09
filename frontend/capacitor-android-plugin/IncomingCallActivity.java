@@ -412,8 +412,8 @@ public class IncomingCallActivity extends android.app.Activity {
         buttonRow.setGravity(Gravity.CENTER);
         root.addView(buttonRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        View declineCol = ringButtonColumn("✕", "Decline", "#EF4444", labelColor, v -> { decline(); finish(); });
-        View answerCol = ringButtonColumn("☎", "Answer", "#22C55E", labelColor, v -> { answer(); finish(); });
+        View declineCol = ringButtonColumn(R.drawable.ic_call_decline, "Decline", "#EF4444", labelColor, v -> { decline(); finish(); });
+        View answerCol = ringButtonColumn(R.drawable.ic_call_answer, "Answer", "#22C55E", labelColor, v -> { answer(); finish(); });
 
         LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         colParams.setMargins(dp(28), 0, dp(28), 0);
@@ -424,18 +424,21 @@ public class IncomingCallActivity extends android.app.Activity {
     }
 
     // One circular icon button (62dp, matching gco-ring-btn in
-    // GlobalCallOverlay.jsx) with its label centered underneath.
-    private View ringButtonColumn(String icon, String label, String bgColorHex, String labelColorHex, View.OnClickListener onClick) {
+    // GlobalCallOverlay.jsx) with its label centered underneath. A real
+    // vector icon (ImageView), not a raw Unicode glyph — a plain TextView
+    // showing "✕"/"☎" renders as a colorful emoji-style character on some
+    // device fonts instead of a plain symbol.
+    private View ringButtonColumn(int iconRes, String label, String bgColorHex, String labelColorHex, View.OnClickListener onClick) {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
 
         int size = dp(62);
-        TextView circle = new TextView(this);
-        circle.setText(icon);
-        circle.setTextColor(Color.WHITE);
-        circle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        circle.setGravity(Gravity.CENTER);
+        ImageView circle = new ImageView(this);
+        circle.setImageResource(iconRes);
+        circle.setScaleType(ImageView.ScaleType.CENTER);
+        int iconPad = dp(18);
+        circle.setPadding(iconPad, iconPad, iconPad, iconPad);
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
         bg.setColor(Color.parseColor(bgColorHex));
