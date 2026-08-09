@@ -107,8 +107,13 @@ export async function ensureNativeMediaPermissions() {
 // Starting it for the ringing phase too (not just once active) is what keeps
 // a backgrounded CALLER's app from being suspended before it can receive
 // 'call:declined'/'call:answered' over the socket.
-export function startNativeCallService(peerName, startedAtMillis, status = 'active') {
-  plugin()?.startCallForegroundService({ peerName, startedAtMillis, status }).catch(() => {});
+// username is THIS device's own logged-in account, callId is the call this
+// notification represents — the ongoing-call notification's Hang Up button
+// (see SahaplayCallService.java / CallActionReceiver.java) needs both to
+// tell the backend WHO is leaving WHICH call, entirely natively, without
+// needing the JS/socket layer to be alive.
+export function startNativeCallService(peerName, startedAtMillis, status = 'active', username, callId) {
+  plugin()?.startCallForegroundService({ peerName, startedAtMillis, status, username, callId }).catch(() => {});
 }
 
 export function stopNativeCallService() {

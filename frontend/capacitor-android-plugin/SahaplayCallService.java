@@ -53,6 +53,12 @@ public class SahaplayCallService extends Service {
     // caller sometimes not learn a call was declined until they reopened the
     // app much later.
     public static final String EXTRA_STATUS = "status";
+    // THIS device's own logged-in account and the call this notification
+    // represents — both needed so the Hang Up button (see
+    // CallActionReceiver.ACTION_END) can tell the backend WHO is leaving
+    // WHICH call natively, without needing the JS/socket layer alive.
+    public static final String EXTRA_USERNAME = "username";
+    public static final String EXTRA_CALL_ID = "callId";
     public static final String ACTION_STOP = "com.sahaplay.app.action.STOP_CALL_SERVICE";
 
     @Override
@@ -66,9 +72,11 @@ public class SahaplayCallService extends Service {
         String peerName = (intent != null) ? intent.getStringExtra(EXTRA_PEER_NAME) : null;
         long startedAt = (intent != null) ? intent.getLongExtra(EXTRA_STARTED_AT, System.currentTimeMillis()) : System.currentTimeMillis();
         boolean isRinging = intent != null && "ringing".equals(intent.getStringExtra(EXTRA_STATUS));
+        String username = (intent != null) ? intent.getStringExtra(EXTRA_USERNAME) : null;
+        String callId = (intent != null) ? intent.getStringExtra(EXTRA_CALL_ID) : null;
         if (peerName == null || peerName.isEmpty()) peerName = "Ongoing call";
 
-        Notification notification = buildNotification(peerName, startedAt, isRinging);
+        Notification notification = buildNotification(peerName, startedAt, isRinging, username, callId);
 
         // FOREGROUND_SERVICE_TYPE_MICROPHONE (+ CAMERA) matches what this
         // service is actually for on Android 10+ - required declaration
@@ -103,7 +111,7 @@ public class SahaplayCallService extends Service {
         return START_STICKY;
     }
 
-    private Notification buildNotification(String peerName, long startedAt, boolean isRinging) {
+    private Notification buildNotification(String peerName, long startedAt, boolean isRinging, String username, String callId) {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Ongoing Call", NotificationManager.IMPORTANCE_LOW);
@@ -122,16 +130,30 @@ public class SahaplayCallService extends Service {
             ? PendingIntent.getActivity(this, 0, openIntent, piFlags)
             : null;
 
-        // Same sahaplay://call-end deep link nativeCallBridge.js listens for
-        // (mirrors call-answer) — routed through CallContext's unified
-        // hangup(), which does the RIGHT thing for whichever phase the call
-        // is actually in right now (cancel while ringing, hang up once
-        // active) rather than always assuming an active call.
-        Uri endUri = Uri.parse("sahaplay://call-end");
-        Intent endIntent = new Intent(Intent.ACTION_VIEW, endUri);
-        endIntent.setPackage(getPackageName());
-        endIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        PendingIntent endPendingIntent = PendingIntent.getActivity(this, 1, endIntent, piFlags);
+        // Handled entirely in the background via CallActionReceiver — no
+        // Activity, the app is never opened/resumed (previously a
+        // sahaplay://call-end deep link, which — like any getActivity()
+        // PendingIntent — briefly resumed the app first even though
+        // CallContext's own hangup() would tear everything down instantly
+        // once it ran; that read as "tapping Hang Up opened the app").
+        // Falls back to the old deep-link behavior in the unlikely case this
+        // service was restarted by the OS without its extras (e.g. after a
+        // process death) and genuinely doesn't know who/which call this is —
+        // still correct, just re-opens the app rather than acting silently.
+        PendingIntent endPendingIntent;
+        if (username != null && !username.isEmpty() && callId != null && !callId.isEmpty()) {
+            Intent endIntent = new Intent(this, CallActionReceiver.class);
+            endIntent.setAction(CallActionReceiver.ACTION_END);
+            endIntent.putExtra(CallActionReceiver.EXTRA_CALL_ID, callId);
+            endIntent.putExtra(CallActionReceiver.EXTRA_USERNAME, username);
+            endPendingIntent = PendingIntent.getBroadcast(this, 1, endIntent, piFlags);
+        } else {
+            Uri endUri = Uri.parse("sahaplay://call-end");
+            Intent endIntent = new Intent(Intent.ACTION_VIEW, endUri);
+            endIntent.setPackage(getPackageName());
+            endIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            endPendingIntent = PendingIntent.getActivity(this, 1, endIntent, piFlags);
+        }
 
         RemoteViews customView = new RemoteViews(getPackageName(), R.layout.notification_ongoing_call);
         customView.setTextViewText(R.id.ongoing_call_title, peerName);

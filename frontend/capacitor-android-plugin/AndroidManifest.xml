@@ -102,6 +102,14 @@
             android:showOnLockScreen="true"
             android:theme="@style/AppTheme.NoActionBarLaunch" />
 
+        <!-- Handles the incoming-call notification's Decline button and the
+             ongoing-call notification's Hang Up button — see
+             CallActionReceiver.java. Purely in-process (never triggered by
+             anything outside this app), so exported="false". -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
+
         <!-- Removes Capacitor's own FCM service registration (declared in its
              bundled AAR manifest) so SahaplayFirebaseMessagingService below is
              the ONLY thing registered for MESSAGING_EVENT — Android only ever

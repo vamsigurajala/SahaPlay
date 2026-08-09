@@ -1054,7 +1054,9 @@ export function CallProvider({ children }) {
     startNativeCallService(
       callState.peerDisplayName || callState.peerUsername,
       isActive ? (callState.answeredAt || Date.now()) : Date.now(),
-      isActive ? 'active' : 'ringing'
+      isActive ? 'active' : 'ringing',
+      myUsername,
+      callState.callId
     );
   }, [callState?.phase, callState?.callId]);
 

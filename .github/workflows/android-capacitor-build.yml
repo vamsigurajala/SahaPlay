@@ -336,6 +336,7 @@ jobs:
           cp capacitor-android-plugin/SahaplayFirebaseMessagingService.java android/app/src/main/java/com/sahaplay/app/SahaplayFirebaseMessagingService.java
           cp capacitor-android-plugin/IncomingCallActivity.java android/app/src/main/java/com/sahaplay/app/IncomingCallActivity.java
           cp capacitor-android-plugin/SahaplayCallService.java android/app/src/main/java/com/sahaplay/app/SahaplayCallService.java
+          cp capacitor-android-plugin/CallActionReceiver.java android/app/src/main/java/com/sahaplay/app/CallActionReceiver.java
           cp capacitor-android-plugin/MainActivity.java android/app/src/main/java/com/sahaplay/app/MainActivity.java
           cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/res/layout

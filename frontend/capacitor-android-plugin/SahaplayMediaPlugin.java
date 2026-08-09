@@ -286,10 +286,14 @@ public class SahaplayMediaPlugin extends Plugin {
         Double startedAtMillis = call.getDouble("startedAtMillis");
         long startedAt = startedAtMillis != null ? startedAtMillis.longValue() : System.currentTimeMillis();
         String status = call.getString("status", "active");
+        String username = call.getString("username", "");
+        String callId = call.getString("callId", "");
         Intent intent = new Intent(getContext(), SahaplayCallService.class);
         intent.putExtra(SahaplayCallService.EXTRA_PEER_NAME, peerName);
         intent.putExtra(SahaplayCallService.EXTRA_STARTED_AT, startedAt);
         intent.putExtra(SahaplayCallService.EXTRA_STATUS, status);
+        intent.putExtra(SahaplayCallService.EXTRA_USERNAME, username);
+        intent.putExtra(SahaplayCallService.EXTRA_CALL_ID, callId);
         androidx.core.content.ContextCompat.startForegroundService(getContext(), intent);
         call.resolve();
     }

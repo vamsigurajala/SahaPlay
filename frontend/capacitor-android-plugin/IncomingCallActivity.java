@@ -89,7 +89,6 @@ public class IncomingCallActivity extends android.app.Activity {
     // happened for either side.
     public static final String EXTRA_CALLEE = "calleeUsername";
     public static final String EXTRA_CALL_TYPE = "callType";
-    public static final String EXTRA_AUTO_DECLINE = "autoDecline";
 
     private MediaPlayer ringtonePlayer;
     private Vibrator vibrator;
@@ -106,13 +105,19 @@ public class IncomingCallActivity extends android.app.Activity {
     //  - Notification BODY -> opens this Activity's full ring screen
     //    (avatar + Decline/Answer), for whoever wants to see who's calling
     //    before deciding.
-    //  - The notification's OWN "Decline"/"Answer" buttons (both the plain
-    //    addAction chips AND the bigger custom RemoteViews row below) act
-    //    immediately, with NO intermediate screen - "Answer" used to reopen
-    //    this same Activity (a second ring prompt on top of the one just
-    //    tapped from), which was the "how many times do I have to click
-    //    Answer" bug. It now goes straight to the same sahaplay://call-answer
-    //    hand-off the in-Activity Answer button uses.
+    //  - The notification's OWN "Decline" button acts entirely in the
+    //    background via CallActionReceiver — no Activity, the app is never
+    //    opened/resumed at all, matching WhatsApp/Telegram's own
+    //    notification-action behavior (a getActivity() PendingIntent here,
+    //    even one that finishes itself instantly, still briefly resumes the
+    //    app first, which read as "tapping Decline opened the app").
+    //  - The notification's OWN "Answer" button goes straight to the
+    //    sahaplay://call-answer hand-off the in-Activity Answer button uses
+    //    — answering genuinely needs the WebView (real getUserMedia/
+    //    RTCPeerConnection), so opening the app is unavoidable there, but at
+    //    least with NO intermediate ring-screen prompt in between (that used
+    //    to reopen this same Activity — the "how many times do I have to
+    //    click Answer" bug).
     public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername) {
         if (callId == null || callerUsername == null) return;
         boolean isVideo = "video".equals(callType);
@@ -126,14 +131,11 @@ public class IncomingCallActivity extends android.app.Activity {
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(ctx, callId.hashCode(), fullScreenIntent, piFlags);
 
-        Intent declineIntent = new Intent(ctx, IncomingCallActivity.class);
-        declineIntent.putExtra(EXTRA_CALL_ID, callId);
-        declineIntent.putExtra(EXTRA_CALLER, callerUsername);
-        declineIntent.putExtra(EXTRA_CALL_TYPE, callType);
-        declineIntent.putExtra(EXTRA_CALLEE, calleeUsername);
-        declineIntent.putExtra(EXTRA_AUTO_DECLINE, true);
-        declineIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent declinePendingIntent = PendingIntent.getActivity(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
+        Intent declineIntent = new Intent(ctx, CallActionReceiver.class);
+        declineIntent.setAction(CallActionReceiver.ACTION_DECLINE);
+        declineIntent.putExtra(CallActionReceiver.EXTRA_CALL_ID, callId);
+        declineIntent.putExtra(CallActionReceiver.EXTRA_USERNAME, calleeUsername);
+        PendingIntent declinePendingIntent = PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
 
         PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags);
 
@@ -252,9 +254,13 @@ public class IncomingCallActivity extends android.app.Activity {
     // Called from SahaplayFirebaseMessagingService when a "call-cancel" data
     // push arrives (see sendCallCancelPush in backend/server.js) — the call
     // this callId refers to has been resolved some other way (declined,
-    // timed out, cancelled, answered elsewhere) since the original invite
+    // timed out, cancelled, ended, or answered elsewhere) since the last
     // push was sent. Dismisses the tray notification unconditionally (covers
-    // the case where this Activity was never opened at all), and additionally
+    // the case where this Activity was never opened at all), stops
+    // SahaplayCallService (its own persistent ongoing-call notification uses
+    // a fixed ID, not callId.hashCode(), so it needs its own explicit
+    // cancel — harmless if it wasn't running for this call, or at all;
+    // there's only ever one active call per device), and additionally
     // closes the full ring screen if it happens to be open showing this exact
     // call — tapping Answer/Decline on a call the server no longer knows
     // about would otherwise silently do nothing.
@@ -262,6 +268,9 @@ public class IncomingCallActivity extends android.app.Activity {
         if (callId == null) return;
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(callId.hashCode());
+        Intent stopIntent = new Intent(ctx, SahaplayCallService.class);
+        stopIntent.setAction(SahaplayCallService.ACTION_STOP);
+        try { ctx.startService(stopIntent); } catch (Exception ignored) {}
         if (currentInstance != null && callId.equals(currentInstanceCallId)) {
             currentInstance.finishAsMissed();
         }
@@ -275,7 +284,6 @@ public class IncomingCallActivity extends android.app.Activity {
         callerUsername = getIntent().getStringExtra(EXTRA_CALLER);
         calleeUsername = getIntent().getStringExtra(EXTRA_CALLEE);
         String callType = getIntent().getStringExtra(EXTRA_CALL_TYPE);
-        boolean autoDecline = getIntent().getBooleanExtra(EXTRA_AUTO_DECLINE, false);
         boolean isVideo = "video".equals(callType);
 
         if (callId == null || callerUsername == null) {
@@ -287,12 +295,6 @@ public class IncomingCallActivity extends android.app.Activity {
         currentInstanceCallId = callId;
 
         dismissNotification();
-
-        if (autoDecline) {
-            decline();
-            finish();
-            return;
-        }
 
         showOverLockScreen();
         buildUi(callerUsername, isVideo);

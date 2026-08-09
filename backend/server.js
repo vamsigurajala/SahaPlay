@@ -1061,6 +1061,15 @@ function leaveActiveCall(callId, username, { reason = 'left' } = {}) {
       if (u === call.callee) call.callee = null;
       if (userActiveCallId.get(u) === callId) userActiveCallId.delete(u);
       emitToUser(u, 'call:ended', { callId, endedBy: username, reason });
+      // Reaches them even if their socket isn't connected right now (app
+      // backgrounded far enough to be suspended, or killed) — dismisses
+      // whichever notification they have for this call, ringing or
+      // ongoing, instead of leaving it showing a call that's already over
+      // on this end. This is what makes the native Hang Up/Cancel button
+      // (see CallActionReceiver.java) actually cut the call for the OTHER
+      // person immediately, regardless of whether their own JS layer is
+      // running to catch the 'call:ended' socket event above.
+      sendCallCancelPush(u, callId);
     }
     activeCalls.delete(callId);
   } else {
@@ -3695,7 +3704,29 @@ app.post('/api/calls/:callId/decline', (req, res) => {
   res.status(404).json({ error: 'No such ringing call' });
 });
 
-// â"€â"€ UPDATE Pinned Rooms â"€â"€
+// Native-only end path for the ongoing-call notification's Hang Up button
+// (see SahaplayCallService.java / CallActionReceiver.java) — same
+// deliberately-unauthenticated, callId-gated reasoning as the decline route
+// above. Without this, hanging up only worked by deep-linking back into the
+// app and waiting for CallContext.jsx's socket to emit 'call:end' — fine
+// while the WebView is alive, but if it wasn't (backgrounded long enough to
+// be suspended, or the process died) the OTHER person's phone kept showing
+// the call as ringing/active far longer than it should have. Hitting the
+// backend directly here reaches them immediately regardless of whether
+// this device's JS layer is running at all.
+app.post('/api/calls/:callId/end', (req, res) => {
+  const { callId } = req.params;
+  const username = (req.body?.username || '').toLowerCase();
+  if (!callId || !username) return res.status(400).json({ error: 'callId and username required' });
+  const call = activeCalls.get(callId);
+  if (!call) return res.status(404).json({ error: 'No such active call' });
+  const isParticipant = call.caller === username || call.callee === username || call.members.has(username);
+  if (!isParticipant) return res.status(404).json({ error: 'Not a participant in this call' });
+  leaveActiveCall(callId, username, { reason: 'left' });
+  res.json({ success: true });
+});
+
+// ── UPDATE Pinned Rooms ──
 app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
   const { pinnedRooms } = req.body;
   if (!Array.isArray(pinnedRooms)) return res.status(400).json({ error: 'pinnedRooms must be an array' });
