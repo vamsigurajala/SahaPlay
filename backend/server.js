@@ -8903,7 +8903,18 @@ io.on('connection', (socket) => {
     clearTimeout(call.timeoutHandle);
     call.status = 'active';
     call.answeredAt = Date.now();
-    emitToUser(call.caller, 'call:answered', { callId });
+    // Both sides get the SAME server-stamped answeredAt now (previously each
+    // side stamped its own local Date.now() independently — close enough not
+    // to matter for the live duration ticker, but this is the one place that
+    // actually confirms to the callee's OWN client that the accept was
+    // processed at all; acceptCall() in CallContext.jsx flips to 'active'
+    // optimistically the instant Answer is tapped, with no server
+    // round-trip, so a silent server-side rejection (e.g. the ring timeout
+    // firing a moment earlier) previously left the callee's UI stuck showing
+    // a live "connected" call that the caller's side never agreed was
+    // active at all.
+    emitToUser(call.caller, 'call:answered', { callId, answeredAt: call.answeredAt });
+    socket.emit('call:accepted', { callId, answeredAt: call.answeredAt });
     // Covers a callee with more than one device logged in — the ring
     // notification pushed to every device (see call:invite above) only gets
     // dismissed locally on whichever one actually answered; the rest would

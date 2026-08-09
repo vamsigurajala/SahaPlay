@@ -43,7 +43,21 @@ function cacheKeyFor(rawUrl) {
       u.searchParams.delete('lastSeen');
     }
     const qs = u.searchParams.toString();
-    return u.pathname + (qs ? '?' + qs : '');
+    let key = u.pathname + (qs ? '?' + qs : '');
+    // /api/users/:username's response is VIEWER-relative — followStatus,
+    // isFollowingMe, isBlockedByMe all depend on who's asking, not just
+    // whose profile it is. Without the viewer baked into the key, one
+    // caller fetching it without auth (an anonymous-viewer's "not friends"
+    // answer — see the bug this fixed in CallContext.jsx's fetchUserBrief)
+    // could poison the SAME cache entry a different, correctly-authenticated
+    // fetch for the exact same partner then reads back. Scoping the key to
+    // the current logged-in user makes that a same-viewer cache miss instead
+    // of cross-viewer data leaking between requests.
+    if (u.pathname.startsWith('/api/users/')) {
+      const viewer = localStorage.getItem('watch_username') || 'anon';
+      key += (key.includes('?') ? '&' : '?') + '_viewer=' + viewer.toLowerCase();
+    }
+    return key;
   } catch {
     return rawUrl;
   }

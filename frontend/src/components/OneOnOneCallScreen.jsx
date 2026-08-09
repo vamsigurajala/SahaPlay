@@ -16,7 +16,7 @@
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 
@@ -165,8 +165,57 @@ export default function OneOnOneCallScreen({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const primaryRemote = remotes[0];
 
-  const routeIcon = audioRoute === 'bluetooth' ? Bluetooth : Volume2;
+  const routeIcon = audioRoute === 'bluetooth' ? Bluetooth : audioRoute === 'speaker' ? Volume2 : Ear;
   const RouteIcon = routeIcon;
+
+  // Click/tap ANYWHERE outside an open menu closes it — previously only the
+  // menu's own option buttons (and, for the more-menu, tapping the video
+  // stage) closed it; tapping another dock button, the top bar, or empty
+  // space around a menu left it stuck open. Listens on the capture phase so
+  // it always sees the tap before any inner stopPropagation() (the dock and
+  // both menus call it on their own onClick) could block it — those calls
+  // only affect the later bubble phase, not a capture listener that already
+  // ran on the way down.
+  const moreMenuRef = useRef(null);
+  const moreBtnRef = useRef(null);
+  const routeMenuRef = useRef(null);
+  const routeBtnRef = useRef(null);
+  useEffect(() => {
+    if (!moreMenuOpen && !routePickerOpen) return;
+    const handleOutside = (e) => {
+      if (moreMenuOpen && !moreMenuRef.current?.contains(e.target) && !moreBtnRef.current?.contains(e.target)) {
+        setMoreMenuOpen(false);
+      }
+      if (routePickerOpen && !routeMenuRef.current?.contains(e.target) && !routeBtnRef.current?.contains(e.target)) {
+        setRoutePickerOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside, true);
+    return () => document.removeEventListener('pointerdown', handleOutside, true);
+  }, [moreMenuOpen, routePickerOpen]);
+
+  // Short tap = instantly toggle speaker on/off (the common case, no menu in
+  // the way). Long press = open the full route picker (Normal/Speaker/
+  // Bluetooth) instead of toggling. Not picking anything from that picker
+  // just leaves the route exactly as it was — CallContext already defaults
+  // every call to 'earpiece' ("normal") unless the user explicitly picks
+  // something else, so there's nothing extra to do for that case here.
+  const speakerPressTimerRef = useRef(null);
+  const speakerLongPressedRef = useRef(false);
+  const handleSpeakerPointerDown = () => {
+    speakerLongPressedRef.current = false;
+    speakerPressTimerRef.current = setTimeout(() => {
+      speakerLongPressedRef.current = true;
+      setRoutePickerOpen(true);
+    }, 450);
+  };
+  const handleSpeakerPointerUp = () => {
+    clearTimeout(speakerPressTimerRef.current);
+    if (!speakerLongPressedRef.current) {
+      setAudioRoute(audioRoute === 'speaker' ? 'earpiece' : 'speaker');
+    }
+  };
+  const cancelSpeakerPress = () => clearTimeout(speakerPressTimerRef.current);
 
   const headerLine = isGroup
     ? remotes.map(r => r.displayName).join(', ')
@@ -351,15 +400,19 @@ export default function OneOnOneCallScreen({
         </button>
       </div>
 
-      {/* ── Speaker/Bluetooth picker sheet ── */}
+      {/* ── Normal/Speaker/Bluetooth picker sheet (opened by long-pressing
+          the speaker dock button — a short tap toggles speaker directly) ── */}
       {routePickerOpen && (
-        <div className="ooc-route-sheet" onClick={(e) => e.stopPropagation()}>
-          <button className={`ooc-route-opt ${audioRoute !== 'bluetooth' ? 'active' : ''}`} onClick={() => { setAudioRoute(audioRoute === 'speaker' ? 'earpiece' : 'speaker'); setRoutePickerOpen(false); }}>
-            <Volume2 size={17} /> Speaker {audioRoute === 'speaker' ? '(on)' : ''}
+        <div className="ooc-route-sheet" ref={routeMenuRef} onClick={(e) => e.stopPropagation()}>
+          <button className={`ooc-route-opt ${audioRoute === 'earpiece' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('earpiece'); setRoutePickerOpen(false); }}>
+            <Ear size={17} color="#fff" /> Normal
+          </button>
+          <button className={`ooc-route-opt ${audioRoute === 'speaker' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('speaker'); setRoutePickerOpen(false); }}>
+            <Volume2 size={17} color="#fff" /> Speaker
           </button>
           {bluetoothAudioAvailable && (
-            <button className={`ooc-route-opt ${audioRoute === 'bluetooth' ? 'active' : ''}`} onClick={() => { setAudioRoute('bluetooth'); setRoutePickerOpen(false); }}>
-              <Bluetooth size={17} /> Bluetooth
+            <button className={`ooc-route-opt ${audioRoute === 'bluetooth' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('bluetooth'); setRoutePickerOpen(false); }}>
+              <Bluetooth size={17} color="#fff" /> Bluetooth
             </button>
           )}
         </div>
@@ -367,21 +420,23 @@ export default function OneOnOneCallScreen({
 
       {/* ── More options: screen share / send message ── */}
       {moreMenuOpen && (
-        <div className="ooc-more-menu" onClick={(e) => e.stopPropagation()}>
+        <div className="ooc-more-menu" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
           {isVideo && (
             <button
               className="ooc-more-opt"
+              style={{ color: '#fff' }}
               onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
             >
-              <ScreenShare size={17} /> {isScreenSharing ? 'Stop screen share' : 'Screen share'}
+              <ScreenShare size={17} color="#fff" /> {isScreenSharing ? 'Stop screen share' : 'Screen share'}
             </button>
           )}
           {primaryRemote && (
             <button
               className="ooc-more-opt"
+              style={{ color: '#fff' }}
               onClick={() => { setMoreMenuOpen(false); onSendMessage?.(primaryRemote.username); }}
             >
-              <MessageCircle size={17} /> Send message
+              <MessageCircle size={17} color="#fff" /> Send message
             </button>
           )}
         </div>
@@ -392,6 +447,7 @@ export default function OneOnOneCallScreen({
         <div className="ooc-dock-box">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
+              ref={moreBtnRef}
               className="ooc-ctrl-btn"
               onClick={() => setMoreMenuOpen(v => !v)}
               style={{ width: 46, height: 46, background: moreMenuOpen ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
@@ -403,13 +459,17 @@ export default function OneOnOneCallScreen({
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
+              ref={routeBtnRef}
               className="ooc-ctrl-btn"
-              onClick={() => setRoutePickerOpen(v => !v)}
+              onPointerDown={handleSpeakerPointerDown}
+              onPointerUp={handleSpeakerPointerUp}
+              onPointerLeave={cancelSpeakerPress}
+              onPointerCancel={cancelSpeakerPress}
               style={{ background: audioRoute !== 'earpiece' ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
             >
               <RouteIcon size={22} color="#fff" />
             </button>
-            <span className="ooc-ctrl-label">{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Audio'}</span>
+            <span className="ooc-ctrl-label">{audioRoute === 'bluetooth' ? 'Bluetooth' : audioRoute === 'speaker' ? 'Speaker' : 'Normal'}</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

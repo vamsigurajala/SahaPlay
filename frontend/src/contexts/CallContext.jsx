@@ -86,7 +86,22 @@ async function fetchPublicKey(username) {
 
 async function fetchUserBrief(username) {
   try {
-    const res = await fetch(`${API}/api/users/${username}`);
+    // Sent WITHOUT an Authorization header for a while — /api/users/:username
+    // is viewer-relative (followStatus/isFollowingMe depend on who's asking),
+    // so an unauthenticated request here got treated as an anonymous viewer
+    // and answered "not friends." That response then sat in the frontend's
+    // shared GET cache (see fetchInterceptor.js — keyed by pathname only, no
+    // viewer distinction) and got served right back to the real logged-in
+    // user moments later when they opened that exact chat — showing
+    // "Friendship Required" for someone they were actually mutual friends
+    // with, self-correcting only once the cache entry happened to get
+    // invalidated or expire. This fires on every incoming/outgoing call (to
+    // fetch the peer's display name/avatar for the ring screen), which is
+    // exactly why the symptom showed up clustered around calls.
+    const token = localStorage.getItem('watch_token');
+    const res = await fetch(`${API}/api/users/${username}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) return null;
     const data = await res.json();
     return { displayName: data.displayName || username, avatarUrl: getAvatarUrl(data.avatarPath) || null };
@@ -263,11 +278,25 @@ export function CallProvider({ children }) {
       teardownCall();
     });
 
-    sock.on('call:answered', async ({ callId }) => {
+    sock.on('call:answered', async ({ callId, answeredAt }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId || cs.phase !== 'outgoing') return;
-      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: answeredAt || Date.now() } : prev));
       await connectToPeer(cs.peerUsername, { isCaller: true, callId, type: cs.type });
+    });
+
+    // Server confirmation of MY OWN call:accept — see the matching comment
+    // in backend/server.js. acceptCall() below already flips phase to
+    // 'active' optimistically the instant Answer is tapped (no server
+    // round-trip needed for a snappy UI), so this only patches in the
+    // server-stamped answeredAt in place of the locally-guessed one, which
+    // is what keeps the live call-duration timer showing the SAME number on
+    // both ends instead of two independently-clocked timers a network
+    // round-trip apart.
+    sock.on('call:accepted', ({ callId, answeredAt }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || !answeredAt) return;
+      setCallState(prev => (prev ? { ...prev, answeredAt } : prev));
     });
 
     sock.on('call:offer', async ({ callId, fromUsername, sdp }) => {
