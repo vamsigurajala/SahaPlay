@@ -116,6 +116,7 @@ export default function OneOnOneCallScreen({
   toggleMic,
   toggleCamera,
   flipCamera,
+  isFlippingCamera,
   audioRoute,
   setAudioRoute,
   bluetoothAudioAvailable,
@@ -239,7 +240,16 @@ export default function OneOnOneCallScreen({
   return (
     <div className="ooc-root" onClick={handleStageTap}>
       <style>{`
-        .ooc-root { position: absolute; inset: 0; overflow: hidden; background: #0b0f1a; font-family: 'Outfit', 'Inter', sans-serif; user-select: none; }
+        /* color-scheme: dark tells the WebView this surface already handles
+           its own (permanently dark, by design) styling — without it, some
+           OEM Android skins' algorithmic WebView dark-mode re-coloring
+           (Samsung/Xiaomi's system-wide "Dark mode for all apps" especially)
+           repaints already-white text into a dim, low-contrast grey, which
+           no CSS !important can override since it happens after render.
+           MainActivity.java also disables this at the native WebView-settings
+           level as the more complete fix; this is the standards-based CSS
+           signal for whichever layer respects it first. */
+        .ooc-root { position: absolute; inset: 0; overflow: hidden; background: #0b0f1a; font-family: 'Outfit', 'Inter', sans-serif; user-select: none; color-scheme: dark; }
         @keyframes ooc-pulse {
           0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(var(--brand-1-rgb), 0.35); }
           50% { transform: scale(1.05); box-shadow: 0 0 0 16px rgba(var(--brand-1-rgb), 0); }
@@ -263,7 +273,14 @@ export default function OneOnOneCallScreen({
         .ooc-topbar.ooc-hidden { transform: translateY(-8px); }
         .ooc-dock.ooc-hidden { transform: translateY(8px); }
         .ooc-ctrl-btn {
-          width: 54px; height: 54px; border-radius: 50%; border: none;
+          /* clamp(), not a fixed px size + one breakpoint override — a fixed
+             54px x up to 6 buttons + gaps + padding genuinely doesn't fit on
+             narrow phones (~320-360px wide), which is exactly the "fits on
+             some phones, cut off on others" report. Scaling fluidly with
+             viewport width means there's no specific screen size this can
+             overflow at, from the narrowest phone up through iPad. */
+          width: clamp(38px, 11vw, 54px); height: clamp(38px, 11vw, 54px);
+          border-radius: 50%; border: none;
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; transition: transform 0.15s ease; flex-shrink: 0;
         }
@@ -274,16 +291,18 @@ export default function OneOnOneCallScreen({
            here guards every text color below against whatever theme-aware
            global color rule was otherwise bleeding through and turning these
            dark-on-purpose labels unreadable on a light app theme. */
-        .ooc-ctrl-label { font-size: 10px; color: rgba(255,255,255,0.7) !important; text-align: center; margin-top: 6px; }
+        .ooc-ctrl-label { font-size: clamp(8.5px, 2.2vw, 10px); color: rgba(255,255,255,0.7) !important; text-align: center; margin-top: 6px; white-space: nowrap; }
         /* Same reasoning as the top bar's Add button: buttons/labels sitting
            directly on top of a bright/light background (a plain window
            gradient scrim isn't always enough contrast) were hard to read.
            One rounded box behind the whole control row fixes that
            regardless of what's behind the call screen. */
         .ooc-dock-box {
-          display: flex; align-items: center; justify-content: center; gap: 18px;
+          display: flex; align-items: center; justify-content: center;
+          gap: clamp(4px, 2vw, 18px);
           background: rgba(20,20,20,0.55); border-radius: 28px;
-          padding: 14px 18px;
+          padding: clamp(8px, 2.5vw, 14px) clamp(8px, 2.5vw, 18px);
+          max-width: 100%;
         }
         .ooc-more-menu {
           position: absolute; z-index: 40; bottom: 108px; left: 16px;
@@ -334,10 +353,6 @@ export default function OneOnOneCallScreen({
           opacity: ${chromeVisible ? 1 : 0}; transition: opacity 0.3s ease;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        @media (max-width: 380px) {
-          .ooc-dock-box { gap: 10px; padding: 12px 14px; }
-          .ooc-ctrl-btn { width: 46px; height: 46px; }
-        }
         /* Desktop web: same full-window call takeover (matches how WhatsApp
            Web/Meet/Discord's own web call views behave), but keep the grid
            and floating sheets from stretching edge-to-edge across a wide
@@ -356,6 +371,7 @@ export default function OneOnOneCallScreen({
           isCamOn={isCamOn}
           isMicOn={isMicOn}
           myAvatarUrl={myAvatarUrl}
+          isFlippingCamera={isFlippingCamera}
         />
       ) : (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
@@ -557,7 +573,7 @@ export default function OneOnOneCallScreen({
 const PIP_W = 128, PIP_H = 176, PIP_MARGIN = 16, PIP_PEEK = 18;
 const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed position
 
-function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl }) {
+function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl, isFlippingCamera }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
 
@@ -647,6 +663,13 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
         ) : (
           <Avatar url={mainAvatarUrl} name={mainName} size={132} pulsing={mainIsLocal ? isMicOn : remote.micOn} />
         )}
+        {/* Blanks the local tile while the camera is mid-flip rather than
+            leaving whatever stale/black frame the browser happens to show
+            between the old track stopping and the new one arriving — that
+            stale frame read as an unwanted "thumbnail" during the switch. */}
+        {mainIsLocal && isFlippingCamera && (
+          <div style={{ position: 'absolute', inset: 0, background: '#0b0f1a' }} />
+        )}
         {/* Remote audio must always play even when they're the PiP tile (or
             have no video at all) — a plain <video> only exists for whichever
             side is showing video, so this covers every other case. */}
@@ -672,6 +695,12 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl
             <VideoTile stream={mainIsLocal ? remote.stream : localStream} muted={!mainIsLocal} />
           ) : (
             <Avatar url={pipAvatarUrl} name={mainIsLocal ? remote.displayName : 'You'} size={56} />
+          )}
+          {/* Same reasoning as the main-stage overlay above — blanks the PIP
+              instead of showing a stale frame while the local camera flips,
+              for whichever side (main or PIP) is currently showing it. */}
+          {!mainIsLocal && isFlippingCamera && (
+            <div style={{ position: 'absolute', inset: 0, background: '#131928' }} />
           )}
         </div>
       )}

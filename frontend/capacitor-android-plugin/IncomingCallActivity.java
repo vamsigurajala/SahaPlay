@@ -32,11 +32,12 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RemoteViews;
 import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.Person;
+import androidx.core.graphics.drawable.IconCompat;
 import androidx.core.graphics.drawable.RoundedBitmapDrawable;
 import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory;
 
@@ -156,41 +157,36 @@ public class IncomingCallActivity extends android.app.Activity {
             nm.createNotificationChannel(channel);
         }
 
-        // Custom content view: plain addAction() chips can't be resized,
-        // widened, or colored (confirmed on-device — small system-styled
-        // grey pills with dead space on the right of the row, not the
-        // full-width red/green split a call notification should have).
-        RemoteViews customView = new RemoteViews(ctx.getPackageName(), R.layout.notification_incoming_call);
-        customView.setTextViewText(R.id.call_title, isVideo ? "Incoming video call" : "Incoming voice call");
-        customView.setTextViewText(R.id.call_caller, callerUsername);
-        customView.setImageViewBitmap(R.id.call_avatar, buildInitialsAvatarBitmap(callerUsername, 156));
-        customView.setOnClickPendingIntent(R.id.btn_decline, declinePendingIntent);
-        customView.setOnClickPendingIntent(R.id.btn_answer, answerPendingIntent);
+        // NotificationCompat.CallStyle — the real, first-party Android API
+        // for exactly this (WhatsApp/Telegram-style incoming-call
+        // notifications: avatar circle, caller name, colored full-width
+        // Decline/Answer pills), rendered entirely by the OS itself.
+        // Replaces an earlier hand-rolled RemoteViews layout (custom XML +
+        // pill-shaped drawables + a manually-drawn avatar Bitmap) that
+        // looked right in review but rendered inconsistently across real
+        // devices/OEM skins — some showed a plain system-default layout
+        // instead of the custom view at all. CallStyle is a first-party,
+        // OS-tested API that doesn't have that class of problem, and
+        // gracefully degrades to a big-style two-button notification on
+        // pre-Android-12 devices instead of failing silently.
+        Person callerPerson = new Person.Builder()
+            .setName(callerUsername)
+            .setIcon(IconCompat.createWithBitmap(buildInitialsAvatarBitmap(callerUsername, 156)))
+            .setImportant(true)
+            .build();
+        NotificationCompat.CallStyle callStyle = NotificationCompat.CallStyle.forIncomingCall(
+            callerPerson, declinePendingIntent, answerPendingIntent
+        );
 
         Notification notification = new NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setContentTitle(isVideo ? "Incoming video call" : "Incoming voice call")
-            .setContentText(callerUsername)
+            .setContentTitle(callerUsername)
+            .setContentText(isVideo ? "Incoming video call" : "Incoming voice call")
             .setSmallIcon(ctx.getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
-            .setCustomContentView(customView)
-            // Deliberately NOT using NotificationCompat.DecoratedCustomViewStyle
-            // here — that wraps the custom view with the system's own small
-            // icon/app-name/timestamp header row, drawn in the SYSTEM's card
-            // color/theme, sitting right above this view's own hardcoded dark
-            // background — exactly the "box inside a box" two-tone look this
-            // was already fixed away from once. A plain custom content view
-            // with no style shows ONLY this view, filling the whole
-            // notification uniformly.
-            // No .addAction() chips here on top of the custom view's own
-            // buttons above — that used to render as a SECOND, duplicate
-            // Decline/Answer row (small grey system chips) underneath the
-            // real red/green ones, which is confusing and looks broken. This
-            // app has no wearable/Android Auto companion surface that would
-            // ever need that fallback, so there's nothing it was actually
-            // buying.
+            .setStyle(callStyle)
             .setAutoCancel(true)
             .setOngoing(true)
             .build();

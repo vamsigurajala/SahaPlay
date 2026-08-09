@@ -219,11 +219,19 @@ jobs:
           # dependency. A second declaration of the same artifact is normal
           # and harmless; Gradle just resolves one canonical version via the
           # BoM below.
+          # androidx.webkit is what MainActivity.java's WebSettingsCompat/
+          # WebViewFeature calls (disabling the WebView's own algorithmic
+          # dark-mode re-coloring on the always-dark call screens) need —
+          # Capacitor's core Android module doesn't declare it as an `api`
+          # dependency, so it isn't guaranteed exposed here either, same
+          # "don't rely on an unverified transitive dependency" reasoning as
+          # firebase-messaging above.
           cat >> android/app/build.gradle <<'EOF'
 
           dependencies {
               implementation platform('com.google.firebase:firebase-bom:34.11.0')
               implementation 'com.google.firebase:firebase-messaging'
+              implementation 'androidx.webkit:webkit:1.12.1'
           }
           EOF
           cat android/app/build.gradle
@@ -339,12 +347,6 @@ jobs:
           cp capacitor-android-plugin/CallActionReceiver.java android/app/src/main/java/com/sahaplay/app/CallActionReceiver.java
           cp capacitor-android-plugin/MainActivity.java android/app/src/main/java/com/sahaplay/app/MainActivity.java
           cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          mkdir -p android/app/src/main/res/layout
-          cp capacitor-android-plugin/res/layout/notification_incoming_call.xml android/app/src/main/res/layout/notification_incoming_call.xml
-          cp capacitor-android-plugin/res/layout/notification_ongoing_call.xml android/app/src/main/res/layout/notification_ongoing_call.xml
-          mkdir -p android/app/src/main/res/drawable
-          cp capacitor-android-plugin/res/drawable/pill_red.xml android/app/src/main/res/drawable/pill_red.xml
-          cp capacitor-android-plugin/res/drawable/pill_green.xml android/app/src/main/res/drawable/pill_green.xml
 
       - name: Sync Capacitor project
         working-directory: frontend

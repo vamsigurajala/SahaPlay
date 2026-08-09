@@ -206,6 +206,10 @@ export default function GlobalCallOverlay() {
     background: '#0b0f1a', color: '#fff',
     display: 'flex', flexDirection: 'column',
     fontFamily: "'Outfit', 'Inter', sans-serif",
+    // See OneOnOneCallScreen.jsx's matching comment — tells the WebView this
+    // permanently-dark surface already handles its own styling, so some
+    // OEMs' algorithmic WebView dark-mode re-coloring doesn't dim its text.
+    colorScheme: 'dark',
   };
 
   if (minimized) {
@@ -234,6 +238,7 @@ export default function GlobalCallOverlay() {
           toggleCamera={call.toggleCamera}
           toggleMic={call.toggleMic}
           flipCamera={call.flipCamera}
+          isFlippingCamera={call.isFlippingCamera}
           isScreenSharing={call.isScreenSharing}
           startScreenShare={call.startScreenShare}
           stopScreenShare={call.stopScreenShare}

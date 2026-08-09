@@ -109,6 +109,82 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice
     };
   }, [active]);
 
+  // Requests the given device (or the browser's default if camId is falsy),
+  // falling back to the default device if a remembered deviceId has gone
+  // stale (unplugged, browser profile reset, etc. — surfaces as
+  // OverconstrainedError/NotFoundError, not a real permission denial).
+  const acquireStream = async (camId) => {
+    const constraints = { video: camId ? { deviceId: { exact: camId } } : true };
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      if (camId && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
+        onStaleDevice?.();
+        return await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+      throw err;
+    }
+  };
+
+  const bindStream = (stream) => {
+    streamRef.current = stream;
+    // Assign srcObject BEFORE setting state so the element already has a stream
+    // when React re-renders and shows the video.
+    const vid = videoRef.current;
+    if (vid) {
+      vid.srcObject = stream;
+      vid.play().catch(() => {});
+    }
+
+    try {
+      const track = stream.getVideoTracks()[0];
+      const settings = track.getSettings();
+      const w = settings.width || 0;
+      const h = settings.height || 0;
+      const fps = settings.frameRate || 0;
+      const aspect = settings.aspectRatio || (h ? w / h : 0);
+
+      let builtInMic = t ? t('noneLabel', 'None') : 'None';
+      if (settings.groupId && micDevices.length > 0) {
+        const mic = micDevices.find(m => m.groupId === settings.groupId);
+        if (mic) builtInMic = mic.label || (t ? t('yesLabel', 'Yes') : 'Yes');
+      }
+
+      let standard = t ? t('unknownLabel', 'Unknown') : 'Unknown';
+      if (h >= 2160) standard = '4K UHD';
+      else if (h >= 1440) standard = 'QHD 1440p';
+      else if (h >= 1080) standard = 'FHD 1080p';
+      else if (h >= 720) standard = 'HD 720p';
+      else if (h >= 480) standard = 'SD 480p';
+      else if (h > 0) standard = t ? t('lowResLabel', 'Low Res') : 'Low Res';
+
+      setCamInfo({
+        name: track.label || (t ? t('unknownCamera', 'Unknown Camera') : 'Unknown Camera'),
+        builtInMic,
+        resolution: w && h ? `${w}×${h}` : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
+        standard: standard,
+        megaPixels: w && h ? ((w * h) / 1000000).toFixed(2) + ' MP' : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
+        targetFps: fps,
+        aspectRatio: aspect ? aspect.toFixed(2) : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
+        streamType: 'video'
+      });
+    } catch (err) {
+      console.error('Error reading camera info:', err);
+    }
+  };
+
+  const reportCamError = (err) => {
+    if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+      toast.error(t ? t('camAccessDenied', "Camera access denied — allow it in your browser's site settings") : "Camera access denied — allow it in your browser's site settings");
+    } else if (err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError') {
+      toast.error(t ? t('camNotFound', 'No camera found') : 'No camera found');
+    } else if (err?.name === 'NotReadableError') {
+      toast.error(t ? t('camInUse', 'Camera is already in use by another app') : 'Camera is already in use by another app');
+    } else {
+      toast.error(t ? t('camGenericError', 'Could not start camera') : 'Could not start camera');
+    }
+  };
+
   const start = async () => {
     if (isStarting || active) return;
     setIsStarting(true);
@@ -117,88 +193,59 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice
       // real retry/Open-Settings modal instead of a dead-end toast if the
       // camera isn't already allowed. No-op on plain web/PWA.
       if (!(await requestMediaAccess())) return;
-      let stream;
-      try {
-        const constraints = { video: selectedCam ? { deviceId: { exact: selectedCam } } : true };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        // A remembered device ID can go stale (unplugged, browser profile
-        // reset, etc.) and throws OverconstrainedError/NotFoundError rather
-        // than a real permission denial — fall back to the default device
-        // instead of surfacing a misleading "access denied" error.
-        if (selectedCam && (err.name === 'OverconstrainedError' || err.name === 'NotFoundError')) {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          onStaleDevice?.();
-        } else {
-          throw err;
-        }
-      }
-
-      // Stop any existing stream just in case
+      // Release any stale stream FIRST, before requesting the new one —
+      // requesting a second camera stream while the first is still open
+      // throws OverconstrainedError on many phones/mobile browsers even
+      // when the other camera genuinely exists (only one getUserMedia video
+      // stream at a time, regardless of which physical camera it's from —
+      // same limitation Room.jsx's own flipCamera works around the same way).
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(tr => tr.stop());
+        streamRef.current = null;
       }
-      
-      streamRef.current = stream;
-      // Assign srcObject BEFORE setting state so the element already has a stream
-      // when React re-renders and shows the video.
-      const vid = videoRef.current;
-      if (vid) {
-        vid.srcObject = stream;
-        vid.play().catch(() => {});
-      }
-      
-      try {
-        const track = stream.getVideoTracks()[0];
-        const settings = track.getSettings();
-        const w = settings.width || 0;
-        const h = settings.height || 0;
-        const fps = settings.frameRate || 0;
-        const aspect = settings.aspectRatio || (h ? w / h : 0);
-        
-        let builtInMic = t ? t('noneLabel', 'None') : 'None';
-        if (settings.groupId && micDevices.length > 0) {
-          const mic = micDevices.find(m => m.groupId === settings.groupId);
-          if (mic) builtInMic = mic.label || (t ? t('yesLabel', 'Yes') : 'Yes');
-        }
-        
-        let standard = t ? t('unknownLabel', 'Unknown') : 'Unknown';
-        if (h >= 2160) standard = '4K UHD';
-        else if (h >= 1440) standard = 'QHD 1440p';
-        else if (h >= 1080) standard = 'FHD 1080p';
-        else if (h >= 720) standard = 'HD 720p';
-        else if (h >= 480) standard = 'SD 480p';
-        else if (h > 0) standard = t ? t('lowResLabel', 'Low Res') : 'Low Res';
-
-        setCamInfo({
-          name: track.label || (t ? t('unknownCamera', 'Unknown Camera') : 'Unknown Camera'),
-          builtInMic,
-          resolution: w && h ? `${w}×${h}` : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
-          standard: standard,
-          megaPixels: w && h ? ((w * h) / 1000000).toFixed(2) + ' MP' : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
-          targetFps: fps,
-          aspectRatio: aspect ? aspect.toFixed(2) : (t ? t('unknownLabel', 'Unknown') : 'Unknown'),
-          streamType: 'video'
-        });
-      } catch (err) {
-        console.error('Error reading camera info:', err);
-      }
-
+      const stream = await acquireStream(selectedCam);
+      bindStream(stream);
       setActive(true);
     } catch (err) {
-      if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
-        toast.error(t ? t('camAccessDenied', "Camera access denied — allow it in your browser's site settings") : "Camera access denied — allow it in your browser's site settings");
-      } else if (err?.name === 'NotFoundError' || err?.name === 'OverconstrainedError') {
-        toast.error(t ? t('camNotFound', 'No camera found') : 'No camera found');
-      } else if (err?.name === 'NotReadableError') {
-        toast.error(t ? t('camInUse', 'Camera is already in use by another app') : 'Camera is already in use by another app');
-      } else {
-        toast.error(t ? t('camGenericError', 'Could not start camera') : 'Could not start camera');
-      }
+      reportCamError(err);
     } finally {
       setIsStarting(false);
     }
   };
+
+  // Switching the device dropdown used to only take effect the NEXT time
+  // the preview was manually stopped and restarted — selecting "Camera 2
+  // (back)" while the preview was already running visibly did nothing,
+  // reading as "the back camera option doesn't work". Restarts with the
+  // newly selected device immediately whenever it changes while active.
+  // Bypasses start()'s own isStarting/active guard deliberately (calling
+  // start() here would just no-op since active is still true) rather than
+  // going through stop()+start(), which would race across two renders.
+  const prevSelectedCamRef = useRef(selectedCam);
+  useEffect(() => {
+    if (prevSelectedCamRef.current === selectedCam) return;
+    prevSelectedCamRef.current = selectedCam;
+    if (!active) return;
+    let cancelled = false;
+    (async () => {
+      setIsStarting(true);
+      try {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(tr => tr.stop());
+          streamRef.current = null;
+        }
+        const stream = await acquireStream(selectedCam);
+        if (cancelled) { stream.getTracks().forEach(tr => tr.stop()); return; }
+        bindStream(stream);
+      } catch (err) {
+        if (!cancelled) { reportCamError(err); setActive(false); }
+      } finally {
+        if (!cancelled) setIsStarting(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCam]);
 
   const stop = () => {
     if (streamRef.current) {
@@ -235,13 +282,6 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice
           muted
           style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: 'block' }}
         />
-        {/* Placeholder overlaid on top — does NOT hide the video element */}
-        {!active && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#555', fontSize: 13, background: 'rgba(0,0,0,0.6)' }}>
-            <Video size={32} color="#333" />
-            <span>{t ? t('camPreviewText', 'Camera preview will appear here') : 'Camera preview will appear here'}</span>
-          </div>
-        )}
       </div>
 
       {active && camInfo && (

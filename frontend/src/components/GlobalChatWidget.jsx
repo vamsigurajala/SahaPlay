@@ -526,7 +526,12 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
             style={{ position: 'relative', cursor: url ? 'pointer' : 'default', background: '#111', gridRow: tallLeft ? 'span 2' : undefined, overflow: 'hidden' }}>
             {url ? (
               isVid ? (
-                <video src={url} muted onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
+                // No static frame preview here by design — a <video> element
+                // auto-loads and shows its first frame even without playing,
+                // which read as an unwanted "thumbnail" flash before the
+                // user ever taps to play. Plain placeholder + Play icon
+                // (rendered just below) only.
+                <div style={{ width: '100%', height: '100%', background: '#1a1a1a' }} />
               ) : (
                 <img src={url} alt="" loading="lazy" draggable={false} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
@@ -600,7 +605,8 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
         </>
       ) : (
         <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <video src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.7, WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} muted onContextMenu={e => e.preventDefault()} />
+          {/* No static frame preview by design — see the matching comment
+              in the grid-preview renderer above. */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(var(--brand-1-rgb),0.5)' }}>
               <Play size={18} color="#fff" fill="#fff" style={{ marginLeft: 3 }} />

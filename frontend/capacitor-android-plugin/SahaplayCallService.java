@@ -11,12 +11,11 @@ import android.content.pm.ServiceInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
-import android.os.SystemClock;
-import android.view.View;
-import android.widget.RemoteViews;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.Person;
+import androidx.core.graphics.drawable.IconCompat;
 
 // Keeps an active call's WebRTC connections alive while the app is
 // backgrounded, and gives the user a persistent, always-visible way to see
@@ -155,31 +154,21 @@ public class SahaplayCallService extends Service {
             endPendingIntent = PendingIntent.getActivity(this, 1, endIntent, piFlags);
         }
 
-        RemoteViews customView = new RemoteViews(getPackageName(), R.layout.notification_ongoing_call);
-        customView.setTextViewText(R.id.ongoing_call_title, peerName);
-        // Same colored-initials avatar builder IncomingCallActivity uses for
-        // its own notification — package-private static, shared rather than
-        // duplicated.
-        customView.setImageViewBitmap(R.id.ongoing_call_avatar, IncomingCallActivity.buildInitialsAvatarBitmap(peerName, 132));
-        customView.setViewVisibility(R.id.ongoing_call_status, isRinging ? View.VISIBLE : View.GONE);
-        customView.setViewVisibility(R.id.ongoing_call_timer, isRinging ? View.GONE : View.VISIBLE);
-        if (isRinging) {
-            customView.setTextViewText(R.id.ongoing_call_status, "Calling…");
-        } else {
-            // Chronometer.setBase() is measured against SystemClock.
-            // elapsedRealtime() (time since device boot) — NOT
-            // System.currentTimeMillis()/JS Date.now() (wall-clock epoch
-            // millis), which is what startedAt actually is. Passing the
-            // epoch value straight through as the base made the widget
-            // compute "elapsed time since 1970" instead of "elapsed time
-            // since the call started," rendering as garbage like
-            // "-496021:34:56" — converting it into the equivalent
-            // elapsedRealtime instant fixes that.
-            long elapsedBase = SystemClock.elapsedRealtime() - (System.currentTimeMillis() - startedAt);
-            customView.setChronometer(R.id.ongoing_call_timer, elapsedBase, null, true);
-        }
-        customView.setTextViewText(R.id.btn_end_call_label, isRinging ? "Cancel" : "Hang Up");
-        customView.setOnClickPendingIntent(R.id.btn_end_call, endPendingIntent);
+        // NotificationCompat.CallStyle.forOngoingCall — same first-party
+        // Android call-notification API IncomingCallActivity now uses,
+        // instead of a hand-rolled RemoteViews layout (see that file's
+        // showIncomingCall() for why: it rendered inconsistently across
+        // real devices). setUsesChronometer/setWhen below is the Builder's
+        // own OS-managed chronometer, which counts from a plain wall-clock
+        // "when" value directly — no elapsedRealtime conversion needed
+        // (unlike the raw Chronometer View this replaces), so the class of
+        // bug that produced a garbage "-496021:34:56" display can't recur.
+        Person peerPerson = new Person.Builder()
+            .setName(peerName)
+            .setIcon(IconCompat.createWithBitmap(IncomingCallActivity.buildInitialsAvatarBitmap(peerName, 132)))
+            .setImportant(true)
+            .build();
+        NotificationCompat.CallStyle callStyle = NotificationCompat.CallStyle.forOngoingCall(peerPerson, endPendingIntent);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(peerName)
@@ -187,11 +176,7 @@ public class SahaplayCallService extends Service {
             .setSmallIcon(getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setCustomContentView(customView)
-            // No DecoratedCustomViewStyle here — same "box inside a box"
-            // reasoning as the incoming-call notification (see
-            // IncomingCallActivity.showIncomingCall()); this view's own
-            // hardcoded dark background fills the whole card on its own.
+            .setStyle(callStyle)
             .setOngoing(true)
             .setUsesChronometer(!isRinging)
             .setWhen(startedAt)

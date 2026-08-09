@@ -898,35 +898,62 @@ export function CallProvider({ children }) {
     }
   }, [sendSignal]);
 
-  // Acquire the new-facing camera BEFORE releasing the old one (exact→soft
-  // facingMode fallback, same as the room's own camera flip) — acquiring
-  // first and only stopping the old track once the new one is already
-  // flowing keeps the local preview continuous instead of freezing/blanking
-  // for however long getUserMedia takes. Replaces the track on every peer
-  // connection's sender in the mesh, not just one.
+  // Releases the old-facing camera BEFORE requesting the new one (exact→soft
+  // facingMode fallback) — a prior version of this function acquired the new
+  // camera first for a smoother, non-freezing preview, but many phones/
+  // mobile browsers only allow ONE getUserMedia video stream open at a time
+  // regardless of which physical camera it's from, and reject the second
+  // request with an OverconstrainedError that looks identical to "this
+  // device only has one camera" even on phones with two — Room.jsx's own
+  // (separately implemented) room-camera flip already had to work around
+  // this exact issue the same way. Matching that release-first order here is
+  // what fixes "works on some phones, not others" for the in-call flip
+  // button specifically. On failure, re-requests the ORIGINAL facing mode so
+  // the call doesn't end up with no camera track at all.
+  const [isFlippingCamera, setIsFlippingCamera] = useState(false);
   const flipCamera = useCallback(async () => {
     const stream = localStreamRef.current;
     const oldTrack = stream?.getVideoTracks()[0];
     if (!stream || !oldTrack || pcsRef.current.size === 0) return;
-    const nextFacing = currentFacingRef.current === 'environment' ? 'user' : 'environment';
-    try {
-      let newStream;
+    setIsFlippingCamera(true);
+    const prevFacing = currentFacingRef.current;
+    const nextFacing = prevFacing === 'environment' ? 'user' : 'environment';
+
+    const requestFacing = async (facing) => {
       try {
-        newStream = await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: { exact: nextFacing } } });
+        return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: { exact: facing } } });
       } catch {
-        newStream = await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: nextFacing } });
+        return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: facing } });
       }
+    };
+
+    stream.removeTrack(oldTrack);
+    oldTrack.stop();
+
+    try {
+      const newStream = await requestFacing(nextFacing);
       const newTrack = newStream.getVideoTracks()[0];
       stream.addTrack(newTrack);
       for (const pc of pcsRef.current.values()) {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) await sender.replaceTrack(newTrack);
       }
-      stream.removeTrack(oldTrack);
-      oldTrack.stop();
       currentFacingRef.current = nextFacing;
     } catch (e) {
-      console.error('[Call] flipCamera failed, keeping previous camera:', e);
+      console.error('[Call] flipCamera failed, restoring previous camera:', e);
+      try {
+        const restoredStream = await requestFacing(prevFacing);
+        const restoredTrack = restoredStream.getVideoTracks()[0];
+        stream.addTrack(restoredTrack);
+        for (const pc of pcsRef.current.values()) {
+          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+          if (sender) await sender.replaceTrack(restoredTrack);
+        }
+      } catch (restoreErr) {
+        console.error('[Call] flipCamera restore also failed:', restoreErr);
+      }
+    } finally {
+      setIsFlippingCamera(false);
     }
   }, []);
 
@@ -1096,6 +1123,7 @@ export function CallProvider({ children }) {
     toggleMic,
     toggleCamera,
     flipCamera,
+    isFlippingCamera,
     isScreenSharing,
     startScreenShare,
     stopScreenShare,
