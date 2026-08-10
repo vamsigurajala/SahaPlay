@@ -9876,6 +9876,21 @@ const Room = () => {
                 >
                   {isMicOnCam ? <Mic size={18} /> : <MicOff size={18} />}
                 </button>
+                {/* Ordinary bottom-nav button, not attached to the camera
+                    tile itself — the tile has its own drag/tap gesture
+                    handling (see the flip buttons still sitting on the
+                    local tile below), which was already confirmed to
+                    swallow taps unreliably for the 1:1 call PIP's own flip
+                    button before it was moved here for the same reason. */}
+                {isCoarsePointer && isCamOn && (
+                  <button
+                    className="room-mob-icon-btn"
+                    onClick={flipCamera}
+                    title="Flip camera"
+                  >
+                    <SwitchCamera size={18} />
+                  </button>
+                )}
                 <button
                   className="room-mob-icon-btn"
                   onClick={() => setShowMobileMenu(true)}

@@ -5470,7 +5470,13 @@ const GlobalChatWidget = forwardRef(({
         position: 'fixed',
         top: transparentMode ? 0 : 80,
         right: transparentMode ? 0 : 20,
-        width: transparentMode ? 400 : 380,
+        // A fixed 380/400px width anchored `right` pushed this off the LEFT
+        // edge of the screen on any device narrower than ~400-420px — most
+        // phones. min()/calc() cap the width to whatever actually fits
+        // (leaving a matching 20px gap on the left in the non-transparent
+        // case, same as the existing right gap) instead of a fixed size
+        // that only ever worked on wide desktop viewports.
+        width: transparentMode ? 'min(400px, 100vw)' : 'min(380px, calc(100vw - 40px))',
         height: transparentMode ? '100vh' : 'calc(100vh - 100px)',
         background: transparentMode ? 'transparent' : '#0a0a0a',
         backdropFilter: 'none',
