@@ -323,7 +323,19 @@ export default function OneOnOneCallScreen({
           max-width: 100%;
         }
         .ooc-more-menu {
-          position: absolute; z-index: 40; bottom: 108px; left: 16px;
+          /* bottom uses the same safe-area-aware clearance as .ooc-dock
+             itself (28px pad + env(safe-area-inset-bottom)) plus the dock's
+             own content height (icon + label + dock-box padding) — a plain
+             fixed 108px left less room than that on phones with a tall
+             gesture-nav bottom inset, so the menu's bottom edge sat right on
+             top of the More/Speaker icons instead of clear above them.
+             left is nudged in from the screen edge (rather than pinned to
+             it) since the dock itself is centered, not full-width — on
+             wider screens/tablets the More button sits well right of the
+             true left edge, so anchoring flush to x=16px drifted away from
+             the button it's supposed to open under. */
+          position: absolute; z-index: 40;
+          bottom: calc(128px + env(safe-area-inset-bottom, 0px)); left: 40px;
           background: rgba(24,26,36,0.97); border: 1px solid rgba(255,255,255,0.1);
           border-radius: 16px; padding: 6px; min-width: 190px;
           box-shadow: 0 16px 40px rgba(0,0,0,0.5);
@@ -343,7 +355,13 @@ export default function OneOnOneCallScreen({
           transition: opacity 0.3s ease;
         }
         .ooc-route-sheet {
-          position: absolute; z-index: 40; bottom: 108px; left: 50%; transform: translateX(-50%);
+          /* Same clearance fix as .ooc-more-menu above. Shifted right of
+             dead-center (rather than exactly centered over the Speaker
+             button) for the same reason — centered puts its left edge
+             close to the More button just to its left, which is exactly
+             the overlap being fixed here. */
+          position: absolute; z-index: 40;
+          bottom: calc(128px + env(safe-area-inset-bottom, 0px)); left: calc(50% + 30px); transform: translateX(-50%);
           background: rgba(24,26,36,0.97); border: 1px solid rgba(255,255,255,0.1);
           border-radius: 16px; padding: 6px; min-width: 190px;
           box-shadow: 0 16px 40px rgba(0,0,0,0.5);

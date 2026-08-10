@@ -8914,10 +8914,22 @@ io.on('connection', (socket) => {
       // Best-effort — wakes a backgrounded/killed callee. Foreground callees
       // already get 'call:incoming' above; this just also puts a tappable
       // system notification in the tray for when they aren't looking at the app.
+      // callerDisplayName/avatarPath ride along so the native Android ring
+      // notification/screen (IncomingCallActivity.java) can show the real
+      // name/photo on the very FIRST paint instead of waiting on its own
+      // GET /api/users/:username round trip — that extra hop reliably
+      // finished in time for the full-screen ring screen (the user takes a
+      // moment to look at it) but not for the heads-up notification banner,
+      // which is often answered within a second of appearing.
+      const callerRow = await queryGet('SELECT displayName, avatarPath FROM users WHERE LOWER(username) = LOWER(?)', [caller]);
       sendPushToUser(callee, {
         title: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
         body: `${caller} is calling…`,
-        data: { type: 'call', callId, callerUsername: caller, calleeUsername: callee, callType },
+        data: {
+          type: 'call', callId, callerUsername: caller, calleeUsername: callee, callType,
+          callerDisplayName: callerRow?.displayName || caller,
+          callerAvatarPath: callerRow?.avatarPath || '',
+        },
         tag: `call-${callId}`,
         dataOnly: true,
       }).catch(() => {});

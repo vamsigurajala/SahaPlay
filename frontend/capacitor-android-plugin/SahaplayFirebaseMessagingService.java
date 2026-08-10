@@ -50,13 +50,19 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             String callerUsername = data.get("callerUsername");
             String callType = data.get("callType");
             String calleeUsername = data.get("calleeUsername");
+            // Best-effort — present on pushes sent after the caller-details
+            // payload was added server-side (see call:invite in
+            // backend/server.js); null on anything sent before that, which
+            // IncomingCallActivity's own fallback fetch already covers.
+            String callerDisplayName = data.get("callerDisplayName");
+            String callerAvatarPath = data.get("callerAvatarPath");
             if (callId == null || callerUsername == null) return;
 
             // GUARANTEED ring, unconditionally — see the long comment below
             // for why this is no longer gated behind Telecom's outcome.
             // This is the exact call/path that reliably worked before
             // Phase 3 ever touched this file.
-            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername);
+            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath);
 
             // Fire-and-forget on its own thread, deliberately decoupled
             // from the ring above. ensureSelfInitialized() stands up the

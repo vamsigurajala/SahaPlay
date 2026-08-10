@@ -91,6 +91,22 @@ public class IncomingCallActivity extends android.app.Activity {
     // happened for either side.
     public static final String EXTRA_CALLEE = "calleeUsername";
     public static final String EXTRA_CALL_TYPE = "callType";
+    // Carried straight from the FCM push payload (see backend/server.js's
+    // call:invite handler) so the very first notification/ring-screen paint
+    // can already have the real name/photo — no network round-trip, no race.
+    // Previously this Activity only ever learned the caller's display name/
+    // avatar by making its OWN GET /api/users/:username call after showing
+    // initials first; that fetch reliably finished in time for the full
+    // ring screen (the user takes a second or two to look at it) but NOT for
+    // the heads-up notification banner, which many people glance at and tap
+    // Answer on within a second — faster than the round trip could complete,
+    // so it was still showing initials by the time anyone actually saw it.
+    // These extras are optional/best-effort — the existing fetch (see
+    // fetchCallerDetails/fetchAndRefreshNotificationAvatar below) still runs
+    // regardless, as a fallback for older pushes and a refresh if the value
+    // sent with the push was stale.
+    public static final String EXTRA_CALLER_DISPLAY_NAME = "callerDisplayName";
+    public static final String EXTRA_CALLER_AVATAR_PATH = "callerAvatarPath";
 
     private MediaPlayer ringtonePlayer;
     private Vibrator vibrator;
@@ -121,14 +137,22 @@ public class IncomingCallActivity extends android.app.Activity {
     //    to reopen this same Activity — the "how many times do I have to
     //    click Answer" bug).
     public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername) {
+        showIncomingCall(ctx, callId, callerUsername, callType, calleeUsername, null, null);
+    }
+
+    public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername,
+            String callerDisplayName, String callerAvatarPath) {
         if (callId == null || callerUsername == null) return;
         boolean isVideo = "video".equals(callType);
+        String displayName = (callerDisplayName != null && !callerDisplayName.isEmpty()) ? callerDisplayName : callerUsername;
 
         Intent fullScreenIntent = new Intent(ctx, IncomingCallActivity.class);
         fullScreenIntent.putExtra(EXTRA_CALL_ID, callId);
         fullScreenIntent.putExtra(EXTRA_CALLER, callerUsername);
         fullScreenIntent.putExtra(EXTRA_CALL_TYPE, callType);
         fullScreenIntent.putExtra(EXTRA_CALLEE, calleeUsername);
+        fullScreenIntent.putExtra(EXTRA_CALLER_DISPLAY_NAME, callerDisplayName);
+        fullScreenIntent.putExtra(EXTRA_CALLER_AVATAR_PATH, callerAvatarPath);
         fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(ctx, callId.hashCode(), fullScreenIntent, piFlags);
@@ -171,7 +195,7 @@ public class IncomingCallActivity extends android.app.Activity {
         // gracefully degrades to a big-style two-button notification on
         // pre-Android-12 devices instead of failing silently.
         Person callerPerson = new Person.Builder()
-            .setName(callerUsername)
+            .setName(displayName)
             .setIcon(IconCompat.createWithBitmap(buildInitialsAvatarBitmap(callerUsername, 156)))
             .setImportant(true)
             .build();
@@ -180,7 +204,7 @@ public class IncomingCallActivity extends android.app.Activity {
         );
 
         Notification notification = new NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setContentTitle(callerUsername)
+            .setContentTitle(displayName)
             .setContentText(isVideo ? "Incoming video call" : "Incoming voice call")
             .setSmallIcon(ctx.getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -201,33 +225,45 @@ public class IncomingCallActivity extends android.app.Activity {
         // photo is one cheap GET away. Re-posting a notification with the
         // same ID replaces it in place, same as WhatsApp/Telegram swapping
         // in a real photo shortly after their own initial ring notification.
-        fetchAndRefreshNotificationAvatar(ctx, callId, callerUsername, isVideo, declinePendingIntent, answerPendingIntent, fullScreenPendingIntent);
+        // callerAvatarPath (from the FCM push) skips straight to fetching the
+        // image itself when present — no need to re-fetch the profile first
+        // just to learn a URL that's already in hand; see this method's own
+        // comment for why that extra round trip mattered for a heads-up
+        // banner specifically.
+        fetchAndRefreshNotificationAvatar(ctx, callId, callerUsername, displayName, callerAvatarPath, isVideo, declinePendingIntent, answerPendingIntent, fullScreenPendingIntent);
     }
 
-    private static void fetchAndRefreshNotificationAvatar(Context ctx, String callId, String callerUsername, boolean isVideo,
+    private static void fetchAndRefreshNotificationAvatar(Context ctx, String callId, String callerUsername, String displayName,
+            String knownAvatarPath, boolean isVideo,
             PendingIntent declinePendingIntent, PendingIntent answerPendingIntent, PendingIntent fullScreenPendingIntent) {
         new Thread(() -> {
             try {
-                URL url = new URL(API_BASE + "/api/users/" + Uri.encode(callerUsername));
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                // See the matching comment in fetchCallerDetails() — same
-                // request, called from the notification path instead of the
-                // full-screen ring Activity, so it needs the same hardening.
-                conn.setRequestProperty("User-Agent", "SahaPlay-Android");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                int code = conn.getResponseCode();
-                if (code != 200) {
-                    Log.w("SahaplayIncomingCall", "fetchAndRefreshNotificationAvatar: GET " + url + " -> " + code);
-                    return;
+                String avatarPath = knownAvatarPath;
+                if (avatarPath == null) {
+                    // Fallback path — no avatarPath came with the push (e.g. an
+                    // older server build), so fetch the profile first to learn
+                    // one, same as before this optimization existed.
+                    URL url = new URL(API_BASE + "/api/users/" + Uri.encode(callerUsername));
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    // See the matching comment in fetchCallerDetails() — same
+                    // request, called from the notification path instead of the
+                    // full-screen ring Activity, so it needs the same hardening.
+                    conn.setRequestProperty("User-Agent", "SahaPlay-Android");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    int code = conn.getResponseCode();
+                    if (code != 200) {
+                        Log.w("SahaplayIncomingCall", "fetchAndRefreshNotificationAvatar: GET " + url + " -> " + code);
+                        return;
+                    }
+                    StringBuilder sb = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) sb.append(line);
+                    }
+                    avatarPath = extractJsonStringField(sb.toString(), "avatarPath");
                 }
-                StringBuilder sb = new StringBuilder();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) sb.append(line);
-                }
-                String avatarPath = extractJsonStringField(sb.toString(), "avatarPath");
                 if (avatarPath == null || avatarPath.isEmpty()) return;
                 String avatarUrl = avatarPath.startsWith("http") ? avatarPath : (API_BASE + avatarPath);
                 HttpURLConnection imgConn = (HttpURLConnection) new URL(avatarUrl).openConnection();
@@ -253,7 +289,7 @@ public class IncomingCallActivity extends android.app.Activity {
                 // not worth the extra state tracking to prevent.
                 NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
                 Person callerPerson = new Person.Builder()
-                    .setName(callerUsername)
+                    .setName(displayName)
                     .setIcon(IconCompat.createWithBitmap(photo))
                     .setImportant(true)
                     .build();
@@ -261,7 +297,7 @@ public class IncomingCallActivity extends android.app.Activity {
                     callerPerson, declinePendingIntent, answerPendingIntent
                 );
                 Notification updated = new NotificationCompat.Builder(ctx, CHANNEL_ID)
-                    .setContentTitle(callerUsername)
+                    .setContentTitle(displayName)
                     .setContentText(isVideo ? "Incoming video call" : "Incoming voice call")
                     .setSmallIcon(ctx.getApplicationInfo().icon)
                     .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -273,7 +309,9 @@ public class IncomingCallActivity extends android.app.Activity {
                     .setOngoing(true)
                     .build();
                 nm.notify(callId.hashCode(), updated);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                Log.w("SahaplayIncomingCall", "fetchAndRefreshNotificationAvatar failed", e);
+            }
         }).start();
     }
 
@@ -368,6 +406,8 @@ public class IncomingCallActivity extends android.app.Activity {
         callerUsername = getIntent().getStringExtra(EXTRA_CALLER);
         calleeUsername = getIntent().getStringExtra(EXTRA_CALLEE);
         String callType = getIntent().getStringExtra(EXTRA_CALL_TYPE);
+        String pushedDisplayName = getIntent().getStringExtra(EXTRA_CALLER_DISPLAY_NAME);
+        String pushedAvatarPath = getIntent().getStringExtra(EXTRA_CALLER_AVATAR_PATH);
         boolean isVideo = "video".equals(callType);
 
         if (callId == null || callerUsername == null) {
@@ -383,6 +423,21 @@ public class IncomingCallActivity extends android.app.Activity {
         showOverLockScreen();
         buildUi(callerUsername, isVideo);
         startRinging();
+        // Seed the name/avatar immediately from what the FCM push already
+        // carried (see showIncomingCall's own comment on
+        // EXTRA_CALLER_DISPLAY_NAME/EXTRA_CALLER_AVATAR_PATH) — no need to
+        // wait on fetchCallerDetails()'s own network round trip for these.
+        // fetchCallerDetails() still runs regardless, as a fallback/refresh.
+        if (pushedDisplayName != null && !pushedDisplayName.isEmpty() && nameLabel != null) {
+            nameLabel.setText(pushedDisplayName);
+        }
+        if (pushedAvatarPath != null && !pushedAvatarPath.isEmpty()) {
+            // fetchAndSetAvatarBitmap does blocking network I/O — must run off
+            // this (main) thread, unlike fetchCallerDetails() below which
+            // already starts its own Thread before calling it.
+            String avatarUrl = pushedAvatarPath.startsWith("http") ? pushedAvatarPath : (API_BASE + pushedAvatarPath);
+            new Thread(() -> fetchAndSetAvatarBitmap(avatarUrl)).start();
+        }
         fetchCallerDetails();
 
         handler.postDelayed(this::finishAsMissed, RING_TIMEOUT_MS);
