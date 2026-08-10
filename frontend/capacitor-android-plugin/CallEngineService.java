@@ -453,16 +453,52 @@ public class CallEngineService {
         sendState();
     }
 
-    // Voice call: no-op (no video m-line exists on that PeerConnection to
-    // enable). Video call: simple enable/disable of the track that's
-    // already part of the connection — a true voice-to-video mid-call
-    // upgrade needs SDP renegotiation this engine doesn't implement yet,
-    // matching CallContext.jsx's own toggleCamera scope for now.
+    // Voice call: adds a video track to the already-connected PeerConnection
+    // and renegotiates (see upgradeToVideo) — the first tap only, mirroring
+    // CallContext.jsx's own toggleCamera (getUserMedia + addTrack + a fresh
+    // offer over the SAME call:offer path used for the initial handshake,
+    // not a special renegotiation event). Video call: simple enable/disable
+    // of the track that's already part of the connection.
     public synchronized void toggleCam() {
         CallSession cs = session;
-        if (cs == null || !"video".equals(cs.callType)) return;
+        if (cs == null) return;
+        if (!"video".equals(cs.callType)) {
+            upgradeToVideo(cs);
+            return;
+        }
         localCamOn = !localCamOn;
         if (mediaController != null) mediaController.setCamEnabled(localCamOn);
+        sendState();
+    }
+
+    private void upgradeToVideo(CallSession cs) {
+        if (cs.pc == null) return; // not connected yet — nothing to renegotiate
+        byte[] peerPk = publicKeyCache.get(cs.peerUsername);
+        if (peerPk == null) { status("no public key for " + cs.peerUsername); return; }
+        VideoTrack track = ensureLocalVideoTrack();
+        if (track == null) { status("camera unavailable for video upgrade"); return; }
+        cs.localVideoTrack = track;
+        cs.pc.addLocalVideoTrack(track);
+        cs.callType = "video";
+        localCamOn = true;
+        try {
+            JSONObject markVideo = new JSONObject();
+            markVideo.put("callId", cs.callId);
+            socketClient.emit("call:mark-video", markVideo);
+        } catch (Exception ignored) {}
+        cs.pc.createOfferAndSetLocal(new PeerConnectionWrapper.SdpCallback() {
+            @Override public void onReady(String sdp) {
+                try {
+                    JSONObject sdpPayload = new JSONObject();
+                    sdpPayload.put("type", "offer");
+                    sdpPayload.put("sdp", sdp);
+                    sendEncryptedSignal("call:offer", cs.callId, cs.peerUsername, sdpPayload, peerPk);
+                } catch (Exception e) { Log.e(TAG, "send video-upgrade offer failed", e); }
+            }
+            @Override public void onError(String error) { Log.e(TAG, "video-upgrade createOffer failed: " + error); }
+        });
+        CallUiListener l = uiListener;
+        if (l != null) l.onLocalVideoTrack(track);
         sendState();
     }
 
@@ -624,10 +660,35 @@ public class CallEngineService {
             offerSdp = new JSONObject(plaintext).optString("sdp");
         } catch (Exception e) { Log.e(TAG, "bad offer payload", e); return; }
 
-        List<PeerConnection.IceServer> iceServers = TurnCredentialsFetcher.fetch(apiBase, token);
-        status(describeIceServers(iceServers));
         byte[] peerPk = publicKeyCache.get(fromUsername);
         if (peerPk == null) { status("no public key for " + fromUsername); return; }
+
+        // A second offer on an ALREADY-connected PeerConnection is the other
+        // side's voice→video upgrade (see CallEngineService.upgradeToVideo)
+        // — same call:offer event as the initial handshake, no separate
+        // renegotiation signal. Reusing cs.pc here (not recreating it, as
+        // the first-offer path below does) is what keeps the live audio
+        // connection intact instead of tearing it down and reconnecting.
+        if (cs.pc != null) {
+            cs.callType = "video";
+            cs.pc.setRemoteDescription(SessionDescription.Type.OFFER, offerSdp, () ->
+                cs.pc.createAnswerAndSetLocal(new PeerConnectionWrapper.SdpCallback() {
+                    @Override public void onReady(String sdp) {
+                        try {
+                            JSONObject sdpPayload = new JSONObject();
+                            sdpPayload.put("type", "answer");
+                            sdpPayload.put("sdp", sdp);
+                            sendEncryptedSignal("call:answer", cs.callId, fromUsername, sdpPayload, peerPk);
+                        } catch (Exception e) { Log.e(TAG, "send renegotiation answer failed", e); }
+                    }
+                    @Override public void onError(String error) { Log.e(TAG, "renegotiation createAnswer failed: " + error); }
+                })
+            );
+            return;
+        }
+
+        List<PeerConnection.IceServer> iceServers = TurnCredentialsFetcher.fetch(apiBase, token);
+        status(describeIceServers(iceServers));
 
         // Already created by prepareLocalVideoIfNeeded() (called from
         // startCall()/acceptIncomingCall() before this ever runs) — reused

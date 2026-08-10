@@ -295,30 +295,36 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         routeLabel.setText(routeLabelText());
         dockBox.addView(dockColumn(routeBtn, routeLabel), dockButtonParams());
 
-        if (isVideo) {
-            camBtn = iconOnly(R.drawable.ic_video_cam);
-            camBtn.setOnClickListener(v -> {
-                CallEngineService.get(this).toggleCam();
-                updateCamButton(CallEngineService.get(this).isCamOn());
-                refreshFlipButtonVisibility();
-            });
-            TextView camLabel = new TextView(this);
-            camLabel.setText("Video");
-            styleDockLabel(camLabel);
-            dockBox.addView(dockColumn(camBtn, camLabel), dockButtonParams());
+        // Always present, not just for calls that started as video — tapping
+        // it on a voice call upgrades to video (CallEngineService.toggleCam()
+        // handles the upgrade-vs-plain-toggle branch internally), matching
+        // OneOnOneCallScreen.jsx's own unconditional Video dock button.
+        camBtn = iconOnly(R.drawable.ic_video_cam);
+        camBtn.setOnClickListener(v -> {
+            CallEngineService.get(this).toggleCam();
+            CallSession cs = CallEngineService.get(this).getSession();
+            if (cs != null && "video".equals(cs.callType)) isVideo = true;
+            updateCamButton(CallEngineService.get(this).isCamOn());
+            refreshFlipButtonVisibility();
+        });
+        TextView camLabel = new TextView(this);
+        camLabel.setText("Video");
+        styleDockLabel(camLabel);
+        dockBox.addView(dockColumn(camBtn, camLabel), dockButtonParams());
 
-            // Explicit, discoverable flip-camera control — tapping the PiP
-            // tile itself also flips (see buildVideoLayer), but that's not
-            // obvious on its own; this dock button is the real affordance,
-            // matching OneOnOneCallScreen.jsx's own dedicated Flip button.
-            flipBtn = iconOnly(R.drawable.ic_switch_camera);
-            flipBtn.setOnClickListener(v -> CallEngineService.get(this).flipCamera());
-            TextView flipLabel = new TextView(this);
-            flipLabel.setText("Flip");
-            styleDockLabel(flipLabel);
-            flipColumn = dockColumn(flipBtn, flipLabel);
-            dockBox.addView(flipColumn, dockButtonParams());
-        }
+        // Explicit, discoverable flip-camera control — tapping the PiP
+        // tile itself also flips (see buildVideoLayer), but that's not
+        // obvious on its own; this dock button is the real affordance,
+        // matching OneOnOneCallScreen.jsx's own dedicated Flip button.
+        // Hidden until the camera is actually on (refreshFlipButtonVisibility).
+        flipBtn = iconOnly(R.drawable.ic_switch_camera);
+        flipBtn.setOnClickListener(v -> CallEngineService.get(this).flipCamera());
+        TextView flipLabel = new TextView(this);
+        flipLabel.setText("Flip");
+        styleDockLabel(flipLabel);
+        flipColumn = dockColumn(flipBtn, flipLabel);
+        flipColumn.setVisibility(View.GONE);
+        dockBox.addView(flipColumn, dockButtonParams());
 
         micBtn = iconOnly(R.drawable.ic_mic);
         micBtn.setOnClickListener(v -> {
@@ -565,7 +571,14 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
     // would freeze on their last visible frame instead of falling back to
     // the avatar like OneOnOneCallScreen.jsx's own r.hasVideo check does.
     private void refreshRemoteVisibility(boolean remoteCamOn) {
-        boolean showVideo = isVideo && attachedRemoteTrack != null && remoteCamOn;
+        // Not gated on isVideo — attachedRemoteTrack alone already implies a
+        // video track exists (initial video call, OR the peer upgraded
+        // mid-call; see CallEngineService's onRemoteOffer renegotiation
+        // branch), and gating on isVideo here would keep the video layer
+        // hidden for a call that started as voice and was upgraded by the
+        // OTHER side, since this device's own isVideo only flips when it
+        // initiates the upgrade itself (see the camBtn click handler).
+        boolean showVideo = attachedRemoteTrack != null && remoteCamOn;
         if (remoteRenderer != null) remoteRenderer.setVisibility(showVideo ? View.VISIBLE : View.GONE);
         if (avatarLayer != null) avatarLayer.setVisibility(showVideo ? View.GONE : View.VISIBLE);
     }

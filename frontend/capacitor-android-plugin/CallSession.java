@@ -13,7 +13,10 @@ public class CallSession {
     // payload and SahaplayCallPlugin.startCall's own params).
     public final String peerDisplayName;
     public final String peerAvatarUrl;
-    public final String callType; // "voice" | "video"
+    // "voice" | "video" — not final: a voice call can be upgraded to video
+    // mid-call (see CallEngineService.toggleCam()'s upgrade branch), same as
+    // CallContext.jsx's own callState.type flipping in toggleCamera().
+    public volatile String callType;
     public final boolean isCaller;
     public PeerConnectionWrapper pc;
     // Wall-clock timestamps for OutgoingCallActivity/ActiveCallActivity's

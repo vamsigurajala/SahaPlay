@@ -98,6 +98,19 @@ public class PeerConnectionWrapper {
         }
     }
 
+    // Voice→video mid-call upgrade (see CallEngineService.toggleCam()) — adds
+    // the track to this ALREADY-CONNECTED PeerConnection, same stream ID as
+    // the constructor uses, so the browser/native peer on the other end sees
+    // it as a new m-line on the existing connection rather than a second
+    // stream. The caller is responsible for renegotiating afterward (see
+    // createOfferAndSetLocal) — adding a track alone doesn't push anything
+    // over the wire.
+    public void addLocalVideoTrack(VideoTrack track) {
+        if (pc != null && track != null) {
+            pc.addTrack(track, Collections.singletonList("sahaplay-stream0"));
+        }
+    }
+
     public void createOfferAndSetLocal(SdpCallback callback) {
         pc.createOffer(new SimpleSdpObserver() {
             @Override public void onCreateSuccess(SessionDescription desc) {
