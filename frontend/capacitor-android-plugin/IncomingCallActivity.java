@@ -327,7 +327,10 @@ public class IncomingCallActivity extends android.app.Activity {
     // there's only ever one active call per device), and additionally
     // closes the full ring screen if it happens to be open showing this exact
     // call — tapping Answer/Decline on a call the server no longer knows
-    // about would otherwise silently do nothing.
+    // about would otherwise silently do nothing. Also releases a live
+    // Telecom Connection if one exists (Phase 3) — otherwise the system
+    // call UI/audio-focus reservation could outlive the notification it's
+    // attached to.
     public static void cancelForCallId(Context ctx, String callId) {
         if (callId == null) return;
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -335,6 +338,8 @@ public class IncomingCallActivity extends android.app.Activity {
         Intent stopIntent = new Intent(ctx, SahaplayCallService.class);
         stopIntent.setAction(SahaplayCallService.ACTION_STOP);
         try { ctx.startService(stopIntent); } catch (Exception ignored) {}
+        SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
+        if (conn != null) conn.disconnectFromEngine();
         if (currentInstance != null && callId.equals(currentInstanceCallId)) {
             currentInstance.finishAsMissed();
         }
@@ -671,12 +676,21 @@ public class IncomingCallActivity extends android.app.Activity {
         nm.cancel(callId.hashCode());
     }
 
-    // Hands off to the web app — see nativeCallBridge.js, which listens for
-    // this exact deep link and tells CallContext to auto-accept the
-    // matching call once it (re)connects and learns the call is still
-    // ringing. Answering itself requires real getUserMedia/RTCPeerConnection,
-    // which only exists in the WebView/JS layer, not here.
+    // Phase 3: this Activity is now only ever launched via a live
+    // SahaplayConnection's onShowIncomingCallUi() (see
+    // SahaplayConnectionService), so answering routes straight through it —
+    // CallEngineService.acceptIncomingCall() does the real work (WebRTC
+    // answer, entirely native, no WebView involved at all), and setActive()
+    // tells Telecom the call is live (audio focus, Bluetooth routing).
+    // Falls back to the old WebView deep-link hand-off only in the
+    // unlikely case no live Connection is found (e.g. this Activity was
+    // somehow reached a different way) — degraded, but still answerable.
     private void answer() {
+        SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
+        if (conn != null) {
+            conn.answerFromUi();
+            return;
+        }
         Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         intent.setPackage(getPackageName());
@@ -684,13 +698,18 @@ public class IncomingCallActivity extends android.app.Activity {
         startActivity(intent);
     }
 
-    // calleeUsername is THIS device's own username (the person declining) —
-    // see the EXTRA_CALLEE comment above for why this must not be
-    // callerUsername. Guarded for null defensively in case an older/newer
-    // client-server pairing is ever mismatched mid-rollout; in the normal
-    // case (matching backend + app build) it's always present.
+    // Same Phase 3 routing as answer() above — prefers the live
+    // SahaplayConnection (which also tells Telecom to release the call),
+    // falling back to the direct REST decline (calleeUsername is THIS
+    // device's own username — see the EXTRA_CALLEE comment above for why
+    // this must not be callerUsername) if no Connection is found.
     private void decline() {
         stopRinging();
+        SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
+        if (conn != null) {
+            conn.declineFromUi();
+            return;
+        }
         if (calleeUsername != null) postDecline(callId, calleeUsername);
     }
 

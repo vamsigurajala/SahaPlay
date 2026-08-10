@@ -1,39 +1,62 @@
 package com.sahaplay.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.util.Log;
+
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONObject;
 import org.webrtc.IceCandidate;
 import org.webrtc.PeerConnection;
 import org.webrtc.SessionDescription;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Random;
 
 // Orchestrates one native voice call end to end: socket signaling, NaCl
 // encrypt/decrypt, and the WebRTC peer connection — speaking the exact same
 // call:* protocol as CallContext.jsx (see backend/server.js's call:
-// handlers, ~lines 8874-9124). Phase 2 scope only: foreground, voice-only,
-// 1:1, no Telecom, no notification UI — see the plan doc for the full
-// phased rollout.
+// handlers, ~lines 8874-9124). Voice-only, 1:1 — see the plan doc for the
+// full phased rollout (video + group mesh are later phases).
 //
-// NOT yet an android.app.Service (despite the planned name) — that only
-// starts to matter once Phase 3 needs a real foreground service tied to
-// Telecom for background answering. For now this is a plain singleton
-// driven by SahaplayCallPlugin while the app is in the foreground.
+// NOT yet an android.app.Service (despite the planned name) — real call
+// audio still runs through LocalMediaController/PeerConnectionWrapper
+// directly rather than a bound Service; SahaplayCallService (a real
+// foreground Service) is what keeps the process alive in the background
+// once a call is active (see startOngoingCallForegroundService below),
+// matching the plan's explicit finding that Telecom registration does NOT
+// itself grant background camera/mic access.
 //
-// Deliberately NOT wired up automatically alongside CallContext.jsx's own
-// socket — both would be simultaneously connected as the same user, and
+// Two entry points into a call now exist:
+//  - startCall() — the Phase 2 debug-panel path (SahaplayCallPlugin),
+//    outgoing only, foreground-only, requires JS to have already called
+//    initCallEngine this process lifetime.
+//  - registerIncomingCall()/acceptIncomingCall()/declineIncomingCall() —
+//    the Phase 3 Telecom path (SahaplayConnectionService /
+//    SahaplayConnection), reachable with the app fully backgrounded or
+//    killed via ensureSelfInitialized()'s persisted-credential cold start.
+//
+// Still deliberately NOT wired up automatically alongside CallContext.jsx's
+// own socket for calls THIS device places or receives through the normal
+// app UI — both would be simultaneously connected as the same user, and
 // the backend fans call:* events out to every connected socket for that
-// username, so an INCOMING call would ring on both this engine and the JS
+// username, so an incoming call would ring on both this engine and the JS
 // layer at once. Phase 6 gates the JS listeners off on Android; until then,
-// exercise the OUTGOING direction only (this engine calls a normal,
-// unmodified web/desktop client) via SahaplayCallPlugin's debug startCall —
-// that's the whole reason the Phase 2 test entry point is startCall only,
-// not also a UI to answer incoming calls.
+// only Telecom-routed incoming calls (which the JS layer never sees a
+// notification for) and the debug panel's outgoing test calls exercise
+// this engine.
 public class CallEngineService {
     private static final String TAG = "SahaplayCallEngine";
+    // Hardcoded to match every other native file's own API_BASE constant
+    // (IncomingCallActivity, CallActionReceiver) — self-init has no JS
+    // context to read frontend/src/lib/api.js's API constant from.
+    private static final String API_BASE = "https://sahaplay.com";
     private static CallEngineService instance;
 
     public static synchronized CallEngineService get(Context context) {
@@ -82,6 +105,11 @@ public class CallEngineService {
         } catch (Exception e) {
             Log.e(TAG, "SecretKeyStore init failed", e);
         }
+        // Persisted immediately (not just held in memory) so a later cold
+        // start — the app process was killed and this is a fresh push —
+        // can self-init without any JS/WebView context at all. See
+        // ensureSelfInitialized().
+        if (keyStore != null) keyStore.saveToken(token);
         if (mediaController == null) mediaController = new LocalMediaController(appContext);
         publicKeyCache = new PublicKeyCache(apiBase);
         if (!socketClient.isConnected()) {
@@ -97,6 +125,150 @@ public class CallEngineService {
 
     public void clearSecretKey() {
         if (keyStore != null) keyStore.clear();
+    }
+
+    // Stands up the engine from persisted storage (see SecretKeyStore) with
+    // no JS involvement — the path a cold FCM push takes when the app
+    // process is fully killed. No-ops if already initialized this process
+    // lifetime (init() itself is already a safe no-op reconnect otherwise).
+    // Silently does nothing if initCallEngine/setNaclSecretKey were never
+    // called at least once since install (nothing persisted yet to load) —
+    // that's a real, known gap: Phase 3's debug-panel testing requires
+    // tapping "Init engine" at least once before background answering can
+    // work; wiring this into the app's normal login flow automatically is
+    // Phase 6 scope.
+    public synchronized void ensureSelfInitialized() {
+        // Already fully live — nothing to do. Checked INCLUDING socket
+        // state (not just "do we have credentials in memory") since a
+        // long-backgrounded process can have its socket silently dropped
+        // by Doze/OEM battery management while token/myUsername are still
+        // sitting there from an earlier init() — that combination must
+        // still fall through and reconnect, not short-circuit here.
+        if (token != null && myUsername != null && socketClient.isConnected()) return;
+
+        String useToken = token;
+        String useUsername = myUsername;
+        if (useToken == null || useUsername == null) {
+            if (keyStore == null) {
+                try {
+                    keyStore = new SecretKeyStore(appContext);
+                } catch (Exception e) {
+                    Log.e(TAG, "SecretKeyStore init failed", e);
+                    return;
+                }
+            }
+            useUsername = keyStore.loadUsername();
+            useToken = keyStore.loadToken();
+        }
+        if (useUsername == null || useToken == null) {
+            status("cannot self-init — no persisted credentials (init the debug panel at least once)");
+            return;
+        }
+        // init() itself already no-ops the actual socket .connect() call if
+        // one is already live, so this is safe to call even when only the
+        // socket (not the credentials) needed refreshing.
+        init(API_BASE, useToken, useUsername);
+    }
+
+    public String getMyUsername() {
+        if (myUsername == null) ensureSelfInitialized();
+        return myUsername;
+    }
+
+    // Pre-registers a pending call BEFORE Answer is tapped — called from
+    // SahaplayConnectionService.onCreateIncomingConnection() the moment
+    // Telecom creates the Connection, so a call:offer arriving over the
+    // socket shortly after (see onRemoteOffer's callId match) has somewhere
+    // to land regardless of how quickly the user actually answers.
+    public synchronized void registerIncomingCall(String callId, String callerUsername, String callType) {
+        if (session != null && session.callId.equals(callId)) return;
+        session = new CallSession(callId, callerUsername, callType, false);
+        status("incoming call registered: " + callId + " from " + callerUsername);
+    }
+
+    // Callee side of the Telecom-routed flow — mirrors CallContext.jsx's
+    // acceptCall(): emit call:accept, then wait for the caller's offer
+    // (already handled by onRemoteOffer/handleSocketEvent, unchanged from
+    // Phase 2). ensureSelfInitialized() covers the fully-killed-app case;
+    // it's a no-op if the engine is already live (e.g. the debug panel was
+    // already initialized when the push arrived).
+    public synchronized void acceptIncomingCall(String callId) {
+        ensureSelfInitialized();
+        CallSession cs = session;
+        if (cs == null || !cs.callId.equals(callId)) {
+            status("acceptIncomingCall: no matching pending session for " + callId);
+            return;
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("callId", callId);
+            socketClient.emit("call:accept", payload);
+            status("accepted " + callId + ", waiting for offer");
+        } catch (Exception e) {
+            Log.e(TAG, "acceptIncomingCall failed", e);
+        }
+        startOngoingCallForegroundService(cs);
+    }
+
+    // Declines over plain REST rather than the socket — deliberately the
+    // same reliable-regardless-of-socket-state approach CallActionReceiver
+    // already uses for the notification's own Decline button (see that
+    // file's class comment): a Telecom onReject() can fire before
+    // ensureSelfInitialized()'s socket has finished connecting, and REST
+    // needs nothing but a token.
+    public synchronized void declineIncomingCall(String callId) {
+        ensureSelfInitialized();
+        String username = myUsername != null ? myUsername : (keyStore != null ? keyStore.loadUsername() : null);
+        if (username != null) postDeclineRest(callId, username);
+        else Log.w(TAG, "declineIncomingCall: no known username to decline as");
+        if (session != null && session.callId.equals(callId)) teardown();
+    }
+
+    private void postDeclineRest(String callId, String username) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(API_BASE + "/api/calls/" + URLEncoder.encode(callId, "UTF-8") + "/decline");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                String body = "{\"calleeUsername\":\"" + username.replace("\"", "") + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    // Same persistent-notification foreground service the JS layer already
+    // starts for its own calls (SahaplayMediaPlugin/CallContext.jsx) — see
+    // SahaplayCallService's own class comment for why this is mandatory
+    // (Telecom registration alone does not grant background camera/mic
+    // access; a real declared foreground service does).
+    private void startOngoingCallForegroundService(CallSession cs) {
+        try {
+            Intent intent = new Intent(appContext, SahaplayCallService.class);
+            intent.putExtra(SahaplayCallService.EXTRA_PEER_NAME, cs.peerUsername);
+            intent.putExtra(SahaplayCallService.EXTRA_STARTED_AT, System.currentTimeMillis());
+            intent.putExtra(SahaplayCallService.EXTRA_STATUS, "active");
+            intent.putExtra(SahaplayCallService.EXTRA_USERNAME, myUsername);
+            intent.putExtra(SahaplayCallService.EXTRA_CALL_ID, cs.callId);
+            ContextCompat.startForegroundService(appContext, intent);
+        } catch (Exception e) {
+            Log.e(TAG, "startOngoingCallForegroundService failed", e);
+        }
+    }
+
+    private void stopOngoingCallForegroundService() {
+        try {
+            Intent stop = new Intent(appContext, SahaplayCallService.class);
+            stop.setAction(SahaplayCallService.ACTION_STOP);
+            appContext.startService(stop);
+        } catch (Exception ignored) {}
     }
 
     public synchronized void startCall(String calleeUsername, String callType) {
@@ -130,7 +302,18 @@ public class CallEngineService {
     private synchronized void teardown() {
         CallSession cs = session;
         if (cs != null && cs.pc != null) cs.pc.close();
+        if (cs != null) {
+            // Tells Telecom to release the call when it ended some way
+            // OTHER than the user hanging up via the Connection itself
+            // (remote declined/cancelled/timed out/ended) — SahaplayConnection.
+            // onDisconnect() is what calls THIS method in the opposite
+            // direction, so disconnectFromEngine() here must not call back
+            // into endCall()/declineIncomingCall() to avoid a cycle.
+            SahaplayConnection conn = SahaplayConnection.getCurrent(cs.callId);
+            if (conn != null) conn.disconnectFromEngine();
+        }
         session = null;
+        stopOngoingCallForegroundService();
         status("call ended");
     }
 

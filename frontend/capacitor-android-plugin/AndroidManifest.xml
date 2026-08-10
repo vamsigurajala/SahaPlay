@@ -163,11 +163,34 @@
             android:name=".SahaplayCallService"
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
+
+        <!-- Self-managed Telecom ConnectionService (see PhoneAccountRegistrar/
+             SahaplayConnectionService/SahaplayConnection) — what makes real
+             background/lock-screen call answering possible: system
+             audio-focus and Bluetooth/Auto arbitration for a call that isn't
+             in the system dialer. exported="true" + BIND_TELECOM_CONNECTION_SERVICE
+             is boilerplate every self-managed ConnectionService requires
+             (only the system Telecom process, which holds that permission,
+             can actually bind to it) — this does not open it up to other
+             apps. -->
+        <service
+            android:name=".SahaplayConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required for a self-managed Telecom PhoneAccount (see
+         PhoneAccountRegistrar/SahaplayConnectionService) — normal
+         protection level, granted automatically at install, no runtime
+         prompt. -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

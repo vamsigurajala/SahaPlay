@@ -39,5 +39,11 @@ public class MainActivity extends BridgeActivity {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
             WebSettingsCompat.setForceDark(settings, WebSettingsCompat.FORCE_DARK_OFF);
         }
+
+        // Idempotent — see PhoneAccountRegistrar's own class comment for
+        // why this runs on every app start rather than once at install
+        // time (some OEM skins silently drop a registered self-managed
+        // PhoneAccount on reboot or after a force-stop).
+        PhoneAccountRegistrar.register(this);
     }
 }

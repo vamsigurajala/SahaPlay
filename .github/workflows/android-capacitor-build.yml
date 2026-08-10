@@ -416,6 +416,9 @@ jobs:
           cp capacitor-android-plugin/CallSession.java android/app/src/main/java/com/sahaplay/app/CallSession.java
           cp capacitor-android-plugin/CallEngineService.java android/app/src/main/java/com/sahaplay/app/CallEngineService.java
           cp capacitor-android-plugin/SahaplayCallPlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayCallPlugin.java
+          cp capacitor-android-plugin/PhoneAccountRegistrar.java android/app/src/main/java/com/sahaplay/app/PhoneAccountRegistrar.java
+          cp capacitor-android-plugin/SahaplayConnection.java android/app/src/main/java/com/sahaplay/app/SahaplayConnection.java
+          cp capacitor-android-plugin/SahaplayConnectionService.java android/app/src/main/java/com/sahaplay/app/SahaplayConnectionService.java
 
       - name: Sync Capacitor project
         working-directory: frontend
