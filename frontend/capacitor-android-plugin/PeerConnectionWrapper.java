@@ -28,7 +28,7 @@ public class PeerConnectionWrapper {
     public interface Listener {
         void onIceCandidate(IceCandidate candidate);
         void onConnected();
-        void onDisconnectedOrFailed();
+        void onDisconnectedOrFailed(PeerConnection.IceConnectionState state);
     }
 
     public interface SdpCallback {
@@ -43,7 +43,13 @@ public class PeerConnectionWrapper {
                                   AudioTrack localAudioTrack, Listener listener) {
         PeerConnection.RTCConfiguration rtcConfig = new PeerConnection.RTCConfiguration(iceServers);
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
-        rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_ONCE;
+        // GATHER_CONTINUALLY (not GATHER_ONCE) — matches browser RTCPeerConnection's
+        // default behavior, letting ICE keep gathering/re-pairing candidates after a
+        // NAT rebind or transient network blip instead of giving up once the initial
+        // gathering pass finishes. A one-shot gather can connect fine initially and
+        // then never recover from exactly the kind of mid-call drop mobile-carrier
+        // NAT is prone to.
+        rtcConfig.continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY;
 
         this.pc = factory.createPeerConnection(rtcConfig, new PeerConnection.Observer() {
             @Override public void onIceCandidate(IceCandidate candidate) {
@@ -57,7 +63,7 @@ public class PeerConnectionWrapper {
                 } else if (state == PeerConnection.IceConnectionState.DISCONNECTED
                         || state == PeerConnection.IceConnectionState.FAILED
                         || state == PeerConnection.IceConnectionState.CLOSED) {
-                    listener.onDisconnectedOrFailed();
+                    listener.onDisconnectedOrFailed(state);
                 }
             }
             @Override public void onIceCandidatesRemoved(IceCandidate[] candidates) {}

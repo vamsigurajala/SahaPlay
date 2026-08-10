@@ -172,6 +172,7 @@ public class CallEngineService {
         status("call answered, creating offer");
 
         List<PeerConnection.IceServer> iceServers = TurnCredentialsFetcher.fetch(apiBase, token);
+        status(describeIceServers(iceServers));
         byte[] peerPk = publicKeyCache.get(cs.peerUsername);
         if (peerPk == null) { status("no public key for " + cs.peerUsername); teardown(); return; }
 
@@ -182,7 +183,7 @@ public class CallEngineService {
                     sendEncryptedSignal("call:ice", cs.callId, cs.peerUsername, iceCandidateToJson(candidate), peerPk);
                 }
                 @Override public void onConnected() { status("ICE connected"); }
-                @Override public void onDisconnectedOrFailed() { status("ICE disconnected/failed"); }
+                @Override public void onDisconnectedOrFailed(PeerConnection.IceConnectionState state) { status("ICE " + state); }
             }
         );
         cs.pc.createOfferAndSetLocal(new PeerConnectionWrapper.SdpCallback() {
@@ -217,6 +218,7 @@ public class CallEngineService {
         } catch (Exception e) { Log.e(TAG, "bad offer payload", e); return; }
 
         List<PeerConnection.IceServer> iceServers = TurnCredentialsFetcher.fetch(apiBase, token);
+        status(describeIceServers(iceServers));
         byte[] peerPk = publicKeyCache.get(fromUsername);
         if (peerPk == null) { status("no public key for " + fromUsername); return; }
 
@@ -227,7 +229,7 @@ public class CallEngineService {
                     sendEncryptedSignal("call:ice", cs.callId, fromUsername, iceCandidateToJson(candidate), peerPk);
                 }
                 @Override public void onConnected() { status("ICE connected"); }
-                @Override public void onDisconnectedOrFailed() { status("ICE disconnected/failed"); }
+                @Override public void onDisconnectedOrFailed(PeerConnection.IceConnectionState state) { status("ICE " + state); }
             }
         );
         cs.pc.setRemoteDescription(SessionDescription.Type.OFFER, offerSdp, () ->
@@ -297,6 +299,22 @@ public class CallEngineService {
         } catch (Exception e) {
             Log.e(TAG, "sendEncryptedSignal(" + event + ") failed", e);
         }
+    }
+
+    // Surfaces whether a real TURN relay is available or the call fell back
+    // to STUN-only — visible only in the debug status log right now, but
+    // exactly the piece of information needed to explain a connect-then-
+    // drop failure (STUN-only direct P2P is far more likely to break across
+    // mobile-carrier NAT than a TURN relay, which stays reachable).
+    private String describeIceServers(List<PeerConnection.IceServer> iceServers) {
+        boolean hasTurn = false;
+        for (PeerConnection.IceServer s : iceServers) {
+            for (String url : s.urls) {
+                if (url.startsWith("turn:") || url.startsWith("turns:")) { hasTurn = true; break; }
+            }
+            if (hasTurn) break;
+        }
+        return "ICE servers: " + iceServers.size() + (hasTurn ? " (TURN available)" : " (STUN-only fallback)");
     }
 
     private JSONObject iceCandidateToJson(IceCandidate candidate) {
