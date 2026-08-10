@@ -52,11 +52,26 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             String calleeUsername = data.get("calleeUsername");
             if (callId == null || callerUsername == null) return;
 
-            // Gives the native socket a head start connecting — needed to
-            // actually receive the encrypted call:offer once Answer is
-            // tapped — while the phone is still ringing rather than only
-            // starting once the user acts. No-ops if already connected.
-            CallEngineService.get(this).ensureSelfInitialized();
+            // Fire-and-forget on its own thread, deliberately decoupled
+            // from the actual ring-triggering code below. ensureSelfInitialized()
+            // stands up the real WebRTC engine (PeerConnectionFactory/
+            // EglBase), which some WebRTC internals assume runs on a
+            // thread with a Looper prepared — FCM's own delivery thread
+            // has none. Calling it inline here previously meant a thrown
+            // exception/error from that setup killed onMessageReceived()
+            // outright, BEFORE the Telecom/fallback-notification code
+            // below ever ran — the observed symptom was total silence on
+            // an incoming call: no ring, no fallback notification, nothing
+            // at all. The socket only actually needs to be ready by the
+            // time Answer is tapped (seconds later, while the ring UI is
+            // already showing), not before ringing starts.
+            new Thread(() -> {
+                try {
+                    CallEngineService.get(getApplicationContext()).ensureSelfInitialized();
+                } catch (Throwable t) {
+                    android.util.Log.e("SahaplayFCM", "ensureSelfInitialized failed", t);
+                }
+            }).start();
 
             // Phase 3: route through Telecom for real background/lock-
             // screen answering (system audio-focus/Bluetooth arbitration,
@@ -66,7 +81,11 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // call (PhoneAccount not yet registered/enabled on this OEM,
             // MANAGE_OWN_CALLS somehow missing, or any other Telecom
             // quirk) — degraded (opens the app on Answer, same as before
-            // Phase 3) is better than never ringing at all.
+            // Phase 3) is better than never ringing at all. Catches
+            // Throwable, not just Exception — the same class of "some
+            // WebRTC/Telecom internal threw something uncaught" risk
+            // applies here too, and this is the one place that absolutely
+            // must not fail silently.
             try {
                 PhoneAccountRegistrar.register(this);
                 TelecomManager telecomManager = (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
@@ -78,7 +97,8 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 Bundle extras = new Bundle();
                 extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
                 telecomManager.addNewIncomingCall(PhoneAccountRegistrar.getHandle(this), extras);
-            } catch (Exception e) {
+            } catch (Throwable t) {
+                android.util.Log.e("SahaplayFCM", "Telecom addNewIncomingCall failed, falling back", t);
                 IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername);
             }
         } else if ("call-cancel".equals(data.get("type"))) {
