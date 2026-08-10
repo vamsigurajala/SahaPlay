@@ -38,7 +38,8 @@ import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvail
 import { requestMediaAccess } from '../lib/mediaPermissionGate';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
-import { isCapacitorApp } from '../lib/platform';
+import { isCapacitorApp, isAndroidApp } from '../lib/platform';
+import { initNativeCallEngine, setNativeCallSecretKey, isNativeCallEngineAvailable } from '../lib/nativeCallEngine';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
@@ -186,6 +187,32 @@ export function CallProvider({ children }) {
     if (!myUsername) return;
     fetchUserBrief(myUsername).then(brief => { if (brief?.avatarUrl) setMyAvatarUrl(brief.avatarUrl); });
   }, [myUsername]);
+
+  // ─── Native call engine auto-init (Android only) ───
+  // Phase 4 made the native engine the REAL call path on Android (the app's
+  // own call button, incoming ring/answer, the whole active-call UI) — it
+  // can no longer rely on someone manually tapping "Init engine" in the
+  // debug panel first (see NativeCallDebugPanel.jsx, still present as a
+  // status-log viewer but no longer the only way this happens). Mirrors
+  // that panel's own handleInit() exactly: hand the engine the same
+  // token/username/secretKey this device's JS layer already has the moment
+  // they're all actually ready, so a cold app start can place/receive a
+  // native call without the user having done anything calling-related yet.
+  const nativeEngineInitedRef = useRef(false);
+  useEffect(() => {
+    if (!isAndroidApp() || !isNativeCallEngineAvailable()) return;
+    if (nativeEngineInitedRef.current) return;
+    const token = localStorage.getItem('watch_token');
+    const username = localStorage.getItem('watch_username');
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    if (!token || token === 'null' || token === 'undefined' || isGuest || !username) return;
+    if (!cryptoReady || !keyPair?.secretKey) return;
+    nativeEngineInitedRef.current = true;
+    (async () => {
+      await initNativeCallEngine(API, token, username);
+      await setNativeCallSecretKey(encodeBase64(keyPair.secretKey));
+    })();
+  }, [cryptoReady, keyPair]);
 
   // ─── Socket lifecycle ───
   useEffect(() => {

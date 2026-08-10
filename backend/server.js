@@ -9092,10 +9092,22 @@ io.on('connection', (socket) => {
       emitToUser(target, 'call:incoming', { callId, callerUsername: me, callType: call.type, groupParticipants: activeParticipants });
       activeParticipants.filter(u => u !== me).forEach(u => emitToUser(u, 'call:member-invited', { callId, username: target, invitedBy: me }));
 
+      // isGroupInvite tells the native Android engine (which only
+      // understands 1:1 call:accept, not call:member-join) to leave this one
+      // alone and fall back to the existing JS/deep-link flow — see
+      // SahaplayFirebaseMessagingService.java's own comment on this flag.
+      // Without it, a group invite reaching a backgrounded/locked Android
+      // device would answer with the wrong event entirely.
+      const inviterRow = await queryGet('SELECT displayName, avatarPath FROM users WHERE LOWER(username) = LOWER(?)', [me]);
       sendPushToUser(target, {
         title: call.type === 'video' ? 'Incoming video call' : 'Incoming voice call',
         body: `${me} is adding you to a call…`,
-        data: { type: 'call', callId, callerUsername: me, calleeUsername: target, callType: call.type },
+        data: {
+          type: 'call', callId, callerUsername: me, calleeUsername: target, callType: call.type,
+          callerDisplayName: inviterRow?.displayName || me,
+          callerAvatarPath: inviterRow?.avatarPath || '',
+          isGroupInvite: 'true',
+        },
         tag: `call-${callId}`,
         dataOnly: true,
       }).catch(() => {});

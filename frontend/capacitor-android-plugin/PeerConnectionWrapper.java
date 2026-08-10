@@ -13,6 +13,7 @@ import org.webrtc.PeerConnectionFactory;
 import org.webrtc.RtpReceiver;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
+import org.webrtc.VideoTrack;
 
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +30,11 @@ public class PeerConnectionWrapper {
         void onIceCandidate(IceCandidate candidate);
         void onConnected();
         void onDisconnectedOrFailed(PeerConnection.IceConnectionState state);
+        // Fired once for the remote side's video track, if a video call —
+        // never fired at all for a voice call (no video m-line to add a
+        // track from). ActiveCallActivity attaches this track to its
+        // SurfaceViewRenderer as soon as it arrives.
+        void onRemoteVideoTrack(VideoTrack track);
     }
 
     public interface SdpCallback {
@@ -40,7 +46,7 @@ public class PeerConnectionWrapper {
     private final IceCandidateBuffer iceBuffer = new IceCandidateBuffer();
 
     public PeerConnectionWrapper(PeerConnectionFactory factory, List<PeerConnection.IceServer> iceServers,
-                                  AudioTrack localAudioTrack, Listener listener) {
+                                  AudioTrack localAudioTrack, VideoTrack localVideoTrack, Listener listener) {
         PeerConnection.RTCConfiguration rtcConfig = new PeerConnection.RTCConfiguration(iceServers);
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN;
         // GATHER_CONTINUALLY (not GATHER_ONCE) — matches browser RTCPeerConnection's
@@ -75,14 +81,20 @@ public class PeerConnectionWrapper {
             @Override public void onDataChannel(DataChannel channel) {}
             @Override public void onRenegotiationNeeded() {}
             @Override public void onAddTrack(RtpReceiver receiver, MediaStream[] streams) {
-                if (receiver.track() != null && MediaStreamTrack.AUDIO_TRACK_KIND.equals(receiver.track().kind())) {
+                if (receiver.track() == null || listener == null) return;
+                if (MediaStreamTrack.AUDIO_TRACK_KIND.equals(receiver.track().kind())) {
                     Log.i(TAG, "remote audio track added");
+                } else if (MediaStreamTrack.VIDEO_TRACK_KIND.equals(receiver.track().kind())) {
+                    Log.i(TAG, "remote video track added");
+                    listener.onRemoteVideoTrack((VideoTrack) receiver.track());
                 }
             }
         });
 
-        if (this.pc != null && localAudioTrack != null) {
-            this.pc.addTrack(localAudioTrack, Collections.singletonList("sahaplay-stream0"));
+        if (this.pc != null) {
+            List<String> streamIds = Collections.singletonList("sahaplay-stream0");
+            if (localAudioTrack != null) this.pc.addTrack(localAudioTrack, streamIds);
+            if (localVideoTrack != null) this.pc.addTrack(localVideoTrack, streamIds);
         }
     }
 

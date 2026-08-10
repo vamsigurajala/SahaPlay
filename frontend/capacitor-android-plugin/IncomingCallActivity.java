@@ -107,6 +107,12 @@ public class IncomingCallActivity extends android.app.Activity {
     // sent with the push was stale.
     public static final String EXTRA_CALLER_DISPLAY_NAME = "callerDisplayName";
     public static final String EXTRA_CALLER_AVATAR_PATH = "callerAvatarPath";
+    // "true" only for a call:add-member push — CallEngineService (the
+    // native engine) only understands plain 1:1 call:accept, not group's
+    // call:member-join, so a group invite must always fall back to the
+    // pre-Phase-4 deep-link/JS path (see answer()/decline() below and
+    // SahaplayFirebaseMessagingService's own comment on this flag).
+    public static final String EXTRA_IS_GROUP_INVITE = "isGroupInvite";
 
     private MediaPlayer ringtonePlayer;
     private Vibrator vibrator;
@@ -114,6 +120,7 @@ public class IncomingCallActivity extends android.app.Activity {
     private String callId;
     private String callerUsername;
     private String calleeUsername;
+    private boolean isGroupInvite;
 
     // Builds and shows the incoming-call notification. Safe to call from any
     // thread/context — used both from the FCM service (background/killed
@@ -137,11 +144,11 @@ public class IncomingCallActivity extends android.app.Activity {
     //    to reopen this same Activity — the "how many times do I have to
     //    click Answer" bug).
     public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername) {
-        showIncomingCall(ctx, callId, callerUsername, callType, calleeUsername, null, null);
+        showIncomingCall(ctx, callId, callerUsername, callType, calleeUsername, null, null, false);
     }
 
     public static void showIncomingCall(Context ctx, String callId, String callerUsername, String callType, String calleeUsername,
-            String callerDisplayName, String callerAvatarPath) {
+            String callerDisplayName, String callerAvatarPath, boolean isGroupInvite) {
         if (callId == null || callerUsername == null) return;
         boolean isVideo = "video".equals(callType);
         String displayName = (callerDisplayName != null && !callerDisplayName.isEmpty()) ? callerDisplayName : callerUsername;
@@ -153,6 +160,7 @@ public class IncomingCallActivity extends android.app.Activity {
         fullScreenIntent.putExtra(EXTRA_CALLEE, calleeUsername);
         fullScreenIntent.putExtra(EXTRA_CALLER_DISPLAY_NAME, callerDisplayName);
         fullScreenIntent.putExtra(EXTRA_CALLER_AVATAR_PATH, callerAvatarPath);
+        fullScreenIntent.putExtra(EXTRA_IS_GROUP_INVITE, isGroupInvite);
         fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(ctx, callId.hashCode(), fullScreenIntent, piFlags);
@@ -163,7 +171,7 @@ public class IncomingCallActivity extends android.app.Activity {
         declineIntent.putExtra(CallActionReceiver.EXTRA_USERNAME, calleeUsername);
         PendingIntent declinePendingIntent = PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
 
-        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags);
+        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags, isGroupInvite);
 
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -346,11 +354,26 @@ public class IncomingCallActivity extends android.app.Activity {
         return bitmap;
     }
 
-    // Same sahaplay://call-answer hand-off the in-Activity Answer button
-    // uses (see the instance answer() method below) — factored out so the
-    // notification's own Answer action can go straight there too, with no
-    // intermediate ring-screen prompt.
-    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags) {
+    // Non-group: jumps straight to ActiveCallActivity with "answer now" —
+    // that Activity accepts the call itself (via CallEngineService,
+    // guaranteed regardless of Telecom, see that class's own comment) before
+    // rendering, so tapping Answer on the notification goes directly to the
+    // live call screen with no intermediate ring-screen prompt and no
+    // WebView/deep-link hop at all.
+    //
+    // Group invites keep the old sahaplay://call-answer deep-link hand-off
+    // — CallEngineService doesn't understand call:member-join, so these must
+    // still open the app and let CallContext.jsx's own auto-accept (which
+    // DOES branch correctly on isGroupJoin) handle it, exactly as before
+    // Phase 4.
+    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags, boolean isGroupInvite) {
+        if (!isGroupInvite) {
+            Intent intent = new Intent(ctx, ActiveCallActivity.class);
+            intent.putExtra(ActiveCallActivity.EXTRA_CALL_ID, callId);
+            intent.putExtra(ActiveCallActivity.EXTRA_ANSWER_NOW, true);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            return PendingIntent.getActivity(ctx, callId.hashCode() ^ 2, intent, piFlags);
+        }
         Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         intent.setPackage(ctx.getPackageName());
@@ -408,6 +431,7 @@ public class IncomingCallActivity extends android.app.Activity {
         String callType = getIntent().getStringExtra(EXTRA_CALL_TYPE);
         String pushedDisplayName = getIntent().getStringExtra(EXTRA_CALLER_DISPLAY_NAME);
         String pushedAvatarPath = getIntent().getStringExtra(EXTRA_CALLER_AVATAR_PATH);
+        isGroupInvite = getIntent().getBooleanExtra(EXTRA_IS_GROUP_INVITE, false);
         boolean isVideo = "video".equals(callType);
 
         if (callId == null || callerUsername == null) {
@@ -786,33 +810,43 @@ public class IncomingCallActivity extends android.app.Activity {
         nm.cancel(callId.hashCode());
     }
 
-    // Phase 3: this Activity is now only ever launched via a live
-    // SahaplayConnection's onShowIncomingCallUi() (see
-    // SahaplayConnectionService), so answering routes straight through it —
-    // CallEngineService.acceptIncomingCall() does the real work (WebRTC
-    // answer, entirely native, no WebView involved at all), and setActive()
-    // tells Telecom the call is live (audio focus, Bluetooth routing).
-    // Falls back to the old WebView deep-link hand-off only in the
-    // unlikely case no live Connection is found (e.g. this Activity was
-    // somehow reached a different way) — degraded, but still answerable.
+    // Phase 4: prefers a live SahaplayConnection when Telecom cooperated on
+    // this device (answerFromUi() also tells Telecom the call is live —
+    // audio focus, Bluetooth routing). For a plain 1:1 call, the fallback is
+    // now CallEngineService.acceptIncomingCall() DIRECTLY — guaranteed to
+    // have a registered session regardless of Telecom (see
+    // SahaplayFirebaseMessagingService's unconditional registerIncomingCall()
+    // and this class's own comment on EXTRA_IS_GROUP_INVITE), no longer the
+    // old WebView deep-link hand-off. Group invites are the one exception:
+    // CallEngineService doesn't understand call:member-join, so those still
+    // go through the old deep-link path exactly as before Phase 4 (and
+    // never get a live SahaplayConnection in the first place — see
+    // SahaplayFirebaseMessagingService, which skips Telecom entirely for
+    // group invites).
     private void answer() {
         SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
         if (conn != null) {
             conn.answerFromUi();
             return;
         }
-        Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        intent.setPackage(getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
+        if (isGroupInvite) {
+            Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.setPackage(getPackageName());
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        }
+        CallEngineService.get(this).acceptIncomingCall(callId);
     }
 
-    // Same Phase 3 routing as answer() above — prefers the live
-    // SahaplayConnection (which also tells Telecom to release the call),
-    // falling back to the direct REST decline (calleeUsername is THIS
-    // device's own username — see the EXTRA_CALLEE comment above for why
-    // this must not be callerUsername) if no Connection is found.
+    // Same routing as answer() above — prefers the live SahaplayConnection
+    // (which also tells Telecom to release the call), then branches on
+    // isGroupInvite for the fallback: CallEngineService.declineIncomingCall()
+    // for a plain 1:1 call (guaranteed, same reasoning as answer() above), or
+    // the direct REST decline (calleeUsername is THIS device's own username
+    // — see the EXTRA_CALLEE comment above for why this must not be
+    // callerUsername) for a group invite.
     private void decline() {
         stopRinging();
         SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
@@ -820,7 +854,11 @@ public class IncomingCallActivity extends android.app.Activity {
             conn.declineFromUi();
             return;
         }
-        if (calleeUsername != null) postDecline(callId, calleeUsername);
+        if (isGroupInvite) {
+            if (calleeUsername != null) postDecline(callId, calleeUsername);
+            return;
+        }
+        CallEngineService.get(this).declineIncomingCall(callId);
     }
 
     private void finishAsMissed() {
