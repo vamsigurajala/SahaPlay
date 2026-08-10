@@ -244,10 +244,6 @@ public class SahaplayMediaPlugin extends Plugin {
     // active VoIP call — it's what makes setSpeakerphoneOn/Bluetooth SCO
     // actually take effect instead of being ignored, and is set on every
     // route change (not just once) since 'normal' below explicitly leaves it.
-    // Delegates to AudioRouteController (see that file's own comment) so
-    // ActiveCallActivity's native call screen can call the exact same
-    // routing logic directly, without a Capacitor bridge of its own to
-    // route a PluginCall through.
     @PluginMethod
     public void setAudioRoute(PluginCall call) {
         String route = call.getString("route");
@@ -255,18 +251,56 @@ public class SahaplayMediaPlugin extends Plugin {
             call.reject("route required");
             return;
         }
-        if (!route.equals("speaker") && !route.equals("earpiece") && !route.equals("bluetooth") && !route.equals("normal")) {
-            call.reject("invalid route");
-            return;
+        AudioManager am = (AudioManager) getActivity().getSystemService(Context.AUDIO_SERVICE);
+        switch (route) {
+            case "speaker":
+                am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                stopBluetoothScoQuietly(am);
+                am.setSpeakerphoneOn(true);
+                break;
+            case "earpiece":
+                am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                stopBluetoothScoQuietly(am);
+                am.setSpeakerphoneOn(false);
+                break;
+            case "bluetooth":
+                am.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                am.setSpeakerphoneOn(false);
+                am.startBluetoothSco();
+                am.setBluetoothScoOn(true);
+                break;
+            case "normal":
+                // Call ended — hand audio routing back to normal (non-VoIP) behavior.
+                stopBluetoothScoQuietly(am);
+                am.setSpeakerphoneOn(false);
+                am.setMode(AudioManager.MODE_NORMAL);
+                break;
+            default:
+                call.reject("invalid route");
+                return;
         }
-        AudioRouteController.setRoute(getActivity(), route);
         call.resolve();
     }
 
     @PluginMethod
     public void getAvailableAudioRoutes(PluginCall call) {
+        AudioManager am = (AudioManager) getActivity().getSystemService(Context.AUDIO_SERVICE);
+        boolean bluetoothAvailable = false;
+        // getDevices() (API 23+) reports currently connected/available audio
+        // output devices — checking for a Bluetooth SCO/A2DP entry here
+        // (rather than assuming) mirrors WhatsApp's own behavior of only
+        // showing the Bluetooth option when a headset is actually paired
+        // and connected, not unconditionally.
+        for (android.media.AudioDeviceInfo device : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            int type = device.getType();
+            if (type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                || type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+                bluetoothAvailable = true;
+                break;
+            }
+        }
         JSObject ret = new JSObject();
-        ret.put("bluetoothAvailable", AudioRouteController.isBluetoothAudioAvailable(getActivity()));
+        ret.put("bluetoothAvailable", bluetoothAvailable);
         call.resolve(ret);
     }
 
@@ -376,6 +410,13 @@ public class SahaplayMediaPlugin extends Plugin {
 
     static final String THEME_PREFS_NAME = "sahaplay_native_prefs";
     static final String THEME_PREFS_KEY = "theme";
+
+    private static void stopBluetoothScoQuietly(AudioManager am) {
+        try {
+            am.setBluetoothScoOn(false);
+            am.stopBluetoothSco();
+        } catch (Exception ignored) {}
+    }
 
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));

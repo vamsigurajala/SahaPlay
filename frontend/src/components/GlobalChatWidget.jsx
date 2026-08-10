@@ -24,8 +24,7 @@ import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
-import { isCapacitorApp, isAndroidApp } from '../lib/platform';
-import { startNativeCall } from '../lib/nativeCallEngine';
+import { isCapacitorApp } from '../lib/platform';
 
 // Desktop-browser equivalent of the native app's push notifications — the
 // in-page toast below only helps while this tab is actually visible, so a
@@ -5563,21 +5562,10 @@ const GlobalChatWidget = forwardRef(({
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 28, height: 28, padding: 0, borderRadius: '50%', transition: 'all 0.2s',
               };
-              // Android places calls through the native engine now
-              // (CallEngineService owns OutgoingCallActivity/ActiveCallActivity
-              // — real native video, not this JS/WebView screen) — everywhere
-              // else keeps using CallContext's own WebRTC implementation.
-              const placeCall = (callType) => {
-                if (isAndroidApp()) {
-                  startNativeCall(activeChat.partner, callType, activeChat.displayName, activeChat.partnerAvatar);
-                } else {
-                  call.startCall(activeChat.partner, callType, activeChat.displayName, activeChat.partnerAvatar);
-                }
-              };
               return (
                 <>
                   <button
-                    onClick={() => { if (!busy) placeCall('voice'); }}
+                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'voice', activeChat.displayName, activeChat.partnerAvatar); }}
                     disabled={busy}
                     title={t('voiceCall', 'Voice call')}
                     style={callBtnStyle}
@@ -5591,7 +5579,7 @@ const GlobalChatWidget = forwardRef(({
                     <Phone size={18} strokeWidth={2.1} />
                   </button>
                   <button
-                    onClick={() => { if (!busy) placeCall('video'); }}
+                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
                     disabled={busy}
                     title={t('videoCall', 'Video call')}
                     style={callBtnStyle}
@@ -6921,9 +6909,7 @@ const GlobalChatWidget = forwardRef(({
                                         data={callData}
                                         isMe={isMe}
                                         myUsername={myUsername}
-                                        onRedial={activeChat?.type === 'private' && !call.callState ? () => (isAndroidApp()
-                                          ? startNativeCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar)
-                                          : call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar)) : undefined}
+                                        onRedial={activeChat?.type === 'private' && !call.callState ? () => call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar) : undefined}
                                       />
                                     );
                                   })()

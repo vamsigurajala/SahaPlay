@@ -405,14 +405,6 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp capacitor-android-plugin/res/drawable/ic_call_decline.xml android/app/src/main/res/drawable/ic_call_decline.xml
           cp capacitor-android-plugin/res/drawable/ic_call_answer.xml android/app/src/main/res/drawable/ic_call_answer.xml
-          cp capacitor-android-plugin/res/drawable/ic_mic.xml android/app/src/main/res/drawable/ic_mic.xml
-          cp capacitor-android-plugin/res/drawable/ic_video_cam.xml android/app/src/main/res/drawable/ic_video_cam.xml
-          cp capacitor-android-plugin/res/drawable/ic_route_earpiece.xml android/app/src/main/res/drawable/ic_route_earpiece.xml
-          cp capacitor-android-plugin/res/drawable/ic_route_speaker.xml android/app/src/main/res/drawable/ic_route_speaker.xml
-          cp capacitor-android-plugin/res/drawable/ic_route_bluetooth.xml android/app/src/main/res/drawable/ic_route_bluetooth.xml
-          cp capacitor-android-plugin/res/drawable/ic_switch_camera.xml android/app/src/main/res/drawable/ic_switch_camera.xml
-          cp capacitor-android-plugin/res/drawable/ic_more.xml android/app/src/main/res/drawable/ic_more.xml
-          cp capacitor-android-plugin/res/drawable/ic_call_end.xml android/app/src/main/res/drawable/ic_call_end.xml
           cp capacitor-android-plugin/CallCrypto.java android/app/src/main/java/com/sahaplay/app/CallCrypto.java
           cp capacitor-android-plugin/SecretKeyStore.java android/app/src/main/java/com/sahaplay/app/SecretKeyStore.java
           cp capacitor-android-plugin/PublicKeyCache.java android/app/src/main/java/com/sahaplay/app/PublicKeyCache.java
@@ -427,9 +419,6 @@ jobs:
           cp capacitor-android-plugin/PhoneAccountRegistrar.java android/app/src/main/java/com/sahaplay/app/PhoneAccountRegistrar.java
           cp capacitor-android-plugin/SahaplayConnection.java android/app/src/main/java/com/sahaplay/app/SahaplayConnection.java
           cp capacitor-android-plugin/SahaplayConnectionService.java android/app/src/main/java/com/sahaplay/app/SahaplayConnectionService.java
-          cp capacitor-android-plugin/AudioRouteController.java android/app/src/main/java/com/sahaplay/app/AudioRouteController.java
-          cp capacitor-android-plugin/OutgoingCallActivity.java android/app/src/main/java/com/sahaplay/app/OutgoingCallActivity.java
-          cp capacitor-android-plugin/ActiveCallActivity.java android/app/src/main/java/com/sahaplay/app/ActiveCallActivity.java
 
       - name: Sync Capacitor project
         working-directory: frontend

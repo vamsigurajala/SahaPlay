@@ -102,30 +102,6 @@
             android:showOnLockScreen="true"
             android:theme="@style/AppTheme.NoActionBarLaunch" />
 
-        <!-- Phase 4's real call UI (see OutgoingCallActivity.java/
-             ActiveCallActivity.java). Same singleInstance reasoning as
-             IncomingCallActivity above — the notification's own Answer
-             action, CallEngineService's own launch calls, and a possible
-             recents re-entry should all land on the SAME instance rather
-             than stacking. Not excludeFromRecents (unlike the transient ring
-             screen) — a live call is exactly the kind of thing a user
-             legitimately wants to find again via recents after backing out
-             to another app. configChanges keeps a rotation from tearing down
-             and rebuilding the SurfaceViewRenderer pair mid-call. -->
-        <activity
-            android:name=".OutgoingCallActivity"
-            android:exported="false"
-            android:launchMode="singleInstance"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
-            android:theme="@style/AppTheme.NoActionBarLaunch" />
-        <activity
-            android:name=".ActiveCallActivity"
-            android:exported="false"
-            android:launchMode="singleInstance"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
-            android:showOnLockScreen="true"
-            android:theme="@style/AppTheme.NoActionBarLaunch" />
-
         <!-- Handles the incoming-call notification's Decline button and the
              ongoing-call notification's Hang Up button — see
              CallActionReceiver.java. Purely in-process (never triggered by

@@ -5,7 +5,7 @@ import { useCrypto } from '../contexts/CryptoContext';
 import { API } from '../lib/api';
 import {
   isNativeCallEngineAvailable, initNativeCallEngine, setNativeCallSecretKey,
-  startNativeCall, endNativeCall, onNativeCallEngineStatus,
+  startNativeTestCall, endNativeTestCall, onNativeCallEngineStatus,
 } from '../lib/nativeCallEngine';
 
 // Phase 2 debug-only panel for the native calling engine (see the plan doc
@@ -46,11 +46,11 @@ export default function NativeCallDebugPanel() {
 
   const handleStartCall = async () => {
     if (!calleeUsername.trim()) return;
-    await startNativeCall(calleeUsername.trim(), 'voice');
+    await startNativeTestCall(calleeUsername.trim(), 'voice');
   };
 
   const handleEndCall = async () => {
-    await endNativeCall();
+    await endNativeTestCall();
   };
 
   return (

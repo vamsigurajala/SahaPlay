@@ -56,20 +56,13 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // IncomingCallActivity's own fallback fetch already covers.
             String callerDisplayName = data.get("callerDisplayName");
             String callerAvatarPath = data.get("callerAvatarPath");
-            // "true" only for call:add-member's push (see that handler in
-            // backend/server.js) — CallEngineService only understands plain
-            // 1:1 call:accept, not group's call:member-join, so a group
-            // invite must NOT be registered with it (see the guard below);
-            // it rings and answers exactly like before Phase 4, through the
-            // existing JS/deep-link path.
-            boolean isGroupInvite = "true".equals(data.get("isGroupInvite"));
             if (callId == null || callerUsername == null) return;
 
             // GUARANTEED ring, unconditionally — see the long comment below
             // for why this is no longer gated behind Telecom's outcome.
             // This is the exact call/path that reliably worked before
             // Phase 3 ever touched this file.
-            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath, isGroupInvite);
+            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath);
 
             // Fire-and-forget on its own thread, deliberately decoupled
             // from the ring above. ensureSelfInitialized() stands up the
@@ -77,18 +70,10 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // some WebRTC internals assume runs on a thread with a Looper
             // prepared — FCM's own delivery thread has none. The socket
             // only actually needs to be ready by the time Answer is tapped
-            // (seconds later), not before ringing starts. registerIncomingCall()
-            // runs on this same thread — see CallEngineService's own class
-            // comment on why this is now unconditional (not just Telecom's
-            // opportunistic onCreateIncomingConnection) for every non-group
-            // call: it's what makes acceptIncomingCall()/declineIncomingCall()
-            // work regardless of whether Telecom's self-managed PhoneAccount
-            // actually cooperates on this device.
+            // (seconds later), not before ringing starts.
             new Thread(() -> {
                 try {
-                    CallEngineService engine = CallEngineService.get(getApplicationContext());
-                    if (!isGroupInvite) engine.registerIncomingCall(callId, callerUsername, callType, callerDisplayName, callerAvatarPath);
-                    engine.ensureSelfInitialized();
+                    CallEngineService.get(getApplicationContext()).ensureSelfInitialized();
                 } catch (Throwable t) {
                     android.util.Log.e("SahaplayFCM", "ensureSelfInitialized failed", t);
                 }
@@ -110,34 +95,22 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // reliably-working pre-Phase-3 behavior. If/when Telecom DOES
             // cooperate on a given device, SahaplayConnectionService still
             // creates a real Connection, and IncomingCallActivity's Answer/
-            // Decline already prefer it over the guaranteed-native/deep-link
-            // path (see SahaplayConnection.getCurrent() there) — so nothing
-            // is lost by no longer gating the ring on this succeeding.
-            //
-            // Skipped ENTIRELY for a group invite — CallEngineService never
-            // registered a session for it (see above), so a Connection with
-            // nothing backing it on the engine side would be actively
-            // wrong: SahaplayConnectionService.onCreateIncomingConnection()
-            // would have no session to hand off to, and IncomingCallActivity's
-            // answer()/decline() would then wrongly route a group invite
-            // through SahaplayConnection.answerFromUi()/declineFromUi() —
-            // which call straight into CallEngineService's plain 1:1
-            // accept/decline, the wrong event entirely for a group join.
-            if (!isGroupInvite) {
-                try {
-                    PhoneAccountRegistrar.register(this);
-                    TelecomManager telecomManager = (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
-                    if (telecomManager == null) throw new IllegalStateException("no TelecomManager");
-                    Bundle callExtras = new Bundle();
-                    callExtras.putString(EXTRA_TELECOM_CALL_ID, callId);
-                    callExtras.putString(EXTRA_TELECOM_CALLER, callerUsername);
-                    callExtras.putString(EXTRA_TELECOM_CALL_TYPE, callType);
-                    Bundle extras = new Bundle();
-                    extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
-                    telecomManager.addNewIncomingCall(PhoneAccountRegistrar.getHandle(this), extras);
-                } catch (Throwable t) {
-                    android.util.Log.e("SahaplayFCM", "Telecom addNewIncomingCall failed (non-fatal, ring already showing)", t);
-                }
+            // Decline already prefer it over the plain REST/deep-link path
+            // (see SahaplayConnection.getCurrent() there) — so nothing is
+            // lost by no longer gating the ring on this succeeding.
+            try {
+                PhoneAccountRegistrar.register(this);
+                TelecomManager telecomManager = (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
+                if (telecomManager == null) throw new IllegalStateException("no TelecomManager");
+                Bundle callExtras = new Bundle();
+                callExtras.putString(EXTRA_TELECOM_CALL_ID, callId);
+                callExtras.putString(EXTRA_TELECOM_CALLER, callerUsername);
+                callExtras.putString(EXTRA_TELECOM_CALL_TYPE, callType);
+                Bundle extras = new Bundle();
+                extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
+                telecomManager.addNewIncomingCall(PhoneAccountRegistrar.getHandle(this), extras);
+            } catch (Throwable t) {
+                android.util.Log.e("SahaplayFCM", "Telecom addNewIncomingCall failed (non-fatal, ring already showing)", t);
             }
         } else if ("call-cancel".equals(data.get("type"))) {
             // Sent the moment a ringing call is resolved any way (declined,

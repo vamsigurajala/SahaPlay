@@ -8,21 +8,14 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import androidx.core.graphics.drawable.IconCompat;
-
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 // Keeps an active call's WebRTC connections alive while the app is
 // backgrounded, and gives the user a persistent, always-visible way to see
@@ -65,13 +58,7 @@ public class SahaplayCallService extends Service {
     // WHICH call natively, without needing the JS/socket layer alive.
     public static final String EXTRA_USERNAME = "username";
     public static final String EXTRA_CALL_ID = "callId";
-    // Best-effort — the initials-avatar Person icon below shows immediately
-    // (no network wait, matches IncomingCallActivity's own "show something
-    // instantly, upgrade to the real photo once fetched" pattern), then this
-    // gets swapped in once fetched (see fetchAndApplyAvatar).
-    public static final String EXTRA_PEER_AVATAR_URL = "peerAvatarUrl";
     public static final String ACTION_STOP = "com.sahaplay.app.action.STOP_CALL_SERVICE";
-    private static final String API_BASE = "https://sahaplay.com";
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -86,14 +73,9 @@ public class SahaplayCallService extends Service {
         boolean isRinging = intent != null && "ringing".equals(intent.getStringExtra(EXTRA_STATUS));
         String username = (intent != null) ? intent.getStringExtra(EXTRA_USERNAME) : null;
         String callId = (intent != null) ? intent.getStringExtra(EXTRA_CALL_ID) : null;
-        String avatarUrl = (intent != null) ? intent.getStringExtra(EXTRA_PEER_AVATAR_URL) : null;
         if (peerName == null || peerName.isEmpty()) peerName = "Ongoing call";
 
-        Notification notification = buildNotification(peerName, startedAt, isRinging, username, callId, null);
-        if (avatarUrl != null && !avatarUrl.isEmpty()) {
-            String finalPeerName = peerName;
-            fetchAndApplyAvatar(avatarUrl, finalPeerName, startedAt, isRinging, username, callId);
-        }
+        Notification notification = buildNotification(peerName, startedAt, isRinging, username, callId);
 
         // FOREGROUND_SERVICE_TYPE_MICROPHONE (+ CAMERA) matches what this
         // service is actually for on Android 10+ - required declaration
@@ -128,34 +110,7 @@ public class SahaplayCallService extends Service {
         return START_STICKY;
     }
 
-    // Mirrors IncomingCallActivity's own fetchAndSetAvatarBitmap network
-    // logic (User-Agent header, same timeouts) — that one updates a live
-    // Activity's ImageView, this re-posts the notification with the fetched
-    // bitmap in place of the initials Person icon once it arrives.
-    private void fetchAndApplyAvatar(String avatarUrl, String peerName, long startedAt, boolean isRinging, String username, String callId) {
-        new Thread(() -> {
-            try {
-                String fullUrl = avatarUrl.startsWith("http") ? avatarUrl : (API_BASE + avatarUrl);
-                URL url = new URL(fullUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestProperty("User-Agent", "SahaPlay-Android");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-                if (conn.getResponseCode() != 200) return;
-                Bitmap bitmap;
-                try (InputStream is = conn.getInputStream()) {
-                    bitmap = BitmapFactory.decodeStream(is);
-                }
-                if (bitmap == null) return;
-                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                nm.notify(NOTIFICATION_ID, buildNotification(peerName, startedAt, isRinging, username, callId, bitmap));
-            } catch (Exception e) {
-                Log.w("SahaplayCallService", "fetchAndApplyAvatar failed for " + avatarUrl, e);
-            }
-        }).start();
-    }
-
-    private Notification buildNotification(String peerName, long startedAt, boolean isRinging, String username, String callId, Bitmap avatarBitmap) {
+    private Notification buildNotification(String peerName, long startedAt, boolean isRinging, String username, String callId) {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Ongoing Call", NotificationManager.IMPORTANCE_LOW);
@@ -208,10 +163,9 @@ public class SahaplayCallService extends Service {
         // "when" value directly — no elapsedRealtime conversion needed
         // (unlike the raw Chronometer View this replaces), so the class of
         // bug that produced a garbage "-496021:34:56" display can't recur.
-        Bitmap iconBitmap = avatarBitmap != null ? avatarBitmap : IncomingCallActivity.buildInitialsAvatarBitmap(peerName, 132);
         Person peerPerson = new Person.Builder()
             .setName(peerName)
-            .setIcon(IconCompat.createWithBitmap(iconBitmap))
+            .setIcon(IconCompat.createWithBitmap(IncomingCallActivity.buildInitialsAvatarBitmap(peerName, 132)))
             .setImportant(true)
             .build();
         NotificationCompat.CallStyle callStyle = NotificationCompat.CallStyle.forOngoingCall(peerPerson, endPendingIntent);

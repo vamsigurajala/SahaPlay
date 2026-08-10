@@ -9,14 +9,12 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 // JS <-> native bridge for the WhatsApp-style native calling engine (see
-// the plan doc). initCallEngine/setNaclSecretKey hand over what
-// CallEngineService needs to self-init; startCall is now the REAL entry
-// point the app's own call button uses on Android (see
-// GlobalChatWidget.jsx), not just the Phase 2 debug panel — Phase 4 wired
-// CallEngineService's own OutgoingCallActivity/ActiveCallActivity in as the
-// real call UI, so this plugin exists purely to hand JS's already-known
-// callee info over to the engine and let it take it from there. See
-// frontend/src/lib/nativeCallEngine.js for the JS side of this bridge.
+// the plan doc). Phase 2 exposes just enough to prove the crypto + WebRTC
+// signaling round-trip actually works: initCallEngine/setNaclSecretKey to
+// hand over what CallEngineService needs, and startCall as the "bare debug
+// trigger" the plan calls for. No Telecom, no notifications yet — those
+// arrive in Phase 3/4. See frontend/src/lib/nativeCallEngine.js for the JS
+// side of this bridge and AppSettings.jsx for the Phase 2 debug UI.
 @CapacitorPlugin(name = "SahaplayCallEngine")
 public class SahaplayCallPlugin extends Plugin {
 
@@ -49,20 +47,17 @@ public class SahaplayCallPlugin extends Plugin {
         call.resolve();
     }
 
-    // calleeDisplayName/calleeAvatarUrl are optional — the JS caller
-    // already has them in hand from the chat header it just tapped Call
-    // from (see GlobalChatWidget.jsx), so OutgoingCallActivity can render
-    // the real name/photo immediately with no extra native fetch, same
-    // pattern as everywhere else in Phase 4.
+    // Phase 2's "bare debug trigger" — starts a real native call:invite
+    // against a live callee. Only the OUTGOING direction is meant to be
+    // exercised right now (see CallEngineService's class comment on the
+    // JS/native double-listener collision for incoming calls).
     @PluginMethod
     public void startCall(PluginCall call) {
         String calleeUsername = call.getString("calleeUsername");
         String callType = call.getString("callType", "voice");
-        String calleeDisplayName = call.getString("calleeDisplayName");
-        String calleeAvatarUrl = call.getString("calleeAvatarUrl");
         if (calleeUsername == null) { call.reject("calleeUsername is required"); return; }
         attachStatusForwarding();
-        CallEngineService.get(getContext()).startCall(calleeUsername, callType, calleeDisplayName, calleeAvatarUrl);
+        CallEngineService.get(getContext()).startCall(calleeUsername, callType);
         call.resolve();
     }
 
