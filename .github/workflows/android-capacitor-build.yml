@@ -259,19 +259,18 @@ jobs:
       #     EncryptedSharedPreferences, for storing the user's long-term NaCl
       #     secret key (handed over once from JS) between calls.
       #
-      # Honesty note, exact same shape as the Firebase step above: these
-      # exact version numbers were NOT independently confirmed against a
-      # real Gradle resolution before this first run (Maven Central/Google's
-      # own repository lookups were unavailable in the environment this was
-      # authored in) — if any of the four fails to resolve, that fails
-      # LOUDLY here (a normal Gradle dependency-resolution error naming the
-      # exact missing coordinate), not silently later. Fix the specific
-      # version from the real error and re-run; this is Phase 1's entire
-      # purpose — proving the dependency set resolves and survives this
+      # Honesty note, exact same shape as the Firebase step above: on the
+      # first run, lazysodium-android:5.1.4 failed to resolve (that version
+      # never existed — confirmed via search.maven.org's own gav index,
+      # which lists only 5.0.0/5.0.1/5.0.2/5.1.0 for com.goterl:
+      # lazysodium-android, published as an .aar). Corrected to the real
+      # latest, 5.1.0. This is exactly the "fails loudly, fix from the real
+      # error" pattern this file already uses elsewhere — Phase 1's entire
+      # purpose is proving the dependency set resolves and survives this
       # project's bundletool-based AAB→APK conversion (lazysodium ships a
       # real per-ABI native .so via JNI, the first JNI-bearing dependency
-      # this project has ever added) — before any calling logic is written
-      # on top of it.
+      # this project has ever added) before any calling logic is written on
+      # top of it.
       - name: Add native calling engine dependencies (Phase 1 scaffolding)
         working-directory: frontend
         run: |
@@ -280,7 +279,7 @@ jobs:
           dependencies {
               implementation 'io.getstream:stream-webrtc-android:1.3.1'
               implementation 'io.socket:socket.io-client:2.1.2'
-              implementation 'com.goterl:lazysodium-android:5.1.4@aar'
+              implementation 'com.goterl:lazysodium-android:5.1.0@aar'
               implementation 'net.java.dev.jna:jna:5.13.0@aar'
               implementation 'androidx.security:security-crypto:1.1.0'
           }
