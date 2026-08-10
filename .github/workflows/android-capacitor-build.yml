@@ -412,6 +412,7 @@ jobs:
           cp capacitor-android-plugin/res/drawable/ic_route_bluetooth.xml android/app/src/main/res/drawable/ic_route_bluetooth.xml
           cp capacitor-android-plugin/res/drawable/ic_switch_camera.xml android/app/src/main/res/drawable/ic_switch_camera.xml
           cp capacitor-android-plugin/res/drawable/ic_more.xml android/app/src/main/res/drawable/ic_more.xml
+          cp capacitor-android-plugin/res/drawable/ic_call_end.xml android/app/src/main/res/drawable/ic_call_end.xml
           cp capacitor-android-plugin/CallCrypto.java android/app/src/main/java/com/sahaplay/app/CallCrypto.java
           cp capacitor-android-plugin/SecretKeyStore.java android/app/src/main/java/com/sahaplay/app/SecretKeyStore.java
           cp capacitor-android-plugin/PublicKeyCache.java android/app/src/main/java/com/sahaplay/app/PublicKeyCache.java

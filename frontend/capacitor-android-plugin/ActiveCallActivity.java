@@ -349,7 +349,7 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         styleDockLabel(micLabel);
         dockBox.addView(dockColumn(micBtn, micLabel), dockButtonParams());
 
-        ImageView endBtn = iconOnly(R.drawable.ic_call_decline);
+        ImageView endBtn = iconOnly(R.drawable.ic_call_end);
         GradientDrawable endBg = new GradientDrawable();
         endBg.setShape(GradientDrawable.OVAL);
         endBg.setColor(Color.parseColor("#EF4444"));

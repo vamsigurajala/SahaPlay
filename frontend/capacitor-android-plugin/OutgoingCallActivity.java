@@ -144,7 +144,7 @@ public class OutgoingCallActivity extends android.app.Activity implements CallEn
 
         int btnSize = dp(62);
         ImageView cancelBtn = new ImageView(this);
-        cancelBtn.setImageResource(R.drawable.ic_call_decline);
+        cancelBtn.setImageResource(R.drawable.ic_call_end);
         cancelBtn.setScaleType(ImageView.ScaleType.CENTER);
         int iconPad = dp(18);
         cancelBtn.setPadding(iconPad, iconPad, iconPad, iconPad);
