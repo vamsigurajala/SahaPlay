@@ -2,6 +2,7 @@ package com.sahaplay.app;
 
 import android.app.KeyguardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -90,6 +91,7 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
     private ImageView routeBtn;
     private TextView routeLabel;
     private LinearLayout routeSheet;
+    private LinearLayout moreSheet;
     private VideoTrack attachedRemoteTrack;
     private VideoTrack attachedLocalTrack;
 
@@ -284,6 +286,17 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         dockBox.setBackground(dockBg);
         dockBox.setPadding(dp(14), dp(10), dp(14), dp(10));
 
+        // Matches OneOnOneCallScreen.jsx's own leftmost More button —
+        // native's only equivalent option is reopening the app to message
+        // the peer (screen share / group invite aren't part of the native
+        // engine yet), but the button itself is kept for dock parity.
+        ImageView moreBtn = iconOnly(R.drawable.ic_more);
+        moreBtn.setOnClickListener(v -> toggleMoreSheet());
+        TextView moreLabel = new TextView(this);
+        moreLabel.setText("More");
+        styleDockLabel(moreLabel);
+        dockBox.addView(dockColumn(moreBtn, moreLabel), dockButtonParams());
+
         routeBtn = iconOnly(routeIconRes());
         routeBtn.setOnClickListener(v -> {
             // Short tap: instantly toggle speaker on/off — the common case.
@@ -376,9 +389,43 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         sheetParams.bottomMargin = dp(128) + navBarInset();
         root.addView(routeSheet, sheetParams);
 
+        // ─── More sheet (the leftmost dock button) ───
+        moreSheet = new LinearLayout(this);
+        moreSheet.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable moreSheetBg = new GradientDrawable();
+        moreSheetBg.setColor(Color.parseColor("#F7181A24"));
+        moreSheetBg.setCornerRadius(dp(16));
+        moreSheet.setBackground(moreSheetBg);
+        moreSheet.setPadding(dp(6), dp(6), dp(6), dp(6));
+        moreSheet.setVisibility(View.GONE);
+        TextView sendMessageOpt = new TextView(this);
+        sendMessageOpt.setText("Send message");
+        sendMessageOpt.setTextColor(Color.WHITE);
+        sendMessageOpt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        sendMessageOpt.setPadding(dp(16), dp(12), dp(16), dp(12));
+        sendMessageOpt.setOnClickListener(v -> {
+            hideMoreSheet();
+            Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (launch != null) { launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(launch); }
+        });
+        moreSheet.addView(sendMessageOpt);
+        FrameLayout.LayoutParams moreSheetParams = new FrameLayout.LayoutParams(dp(190), FrameLayout.LayoutParams.WRAP_CONTENT);
+        moreSheetParams.gravity = Gravity.BOTTOM | Gravity.START;
+        moreSheetParams.leftMargin = dp(16);
+        moreSheetParams.bottomMargin = dp(128) + navBarInset();
+        root.addView(moreSheet, moreSheetParams);
+
         // Tapping anywhere else closes an open sheet.
-        root.setOnClickListener(v -> hideRouteSheet());
+        root.setOnClickListener(v -> { hideRouteSheet(); hideMoreSheet(); });
     }
+
+    private void toggleMoreSheet() {
+        if (moreSheet == null) return;
+        hideRouteSheet();
+        moreSheet.setVisibility(moreSheet.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+    }
+
+    private void hideMoreSheet() { if (moreSheet != null) moreSheet.setVisibility(View.GONE); }
 
     private View routeSheetOption(String label, String route) {
         TextView opt = new TextView(this);
@@ -390,7 +437,7 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         return opt;
     }
 
-    private void showRouteSheet() { if (routeSheet != null) routeSheet.setVisibility(View.VISIBLE); }
+    private void showRouteSheet() { hideMoreSheet(); if (routeSheet != null) routeSheet.setVisibility(View.VISIBLE); }
     private void hideRouteSheet() { if (routeSheet != null) routeSheet.setVisibility(View.GONE); }
 
     private void setAudioRouteAndRefresh(String route) {

@@ -103,9 +103,23 @@ public class SahaplayConnection extends Connection {
         declineFromUi();
     }
 
+    // Telecom releasing ITS OWN bookkeeping for this self-managed connection
+    // is not the same thing as the real call needing to end — self-managed
+    // Telecom integration has been unreliable throughout this project on
+    // OEM skins like the ones this app is tested on (see the ring/answer/
+    // decline "guaranteed" work earlier — all deliberately built to not
+    // depend on Telecom succeeding at anything). If Telecom spuriously fires
+    // this (audio-focus churn, another app's call, or any other
+    // Telecom-internal reason unrelated to the actual WebRTC connection),
+    // previously calling CallEngineService.endCall() here would take the
+    // real, still-healthy call down with it — a plausible explanation for a
+    // call silently dying a minute or two in with no user action. The
+    // user's own End button already calls endCall() directly, and a genuine
+    // remote hangup arrives over the signaling socket/REST (see
+    // CallEngineService.teardown()'s own disconnectFromEngine() call) — this
+    // callback now only releases Telecom's bookkeeping, not the call itself.
     @Override
     public void onDisconnect() {
-        CallEngineService.get(appContext).endCall();
         safeDisconnect(DisconnectCause.LOCAL);
     }
 

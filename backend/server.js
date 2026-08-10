@@ -3710,6 +3710,34 @@ app.post('/api/calls/:callId/decline', (req, res) => {
   res.status(404).json({ error: 'No such ringing call' });
 });
 
+// Guaranteed-delivery accept path — mirrors the decline route above, same
+// deliberately-unauthenticated, callId-gated reasoning: CallEngineService.
+// acceptIncomingCall() (Android native engine) previously ONLY emitted
+// call:accept over the socket, which can still be mid-connect the instant
+// a cold-started answer happens (answering directly from a push-triggered
+// notification while the process was freshly woken). When that emit was
+// silently dropped, this call's activeCalls/status entry never flipped to
+// 'active' and the caller never got 'call:answered' — the callee's own
+// screen still showed "connected" (its optimistic local UI), while the
+// caller's stayed stuck on "ringing" indefinitely. Mirrors call:accept's
+// socket handler exactly, minus the same-device 'call:accepted' ack (the
+// native client already flips its own UI optimistically and doesn't wait
+// for one).
+app.post('/api/calls/:callId/accept', (req, res) => {
+  const { callId } = req.params;
+  const calleeUsername = (req.body?.calleeUsername || '').toLowerCase();
+  if (!callId || !calleeUsername) return res.status(400).json({ error: 'callId and calleeUsername required' });
+  const call = activeCalls.get(callId);
+  if (!call) return res.status(404).json({ error: 'No such ringing call' });
+  if (call.callee !== calleeUsername || call.status !== 'ringing') return res.status(404).json({ error: 'No such ringing call' });
+  clearTimeout(call.timeoutHandle);
+  call.status = 'active';
+  call.answeredAt = Date.now();
+  emitToUser(call.caller, 'call:answered', { callId, answeredAt: call.answeredAt });
+  sendCallCancelPush(call.callee, callId);
+  res.json({ success: true, answeredAt: call.answeredAt });
+});
+
 // Native-only end path for the ongoing-call notification's Hang Up button
 // (see SahaplayCallService.java / CallActionReceiver.java) — same
 // deliberately-unauthenticated, callId-gated reasoning as the decline route

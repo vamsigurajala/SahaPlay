@@ -254,6 +254,18 @@ public class CallEngineService {
         } catch (Exception e) {
             Log.e(TAG, "acceptIncomingCall failed", e);
         }
+        // The socket emit above is best-effort only — answering directly
+        // from a push-triggered notification/full-screen intent can fire
+        // while the socket is still mid-connect (a cold app process just
+        // woke up for this exact call), the same class of gap endCall() and
+        // declineIncomingCall() already guard against. If it's dropped, the
+        // server's status never flips to 'active' and the caller never gets
+        // 'call:answered' — this device shows "connected" (its own
+        // optimistic UI below) while the caller's stays stuck on "ringing"
+        // indefinitely. postAcceptRest() guarantees the server learns
+        // regardless of socket state.
+        String myUname = myUsername != null ? myUsername : (keyStore != null ? keyStore.loadUsername() : null);
+        if (myUname != null) postAcceptRest(callId, myUname);
         // Tells Telecom the call is live (audio focus, Bluetooth routing) —
         // redundant with SahaplayConnection.answerFromUi()'s own setActive()
         // call when THAT'S how this got invoked, but this method is now also
@@ -267,8 +279,35 @@ public class CallEngineService {
         prepareLocalVideoIfNeeded(cs);
         startOngoingCallForegroundService(cs);
         launchActiveCallActivity(cs);
+        // This device already knows definitively it just answered — cancel
+        // its own incoming-call notification/full-screen UI immediately
+        // rather than waiting on the server's sendCallCancelPush round trip
+        // (which, via FCM back to this same device, was the reason the
+        // incoming notification stayed up alongside the new ongoing-call one
+        // for a noticeable moment after tapping Answer).
+        IncomingCallActivity.cancelForCallId(appContext, callId);
         CallUiListener l = uiListener;
         if (l != null) l.onCallActive();
+    }
+
+    private void postAcceptRest(String callId, String calleeUsername) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(API_BASE + "/api/calls/" + URLEncoder.encode(callId, "UTF-8") + "/accept");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                String body = "{\"calleeUsername\":\"" + calleeUsername.replace("\"", "") + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     // Declines over plain REST rather than the socket — deliberately the
@@ -317,6 +356,7 @@ public class CallEngineService {
             intent.putExtra(SahaplayCallService.EXTRA_STATUS, "active");
             intent.putExtra(SahaplayCallService.EXTRA_USERNAME, myUsername);
             intent.putExtra(SahaplayCallService.EXTRA_CALL_ID, cs.callId);
+            intent.putExtra(SahaplayCallService.EXTRA_PEER_AVATAR_URL, cs.peerAvatarUrl);
             ContextCompat.startForegroundService(appContext, intent);
         } catch (Exception e) {
             Log.e(TAG, "startOngoingCallForegroundService failed", e);
