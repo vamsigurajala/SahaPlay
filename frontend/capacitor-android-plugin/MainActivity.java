@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SahaplayMediaPlugin.class);
+        registerPlugin(SahaplayCallPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Several OEM Android skins (Samsung/Xiaomi's own system-wide

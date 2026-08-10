@@ -386,6 +386,11 @@ jobs:
       # never do): see the extensive comments in both files and in
       # AndroidManifest.xml for how these fit together with Capacitor's own
       # push-notifications plugin without breaking it.
+      # Phase 2 native calling engine files (see the plan doc) — plain
+      # copies into the generated project, same "source of truth lives
+      # under capacitor-android-plugin/" pattern as every other native file
+      # here. SahaplayCallPlugin.java is the new JS<->native bridge;
+      # MainActivity.java (copied below) registers it.
       - name: Add native plugin, MainActivity, and manifest permissions
         working-directory: frontend
         run: |
@@ -400,6 +405,17 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp capacitor-android-plugin/res/drawable/ic_call_decline.xml android/app/src/main/res/drawable/ic_call_decline.xml
           cp capacitor-android-plugin/res/drawable/ic_call_answer.xml android/app/src/main/res/drawable/ic_call_answer.xml
+          cp capacitor-android-plugin/CallCrypto.java android/app/src/main/java/com/sahaplay/app/CallCrypto.java
+          cp capacitor-android-plugin/SecretKeyStore.java android/app/src/main/java/com/sahaplay/app/SecretKeyStore.java
+          cp capacitor-android-plugin/PublicKeyCache.java android/app/src/main/java/com/sahaplay/app/PublicKeyCache.java
+          cp capacitor-android-plugin/IceCandidateBuffer.java android/app/src/main/java/com/sahaplay/app/IceCandidateBuffer.java
+          cp capacitor-android-plugin/TurnCredentialsFetcher.java android/app/src/main/java/com/sahaplay/app/TurnCredentialsFetcher.java
+          cp capacitor-android-plugin/CallSocketClient.java android/app/src/main/java/com/sahaplay/app/CallSocketClient.java
+          cp capacitor-android-plugin/LocalMediaController.java android/app/src/main/java/com/sahaplay/app/LocalMediaController.java
+          cp capacitor-android-plugin/PeerConnectionWrapper.java android/app/src/main/java/com/sahaplay/app/PeerConnectionWrapper.java
+          cp capacitor-android-plugin/CallSession.java android/app/src/main/java/com/sahaplay/app/CallSession.java
+          cp capacitor-android-plugin/CallEngineService.java android/app/src/main/java/com/sahaplay/app/CallEngineService.java
+          cp capacitor-android-plugin/SahaplayCallPlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayCallPlugin.java
 
       - name: Sync Capacitor project
         working-directory: frontend

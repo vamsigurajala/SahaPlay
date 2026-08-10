@@ -8,6 +8,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
+import NativeCallDebugPanel from './components/NativeCallDebugPanel';
 import { appCache } from './cache/appCache.js';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
@@ -1811,6 +1812,7 @@ const AppSettings = () => {
       />
       <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
       <DownloadAppModal isOpen={showDownloadAppModal} onClose={() => setShowDownloadAppModal(false)} />
+      <NativeCallDebugPanel />
     </div>
   );
 };
