@@ -267,6 +267,11 @@ public class OutgoingCallActivity extends android.app.Activity implements CallEn
 
     // ─── CallEngineService.CallUiListener ───
 
+    @Override public void onLocalVideoTrack(org.webrtc.VideoTrack track) {
+        // No local preview on this screen — ActiveCallActivity owns video
+        // rendering once the call connects.
+    }
+
     @Override public void onRemoteVideoTrack(org.webrtc.VideoTrack track) {
         // Nothing to render here — ActiveCallActivity (already launched by
         // CallEngineService the moment the call became active) owns video

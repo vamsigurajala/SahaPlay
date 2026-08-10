@@ -211,7 +211,6 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
     private void buildAvatarLayer(CallSession session) {
         FrameLayout layer = new FrameLayout(this);
         layer.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
-        layer.setGravity(Gravity.CENTER);
         avatarLayer = layer;
 
         int avatarSize = dp(112);
