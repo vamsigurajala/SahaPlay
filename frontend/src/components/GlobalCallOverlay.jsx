@@ -11,6 +11,7 @@ import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 import { syncStatusBarTheme } from '../lib/nativeShell';
 import { isPendingNativeCallAnswer } from '../lib/nativeCallBridge';
+import { isAndroidApp } from '../lib/platform';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
 // app can get to a real ringtone without native code. This only plays while
@@ -173,7 +174,11 @@ export default function GlobalCallOverlay() {
     return () => { if (mq.removeEventListener) mq.removeEventListener('change', update); else mq.removeListener(update); };
   }, []);
 
-  useRingSound(callState?.phase === 'incoming');
+  // On Android, IncomingCallActivity.java already rings (phone's own
+  // ringtone, full-screen even over a locked/foregrounded app) for every
+  // incoming call — this Web Audio ringback would just double up on top of
+  // it, so it's skipped there entirely rather than raced against.
+  useRingSound(callState?.phase === 'incoming' && !isAndroidApp());
   useRingSound(callState?.phase === 'outgoing');
 
   // Every phase of this overlay (ringing or active) paints a permanently
@@ -256,13 +261,19 @@ export default function GlobalCallOverlay() {
 
   // ─── Incoming / Outgoing ringing screens ───
   const isIncoming = callState.phase === 'incoming';
-  // Tapping Answer on the native lock-screen call UI already told us
-  // (nativeCallBridge.js) which callId to auto-accept — if that's THIS call,
-  // don't show the Answer/Decline prompt again just because this screen
-  // hasn't caught up to CallContext's auto-accept yet. Showing it anyway is
-  // exactly the "how many times do I have to click Answer" bug: the user
-  // already answered once, natively.
-  const isAutoAnswering = isIncoming && isPendingNativeCallAnswer(callState.callId);
+  // On Android, IncomingCallActivity.java has ALREADY shown a full-screen
+  // native Answer/Decline ring UI for every incoming call, unconditionally,
+  // before this ever renders (see SahaplayFirebaseMessagingService's
+  // "guaranteed ring" — foreground, background, or locked, it's always
+  // native first). Showing this JS Answer/Decline pair again underneath it
+  // is always redundant there, not just during the brief window where the
+  // native Answer button's sahaplay://call-answer deep link hasn't landed
+  // yet (isPendingNativeCallAnswer) — that check alone left a real race
+  // (call:incoming arriving over this socket before the deep link intent is
+  // processed) where the buttons flashed briefly before auto-accept caught
+  // up. Everywhere else (web, iOS-someday), there's no native ring screen,
+  // so the JS prompt is the only way to answer/decline at all.
+  const isAutoAnswering = isIncoming && (isAndroidApp() || isPendingNativeCallAnswer(callState.callId));
   return (
     <div style={overlayStyle}>
       <style>{`

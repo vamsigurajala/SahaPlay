@@ -14,12 +14,35 @@ import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
-import { isTauriApp, isStandalonePWA } from './lib/platform';
+import { isTauriApp, isStandalonePWA, isCapacitorApp } from './lib/platform';
 import { requestMediaAccess } from './lib/mediaPermissionGate';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
 const MIN_SKELETON_MS = 500;
+
+// Sentinel "device ids" for phone/tablet camera selection — see the matching
+// comment on isMobileCameraDevice() below for why these exist instead of
+// relying on enumerateDevices()'s real deviceIds on mobile.
+const FACING_PREFIX = 'facing:';
+const FACING_FRONT = FACING_PREFIX + 'user';
+const FACING_BACK = FACING_PREFIX + 'environment';
+
+// navigator.mediaDevices.enumerateDevices() is unreliable for telling front
+// and back cameras apart on a lot of real Android phones/tablets — on some
+// devices/WebViews it only ever surfaces ONE videoinput entry regardless of
+// how many physical cameras exist, so "Back Camera" never appeared as a
+// selectable option at all (this is exactly why CallContext.jsx's own
+// in-call flipCamera() never used deviceId selection either — see its
+// comment on facingMode — and does a plain facingMode getUserMedia request
+// instead, which works reliably across devices). On mobile/tablet we mirror
+// that: skip deviceId enumeration for the picker entirely and always offer
+// a fixed Front/Back pair driven by facingMode. Desktop/web (real external
+// webcams, no facingMode concept) keeps the existing enumerateDevices()
+// dropdown unchanged.
+function isMobileCameraDevice() {
+  return isCapacitorApp() || (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
+}
 
 // ─── Accent theme swatch ──────────────────────────────────────────────────
 // Square tile (not a circle) with the theme's name always visible underneath,
@@ -115,6 +138,30 @@ function CameraPreview({ selectedCam, t, isLight, micDevices = [], onStaleDevice
   // stale (unplugged, browser profile reset, etc. — surfaces as
   // OverconstrainedError/NotFoundError, not a real permission denial).
   const acquireStream = async (camId) => {
+    // Front/Back sentinel (see FACING_PREFIX above) — request by facingMode,
+    // not deviceId. Exact-match first (guarantees the physical camera
+    // actually flips), softening to a hint-only match if the device can't
+    // satisfy "exact" but does have a usable camera in roughly that
+    // direction — same two-step pattern CallContext.jsx's flipCamera uses.
+    if (camId && camId.startsWith(FACING_PREFIX)) {
+      const facing = camId.slice(FACING_PREFIX.length);
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: facing } } });
+      } catch (err) {
+        try {
+          return await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+        } catch (err2) {
+          // Genuinely no camera facing that direction on this device (e.g. a
+          // tablet with only a front camera) — same "fall back to whatever
+          // default the device has" recovery as a stale real deviceId below.
+          if (err2.name === 'OverconstrainedError' || err2.name === 'NotFoundError') {
+            onStaleDevice?.();
+            return await navigator.mediaDevices.getUserMedia({ video: true });
+          }
+          throw err2;
+        }
+      }
+    }
     const constraints = { video: camId ? { deviceId: { exact: camId } } : true };
     try {
       return await navigator.mediaDevices.getUserMedia(constraints);
@@ -674,11 +721,21 @@ const AppSettings = () => {
       
       const devices = await navigator.mediaDevices?.enumerateDevices();
       const mics = devices.filter(d => d.kind === 'audioinput');
-      const cams = devices.filter(d => d.kind === 'videoinput');
-      
+      // See isMobileCameraDevice()'s comment — on phones/tablets, replace
+      // whatever enumerateDevices() found (often just one entry, or two
+      // indistinguishable ones) with a fixed Front/Back pair driven by
+      // facingMode instead, which is what actually reflects real hardware
+      // there. Desktop/web keeps the real enumerated device list.
+      const cams = isMobileCameraDevice()
+        ? [
+            { deviceId: FACING_FRONT, label: t ? t('frontCamera', 'Front Camera') : 'Front Camera' },
+            { deviceId: FACING_BACK, label: t ? t('backCamera', 'Back Camera') : 'Back Camera' },
+          ]
+        : devices.filter(d => d.kind === 'videoinput');
+
       setMicDevices(mics);
       setCamDevices(cams);
-      
+
       // Auto-select first device if none selected
       if (mics.length > 0 && !selectedMic) {
         const d = mics[0].deviceId;

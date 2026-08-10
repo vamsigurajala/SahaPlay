@@ -2979,6 +2979,14 @@ const GlobalChatWidget = forwardRef(({
           if (onNewMessage) onNewMessage(partner, msg);
           
           let skipToast = false;
+          // Call-log control messages ("sahaplay_call{...}") are rendered
+          // specially inside the chat bubble itself (see the CALL_LOG_PREFIX
+          // check further down this file) — showing them here would leak the
+          // raw, un-templated control string as toast text (e.g.
+          // `sahaplay_call{"callType":"voice","status":"m...`). The call's
+          // own native/JS UI already told the user it ended; this toast
+          // would just be unwanted, malformed-looking noise on top of that.
+          if (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) skipToast = true;
           // 1. Check if user is looking at this chat in the Global Widget itself
           if (isViewingThis) skipToast = true;
 

@@ -620,8 +620,19 @@ public class IncomingCallActivity extends android.app.Activity {
         if (idx < 0) return null;
         int colon = json.indexOf(':', idx + marker.length());
         if (colon < 0) return null;
-        int startQuote = json.indexOf('"', colon + 1);
-        if (startQuote < 0) return null;
+        // Skip whitespace between the colon and the value. A user with no
+        // avatar has a real "avatarPath":null in the response — without this
+        // check, the old code went straight to indexOf('"', ...) and matched
+        // the OPENING QUOTE OF A COMPLETELY UNRELATED LATER FIELD (e.g.
+        // "bio":"...") instead, silently returning that field's text as if
+        // it were the avatar path/display name. That bogus value then failed
+        // to load as an image/name (caught and swallowed), which looked
+        // identical to "no avatar" — same visible symptom, wrong reason, and
+        // a latent risk of leaking an unrelated field's value.
+        int i = colon + 1;
+        while (i < json.length() && Character.isWhitespace(json.charAt(i))) i++;
+        if (i >= json.length() || json.charAt(i) != '"') return null;
+        int startQuote = i;
         int endQuote = startQuote + 1;
         while (endQuote < json.length() && json.charAt(endQuote) != '"') {
             if (json.charAt(endQuote) == '\\') endQuote++;

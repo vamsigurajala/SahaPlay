@@ -17,6 +17,14 @@ export function isCapacitorApp() {
   return typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
 }
 
+// Android specifically, as opposed to iOS/Tauri-desktop — used where a
+// behavior only applies to the native Android calling engine (see
+// CallEngineService.java/IncomingCallActivity.java), which has no iOS
+// equivalent yet.
+export function isAndroidApp() {
+  return isCapacitorApp() && window.Capacitor?.getPlatform?.() === 'android';
+}
+
 // Detects the installed-PWA / Android TWA / Capacitor context so app-shell
 // chrome (like the bottom nav bar and the centered script wordmark) renders
 // only there, never in a regular mobile browser tab. Four signals, since no
