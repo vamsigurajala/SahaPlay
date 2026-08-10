@@ -52,19 +52,19 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             String calleeUsername = data.get("calleeUsername");
             if (callId == null || callerUsername == null) return;
 
+            // GUARANTEED ring, unconditionally — see the long comment below
+            // for why this is no longer gated behind Telecom's outcome.
+            // This is the exact call/path that reliably worked before
+            // Phase 3 ever touched this file.
+            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername);
+
             // Fire-and-forget on its own thread, deliberately decoupled
-            // from the actual ring-triggering code below. ensureSelfInitialized()
-            // stands up the real WebRTC engine (PeerConnectionFactory/
-            // EglBase), which some WebRTC internals assume runs on a
-            // thread with a Looper prepared — FCM's own delivery thread
-            // has none. Calling it inline here previously meant a thrown
-            // exception/error from that setup killed onMessageReceived()
-            // outright, BEFORE the Telecom/fallback-notification code
-            // below ever ran — the observed symptom was total silence on
-            // an incoming call: no ring, no fallback notification, nothing
-            // at all. The socket only actually needs to be ready by the
-            // time Answer is tapped (seconds later, while the ring UI is
-            // already showing), not before ringing starts.
+            // from the ring above. ensureSelfInitialized() stands up the
+            // real WebRTC engine (PeerConnectionFactory/EglBase), which
+            // some WebRTC internals assume runs on a thread with a Looper
+            // prepared — FCM's own delivery thread has none. The socket
+            // only actually needs to be ready by the time Answer is tapped
+            // (seconds later), not before ringing starts.
             new Thread(() -> {
                 try {
                     CallEngineService.get(getApplicationContext()).ensureSelfInitialized();
@@ -73,19 +73,25 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 }
             }).start();
 
-            // Phase 3: route through Telecom for real background/lock-
-            // screen answering (system audio-focus/Bluetooth arbitration,
-            // answerable straight from a locked screen without opening the
-            // app UI at all) instead of the old direct-notification path.
-            // Falls back to that old path if Telecom itself refuses the
-            // call (PhoneAccount not yet registered/enabled on this OEM,
-            // MANAGE_OWN_CALLS somehow missing, or any other Telecom
-            // quirk) — degraded (opens the app on Answer, same as before
-            // Phase 3) is better than never ringing at all. Catches
-            // Throwable, not just Exception — the same class of "some
-            // WebRTC/Telecom internal threw something uncaught" risk
-            // applies here too, and this is the one place that absolutely
-            // must not fail silently.
+            // Best-effort Telecom integration layered OPPORTUNISTICALLY on
+            // top of the guaranteed ring above — real audio-focus/Bluetooth
+            // arbitration and true background answering when it works, but
+            // no longer the only path to any UI showing at all. Real-device
+            // testing (MIUI) showed addNewIncomingCall() can return
+            // normally, with no exception thrown, while Telecom silently
+            // never invokes onCreateIncomingConnection()/onShowIncomingCallUi()
+            // afterwards — almost certainly the self-managed PhoneAccount
+            // needing to be manually enabled in system Calling-account
+            // settings on that OEM, which no code here can force. Treating
+            // "addNewIncomingCall didn't throw" as "it will definitely
+            // ring" was the actual bug: it meant that silent-failure mode
+            // produced total silence, a regression from the
+            // reliably-working pre-Phase-3 behavior. If/when Telecom DOES
+            // cooperate on a given device, SahaplayConnectionService still
+            // creates a real Connection, and IncomingCallActivity's Answer/
+            // Decline already prefer it over the plain REST/deep-link path
+            // (see SahaplayConnection.getCurrent() there) — so nothing is
+            // lost by no longer gating the ring on this succeeding.
             try {
                 PhoneAccountRegistrar.register(this);
                 TelecomManager telecomManager = (TelecomManager) getSystemService(Context.TELECOM_SERVICE);
@@ -98,8 +104,7 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, callExtras);
                 telecomManager.addNewIncomingCall(PhoneAccountRegistrar.getHandle(this), extras);
             } catch (Throwable t) {
-                android.util.Log.e("SahaplayFCM", "Telecom addNewIncomingCall failed, falling back", t);
-                IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername);
+                android.util.Log.e("SahaplayFCM", "Telecom addNewIncomingCall failed (non-fatal, ring already showing)", t);
             }
         } else if ("call-cancel".equals(data.get("type"))) {
             // Sent the moment a ringing call is resolved any way (declined,
