@@ -409,7 +409,40 @@ public class CallEngineService {
             payload.put("callId", cs.callId);
             socketClient.emit("call:end", payload);
         } catch (Exception ignored) {}
+        // The socket emit above is best-effort only — if it doesn't land
+        // (socket mid-reconnect, which teardown()'s own service/media
+        // teardown right below can trigger), the server's activeCalls/
+        // userActiveCallId entries for BOTH participants never clear, since
+        // there's no timeout for an already-active call (only 'ringing' has
+        // one). That leaves this pair permanently "busy" for every future
+        // call attempt until the server restarts. postEndRest() mirrors
+        // postDeclineRest()'s guaranteed-delivery pattern via the same
+        // deliberately-unauthenticated /api/calls/:callId/end REST endpoint
+        // SahaplayCallService's Hang Up notification button already relies
+        // on for exactly this reason.
+        String username = myUsername != null ? myUsername : (keyStore != null ? keyStore.loadUsername() : null);
+        if (username != null) postEndRest(cs.callId, username);
         teardown("ended");
+    }
+
+    private void postEndRest(String callId, String username) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(API_BASE + "/api/calls/" + URLEncoder.encode(callId, "UTF-8") + "/end");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                String body = "{\"username\":\"" + username.replace("\"", "") + "\"}";
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     // ─── In-call controls (ActiveCallActivity) ───

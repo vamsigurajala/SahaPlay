@@ -85,6 +85,8 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
     private TextView timerLabel;
     private ImageView micBtn;
     private ImageView camBtn;
+    private ImageView flipBtn;
+    private LinearLayout flipColumn;
     private ImageView routeBtn;
     private TextView routeLabel;
     private LinearLayout routeSheet;
@@ -294,18 +296,31 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         dockBox.addView(dockColumn(routeBtn, routeLabel), dockButtonParams());
 
         if (isVideo) {
-            camBtn = iconOnly(R.drawable.ic_call_answer);
+            camBtn = iconOnly(R.drawable.ic_video_cam);
             camBtn.setOnClickListener(v -> {
                 CallEngineService.get(this).toggleCam();
                 updateCamButton(CallEngineService.get(this).isCamOn());
+                refreshFlipButtonVisibility();
             });
             TextView camLabel = new TextView(this);
             camLabel.setText("Video");
             styleDockLabel(camLabel);
             dockBox.addView(dockColumn(camBtn, camLabel), dockButtonParams());
+
+            // Explicit, discoverable flip-camera control — tapping the PiP
+            // tile itself also flips (see buildVideoLayer), but that's not
+            // obvious on its own; this dock button is the real affordance,
+            // matching OneOnOneCallScreen.jsx's own dedicated Flip button.
+            flipBtn = iconOnly(R.drawable.ic_switch_camera);
+            flipBtn.setOnClickListener(v -> CallEngineService.get(this).flipCamera());
+            TextView flipLabel = new TextView(this);
+            flipLabel.setText("Flip");
+            styleDockLabel(flipLabel);
+            flipColumn = dockColumn(flipBtn, flipLabel);
+            dockBox.addView(flipColumn, dockButtonParams());
         }
 
-        micBtn = iconOnly(R.drawable.ic_call_answer);
+        micBtn = iconOnly(R.drawable.ic_mic);
         micBtn.setOnClickListener(v -> {
             CallEngineService.get(this).toggleMic();
             updateMicButton(CallEngineService.get(this).isMicOn());
@@ -380,12 +395,9 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
     }
 
     private int routeIconRes() {
-        // Reuses the existing answer/decline drawables as stand-ins — a
-        // dedicated speaker/bluetooth icon set wasn't part of this asset
-        // pack; visually distinct enough (green vs red-styled backgrounds
-        // aren't used here, just the glyph) not to be confused with the
-        // call-control meaning those drawables carry elsewhere.
-        return R.drawable.ic_call_answer;
+        if ("bluetooth".equals(audioRoute)) return R.drawable.ic_route_bluetooth;
+        if ("speaker".equals(audioRoute)) return R.drawable.ic_route_speaker;
+        return R.drawable.ic_route_earpiece;
     }
 
     private String routeLabelText() {
@@ -536,6 +548,14 @@ public class ActiveCallActivity extends android.app.Activity implements CallEngi
         int pad = dp(12);
         camBtn.setPadding(pad, pad, pad, pad);
         if (localRenderer != null) localRenderer.setVisibility(camOn && attachedLocalTrack != null ? View.VISIBLE : View.GONE);
+        refreshFlipButtonVisibility();
+    }
+
+    // Nothing to flip with the camera off — matches OneOnOneCallScreen.jsx's
+    // own `{isVideo && isCamOn && (...Flip...)}` gating.
+    private void refreshFlipButtonVisibility() {
+        if (flipColumn == null) return;
+        flipColumn.setVisibility(CallEngineService.get(this).isCamOn() ? View.VISIBLE : View.GONE);
     }
 
     // Shows the remote video layer only when there's an actual track AND
