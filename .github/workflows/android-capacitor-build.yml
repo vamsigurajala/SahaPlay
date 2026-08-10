@@ -236,6 +236,57 @@ jobs:
           EOF
           cat android/app/build.gradle
 
+      # Native calling engine (Phase 1 of the WhatsApp-style native-calling
+      # project — see the plan doc for the full picture). Four new
+      # dependencies, none previously used anywhere in this project:
+      #   - stream-webrtc-android: the actively-maintained community rebuild
+      #     of the same Chromium WebRTC source Google used to publish as
+      #     org.webrtc:google-webrtc (now deprecated/unpublished) — same
+      #     org.webrtc.* API surface, used for the native RTCPeerConnection
+      #     mesh.
+      #   - socket.io-client: a real Java/Android Socket.IO client, matching
+      #     this project's backend (socket.io@^4.8.3, Engine.IO v4) — the
+      #     native engine runs its own authenticated socket connection
+      #     alongside (not instead of) the WebView's own, speaking the exact
+      #     same call:* event protocol already used by CallContext.jsx.
+      #   - lazysodium-android (+ its required jna:android-classifier
+      #     dependency): libsodium's crypto_box_easy/crypto_box_open_easy is
+      #     the same X25519 + XSalsa20-Poly1305 construction TweetNaCl's
+      #     nacl.box implements (frontend/src/lib/crypto.js) — mandatory for
+      #     the native engine's offer/answer/ICE payloads to actually
+      #     decrypt on a real web/desktop peer, not just compile.
+      #   - androidx.security:security-crypto: Keystore-backed
+      #     EncryptedSharedPreferences, for storing the user's long-term NaCl
+      #     secret key (handed over once from JS) between calls.
+      #
+      # Honesty note, exact same shape as the Firebase step above: these
+      # exact version numbers were NOT independently confirmed against a
+      # real Gradle resolution before this first run (Maven Central/Google's
+      # own repository lookups were unavailable in the environment this was
+      # authored in) — if any of the four fails to resolve, that fails
+      # LOUDLY here (a normal Gradle dependency-resolution error naming the
+      # exact missing coordinate), not silently later. Fix the specific
+      # version from the real error and re-run; this is Phase 1's entire
+      # purpose — proving the dependency set resolves and survives this
+      # project's bundletool-based AAB→APK conversion (lazysodium ships a
+      # real per-ABI native .so via JNI, the first JNI-bearing dependency
+      # this project has ever added) — before any calling logic is written
+      # on top of it.
+      - name: Add native calling engine dependencies (Phase 1 scaffolding)
+        working-directory: frontend
+        run: |
+          cat >> android/app/build.gradle <<'EOF'
+
+          dependencies {
+              implementation 'io.getstream:stream-webrtc-android:1.3.1'
+              implementation 'io.socket:socket.io-client:2.1.2'
+              implementation 'com.goterl:lazysodium-android:5.1.4@aar'
+              implementation 'net.java.dev.jna:jna:5.13.0@aar'
+              implementation 'androidx.security:security-crypto:1.1.0'
+          }
+          EOF
+          cat android/app/build.gradle
+
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic
       # placeholder icon and does nothing with our actual logo — this is why
