@@ -25,6 +25,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -209,9 +210,18 @@ public class IncomingCallActivity extends android.app.Activity {
             try {
                 URL url = new URL(API_BASE + "/api/users/" + Uri.encode(callerUsername));
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                // See the matching comment in fetchCallerDetails() — same
+                // request, called from the notification path instead of the
+                // full-screen ring Activity, so it needs the same hardening.
+                conn.setRequestProperty("User-Agent", "SahaPlay-Android");
+                conn.setRequestProperty("Accept", "application/json");
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
-                if (conn.getResponseCode() != 200) return;
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    Log.w("SahaplayIncomingCall", "fetchAndRefreshNotificationAvatar: GET " + url + " -> " + code);
+                    return;
+                }
                 StringBuilder sb = new StringBuilder();
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
@@ -221,9 +231,14 @@ public class IncomingCallActivity extends android.app.Activity {
                 if (avatarPath == null || avatarPath.isEmpty()) return;
                 String avatarUrl = avatarPath.startsWith("http") ? avatarPath : (API_BASE + avatarPath);
                 HttpURLConnection imgConn = (HttpURLConnection) new URL(avatarUrl).openConnection();
+                imgConn.setRequestProperty("User-Agent", "SahaPlay-Android");
                 imgConn.setConnectTimeout(5000);
                 imgConn.setReadTimeout(5000);
-                if (imgConn.getResponseCode() != 200) return;
+                int imgCode = imgConn.getResponseCode();
+                if (imgCode != 200) {
+                    Log.w("SahaplayIncomingCall", "fetchAndRefreshNotificationAvatar: GET " + avatarUrl + " -> " + imgCode);
+                    return;
+                }
                 Bitmap photo;
                 try (InputStream is = imgConn.getInputStream()) {
                     photo = BitmapFactory.decodeStream(is);
@@ -561,9 +576,25 @@ public class IncomingCallActivity extends android.app.Activity {
                 URL url = new URL(API_BASE + "/api/users/" + Uri.encode(callerUsername));
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
+                // A plain HttpURLConnection sends a Dalvik/JVM User-Agent and no
+                // Accept header by default — indistinguishable from a bot to
+                // some reverse-proxy/WAF setups that only allow browser-looking
+                // traffic through, unlike every OTHER caller of this same
+                // endpoint (JS's fetchUserBrief, the browser/WebView), which
+                // always look like a real browser request. Matching that here
+                // is cheap insurance against exactly this class of silent,
+                // uncatchable failure — caught below only as a generic
+                // IOException with nothing to distinguish it from a real
+                // network error.
+                conn.setRequestProperty("User-Agent", "SahaPlay-Android");
+                conn.setRequestProperty("Accept", "application/json");
                 conn.setConnectTimeout(5000);
                 conn.setReadTimeout(5000);
-                if (conn.getResponseCode() != 200) return;
+                int code = conn.getResponseCode();
+                if (code != 200) {
+                    Log.w("SahaplayIncomingCall", "fetchCallerDetails: GET " + url + " -> " + code);
+                    return;
+                }
                 StringBuilder sb = new StringBuilder();
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
@@ -578,11 +609,14 @@ public class IncomingCallActivity extends android.app.Activity {
                 if (avatarPath != null && !avatarPath.isEmpty()) {
                     String avatarUrl = avatarPath.startsWith("http") ? avatarPath : (API_BASE + avatarPath);
                     fetchAndSetAvatarBitmap(avatarUrl);
+                } else {
+                    Log.w("SahaplayIncomingCall", "fetchCallerDetails: no avatarPath in response for " + callerUsername);
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
                 // No native JSON parser available without adding a dependency —
                 // extractJsonStringField below is a minimal, deliberately narrow
                 // scanner for these two known fields, not a general parser.
+                Log.w("SahaplayIncomingCall", "fetchCallerDetails failed", e);
             }
         }).start();
     }
@@ -593,14 +627,22 @@ public class IncomingCallActivity extends android.app.Activity {
         try {
             URL url = new URL(avatarUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestProperty("User-Agent", "SahaPlay-Android");
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
-            if (conn.getResponseCode() != 200) return;
+            int code = conn.getResponseCode();
+            if (code != 200) {
+                Log.w("SahaplayIncomingCall", "fetchAndSetAvatarBitmap: GET " + url + " -> " + code);
+                return;
+            }
             Bitmap bitmap;
             try (InputStream is = conn.getInputStream()) {
                 bitmap = BitmapFactory.decodeStream(is);
             }
-            if (bitmap == null) return;
+            if (bitmap == null) {
+                Log.w("SahaplayIncomingCall", "fetchAndSetAvatarBitmap: decodeStream returned null for " + avatarUrl);
+                return;
+            }
             Bitmap finalBitmap = bitmap;
             handler.post(() -> {
                 if (avatarImage == null) return;
@@ -609,7 +651,9 @@ public class IncomingCallActivity extends android.app.Activity {
                 avatarImage.setImageDrawable(rounded);
                 avatarImage.setVisibility(View.VISIBLE);
             });
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            Log.w("SahaplayIncomingCall", "fetchAndSetAvatarBitmap failed for " + avatarUrl, e);
+        }
     }
 
     // Deliberately minimal — avoids pulling in a JSON library dependency for

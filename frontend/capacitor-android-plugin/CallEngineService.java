@@ -302,6 +302,20 @@ public class CallEngineService {
     private synchronized void teardown() {
         CallSession cs = session;
         if (cs != null && cs.pc != null) cs.pc.close();
+        // pc.close() only stops THAT PeerConnection's own send/receive — the
+        // actual microphone capture (and the AudioTrack/AudioSource that
+        // feeds it) lives in LocalMediaController, shared/reused across
+        // calls via getOrCreateLocalAudioTrack(), and was never being
+        // released here. WebRTC's native audio device module keeps the mic
+        // open and Android's AudioManager pinned in MODE_IN_COMMUNICATION
+        // for as long as that AudioSource exists, regardless of whether any
+        // PeerConnection is still using it — which is exactly why the
+        // phone's volume rocker kept showing the in-call volume slider
+        // indefinitely after End Call: the recording pipeline was still
+        // live in the background. Releasing it here lets WebRTC actually
+        // stop recording/playout and hand audio focus back; the next call
+        // lazily recreates a fresh track via getOrCreateLocalAudioTrack().
+        if (mediaController != null) mediaController.release();
         if (cs != null) {
             // Tells Telecom to release the call when it ended some way
             // OTHER than the user hanging up via the Connection itself
