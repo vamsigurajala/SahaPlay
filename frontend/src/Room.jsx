@@ -8646,11 +8646,11 @@ const Room = () => {
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); flipCamera(); }}
               title="Switch camera"
+              className="cam-flip-btn"
               style={{
                 position: 'absolute', top: 6, left: 6, zIndex: 4,
                 width: 24, height: 24, borderRadius: '50%',
-                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
-                border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+                backdropFilter: 'blur(6px)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', opacity: isFlippingCam ? 0.5 : 1,
               }}
@@ -9070,11 +9070,11 @@ const Room = () => {
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                     title="Switch camera"
+                    className="cam-flip-btn"
                     style={{
                       position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)',
                       zIndex: 11, width: 26, height: 26, borderRadius: '50%',
-                      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
-                      border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
+                      backdropFilter: 'blur(6px)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', pointerEvents: 'auto', opacity: isFlippingCam ? 0.5 : 1,
                     }}

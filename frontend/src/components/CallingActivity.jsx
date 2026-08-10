@@ -231,25 +231,6 @@ export default function CallingActivity({
     mode === 'video' && p.hasVideo ? (
       <>
         <VideoTileRenderer stream={p.stream} isLocal={p.isLocal} />
-        {/* Flip camera (front/back) — phone/tablet only, own tile only, same
-            as the room's camera bubbles. Laptops have no rear camera. */}
-        {p.isLocal && isCoarsePointer && (
-          <button
-            onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
-            title="Switch camera"
-            style={{
-              position: 'absolute', top: 8, right: 8, zIndex: 5,
-              width: 30, height: 30, borderRadius: '50%',
-              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)',
-              border: '1px solid rgba(255,255,255,0.25)', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', opacity: controlsVisible ? 1 : 0,
-              transition: 'opacity 0.3s ease', pointerEvents: controlsVisible ? 'auto' : 'none',
-            }}
-          >
-            <SwitchCamera size={14} />
-          </button>
-        )}
       </>
     ) : (
       <div className="participant-voice-avatar-wrapper">
@@ -440,6 +421,20 @@ export default function CallingActivity({
                 style={{ background: isCamOn ? 'rgba(var(--brand-1-rgb), 0.18)' : 'rgba(239, 68, 68, 0.18)', color: isCamOn ? 'var(--brand-1-light)' : '#ef4444' }}
               >
                 {isCamOn ? <Video size={20} /> : <VideoOff size={20} />}
+              </button>
+            )}
+
+            {/* Flip camera (front/back) — phone/tablet only. Moved here from a
+                floating button on the video tile itself so it lives with the
+                rest of the call controls instead of overlapping the picture. */}
+            {mode === 'video' && isCamOn && isCoarsePointer && (
+              <button
+                onClick={(e) => { e.stopPropagation(); flipCamera?.(); }}
+                title="Switch camera"
+                className="dock-btn stay-white"
+                style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}
+              >
+                <SwitchCamera size={18} />
               </button>
             )}
 

@@ -9,8 +9,9 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed
 } from 'lucide-react';
+import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
@@ -54,6 +55,44 @@ const formatUsername = (name) => {
   }
   return name;
 };
+
+// WhatsApp-style call-summary bubble — renders in place of raw text whenever
+// a decrypted DM message starts with CALL_LOG_PREFIX (see
+// CallContext.writeCallLog). Mirrors GlobalChatWidget's CallLogBubble so a
+// call log looks identical whether viewed from the global chat widget or a
+// room's own DM tab. Tap to redial, mirroring WhatsApp.
+function CallLogBubble({ data, isMe, myUsername, onRedial }) {
+  const { callType, status, durationSeconds, initiatedBy } = data || {};
+  const isVideo = callType === 'video';
+  const Icon = isVideo ? Video : Phone;
+  const iWasCaller = !!(initiatedBy && myUsername && initiatedBy.toLowerCase() === myUsername.toLowerCase());
+  let sub = '';
+  let missedForMe = false;
+  if (status === 'ended') {
+    const secs = Math.max(0, Number(durationSeconds) || 0);
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    sub = `${m}:${String(s).padStart(2, '0')}`;
+  } else if (status === 'missed') {
+    sub = iWasCaller ? 'No answer' : 'Missed call';
+    missedForMe = !iWasCaller;
+  } else if (status === 'declined') {
+    sub = iWasCaller ? 'Call declined' : 'You declined';
+  } else if (status === 'busy') {
+    sub = 'Unavailable';
+  }
+  return (
+    <div onClick={onRedial} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: onRedial ? 'pointer' : 'default', minWidth: 130 }}>
+      <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: missedForMe ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.14)' }}>
+        {missedForMe ? <PhoneMissed size={15} color="#ef4444" /> : <Icon size={15} color={isMe ? '#fff' : 'var(--brand-1-light)'} />}
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{isVideo ? 'Video call' : 'Voice call'}</div>
+        <div style={{ fontSize: 11, opacity: 0.8, color: missedForMe ? '#f87171' : undefined }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
 
 const FILE_LIMITS = {
   'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
@@ -1207,6 +1246,7 @@ export default function RoomChatPanel({ p }) {
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
   const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
+  const call = useCall();
 
   const prevGroupMsgCount = React.useRef(p.groupMessages.length);
   const prevFirstGroupMsgId = React.useRef(null);
@@ -3446,6 +3486,20 @@ export default function RoomChatPanel({ p }) {
                                   )}
                                   {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                  ) : (msg.decryptedText !== null && msg.decryptedText?.startsWith(CALL_LOG_PREFIX)) ? (
+                                    (() => {
+                                      let callData = null;
+                                      try { callData = JSON.parse(msg.decryptedText.slice(CALL_LOG_PREFIX.length)); } catch {}
+                                      if (!callData) return <MessageText text="Call" isMe={isMe} />;
+                                      return (
+                                        <CallLogBubble
+                                          data={callData}
+                                          isMe={isMe}
+                                          myUsername={p.username}
+                                          onRedial={p.dmTarget && !call.callState ? () => call.startCall(p.dmTarget, callData.callType) : undefined}
+                                        />
+                                      );
+                                    })()
                                   ) : msg.decryptedText !== null ? (
                                     <MessageText text={msg.decryptedText} isMe={isMe} />
                                   ) : (

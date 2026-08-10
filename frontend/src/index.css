@@ -1558,6 +1558,21 @@ body.sp-mobile-fs-active .room-player-col {
   display: none; /* hidden on desktop */
 }
 
+/* Flip-camera button floating on top of a room camera bubble (own tile) —
+   forced light-grey background + white icon in BOTH themes, !important so
+   it can't be pulled dark by any light-mode text/icon override elsewhere
+   (matches the .stay-white pattern already used for exactly this class of
+   bug in this file). */
+.cam-flip-btn {
+  background: rgba(148,163,184,0.55) !important;
+  border: 1px solid rgba(255,255,255,0.35) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+.cam-flip-btn svg {
+  color: #ffffff !important;
+}
+
 @media (max-width: 639px) {
   /* Hide desktop-only header items */
   .room-desktop-only { display: none !important; }
@@ -1652,6 +1667,7 @@ body.sp-mobile-fs-active .room-player-col {
   }
 
   /* Participants panel: full-width fixed sheet on mobile */
+
   .room-participants-panel {
     position: fixed !important;
     top: calc(64px + var(--sp-status-bar-inset, 0px)) !important;
