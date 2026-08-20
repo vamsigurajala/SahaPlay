@@ -16,7 +16,15 @@ function formatMs(ms, showCentis = true) {
 const R = 115;
 const CIRC = 2 * Math.PI * R;
 
-export default function TimerActivity({ isLight = false }) {
+// Shared across the whole room via the server (see backend/server.js's
+// timer_action/timer_sync handlers) — Start/Pause/Reset used to be 100% local
+// per-client state, so everyone's copy drifted independently instead of
+// staying in sync. The server now owns the authoritative phase/mode/
+// baseValueMs/startedAt/totalMs; every client renders the SAME broadcast
+// (timer_state) by computing elapsed/remaining from the shared startedAt
+// epoch, so a click here shows up for everyone at (network-latency-bound)
+// the same moment, not "whenever their own local ticker happens to notice."
+export default function TimerActivity({ isLight = false, socket, roomId }) {
   const [mode, setMode] = useState('stopwatch');
   const [phase, setPhase] = useState('idle');
   const [elapsed, setElapsed] = useState(0);
@@ -25,17 +33,61 @@ export default function TimerActivity({ isLight = false }) {
   const [cdM, setCdM] = useState(5);
   const [cdS, setCdS] = useState(0);
 
-  const startTimeRef = useRef(null);
+  const startedAtRef = useRef(null);
   const baseValueRef = useRef(0);
   const modeRef = useRef(mode);
   useEffect(() => { modeRef.current = mode; }, [mode]);
 
   const getTotalMs = useCallback(() => (cdH * 3600 + cdM * 60 + cdS) * 1000, [cdH, cdM, cdS]);
 
+  // Applies a server-broadcast state snapshot — the single source of truth,
+  // identical for every client in the room regardless of who triggered it.
+  const applyServerState = useCallback((ts) => {
+    if (!ts) return;
+    setMode(ts.mode);
+    setPhase(ts.phase);
+    baseValueRef.current = ts.baseValueMs || 0;
+    startedAtRef.current = ts.startedAt || null;
+    // Reflects the agreed-on countdown duration in the H/M/S inputs so they
+    // don't silently drift back to whatever this client last typed —
+    // harmless while running (the inputs aren't shown then anyway).
+    if (ts.mode === 'countdown' && ts.totalMs) {
+      const totalSec = Math.round(ts.totalMs / 1000);
+      setCdH(Math.floor(totalSec / 3600));
+      setCdM(Math.floor((totalSec % 3600) / 60));
+      setCdS(totalSec % 60);
+    }
+    if (ts.phase === 'running') {
+      const delta = Date.now() - ts.startedAt;
+      if (ts.mode === 'stopwatch') setElapsed(ts.baseValueMs + delta);
+      else setRemaining(Math.max(0, ts.baseValueMs - delta));
+    } else if (ts.mode === 'stopwatch') {
+      setElapsed(ts.baseValueMs || 0);
+    } else {
+      setRemaining(ts.baseValueMs || 0);
+    }
+  }, []);
+
+  // Learns the room's current timer state the moment this view mounts
+  // (switching into it, joining mid-session, reconnecting) — without this,
+  // a client would only find out about the timer on the NEXT action anyone
+  // takes, showing a stale idle/zero state until then.
+  useEffect(() => {
+    if (!socket || !roomId) return;
+    socket.emit('timer_sync', { roomId });
+  }, [socket, roomId]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const onState = (ts) => applyServerState(ts);
+    socket.on('timer_state', onState);
+    return () => socket.off('timer_state', onState);
+  }, [socket, applyServerState]);
+
   useEffect(() => {
     if (phase !== 'running') return;
     const id = setInterval(() => {
-      const delta = Date.now() - startTimeRef.current;
+      const delta = Date.now() - startedAtRef.current;
       if (modeRef.current === 'stopwatch') {
         setElapsed(baseValueRef.current + delta);
       } else {
@@ -47,26 +99,22 @@ export default function TimerActivity({ isLight = false }) {
     return () => clearInterval(id);
   }, [phase]);
 
-  const handleStart = () => {
-    if (mode === 'stopwatch') {
-      baseValueRef.current = phase === 'paused' ? elapsed : 0;
-      if (phase !== 'paused') setElapsed(0);
-    } else {
-      const total = getTotalMs();
-      if (phase === 'paused' && remaining > 0) { baseValueRef.current = remaining; }
-      else { if (total === 0) return; baseValueRef.current = total; setRemaining(total); }
-    }
-    startTimeRef.current = Date.now();
-    setPhase('running');
+  const emitAction = (action, extra) => {
+    if (!socket || !roomId) return;
+    socket.emit('timer_action', { roomId, action, ...extra });
   };
 
-  const handlePause = () => setPhase('paused');
+  const handleStart = () => {
+    emitAction('start', mode === 'countdown' ? { totalMs: getTotalMs() } : undefined);
+  };
 
-  const handleReset = () => { setPhase('idle'); setElapsed(0); setRemaining(0); };
+  const handlePause = () => emitAction('pause');
+
+  const handleReset = () => emitAction('reset');
 
   const switchMode = (m) => {
     if (phase === 'running') return;
-    setMode(m); setPhase('idle'); setElapsed(0); setRemaining(0);
+    emitAction('mode', { mode: m });
   };
 
   const displayMs = mode === 'stopwatch' ? elapsed : (phase === 'idle' ? getTotalMs() : remaining);

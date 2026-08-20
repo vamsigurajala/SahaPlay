@@ -6074,6 +6074,7 @@ function getSerializableRoom(room, roomId) {
     streamPending: room.streamPending || null,
     subtitles: room.subtitles || null,
     roomTheme: room.roomTheme || 'default',
+    timerState: room.timerState || null,
     users: buildUserList(room)
   };
 }
@@ -8577,6 +8578,78 @@ io.on('connection', (socket) => {
     io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     } catch (err) {
       console.error('[SOCKET] change_media error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // ─── Room activity: shared stopwatch/timer ───
+  // Previously TimerActivity.jsx (frontend/src/components/TimerActivity.jsx) was
+  // 100% local per-client state — Start/Pause/Reset never left the browser tab
+  // that clicked them, so everyone else's copy just drifted independently. The
+  // server is now the single source of truth: every action recomputes
+  // room.timerState here and broadcasts the SAME object to the whole room, and
+  // getSerializableRoom above hands it to anyone who joins/reconnects/switches
+  // to the timer view afterward — no separate "sync on mount" request needed.
+  // Clients render running time as `Date.now() - startedAt + baseValueMs`
+  // (stopwatch) or `baseValueMs - (Date.now() - startedAt)` (countdown), so
+  // everyone converges on the same displayed value regardless of when their
+  // copy of this broadcast actually arrived, rather than each client starting
+  // its own local ticker from 0 the moment the message lands.
+  // A client mounting TimerActivity (switching into the shared timer view,
+  // joining mid-session, or reconnecting) needs the CURRENT state immediately,
+  // not just future timer_action broadcasts — replies only to the requester,
+  // no-op if the room has never had a timer started (nothing to sync to yet).
+  socket.on('timer_sync', ({ roomId: rawRoomId }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId)) return;
+      const ts = rooms.get(roomId).timerState;
+      if (ts) socket.emit('timer_state', ts);
+    } catch (err) {
+      console.error('[SOCKET] timer_sync error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  socket.on('timer_action', ({ roomId: rawRoomId, action, mode, totalMs }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId)) return;
+      const room = rooms.get(roomId);
+      let ts = room.timerState || { mode: 'stopwatch', phase: 'idle', baseValueMs: 0, startedAt: null, totalMs: 0 };
+
+      if (action === 'mode') {
+        if (ts.phase === 'running') return;
+        ts = { mode: mode === 'countdown' ? 'countdown' : 'stopwatch', phase: 'idle', baseValueMs: 0, startedAt: null, totalMs: ts.totalMs };
+      } else if (action === 'start') {
+        if (ts.phase === 'running') return;
+        if (ts.phase === 'paused') {
+          // Resuming — baseValueMs already holds the elapsed/remaining value
+          // from the moment it was paused, nothing to recompute.
+        } else if (ts.mode === 'countdown') {
+          const t = Math.max(0, Number(totalMs) || 0);
+          if (t <= 0) return;
+          ts.totalMs = t;
+          ts.baseValueMs = t;
+        } else {
+          ts.baseValueMs = 0;
+        }
+        ts.startedAt = Date.now();
+        ts.phase = 'running';
+      } else if (action === 'pause') {
+        if (ts.phase !== 'running') return;
+        const delta = Date.now() - ts.startedAt;
+        ts.baseValueMs = ts.mode === 'stopwatch' ? ts.baseValueMs + delta : Math.max(0, ts.baseValueMs - delta);
+        ts.startedAt = null;
+        ts.phase = (ts.mode === 'countdown' && ts.baseValueMs <= 0) ? 'done' : 'paused';
+      } else if (action === 'reset') {
+        ts = { mode: ts.mode, phase: 'idle', baseValueMs: 0, startedAt: null, totalMs: ts.totalMs };
+      } else {
+        return;
+      }
+
+      room.timerState = ts;
+      io.in(roomId).emit('timer_state', ts);
+    } catch (err) {
+      console.error('[SOCKET] timer_action error:', err.message, 'user:', socket.username);
     }
   });
 

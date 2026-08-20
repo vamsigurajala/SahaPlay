@@ -471,6 +471,26 @@ function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
   );
 }
 
+// Every camera tile in this file renders EITHER a <VideoTile> (a <video> element,
+// which plays that stream's audio track too) when hasVideo is true, OR a plain
+// avatar-fallback <div> when it's false (camera off/frozen) — and that avatar div
+// never played the stream's audio at all, so whenever a participant's camera was
+// off, nobody could hear them regardless of their mic state. This is the audio-only
+// counterpart to VideoTile for exactly that fallback branch — never rendered
+// alongside an unmuted VideoTile for the same stream, or the audio track would play
+// through both elements at once. isLocal skips playback entirely (you should never
+// hear your own mic looped back).
+function AudioRenderer({ stream, isLocal }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !stream || isLocal) return;
+    ref.current.srcObject = stream;
+    ref.current.play().catch(() => {});
+  }, [stream, isLocal]);
+  if (isLocal) return null;
+  return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />;
+}
+
 // -------------------------------- Main Room Component --------------------------------
 function looksLikeCiphertext(str) {
   if (!str || typeof str !== 'string' || str.length < 20) return false;
@@ -8630,6 +8650,7 @@ const Room = () => {
               )}
             </div>
           )}
+          {!hasVideo && <AudioRenderer stream={cam.stream} isLocal={cam.isLocal} />}
 
           {/* Focused indicator */}
           {isFocused && (
@@ -8830,6 +8851,7 @@ const Room = () => {
                     )}
                   </div>
                 )}
+                {!hasVideo && <AudioRenderer stream={cam.stream} isLocal={cam.isLocal} />}
 
                 {/* Name bar — auto-hides after 3s with no pointer movement/touch. */}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)', padding: '22px 12px 8px', display: 'flex', alignItems: 'center', gap: 6, opacity: screenActive ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}>
@@ -10728,7 +10750,7 @@ const Room = () => {
                     />
                   </div>
                 ) : mediaUrl === 'activity://timer' ? (
-                  <TimerActivity isLight={isLight} />
+                  <TimerActivity isLight={isLight} socket={socket} roomId={roomId} />
                 ) : (mediaUrl === 'activity://videocall' || mediaUrl === 'activity://voicecall') ? (
                   <CallingActivity
                     mode={mediaUrl === 'activity://videocall' ? 'video' : 'voice'}
@@ -12621,7 +12643,12 @@ const Room = () => {
                 this can safely follow the same show/auto-hide timer as the rest of
                 the control chrome instead of camping on screen indefinitely. */}
             {!isTvMode && (hasMounted && mediaUrl) && !(isScreensharing || isViewer) && !isGameOrActivity(mediaUrl) && !((isTwitch && useCustomTwitchControls) || (isVimeo && useCustomVimeoControls)) && hideCustomControls && (() => {
-              const restoreBtnAutoHide = isTouchPlayer && !isEmbedPlatform(mediaUrl);
+              // Embed platforms (YouTube/SoundCloud) must keep this always visible —
+              // see the comment above. Plain video files should auto-hide on BOTH
+              // touch and desktop; only the desktop style branch below was missing
+              // the opacity/pointerEvents wiring that the touch branch already had,
+              // which is why it used to camp on screen indefinitely on desktop.
+              const restoreBtnAutoHide = !isEmbedPlatform(mediaUrl);
               return (
               <button
                 onClick={() => setHideCustomControls(false)}
@@ -12658,8 +12685,9 @@ const Room = () => {
                   fontWeight: '700',
                   cursor: 'pointer',
                   backdropFilter: 'blur(8px)',
-                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                  pointerEvents: 'auto'
+                  transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease',
+                  opacity: restoreBtnAutoHide && !showControls ? 0 : 1,
+                  pointerEvents: restoreBtnAutoHide && !showControls ? 'none' : 'auto'
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateX(-50%) scale(1.05) translateY(-1px)';
@@ -12995,6 +13023,7 @@ const Room = () => {
                       <span className="stay-white" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>Camera off</span>
                     </div>
                   )}
+                  {!hasVideo && <AudioRenderer stream={focusedCam.stream} isLocal={focusedCam.isLocal} />}
                 </div>
                 {/* Footer */}
                 <div style={{ padding: '9px 14px', fontSize: 11, textAlign: 'center', color: isLight ? '#374151' : 'rgba(255,255,255,0.4)', borderTop: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.05)' }}>
