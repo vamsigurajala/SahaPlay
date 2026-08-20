@@ -301,6 +301,19 @@ const TV_CAM_MIN_W = 190;
 const TV_CAM_MAX_W = 520;
 const TV_CAM_DEFAULT_ZOOM = 45;
 
+// ─── Room camera-share mic constraints ─────────────────────────────────────────
+// The room's "turn on cam/mic" sharing here is NOT a call — that's the separate
+// activity://videocall|voicecall flow (CallingActivity/CallContext), which
+// legitimately wants call-grade audio processing. On Android, Chromium's WebRTC
+// audio capture picks a hardware AudioSource.VOICE_COMMUNICATION (instead of a
+// plain AudioSource.MIC) whenever echoCancellation/autoGainControl/noiseSuppression
+// are requested (the getUserMedia default), and that source is what puts the whole
+// OS into "in a call" audio mode — hardware volume buttons start controlling the
+// call-volume stream instead of media volume, for a feature that was only ever
+// supposed to be casual camera/mic sharing. Explicitly requesting all three off
+// keeps mic capture on the plain MIC source so it behaves like ordinary media audio.
+const ROOM_MIC_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
   if (!name) return '';
@@ -8101,7 +8114,7 @@ const Room = () => {
         };
         const constraints = {
           video: videoConstraints,
-          audio: selectedMic ? { deviceId: { exact: selectedMic } } : true
+          audio: selectedMic ? { deviceId: { exact: selectedMic }, ...ROOM_MIC_CONSTRAINTS } : ROOM_MIC_CONSTRAINTS
         };
         const acquireCamera = async () => {
           try {
@@ -8110,7 +8123,7 @@ const Room = () => {
             console.warn('Failed with exact device constraints, falling back to defaults', exactErr);
             return await navigator.mediaDevices.getUserMedia({
               video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
-              audio: true,
+              audio: ROOM_MIC_CONSTRAINTS,
             });
           }
         };
@@ -8252,15 +8265,15 @@ const Room = () => {
           if (selectedMic) {
             try {
               audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: { deviceId: { exact: selectedMic } },
+                audio: { deviceId: { exact: selectedMic }, ...ROOM_MIC_CONSTRAINTS },
                 video: false,
               });
             } catch {
               // Exact device not accessible in this browser — fall back to system default
-              audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+              audioStream = await navigator.mediaDevices.getUserMedia({ audio: ROOM_MIC_CONSTRAINTS, video: false });
             }
           } else {
-            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: ROOM_MIC_CONSTRAINTS, video: false });
           }
           const newTrack = audioStream.getAudioTracks()[0];
 
