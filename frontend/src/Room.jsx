@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
@@ -460,7 +460,12 @@ function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
 
   return (
     <>
-      <video ref={videoRef} autoPlay playsInline muted={isMuted} style={style} />
+      {/* Always muted here — real audio for every stream plays through the single
+          always-mounted <RemoteAudioBed> further down, decoupled from whether/where
+          this tile happens to be rendered right now. Locally hiding a cam, the
+          "Hide All Cameras" toggle, fullscreen, TV mode, and managed layout all used
+          to silently kill audio too, because it only ever came from this element. */}
+      <video ref={videoRef} autoPlay playsInline muted style={style} />
       {playBlocked && !isMuted && (
         <button onClick={handleUnmute} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 6, zIndex: 10, transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,0,0,0.8)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,0,0,0.6)'}>
           <VolumeX size={18} />
@@ -471,24 +476,89 @@ function VideoTile({ stream, isMuted, style, isLocal, debugLabel }) {
   );
 }
 
-// Every camera tile in this file renders EITHER a <VideoTile> (a <video> element,
-// which plays that stream's audio track too) when hasVideo is true, OR a plain
-// avatar-fallback <div> when it's false (camera off/frozen) — and that avatar div
-// never played the stream's audio at all, so whenever a participant's camera was
-// off, nobody could hear them regardless of their mic state. This is the audio-only
-// counterpart to VideoTile for exactly that fallback branch — never rendered
-// alongside an unmuted VideoTile for the same stream, or the audio track would play
-// through both elements at once. isLocal skips playback entirely (you should never
-// hear your own mic looped back).
-function AudioRenderer({ stream, isLocal }) {
+function SingleRemoteAudio({ stream }) {
   const ref = useRef(null);
   useEffect(() => {
-    if (!ref.current || !stream || isLocal) return;
+    if (!ref.current || !stream) return;
     ref.current.srcObject = stream;
     ref.current.play().catch(() => {});
-  }, [stream, isLocal]);
-  if (isLocal) return null;
-  return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />;
+  }, [stream]);
+  return <audio ref={ref} autoPlay playsInline />;
+}
+
+// Single always-mounted source of truth for every remote camera-share stream's
+// audio (VideoTile's own <video> is always muted — see above) plus lightweight
+// Web Audio volume sampling to drive a Teams-style "who's talking" highlight.
+// Living here, outside every camera-tile layout function, is what makes audio
+// (and the speaking indicator) survive locally hiding a cam, "Hide All Cameras",
+// fullscreen, TV mode, and managed layout — none of which should ever affect
+// whether you can HEAR someone, only whether you can see them.
+function RemoteAudioBed({ remoteStreams, localStream, onSpeakingChange }) {
+  const speakingRef = useRef(new Set());
+
+  // Same "first socketId per username wins" de-dupe the tile layouts use, so we
+  // never double-play audio for a stale duplicate entry.
+  const entries = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    Object.entries(remoteStreams).forEach(([sid, { stream, username: uname }]) => {
+      if (seen.has(uname)) return;
+      seen.add(uname);
+      out.push([sid, stream]);
+    });
+    return out;
+  }, [remoteStreams]);
+
+  useEffect(() => {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const analysers = new Map(); // id -> { source, analyser, data }
+
+    const sources = localStream ? [...entries, ['local', localStream]] : entries;
+    sources.forEach(([id, stream]) => {
+      if (!stream || stream.getAudioTracks().length === 0) return;
+      try {
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.6;
+        source.connect(analyser);
+        analysers.set(id, { source, analyser, data: new Uint8Array(analyser.frequencyBinCount) });
+      } catch { /* stream not analysable (e.g. already closed) — skip it */ }
+    });
+
+    let raf;
+    const SPEAKING_THRESHOLD = 18; // empirical avg byte amplitude ~= audible speech
+    const tick = () => {
+      const next = new Set();
+      analysers.forEach(({ analyser, data }, id) => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        if (sum / data.length > SPEAKING_THRESHOLD) next.add(id);
+      });
+      const prev = speakingRef.current;
+      if (next.size !== prev.size || [...next].some(id => !prev.has(id))) {
+        speakingRef.current = next;
+        onSpeakingChange(next);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      analysers.forEach(({ source }) => { try { source.disconnect(); } catch {} });
+      ctx.close().catch(() => {});
+    };
+  }, [entries, localStream, onSpeakingChange]);
+
+  return (
+    <div style={{ display: 'none' }}>
+      {entries.map(([sid, stream]) => <SingleRemoteAudio key={sid} stream={stream} />)}
+    </div>
+  );
 }
 
 // -------------------------------- Main Room Component --------------------------------
@@ -1068,6 +1138,10 @@ const Room = () => {
   const draggingCamRef = useRef(null); // { id, startX, startY, initialX, initialY }
   const [hasStartedCamOnce, setHasStartedCamOnce] = useState(false);
   const [hiddenCams, setHiddenCams] = useState(new Set());
+  // Ids ('local' or a remote socketId) currently detected as speaking via the
+  // <RemoteAudioBed> AnalyserNode sampling — drives the Teams-style colored
+  // ring on camera tiles below.
+  const [speakingIds, setSpeakingIds] = useState(() => new Set());
   const [isDraggingCam, setIsDraggingCam] = useState(false);
   const [isResizingCam, setIsResizingCam] = useState(false);
   const [isOverRemoveZone, setIsOverRemoveZone] = useState(false);
@@ -8600,6 +8674,7 @@ const Room = () => {
       const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
         ? getAvatarUrl(rawAvatar) : null;
       const isFocused = focusedCameraUserId === cam.id;
+      const isSpeaking = speakingIds.has(cam.id);
 
       const handleTileClick = () => {
         if (!focusVideoEnabled) return;
@@ -8613,12 +8688,16 @@ const Room = () => {
           style={{
             position: 'relative', borderRadius: 12, overflow: 'hidden',
             background: '#000', flexShrink: 0, height: tileHeight,
-            border: isFocused
-              ? '2px solid var(--brand-1-light)'
-              : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'),
-            boxShadow: isFocused
-              ? '0 0 0 3px rgba(129,140,248,0.25), 0 4px 20px rgba(0,0,0,0.5)'
-              : (isLight ? '0 2px 8px rgba(0,0,0,0.06)' : '0 2px 12px rgba(0,0,0,0.4)'),
+            border: isSpeaking
+              ? '2px solid #22c55e'
+              : isFocused
+                ? '2px solid var(--brand-1-light)'
+                : (isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'),
+            boxShadow: isSpeaking
+              ? '0 0 0 3px rgba(34,197,94,0.35), 0 4px 20px rgba(0,0,0,0.5)'
+              : isFocused
+                ? '0 0 0 3px rgba(129,140,248,0.25), 0 4px 20px rgba(0,0,0,0.5)'
+                : (isLight ? '0 2px 8px rgba(0,0,0,0.06)' : '0 2px 12px rgba(0,0,0,0.4)'),
             cursor: focusVideoEnabled ? 'pointer' : 'default',
             transition: 'border 0.15s, box-shadow 0.15s',
           }}
@@ -8650,7 +8729,6 @@ const Room = () => {
               )}
             </div>
           )}
-          {!hasVideo && <AudioRenderer stream={cam.stream} isLocal={cam.isLocal} />}
 
           {/* Focused indicator */}
           {isFocused && (
@@ -8819,6 +8897,7 @@ const Room = () => {
           const uObj = userList.find(u => u.username?.toLowerCase() === cam.username?.toLowerCase());
           const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar;
           const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5) ? getAvatarUrl(rawAvatar) : null;
+          const isSpeaking = speakingIds.has(cam.id);
 
           return (
             <React.Fragment key={cam.id}>
@@ -8827,8 +8906,8 @@ const Room = () => {
                 style={{
                   position: 'fixed', left: center.x - width / 2, top: center.y - height / 2, width, height,
                   borderRadius: 18, overflow: 'hidden', background: '#000',
-                  border: isCarrying ? '2px solid var(--brand-1-light)' : '1px solid rgba(255,255,255,0.12)',
-                  boxShadow: isCarrying ? '0 0 0 3px rgba(129,140,248,0.4), 0 24px 60px rgba(0,0,0,0.7)' : '0 8px 24px rgba(0,0,0,0.5)',
+                  border: isSpeaking ? '2px solid #22c55e' : isCarrying ? '2px solid var(--brand-1-light)' : '1px solid rgba(255,255,255,0.12)',
+                  boxShadow: isSpeaking ? '0 0 0 3px rgba(34,197,94,0.4), 0 8px 24px rgba(0,0,0,0.5)' : isCarrying ? '0 0 0 3px rgba(129,140,248,0.4), 0 24px 60px rgba(0,0,0,0.7)' : '0 8px 24px rgba(0,0,0,0.5)',
                   zIndex: isCarrying ? 100000 : 998,
                   pointerEvents: isCarrying ? 'none' : 'auto',
                   transition: isCarrying ? 'none' : 'left 0.15s, top 0.15s, width 0.2s, height 0.2s, box-shadow 0.15s',
@@ -8851,7 +8930,6 @@ const Room = () => {
                     )}
                   </div>
                 )}
-                {!hasVideo && <AudioRenderer stream={cam.stream} isLocal={cam.isLocal} />}
 
                 {/* Name bar — auto-hides after 3s with no pointer movement/touch. */}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)', padding: '22px 12px 8px', display: 'flex', alignItems: 'center', gap: 6, opacity: screenActive ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}>
@@ -8959,6 +9037,7 @@ const Room = () => {
             const rawAvatar = knownAvatars[cam.username] || uObj?.avatarPath || uObj?.avatar || uObj?.profilePic;
             const avatarSrc = (rawAvatar && typeof rawAvatar === 'string' && rawAvatar.trim().length > 5)
               ? getAvatarUrl(rawAvatar) : null;
+            const isSpeaking = speakingIds.has(cam.id);
             const isCircle = circleCams.has(cam.id);
             const isDraggable = allCams.length <= CAMERA_MANAGED_LAYOUT_THRESHOLD;
             const pos = camPositions[cam.id] || { x: 0, y: 0 };
@@ -9080,7 +9159,11 @@ const Room = () => {
                   boxShadow: 'none',
                   touchAction: 'none'
                 }}>
-                <div style={{ position: 'absolute', inset: 0, borderRadius: isCircle ? '50%' : 14, overflow: 'hidden', zIndex: 1 }}>
+                <div style={{
+                  position: 'absolute', inset: 0, borderRadius: isCircle ? '50%' : 14, overflow: 'hidden', zIndex: 1,
+                  boxShadow: isSpeaking ? '0 0 0 3px #22c55e, 0 0 16px rgba(34,197,94,0.5)' : 'none',
+                  transition: 'box-shadow 0.15s',
+                }}>
                   <VideoTile stream={cam.stream} isMuted={cam.isMuted || cam.isLocal} isLocal={cam.isLocal} debugLabel="renderCameras(floating)" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, transform: (cam.isLocal && camFacingMode === 'user') ? 'scaleX(-1)' : 'none' }} />
                 </div>
 
@@ -9319,6 +9402,16 @@ const Room = () => {
         backgroundAttachment: 'fixed',
         fontFamily: "'Outfit',sans-serif", color: 'var(--text-primary)',
       }}>
+      {/* activity://videocall and activity://voicecall (CallingActivity) already play
+          remote audio themselves via their own <video>/<audio> elements — mounting
+          this bed too there would play every remote participant's audio twice. */}
+      {!isCallActivity(mediaUrl) && (
+        <RemoteAudioBed
+          remoteStreams={remoteStreams}
+          localStream={hasStartedCamOnce ? localCamRef.current : null}
+          onSpeakingChange={setSpeakingIds}
+        />
+      )}
       <Toaster
         position="top-center"
         containerStyle={{ zIndex: 99999, top: 8 }}
@@ -12968,6 +13061,7 @@ const Room = () => {
             // producing frames, whereas readyState reliably reflects whether the
             // track itself is still active.
             const hasVideo = vTracks.length > 0 && vTracks[0].enabled && (vTracks[0].readyState === 'live' || !vTracks[0].muted);
+            const isSpeaking = speakingIds.has(focusedCam.id);
 
             // Shared card content used by both mobile overlay and desktop float
             const cardInner = (
@@ -12975,10 +13069,13 @@ const Room = () => {
                 width: isMobile ? 'min(calc(100vw - 32px), 440px)' : 340,
                 borderRadius: 16,
                 background: isLight ? '#ffffff' : '#0d0d14',
-                border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.25)' : '1px solid rgba(129,140,248,0.4)',
-                boxShadow: isLight
-                  ? '0 16px 48px rgba(0,0,0,0.22), 0 0 0 1px rgba(var(--brand-1-rgb),0.12)'
-                  : '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(129,140,248,0.2)',
+                border: isSpeaking ? '1px solid #22c55e' : (isLight ? '1px solid rgba(var(--brand-1-rgb),0.25)' : '1px solid rgba(129,140,248,0.4)'),
+                boxShadow: isSpeaking
+                  ? '0 0 0 3px rgba(34,197,94,0.3), 0 16px 48px rgba(0,0,0,0.3)'
+                  : (isLight
+                    ? '0 16px 48px rgba(0,0,0,0.22), 0 0 0 1px rgba(var(--brand-1-rgb),0.12)'
+                    : '0 24px 64px rgba(0,0,0,0.9), 0 0 0 1px rgba(129,140,248,0.2)'),
+                transition: 'border 0.15s, box-shadow 0.15s',
                 overflow: 'hidden',
                 animation: 'fadeInScale 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
               }}>
@@ -12989,7 +13086,7 @@ const Room = () => {
                   borderBottom: isLight ? '1px solid rgba(0,0,0,0.09)' : '1px solid rgba(255,255,255,0.08)',
                   background: isLight ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.12)',
                 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', flexShrink: 0, boxShadow: isSpeaking ? '0 0 0 3px rgba(34,197,94,0.4)' : 'none', transition: 'box-shadow 0.15s' }} />
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: isLight ? '#111827' : '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {focusedCam.username}{focusedCam.isLocal ? ' (You)' : ''}
                   </span>
@@ -13023,7 +13120,6 @@ const Room = () => {
                       <span className="stay-white" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>Camera off</span>
                     </div>
                   )}
-                  {!hasVideo && <AudioRenderer stream={focusedCam.stream} isLocal={focusedCam.isLocal} />}
                 </div>
                 {/* Footer */}
                 <div style={{ padding: '9px 14px', fontSize: 11, textAlign: 'center', color: isLight ? '#374151' : 'rgba(255,255,255,0.4)', borderTop: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.05)' }}>
