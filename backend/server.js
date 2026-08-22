@@ -1506,6 +1506,20 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_public_key TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] sender_public_key:', e.message);
   });
+  // is_notice / notice_theme_id: "so-and-so changed the chat theme" system messages for
+  // private chats. These are still real, persisted, E2EE-encrypted messages (so history/
+  // realtime delivery/decryption all reuse the existing pipeline unchanged) — these two
+  // plain (unencrypted) columns are just metadata the server itself sets and can read
+  // without decrypting anything, used to (a) render a pill instead of a bubble and (b)
+  // exclude the row from ever being picked as a chat's "last message" preview/unread count
+  // in /api/chats/recent, since the server can't otherwise tell a notice from a real
+  // message — the actual text content is opaque ciphertext either way.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_notice BOOLEAN DEFAULT FALSE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] is_notice:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS notice_theme_id TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] notice_theme_id:', e.message);
+  });
   // country_code: ISO 3166-1 alpha-2 code (e.g. "IN") for emoji flag display
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] country_code:', e.message);
@@ -3921,14 +3935,17 @@ app.post('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
 
     // A private chat's theme is a shared conversation property, not a personal
     // one — mirror the write into the partner's own map (their chatKey for
-    // this same conversation is MY username) and push it live over the
-    // socket so an already-open client updates instantly instead of waiting
-    // for its next GET /api/chat-theme-prefs. Group/room chats stay per-user
-    // only — chatKey there is the room id, not a specific other person.
+    // this same conversation is MY username), so a fresh page load on either
+    // side lands on the same theme immediately via GET /api/chat-theme-prefs,
+    // before any message history has even been fetched. The live, real-time
+    // side of this (both accounts updating instantly, plus the inline
+    // "changed the chat theme" notice) rides on a genuine persisted, E2EE
+    // message the client sends via POST /api/chats/send with isNotice:true —
+    // see that handler — so there's no separate socket push needed here.
+    // Group/room chats stay per-user only — chatKey there is the room id,
+    // not a specific other person.
     if (chatType === 'private') {
       await upsertChatThemePref(chatKey, username, themeId);
-      emitToUser(username, 'chat:theme_changed', { chatKey, themeId, changedBy: username });
-      emitToUser(chatKey, 'chat:theme_changed', { chatKey: username, themeId, changedBy: username });
     }
 
     res.json({ success: true, themes: myThemes });
@@ -3988,9 +4005,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         'private' as type,
         LOWER(m.senderName) = LOWER($2) as "isMyLastMessage"
       FROM messages m
-      WHERE m.type = 'private' 
+      WHERE m.type = 'private'
         AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
         AND (m.hiddenFor IS NULL OR m.hiddenFor NOT LIKE '%' || $5 || '%')
+        AND m.is_notice IS NOT TRUE
       ORDER BY partner, m.timestamp DESC, m.id DESC
     `, [username, username, username, username, `"${username}"`]);
 
@@ -4012,6 +4030,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
            WHERE m.type = 'private'
              AND LOWER(m."targetName") = LOWER($1)
              AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $4)
+             AND m.is_notice IS NOT TRUE
            GROUP BY m."senderName"`,
           [username, partnerNames, seenTimestamps, `%"${username}"%`]
         );
@@ -4407,7 +4426,9 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           edited: !!r.edited,
           editedAt: r.edited_at ? Number(r.edited_at) : null,
           forwarded: !!r.forwarded,
-          mediaGroupId: r.media_group_id || null
+          mediaGroupId: r.media_group_id || null,
+          isNotice: !!r.is_notice,
+          noticeThemeId: r.notice_theme_id || null
         }));
       const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
       const seenMap = {};
@@ -4680,7 +4701,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const username = req.user.username.toLowerCase();
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
-          mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId } = req.body;
+          mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId,
+          isNotice, noticeThemeId } = req.body;
+  const isNoticeMsg = !!isNotice;
   const isForwarded = !!forwarded;
   const partner = rawPartner ? rawPartner.toLowerCase() : '';
   // message can be empty if there's a media attachment
@@ -4732,8 +4755,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_notice, notice_theme_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -4742,7 +4765,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt, isForwarded, mediaGroupId || null]
+         deliveredAt, isForwarded, mediaGroupId || null,
+         isNoticeMsg, isNoticeMsg ? (noticeThemeId || 'default') : null]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -4775,11 +4799,13 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         seenBy: [{ username: username, seenAt: ts, avatar: senderAvatar }],
         deliveredAt,
         forwarded: isForwarded,
-        mediaGroupId: mediaGroupId || null
+        mediaGroupId: mediaGroupId || null,
+        isNotice: isNoticeMsg,
+        noticeThemeId: isNoticeMsg ? (noticeThemeId || 'default') : null
       };
 
       emitToUser(partner, 'private_message', payload);
-      
+
       // Emit back to sender so other active components (e.g. Room.jsx or across tabs) receive it.
       // We pass isMe: true so the sender correctly plots the UI bubbles and uses senderMessage for decryption.
       const senderPayload = { ...payload, isMe: true };
@@ -4789,6 +4815,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       invalidateCacheForUser(partner);
 
       res.json({ success: true, timestamp: ts, id: dmDbId });
+
+      // A theme-change notice is a system message, not something the recipient
+      // should get pushed/paged for — skip FCM entirely for these.
+      if (isNoticeMsg) return;
 
       // Fire-and-forget — response already sent, don't make the sender wait
       // on FCM. No preview text: DMs are end-to-end encrypted, the server
@@ -7322,7 +7352,9 @@ io.on('connection', (socket) => {
               reactions: (() => { try { return row.reactions ? JSON.parse(row.reactions) : {}; } catch { return {}; } })(),
               replyTo: row.replyTo ? (() => { try { return JSON.parse(row.replyTo); } catch { return null; } })() : null,
               seenBy: seenMap[row.id.toString()] || [],
-              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
+              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null,
+              isNotice: !!row.is_notice,
+              noticeThemeId: row.notice_theme_id || null
             });
           });
           targetSocket.emit('chat_history_dm', dmHistory);
@@ -7611,7 +7643,9 @@ io.on('connection', (socket) => {
             reactions: row.reactions ? JSON.parse(row.reactions) : {},
             replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
             seenBy: seenMap[row.id.toString()] || [],
-            deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
+            deliveredAt: row.delivered_at ? Number(row.delivered_at) : null,
+            isNotice: !!row.is_notice,
+            noticeThemeId: row.notice_theme_id || null
           };
         });
 
@@ -8599,7 +8633,9 @@ io.on('connection', (socket) => {
               reactions: row.reactions ? JSON.parse(row.reactions) : {},
               replyTo: row.replyTo ? JSON.parse(row.replyTo) : null,
               seenBy: seenMap[row.id.toString()] || [],
-              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null
+              deliveredAt: row.delivered_at ? Number(row.delivered_at) : null,
+              isNotice: !!row.is_notice,
+              noticeThemeId: row.notice_theme_id || null
             });
           });
         }

@@ -8,7 +8,7 @@ import { CryptoProvider } from './contexts/CryptoContext';
 import { CallProvider } from './contexts/CallContext';
 import { API as SHARED_API_BASE } from './lib/api';
 import { useInactivityLogout } from './hooks/useInactivityLogout';
-import { isTauriApp } from './lib/platform';
+import { isTauriApp, isStandalonePWA } from './lib/platform';
 import { syncStatusBarTheme } from './lib/nativeShell';
 import { setNativeThemePreference } from './lib/nativeMedia';
 import { APP_THEMES } from './data/appThemes';
@@ -1072,6 +1072,22 @@ function App() {
       document.documentElement.setAttribute('data-theme', savedTheme);
       syncStatusBarTheme(savedTheme);
       setNativeThemePreference(savedTheme);
+
+      // A plain mobile browser tab (never an installed PWA/TWA, never the
+      // native app) paints Chrome's own address-bar/toolbar strip using the
+      // static <meta name="theme-color"> in index.html — a fixed brand
+      // purple regardless of light/dark theme. Against this app's near-black
+      // dark background, the boundary between that purple strip and the
+      // page's own content reads as a stray bar/line right below the address
+      // bar. Installed PWA/TWA and the native app don't have this address
+      // bar at all (native has its own separate real status-bar coloring via
+      // syncStatusBarTheme above), so only update the meta tag here —
+      // leaving their appearance exactly as it's always been, per explicit
+      // instruction not to touch those.
+      if (!isStandalonePWA()) {
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', savedTheme === 'light' ? '#f7fafc' : '#0b0c10');
+      }
 
       // Remove existing injected style
       const existing = document.getElementById(LIGHT_STYLE_ID);

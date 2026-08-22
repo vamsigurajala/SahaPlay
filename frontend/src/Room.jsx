@@ -790,18 +790,6 @@ const isGameOrActivity = (url) => {
 
 const isCallActivity = (url) => url === 'activity://videocall' || url === 'activity://voicecall';
 
-// Builds the "so-and-so changed the chat theme" notice inserted inline into a
-// private conversation (RoomChatPanel's own DM thread) — client-side/ephemeral
-// only (not written to message history), matching GlobalChatWidget's
-// identical makeThemeNoticeMsg. Visible to whoever has the conversation open
-// live at the time, not persisted across a later reopen.
-const makeThemeNoticeMsg = (chat, changedBy) => ({
-  id: `theme-notice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-  __themeNotice: true,
-  themeChangedBy: changedBy,
-  themeNoticeChat: chat,
-  timestamp: Date.now(),
-});
 
 const isMediaGame = (url) => {
   if (!url) return false;
@@ -2276,8 +2264,43 @@ const Room = () => {
       try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
       return next;
     });
-    if (target.type === 'private' && (dmTargetRef.current || '').toLowerCase() === chatKey) {
-      setDmThreads(prev => ({ ...prev, [chatKey]: [...(prev[chatKey] || []), makeThemeNoticeMsg(target, username)] }));
+    if (target.type === 'private') {
+      // Send the "changed the chat theme" notice as a REAL persisted, E2EE
+      // message (isNotice:true) via the same /api/chats/send path sendDmChat
+      // uses — see backend for why: it's the only way this survives a
+      // refresh and reaches the other person's account on every platform.
+      (async () => {
+        try {
+          if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+          if (!myKeyPair.current) return;
+          let targetPubKey = dbPublicKeys.current[chatKey] ? encodeBase64(dbPublicKeys.current[chatKey]) : (localStorage.getItem(`wt_pk_${chatKey}`) || null);
+          if (!targetPubKey) {
+            const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(chatKey)}`);
+            if (pkRes.ok) {
+              const pkData = await pkRes.json();
+              targetPubKey = pkData.publicKey || null;
+            }
+          }
+          if (!targetPubKey) return;
+          const enc = encryptDM('Changed the chat theme', targetPubKey, encodeBase64(myKeyPair.current.publicKey));
+          const tkn2 = localStorage.getItem('watch_token');
+          if (!tkn2) return;
+          await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn2}` },
+            body: JSON.stringify({
+              type: 'private',
+              partner: chatKey,
+              message: enc.ciphertext,
+              senderMessage: enc.senderCiphertext,
+              nonce: enc.nonce,
+              ephemeralPublicKey: enc.ephemeralPublicKey,
+              isNotice: true,
+              noticeThemeId: themeId || 'default',
+            }),
+          });
+        } catch (err) { console.error('[CHAT THEME] Notice send failure:', err); }
+      })();
     }
     const tkn = localStorage.getItem('watch_token');
     if (!tkn) return;
@@ -2286,7 +2309,7 @@ const Room = () => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
       body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
     }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
-  }, [username]);
+  }, [username, keyPair]);
   const [dmUnread, setDmUnread] = useState({});
   const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
@@ -4697,7 +4720,7 @@ const Room = () => {
     sock.on('private_message', msg => {
       const isMine = msg.isMe || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
       const otherName = isMine ? msg.targetName : msg.senderName;
-      
+
       // Block Check
       if (!isMine) {
         const myUsername = localStorage.getItem('watch_username') || '';
@@ -4705,6 +4728,25 @@ const Room = () => {
           const blocked = JSON.parse(localStorage.getItem(`blocked_chats_${myUsername}`) || '[]');
           if (blocked.some(u => u.toLowerCase() === otherName.toLowerCase())) return;
         } catch {}
+      }
+
+      // Chat-theme-change system message: apply the theme locally right away
+      // (covers this account's other open tabs/devices instantly) and, if this
+      // DM thread is currently open, append it so the pill renders live — but
+      // never treat it as a real message (no unread bump, no preview).
+      if (msg.isNotice) {
+        const otherLower = (otherName || '').toLowerCase();
+        setChatThemes(prev => {
+          const next = { ...prev };
+          if (msg.noticeThemeId && msg.noticeThemeId !== 'default') next[otherLower] = msg.noticeThemeId;
+          else delete next[otherLower];
+          try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        if ((dmTargetRef.current || '').toLowerCase() === otherLower) {
+          setDmThreads(prev => ({ ...prev, [otherLower]: [...(prev[otherLower] || []), { ...msg, isMe: isMine }] }));
+        }
+        return;
       }
       let decryptedText = null;
       let decryptedMediaUrl = msg.mediaUrl;
@@ -5194,22 +5236,6 @@ const Room = () => {
     sock.on('mic_stopped', ({ socketId }) => {
       console.log('Received mic_stopped from', socketId);
       handlePeerMediaStopped(socketId);
-    });
-    // Chat bubble "Customize" theme — shared with GlobalChatWidget's identical
-    // listener (see /api/chat-theme-prefs). chatKey here is already expressed
-    // from THIS client's own point of view (their username, for whoever changed it).
-    sock.on('chat:theme_changed', ({ chatKey, themeId, changedBy }) => {
-      setChatThemes(prev => {
-        const next = { ...prev };
-        if (themeId && themeId !== 'default') next[chatKey] = themeId;
-        else delete next[chatKey];
-        try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
-        return next;
-      });
-      if (changedBy && changedBy.toLowerCase() !== (username || '').toLowerCase() &&
-          (dmTargetRef.current || '').toLowerCase() === chatKey) {
-        setDmThreads(prev => ({ ...prev, [chatKey]: [...(prev[chatKey] || []), makeThemeNoticeMsg({ type: 'private', partner: dmTargetRef.current }, changedBy)] }));
-      }
     });
     // The other participant hung up — this is a call, not a shared broadcast,
     // so end it on our side too: stop our own camera/mic and close the call screen.

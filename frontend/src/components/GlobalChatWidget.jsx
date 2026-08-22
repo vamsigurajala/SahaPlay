@@ -1686,18 +1686,45 @@ const GlobalChatWidget = forwardRef(({
       })
       .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
   }, []);
-  // Builds the "so-and-so changed the chat theme" notice shown inline in a
-  // private conversation — client-side/ephemeral only (not written to message
-  // history), so it's visible to whoever has the chat open live at the time,
-  // not persisted across a later reopen. Clicking "Change theme" re-opens the
-  // sheet for the SAME conversation so the other person can pick their own.
-  const makeThemeNoticeMsg = (chat, changedBy) => ({
-    id: `theme-notice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    __themeNotice: true,
-    themeChangedBy: changedBy,
-    themeNoticeChat: chat,
-    timestamp: Date.now(),
-  });
+  // Sends the "so-and-so changed the chat theme" notice as a REAL, persisted,
+  // E2EE-encrypted private message (isNotice:true, noticeThemeId) so it
+  // survives a refresh and reaches the other person's account on every
+  // platform via the exact same history-fetch/realtime pipeline every other
+  // DM already uses — see /api/chats/send. The plaintext content itself is
+  // never shown (the renderer branches on msg.isNotice instead), it just
+  // needs to be a normal encrypted message for the pipeline to accept it.
+  const sendThemeNoticeMessage = useCallback(async (partner, themeId) => {
+    if (!keyPair) return;
+    const partnerLower = (partner || '').toLowerCase();
+    try {
+      let targetPubKey = localStorage.getItem(`wt_pk_${partnerLower}`);
+      if (!targetPubKey) {
+        const pkRes = await fetch(`${API}/api/auth/public-key/${encodeURIComponent(partnerLower)}`);
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          targetPubKey = pkData.publicKey || null;
+        }
+      }
+      if (!targetPubKey) return;
+      const enc = encryptDM('Changed the chat theme', targetPubKey, encodeBase64(keyPair.publicKey));
+      const tkn = localStorage.getItem('watch_token');
+      if (!tkn || tkn === 'null' || tkn === 'undefined') return;
+      await fetch(`${API}/api/chats/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+        body: JSON.stringify({
+          type: 'private',
+          partner: partnerLower,
+          message: enc.ciphertext,
+          senderMessage: enc.senderCiphertext,
+          nonce: enc.nonce,
+          ephemeralPublicKey: enc.ephemeralPublicKey,
+          isNotice: true,
+          noticeThemeId: themeId || 'default',
+        }),
+      });
+    } catch (err) { console.error('[CHAT THEME] Notice send failure:', err); }
+  }, [keyPair]);
   const applyChatTheme = useCallback((target, themeId) => {
     if (!target) return;
     const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
@@ -1709,9 +1736,8 @@ const GlobalChatWidget = forwardRef(({
       localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next));
       return next;
     });
-    if (target.type === 'private' && activeChatRef.current?.type === 'private' &&
-        (activeChatRef.current.partner || activeChatRef.current.id)?.toLowerCase() === chatKey) {
-      setMessages(prev => [...prev, makeThemeNoticeMsg(target, myUsername)]);
+    if (target.type === 'private') {
+      sendThemeNoticeMessage(target.partner, themeId);
     }
     const tkn = localStorage.getItem('watch_token');
     if (!tkn || tkn === 'null' || tkn === 'undefined') return;
@@ -1720,7 +1746,7 @@ const GlobalChatWidget = forwardRef(({
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
       body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
     }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
-  }, [myUsername]);
+  }, [myUsername, sendThemeNoticeMessage]);
 
   // The widget is a fixed, very-high-zIndex overlay — a page-level react-hot-toast
   // (default zIndex much lower) renders BEHIND it, so errors like "too many files"
@@ -2716,21 +2742,6 @@ const GlobalChatWidget = forwardRef(({
     // side DIDN'T make the change still updates live instead of only on next
     // fetch. chatKey here is already expressed from THIS client's own point
     // of view (their username, for the person who changed it).
-    sock.on('chat:theme_changed', ({ chatKey, themeId, changedBy }) => {
-      const myUsername = localStorage.getItem('watch_username');
-      setChatThemes(prev => {
-        const next = { ...prev };
-        if (themeId && themeId !== 'default') next[chatKey] = themeId;
-        else delete next[chatKey];
-        try { localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next)); } catch {}
-        return next;
-      });
-      const current = activeChatRef.current;
-      if (changedBy && changedBy.toLowerCase() !== (myUsername || '').toLowerCase() &&
-          current?.type === 'private' && (current.partner || current.id)?.toLowerCase() === chatKey) {
-        setMessages(prev => [...prev, makeThemeNoticeMsg(current, changedBy)]);
-      }
-    });
 
     sock.on('chat:typing', (data) => {
       // Handle both formats: explicit isTyping flag or implicit start
@@ -3007,6 +3018,25 @@ const GlobalChatWidget = forwardRef(({
       // ─── Post-Decryption Processing ───
       msg.decryptedText = decryptedMessage;
       msg.mediaUrl = decryptedMediaUrl;
+
+      // Chat-theme-change system message: apply the theme locally right away
+      // (covers this account's other open tabs/devices instantly) and, if this
+      // DM thread is currently open, append it so the pill renders live — but
+      // never touch the sidebar preview/unread count/toast for it, since it's
+      // not a real message the user sent or received.
+      if (msg.isNotice && !isGroup) {
+        setChatThemes(prev => {
+          const next = { ...prev };
+          if (msg.noticeThemeId && msg.noticeThemeId !== 'default') next[partnerLower] = msg.noticeThemeId;
+          else delete next[partnerLower];
+          try { localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        if (isViewingThis) {
+          setMessages(prev => [...prev, msg]);
+        }
+        return;
+      }
 
       // RE-COMPUTE PREVIEW TEXT AFTER DECRYPTION
       // This is what shows in the conversation list (sidebar) and toasts
@@ -6846,19 +6876,20 @@ const GlobalChatWidget = forwardRef(({
                   const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
                   const renderReceiptIndex = isLastSentByMe ? lastRenderIdx : -1;
                   return messages.map((msg, i) => {
-                    if (msg.__themeNotice) {
-                      const isMeChange = (msg.themeChangedBy || '').toLowerCase() === myUsername?.toLowerCase();
+                    if (msg.isNotice) {
+                      const isMeChange = msg.isMe;
+                      const otherParty = activeChat?.partner || activeChat?.id;
                       return (
-                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                        <div key={msg.id || i} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
                             background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
                             color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 500,
                             padding: '6px 14px', borderRadius: 14, maxWidth: '85%', textAlign: 'center',
                           }}>
-                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.themeChangedBy })}</span>
+                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.senderName })}</span>
                             <button
-                              onClick={() => { setThemeSheetTarget(msg.themeNoticeChat); setShowThemeSheet(true); }}
+                              onClick={() => { setThemeSheetTarget({ type: 'private', partner: otherParty }); setShowThemeSheet(true); }}
                               style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
                             >
                               {t('changeTheme', 'Change theme')}

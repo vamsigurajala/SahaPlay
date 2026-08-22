@@ -3378,19 +3378,19 @@ export default function RoomChatPanel({ p }) {
                     const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
                     const isDMCustomTheme = dmThemeId !== 'default';
                     return dmMessages.map((msg,i)=>{
-                    if (msg.__themeNotice) {
-                      const isMeChange = (msg.themeChangedBy || '').toLowerCase() === p.username?.toLowerCase();
+                    if (msg.isNotice) {
+                      const isMeChange = msg.isMe;
                       return (
-                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                        <div key={msg.id || i} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
                             background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
                             color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 500,
                             padding: '6px 14px', borderRadius: 14, maxWidth: '85%', textAlign: 'center',
                           }}>
-                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.themeChangedBy })}</span>
+                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.senderName })}</span>
                             <button
-                              onClick={() => p.openChatThemeSheet(msg.themeNoticeChat)}
+                              onClick={() => p.openChatThemeSheet({ type: 'private', partner: p.dmTarget })}
                               style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
                             >
                               {t('changeTheme', 'Change theme')}
