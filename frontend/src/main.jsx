@@ -85,6 +85,23 @@ if (isStandalonePWA()) {
   if (viewportMeta) {
     viewportMeta.setAttribute('content', `${viewportMeta.getAttribute('content')}, maximum-scale=1, user-scalable=no`);
   }
+} else {
+  // viewport-fit=cover (in index.html's static meta, since that one tag has
+  // to serve every launch path) exists so the installed PWA/TWA/native app
+  // can extend content under the display cutout and place its own UI below
+  // the real status bar icons (time/wifi/signal) — see nativeShell.js's
+  // --sp-status-bar-inset for the native side of that. A plain mobile
+  // browser tab has no cutout to extend under (it already sits below
+  // Chrome's own address bar), but Chrome still reserves the same cutout-
+  // sized safe area for it — leaving a theme-colored gap between the
+  // address bar and the page's own top-of-screen UI (nav drawer, chat
+  // panel header) with nothing there to fill it. Stripped here, at runtime,
+  // for the browser case only — same "patch via JS, not the static meta"
+  // approach as the standalone-only maximum-scale patch above.
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta) {
+    viewportMeta.setAttribute('content', viewportMeta.getAttribute('content').replace(/,?\s*viewport-fit=cover/, ''));
+  }
 }
 
 // Render's free tier spins the backend down when idle and takes ~30-60s to
