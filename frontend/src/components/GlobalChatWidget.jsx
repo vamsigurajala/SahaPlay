@@ -5657,7 +5657,17 @@ const GlobalChatWidget = forwardRef(({
           alignItems: 'center', 
           justifyContent: 'space-between', 
           padding: '16px 20px',
-          paddingTop: 'calc(16px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
+          // env(safe-area-inset-top) was here as a fallback for non-Capacitor
+          // contexts (PWA/TWA/plain browser), but a plain mobile Chrome tab
+          // can report a real nonzero value for it (matching the device's
+          // notch/cutout) even though this panel has nothing to clear —
+          // reserving that much empty, see-through padding-top left a
+          // theme-colored gap (the page's own --bg-color showing through the
+          // transparent header) between the URL bar and this panel's own
+          // header. --sp-status-bar-inset (native only) still applies
+          // normally; every other context just gets flat 16px, matching how
+          // the rest of the app (Room's own header, Navbar) already does it.
+          paddingTop: 'calc(16px + var(--sp-status-bar-inset, 0px))',
           background: transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)',
           borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)' 
         }}>
@@ -6008,7 +6018,7 @@ const GlobalChatWidget = forwardRef(({
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20000,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '16px 20px', paddingTop: 'calc(16px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
+            padding: '16px 20px', paddingTop: 'calc(16px + var(--sp-status-bar-inset, 0px))',
             background: transparentMode ? 'rgba(10,10,10,0.92)' : '#0a0a0a',
             borderBottom: '1px solid rgba(255,255,255,0.06)'
           }}>

@@ -70,40 +70,52 @@ export function CryptoProvider({ children }) {
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           setKeyPairState(kp);
         } else {
-          // No stored key found — auto-generate one for this user.
-          // This handles users who registered before E2EE was implemented.
-          console.log('[CryptoContext] No stored key found — auto-generating E2EE key pair.');
-          try {
-            const newKP = generateKeyPair();
-            await saveKeyToSession(newKP.secretKey);
-            setKeyPairState(newKP);
+          // No LOCAL key found — this happens not just for brand-new accounts,
+          // but also for an EXISTING account on any device/tab that lost its
+          // sessionStorage (closing a mobile browser tab wipes it, even though
+          // the JWT in localStorage keeps the user "logged in" with no fresh
+          // password entry). Blindly generating a new keypair here — the old
+          // behavior — silently overwrites the account's ONE registered
+          // public key server-side, permanently breaking decryption of every
+          // message encrypted under the previous key, on every device,
+          // including this account's own past sent messages. Check the
+          // server first: if it already has a key for this account, this
+          // device needs the password to recover the SAME identity (via
+          // reloadPrivateKeyWithPassword) instead of minting a new one.
+          const tkn = localStorage.getItem('watch_token');
+          let serverHasExistingKey = false;
+          if (tkn) {
+            try {
+              const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
+              if (res.ok) {
+                const data = await res.json();
+                serverHasExistingKey = !!data.publicKey;
+              }
+            } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
+          }
 
-            // Try to save publicKey to DB (works after backend restart)
-            const tkn = localStorage.getItem('watch_token');
-            if (tkn) {
-              const pubB64 = encodeBase64(newKP.publicKey);
-              // Try the new lightweight endpoint first, fall back to register-keys
-              fetch(`${API}/api/auth/save-public-key`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-                body: JSON.stringify({ publicKey: pubB64 })
-              }).then(async r => {
-                if (!r.ok) {
-                  // Fallback: try register-keys with auto-encrypted private key
-                  const dummyPw = encodeBase64(nacl.randomBytes(16));
-                  const encPriv = await encryptPrivateKey(newKP.secretKey, dummyPw);
-                  // Store the dummyPw so recovery is still possible
-                  localStorage.setItem('wt_kp_pw', dummyPw);
-                  await fetch(`${API}/api/auth/register-keys`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-                    body: JSON.stringify({ publicKey: pubB64, encryptedPrivateKey: encPriv })
-                  });
-                }
-              }).catch(err => console.warn('[CryptoContext] Key upload failed (server not ready):', err));
+          if (serverHasExistingKey) {
+            console.log('[CryptoContext] Local key missing but account already has one server-side — need password to recover it.');
+            setNeedsReauth(true);
+          } else {
+            // Genuinely brand new — no key anywhere yet. Safe to generate one.
+            console.log('[CryptoContext] No stored key found — auto-generating E2EE key pair.');
+            try {
+              const newKP = generateKeyPair();
+              await saveKeyToSession(newKP.secretKey);
+              setKeyPairState(newKP);
+
+              if (tkn) {
+                const pubB64 = encodeBase64(newKP.publicKey);
+                fetch(`${API}/api/auth/save-public-key`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+                  body: JSON.stringify({ publicKey: pubB64 })
+                }).catch(err => console.warn('[CryptoContext] Key upload failed (server not ready):', err));
+              }
+            } catch (e) {
+              console.error('[CryptoContext] Failed to auto-generate key pair:', e);
             }
-          } catch (e) {
-            console.error('[CryptoContext] Failed to auto-generate key pair:', e);
           }
         }
       } catch (e) {
