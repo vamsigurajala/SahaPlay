@@ -5290,7 +5290,11 @@ const GlobalChatWidget = forwardRef(({
   };
 
   const perms = activeChat?.permissions || roomPermissions;
-  const isHost = activeChat?.isHost || isRoomHost;
+  // isRoomHost is "am I the host of whatever real Room I currently have open"
+  // (a prop from Room.jsx) — meaningless for the SahaPlay announcements group,
+  // which isn't a real room at all, so ORing it in there would wrongly unlock
+  // posting for any user who merely happens to host their own room elsewhere.
+  const isHost = isSahaplayOfficialGroup(activeChat) ? !!activeChat?.isHost : (activeChat?.isHost || isRoomHost);
   // The mandatory SahaPlay announcements group has no permissions object of
   // its own (it's not a real room) — always locked here, same as a
   // perms.chat==='host' room; isHost (backend-computed true for
@@ -6810,7 +6814,15 @@ const GlobalChatWidget = forwardRef(({
                       )}
                       <div style={{display:'flex',alignItems:'flex-start',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'95%'}}>
                          {/* Profile avatar — left side for all incoming messages */}
-                         {!isMe && (() => {
+                         {!isMe && activeChat?.type === 'room' && isSahaplayOfficialGroup(activeChat) ? (
+                           // Broadcast channel — always the app's own mark, never whichever
+                           // admin account actually posted it (matches the "SahaPlay" sender
+                           // label below, which already avoids leaking the poster's identity;
+                           // this closes the same gap for the avatar itself).
+                           <div style={{ flexShrink:0, width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:'#000', marginTop:2 }}>
+                             <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width:'62%', height:'62%', objectFit:'contain' }} />
+                           </div>
+                         ) : !isMe && (() => {
                            const sNameOriginal = msg.senderName || msg.username || '?';
                            const partner = sNameOriginal.toLowerCase();
                            let isBlocked = false;
@@ -7291,13 +7303,19 @@ const GlobalChatWidget = forwardRef(({
                   </div>
                 )}
 
+                {/* Nobody but an actual admin/super_admin can ever post in the SahaPlay
+                    announcements group (enforced server-side regardless), so for every
+                    other viewer the whole composer — banners, recording UI, textarea,
+                    emoji/attach/mic/send — is skipped entirely rather than shown
+                    disabled; there's nothing for them to do here at all. */}
+                {(!isSahaplayOfficialGroup(activeChat) || isHost) && (
                 <form onSubmit={(e) => {
                   handleSend(e);
                   // stop typing immediately on send
                   if (socketRef.current && activeChat) {
-                    socketRef.current.emit('chat:stop_typing', { 
-                      partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner, 
-                      type: activeChat.type 
+                    socketRef.current.emit('chat:stop_typing', {
+                      partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
+                      type: activeChat.type
                     });
                     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
                   }
@@ -7459,6 +7477,7 @@ const GlobalChatWidget = forwardRef(({
                     </div>
                   )}
                 </form>
+                )}
               </>
             )}
           </div>

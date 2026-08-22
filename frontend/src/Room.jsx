@@ -8101,9 +8101,17 @@ const Room = () => {
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
+      video.setAttribute('playsinline', '');
       video.srcObject = stream;
+      // Some browsers never actually decode frames for a <video> that's fully
+      // detached from the document (no layout box at all) — display:none has
+      // the same problem, since it also drops the layout box. Real 1x1,
+      // fully-transparent element instead, so frames reliably decode without
+      // anything visibly appearing on screen.
+      video.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none; z-index:-1;';
+      document.body.appendChild(video);
       video.play().catch(() => {});
-      setTimeout(() => {
+      const sample = () => {
         try {
           if (video.videoWidth > 0 && video.videoHeight > 0 && stream.getVideoTracks()[0]?.readyState === 'live') {
             const canvas = document.createElement('canvas');
@@ -8118,11 +8126,16 @@ const Room = () => {
               toast('Your camera looks dark — try moving to a well-lit area for a clearer picture', { icon: '💡', duration: 4500 });
             }
           }
-        } catch {}
-        video.pause();
-        video.srcObject = null;
-      }, 1800);
-    } catch {}
+        } catch (e) {
+          console.warn('[CAM BRIGHTNESS] sample failed:', e);
+        }
+        try { video.pause(); video.srcObject = null; video.remove(); } catch {}
+      };
+      // Give auto-exposure a moment to settle before judging brightness.
+      setTimeout(sample, 1800);
+    } catch (e) {
+      console.warn('[CAM BRIGHTNESS] setup failed:', e);
+    }
   };
 
   const toggleCamera = async () => {
