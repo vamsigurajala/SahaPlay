@@ -306,13 +306,16 @@ const TV_CAM_DEFAULT_ZOOM = 45;
 // activity://videocall|voicecall flow (CallingActivity/CallContext), which
 // legitimately wants call-grade audio processing. On Android, Chromium's WebRTC
 // audio capture picks a hardware AudioSource.VOICE_COMMUNICATION (instead of a
-// plain AudioSource.MIC) whenever echoCancellation/autoGainControl/noiseSuppression
-// are requested (the getUserMedia default), and that source is what puts the whole
-// OS into "in a call" audio mode — hardware volume buttons start controlling the
-// call-volume stream instead of media volume, for a feature that was only ever
-// supposed to be casual camera/mic sharing. Explicitly requesting all three off
-// keeps mic capture on the plain MIC source so it behaves like ordinary media audio.
-const ROOM_MIC_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+// plain AudioSource.MIC) when echo cancellation is requested (the getUserMedia
+// default), and that source is what puts the whole OS into "in a call" audio
+// mode — hardware volume buttons start controlling the call-volume stream
+// instead of media volume, for a feature that was only ever supposed to be
+// casual camera/mic sharing. echoCancellation is the one of the three actually
+// tied to that hardware source selection, so only it needs to be off; leaving
+// autoGainControl/noiseSuppression on their normal defaults keeps quiet speech
+// audible instead of requiring users to speak unnaturally loudly (disabling all
+// three previously killed the mic's automatic gain along with it).
+const ROOM_MIC_CONSTRAINTS = { echoCancellation: false };
 
 // -------------------------------- Helpers --------------------------------
 function formatUsername(name) {
@@ -8111,28 +8114,36 @@ const Room = () => {
       video.style.cssText = 'position:fixed; top:0; left:0; width:1px; height:1px; opacity:0; pointer-events:none; z-index:-1;';
       document.body.appendChild(video);
       video.play().catch(() => {});
-      const sample = () => {
+      const cleanup = () => { try { video.pause(); video.srcObject = null; video.remove(); } catch {} };
+      const sample = (attemptsLeft) => {
         try {
-          if (video.videoWidth > 0 && video.videoHeight > 0 && stream.getVideoTracks()[0]?.readyState === 'live') {
-            const canvas = document.createElement('canvas');
-            canvas.width = 64; canvas.height = 48;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            let sum = 0;
-            for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
-            const avgBrightness = sum / (data.length / 4) / 3; // 0-255
-            if (avgBrightness < 30) {
-              toast('Your camera looks dark — try moving to a well-lit area for a clearer picture', { icon: '💡', duration: 4500 });
-            }
+          if (video.videoWidth === 0 || video.videoHeight === 0) {
+            // Metadata not ready yet on this device/camera — give it one more
+            // chance before giving up, instead of silently never checking at all.
+            if (attemptsLeft > 0) { setTimeout(() => sample(attemptsLeft - 1), 1200); return; }
+            console.warn('[CAM BRIGHTNESS] gave up — video never reported a size');
+            cleanup();
+            return;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = 64; canvas.height = 48;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+          const avgBrightness = sum / (data.length / 4) / 3; // 0-255
+          console.log('[CAM BRIGHTNESS] sampled avg brightness (0-255):', Math.round(avgBrightness));
+          if (avgBrightness < 45) {
+            toast('Your camera looks dark — try moving to a well-lit area for a clearer picture', { icon: '💡', duration: 4500 });
           }
         } catch (e) {
           console.warn('[CAM BRIGHTNESS] sample failed:', e);
         }
-        try { video.pause(); video.srcObject = null; video.remove(); } catch {}
+        cleanup();
       };
       // Give auto-exposure a moment to settle before judging brightness.
-      setTimeout(sample, 1800);
+      setTimeout(() => sample(2), 1800);
     } catch (e) {
       console.warn('[CAM BRIGHTNESS] setup failed:', e);
     }
