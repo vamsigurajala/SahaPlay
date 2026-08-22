@@ -139,6 +139,16 @@ export async function initNativeStatusBarInset() {
 // real status bar hidden there's nothing left to cover, so leaving the var
 // at its normal value just cut a visible bar across the top of the video.
 export function setStatusBarHidden(hidden) {
+  // Was unconditional — on a plain mobile browser tab (no Capacitor, no
+  // status bar to hide/show at all), Room.jsx's setStatusBarHidden(false)
+  // calls (fullscreen exit, mount, etc.) still wrote a hardcoded 28px
+  // (FALLBACK_INSET_PX — this value never gets replaced with a real
+  // measurement outside Capacitor) into --sp-status-bar-inset. That's a
+  // plain inline style on <html>, so it persists across the whole SPA
+  // session once set — explaining the gap that only appears after visiting
+  // a room and never clears until a real page reload, on EVERY page in the
+  // app (every element that reads this var, not just Room's own UI).
+  if (!isCapacitorApp()) return;
   document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, hidden ? '0px' : `${lastKnownInsetPx}px`);
   const sb = statusBar();
   if (!sb) return;
