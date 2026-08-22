@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
@@ -808,7 +808,7 @@ const typingCss = `
     --menu-item-text: #eee;
     --menu-item-hover: rgba(255,255,255,0.05);
     --menu-icon: #aaa;
-    --menu-divider: rgba(255,255,255,0.08);
+    --menu-divider: rgba(255,255,255,0.22);
     --header-text: #ffffff;
     --header-btn: #888888;
     --input-bg: rgba(255,255,255,0.04);
@@ -823,7 +823,7 @@ const typingCss = `
     --menu-item-text: #0f172a;
     --menu-item-hover: #f1f5f9;
     --menu-icon: #475569;
-    --menu-divider: #e2e8f0;
+    --menu-divider: #cbd5e1;
     --header-text: #0f172a;
     --header-btn: #475569;
     --input-bg: #f8fafc;
@@ -1000,7 +1000,7 @@ const typingCss = `
     --menu-item-text: #eee;
     --menu-item-hover: rgba(255,255,255,0.05);
     --menu-icon: #aaa;
-    --menu-divider: rgba(255,255,255,0.08);
+    --menu-divider: rgba(255,255,255,0.22);
     --header-text: #ffffff;
     --header-btn: #888888;
     --input-bg: rgba(255,255,255,0.04);
@@ -1686,19 +1686,20 @@ const GlobalChatWidget = forwardRef(({
   // localStorage seeds instant paint on load; the server fetch below (and the
   // POST on every change) is what makes a theme picked here show up for this
   // same account on every other platform (mobile web, TWA, PWA, desktop).
+  // For a PRIVATE chat, the backend also writes the same theme into the
+  // OTHER participant's own map (see /api/chat-theme-prefs) — it's a shared
+  // conversation property there, not a personal preference, so both sides
+  // land on the same theme. Group chats stay purely per-user.
   const [chatThemes, setChatThemes] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(`chat_themes_${myUsername}`) || '{}');
     } catch { return {}; }
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
-  const chatThemeLongPress = useLongPress();
-  useEffect(() => {
-    if (chatThemeLongPress.activeId) {
-      setShowThemeSheet(true);
-      chatThemeLongPress.close();
-    }
-  }, [chatThemeLongPress.activeId]);
+  // Which conversation the open theme sheet applies to — NOT necessarily
+  // activeChat, since the sheet can also be opened from a conversation row's
+  // "..." menu in the list view without that chat being open at all.
+  const [themeSheetTarget, setThemeSheetTarget] = useState(null);
   useEffect(() => {
     const tkn = localStorage.getItem('watch_token');
     if (!tkn || tkn === 'null' || tkn === 'undefined') return;
@@ -1712,7 +1713,22 @@ const GlobalChatWidget = forwardRef(({
       })
       .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
   }, []);
-  const setChatTheme = useCallback((chatKey, themeId) => {
+  // Builds the "so-and-so changed the chat theme" notice shown inline in a
+  // private conversation — client-side/ephemeral only (not written to message
+  // history), so it's visible to whoever has the chat open live at the time,
+  // not persisted across a later reopen. Clicking "Change theme" re-opens the
+  // sheet for the SAME conversation so the other person can pick their own.
+  const makeThemeNoticeMsg = (chat, changedBy) => ({
+    id: `theme-notice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    __themeNotice: true,
+    themeChangedBy: changedBy,
+    themeNoticeChat: chat,
+    timestamp: Date.now(),
+  });
+  const applyChatTheme = useCallback((target, themeId) => {
+    if (!target) return;
+    const chatKey = target.type === 'room' ? (target.partner || target.id) : target.partner;
+    if (!chatKey) return;
     setChatThemes(prev => {
       const next = { ...prev };
       if (themeId && themeId !== 'default') next[chatKey] = themeId;
@@ -1720,12 +1736,16 @@ const GlobalChatWidget = forwardRef(({
       localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next));
       return next;
     });
+    if (target.type === 'private' && activeChatRef.current?.type === 'private' &&
+        (activeChatRef.current.partner || activeChatRef.current.id) === chatKey) {
+      setMessages(prev => [...prev, makeThemeNoticeMsg(target, myUsername)]);
+    }
     const tkn = localStorage.getItem('watch_token');
     if (!tkn || tkn === 'null' || tkn === 'undefined') return;
     fetch(`${API}/api/chat-theme-prefs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-      body: JSON.stringify({ chatKey, themeId }),
+      body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
     }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
   }, [myUsername]);
 
@@ -2715,6 +2735,28 @@ const GlobalChatWidget = forwardRef(({
     // reconnected — flip that message's tick from single to double-grey live.
     sock.on('message:delivered', ({ messageId, deliveredAt }) => {
       setMessages(prev => prev.map(m => (flexibleMatch(messageId, m) ? { ...m, deliveredAt } : m)));
+    });
+
+    // A private-chat theme is a shared conversation property (see
+    // applyChatTheme) — the backend double-writes both participants'
+    // chat_theme_prefs and pushes this to both over the socket, so whichever
+    // side DIDN'T make the change still updates live instead of only on next
+    // fetch. chatKey here is already expressed from THIS client's own point
+    // of view (their username, for the person who changed it).
+    sock.on('chat:theme_changed', ({ chatKey, themeId, changedBy }) => {
+      const myUsername = localStorage.getItem('watch_username');
+      setChatThemes(prev => {
+        const next = { ...prev };
+        if (themeId && themeId !== 'default') next[chatKey] = themeId;
+        else delete next[chatKey];
+        try { localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      const current = activeChatRef.current;
+      if (changedBy && changedBy.toLowerCase() !== (myUsername || '').toLowerCase() &&
+          current?.type === 'private' && (current.partner || current.id) === chatKey) {
+        setMessages(prev => [...prev, makeThemeNoticeMsg(current, changedBy)]);
+      }
     });
 
     sock.on('chat:typing', (data) => {
@@ -5384,14 +5426,12 @@ const GlobalChatWidget = forwardRef(({
   const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
   const activeTheme = CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0];
   const isCustomTheme = activeThemeId !== 'default';
-  // Long-pressing truly empty space inside the open conversation (never a
-  // bubble/button — those have their own touch handlers, and the touchstart
-  // check above only fires this when the touch started directly on the
-  // scroll container itself, not bubbled up from a child) opens the
-  // Instagram-style "Customize" theme sheet. Touch-only by nature (no mouse
-  // equivalent), which is exactly the mobile web/TWA/PWA scoping this was
-  // asked for — desktop pointer input can't trigger a touch event at all.
-  const chatThemeSheetHandlers = chatThemeLongPress.getHandlers('__theme__');
+  // Separate from the above: the sheet can be open for a conversation that
+  // isn't the one currently on screen (opened from a list row's "..." menu),
+  // so its "currently selected" swatch is computed from themeSheetTarget, not
+  // activeChat.
+  const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner) : null;
+  const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
 
   if (!isOpen) return null;
 
@@ -5715,6 +5755,16 @@ const GlobalChatWidget = forwardRef(({
                       onMouseLeave={() => setHoveredMenuBtn(null)}
                       style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='selectMessages' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
                         <SquareCheck size={14} color={hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : undefined}/> {t('selectMessages', 'Select messages')}
+                      </button>
+                      <button onClick={() => {
+                        setThemeSheetTarget(activeChat);
+                        setShowThemeSheet(true);
+                        setShowChatMenu(false);
+                      }} className="chat-menu-item menu-btn"
+                      onMouseEnter={() => setHoveredMenuBtn('chatTheme')}
+                      onMouseLeave={() => setHoveredMenuBtn(null)}
+                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='chatTheme' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                        <Palette size={14} color={hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : undefined}/> {t('chatTheme', 'Chat theme')}
                       </button>
                       {activeChat.type === 'private' && (
                         <>
@@ -6675,6 +6725,10 @@ const GlobalChatWidget = forwardRef(({
                     <div className="chat-menu-item" onClick={() => toggleMuteChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       <BellOff size={16} color="var(--menu-icon)" /> {mutedChats.includes(chatKey) ? t('unmuteNotifications', 'Unmute notifications') : t('muteNotifications', 'Mute notifications')}
                     </div>
+                    {/* Chat theme — works whether or not this conversation is currently open */}
+                    <div className="chat-menu-item" onClick={() => { setThemeSheetTarget(chat); setShowThemeSheet(true); setActiveConvMenu(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <Palette size={16} color="var(--menu-icon)" /> {t('chatTheme', 'Chat theme')}
+                    </div>
                     {/* Mark as read */}
                     <div className="chat-menu-item" onClick={() => markChatAsRead(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       <CheckCheck size={16} color="var(--menu-icon)" /> {t('markAsRead', 'Mark as read')}
@@ -6768,10 +6822,7 @@ const GlobalChatWidget = forwardRef(({
                 }
               }}
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
-              onTouchStart={(e) => { if (e.target === e.currentTarget) chatThemeSheetHandlers.onTouchStart(e); }}
-              onTouchMove={chatThemeSheetHandlers.onTouchMove}
-              onTouchEnd={chatThemeSheetHandlers.onTouchEnd}
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', background: isCustomTheme ? '#000' : 'transparent' }}
+              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', background: isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent' }}
             >
               {historyLoading && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -6819,6 +6870,27 @@ const GlobalChatWidget = forwardRef(({
                   const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
                   const renderReceiptIndex = isLastSentByMe ? lastRenderIdx : -1;
                   return messages.map((msg, i) => {
+                    if (msg.__themeNotice) {
+                      const isMeChange = (msg.themeChangedBy || '').toLowerCase() === myUsername?.toLowerCase();
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
+                            background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
+                            color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 500,
+                            padding: '6px 14px', borderRadius: 14, maxWidth: '85%', textAlign: 'center',
+                          }}>
+                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.themeChangedBy })}</span>
+                            <button
+                              onClick={() => { setThemeSheetTarget(msg.themeNoticeChat); setShowThemeSheet(true); }}
+                              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              {t('changeTheme', 'Change theme')}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
                     const mUserLower = myUsername?.toLowerCase();
                     const isMe = msg.isMe ||
                                  (msg.senderName && msg.senderName.toLowerCase() === mUserLower) ||
@@ -7584,11 +7656,12 @@ const GlobalChatWidget = forwardRef(({
             )}
           </div>
         )}
-        {/* Chat bubble "Customize" theme sheet — opened by long-pressing empty
-            space inside an open conversation (see chatThemeLongPress above).
-            Tapping a swatch applies + persists it immediately (server + local
-            cache) and closes the sheet; no separate "Apply" step. */}
-        {showThemeSheet && activeChat && createPortal(
+        {/* Chat bubble "Customize" theme sheet — opened via the "Chat theme"
+            item in either the open-chat header menu or a conversation row's
+            "..." menu (see themeSheetTarget). Tapping a swatch applies +
+            persists it immediately (server + local cache) and closes the
+            sheet; no separate "Apply" step. */}
+        {showThemeSheet && themeSheetTarget && createPortal(
           <div
             onMouseDown={() => setShowThemeSheet(false)}
             style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
@@ -7608,11 +7681,11 @@ const GlobalChatWidget = forwardRef(({
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
                 {CHAT_THEMES.map(th => {
-                  const selected = th.id === activeThemeId;
+                  const selected = th.id === sheetThemeId;
                   return (
                     <button
                       key={th.id}
-                      onClick={() => { setChatTheme(activeChatKey, th.id); setShowThemeSheet(false); }}
+                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
                       style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
                     >
                       <div style={{

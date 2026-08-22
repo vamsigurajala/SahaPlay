@@ -3893,17 +3893,39 @@ app.get('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
   }
 });
 
+// Reads + writes one user's chat_theme_prefs JSON map, setting/clearing a
+// single chatKey -> themeId entry. Shared by both the caller's own write and
+// (for private chats) the mirrored write into the partner's map below.
+async function upsertChatThemePref(username, chatKey, themeId) {
+  const result = await pool.query('SELECT chat_theme_prefs FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+  let themes = {};
+  try { themes = JSON.parse(result.rows[0]?.chat_theme_prefs || '{}'); } catch {}
+  if (themeId && themeId !== 'default') themes[chatKey] = themeId;
+  else delete themes[chatKey];
+  await pool.query('UPDATE users SET chat_theme_prefs = $1 WHERE LOWER(username) = LOWER($2)', [JSON.stringify(themes), username]);
+  return themes;
+}
+
 app.post('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
   try {
-    const { chatKey, themeId } = req.body;
+    const { chatKey, themeId, chatType } = req.body;
     if (!chatKey) return res.status(400).json({ error: 'chatKey required' });
-    const result = await pool.query('SELECT chat_theme_prefs FROM users WHERE LOWER(username) = LOWER($1)', [req.user.username]);
-    let themes = {};
-    try { themes = JSON.parse(result.rows[0]?.chat_theme_prefs || '{}'); } catch {}
-    if (themeId && themeId !== 'default') themes[chatKey] = themeId;
-    else delete themes[chatKey];
-    await pool.query('UPDATE users SET chat_theme_prefs = $1 WHERE LOWER(username) = LOWER($2)', [JSON.stringify(themes), req.user.username]);
-    res.json({ success: true, themes });
+    const username = req.user.username;
+    const myThemes = await upsertChatThemePref(username, chatKey, themeId);
+
+    // A private chat's theme is a shared conversation property, not a personal
+    // one — mirror the write into the partner's own map (their chatKey for
+    // this same conversation is MY username) and push it live over the
+    // socket so an already-open client updates instantly instead of waiting
+    // for its next GET /api/chat-theme-prefs. Group/room chats stay per-user
+    // only — chatKey there is the room id, not a specific other person.
+    if (chatType === 'private') {
+      await upsertChatThemePref(chatKey, username, themeId);
+      emitToUser(username, 'chat:theme_changed', { chatKey, themeId, changedBy: username });
+      emitToUser(chatKey, 'chat:theme_changed', { chatKey: username, themeId, changedBy: username });
+    }
+
+    res.json({ success: true, themes: myThemes });
   } catch (err) {
     console.error('[chat-theme-prefs POST] error:', err.message);
     res.status(500).json({ error: 'Database error' });
