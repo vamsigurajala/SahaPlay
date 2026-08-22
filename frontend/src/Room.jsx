@@ -8088,6 +8088,43 @@ const Room = () => {
     } catch {}
   };
 
+  // Laptop/desktop webcams commonly lack the auto-gain a phone camera has in low
+  // light, so a dim room can render as a near-black tile with no indication to
+  // the user of why — they just see a blank box and assume something's broken.
+  // Samples a few frames shortly after the camera starts (giving auto-exposure
+  // a moment to settle) via an offscreen video+canvas, independent of whatever
+  // <VideoTile> ends up rendering, and nudges the user toward better lighting
+  // if the picture really is too dark to be useful.
+  const checkCameraBrightness = (stream) => {
+    try {
+      if (!stream.getVideoTracks().length) return;
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      video.play().catch(() => {});
+      setTimeout(() => {
+        try {
+          if (video.videoWidth > 0 && video.videoHeight > 0 && stream.getVideoTracks()[0]?.readyState === 'live') {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 48;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            let sum = 0;
+            for (let i = 0; i < data.length; i += 4) sum += data[i] + data[i + 1] + data[i + 2];
+            const avgBrightness = sum / (data.length / 4) / 3; // 0-255
+            if (avgBrightness < 30) {
+              toast('Your camera looks dark — try moving to a well-lit area for a clearer picture', { icon: '💡', duration: 4500 });
+            }
+          }
+        } catch {}
+        video.pause();
+        video.srcObject = null;
+      }, 1800);
+    } catch {}
+  };
+
   const toggleCamera = async () => {
     console.log('toggleCamera clicked. isCamOn:', isCamOn);
     if (isCamOn) {
@@ -8188,6 +8225,7 @@ const Room = () => {
         setIsCamOn(true);
         isCamOnRef.current = true;
         setHasStartedCamOnce(true);
+        checkCameraBrightness(stream);
         // Some browsers report the active facingMode on the track's settings; fall
         // back to 'user' (front) since that's what getUserMedia({video:true}) picks
         // by default on essentially every phone/tablet when unconstrained.
