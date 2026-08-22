@@ -5053,8 +5053,12 @@ const Room = () => {
       }
     });
 
-    sock.on('cam_started', async ({ socketId, username: uname }) => {
-      console.log('Received cam_started from', uname, socketId);
+    // Shared by 'cam_started' and 'mic_started' — a peer announcing it now has
+    // SOME local media to share (camera, mic-only, or both; localCamRef.current
+    // on their end already holds whatever that is) bootstraps a PeerConnection
+    // and offers to receive whatever they end up sending us, symmetrically
+    // adding whatever WE currently have to send back.
+    const handlePeerMediaStarted = async (socketId, uname) => {
       if (cameraPcRefs.current[socketId]) {
         cameraPcRefs.current[socketId].close();
       }
@@ -5091,15 +5095,38 @@ const Room = () => {
         pc.setLocalDescription(o);
         sock.emit('cam_offer', { targetSocketId: socketId, offer: o });
       }).catch(err => console.error('Error creating offer', err));
-    });
-    sock.on('cam_stopped', ({ socketId }) => {
-      console.log('Received cam_stopped from', socketId);
-      if (!isCamOnRef.current) {
+    };
+    // Shared by 'cam_stopped' and 'mic_stopped' — only tear the connection down
+    // if we ALSO have nothing left to send them (camera and mic both off on our
+    // side too), since the same PeerConnection carries both directions.
+    const handlePeerMediaStopped = (socketId) => {
+      if (!isCamOnRef.current && !isMicOnCamRef.current) {
         cameraPcRefs.current[socketId]?.close();
         delete cameraPcRefs.current[socketId];
       }
       setRemoteStreams(prev => { const n = { ...prev }; delete n[socketId]; return n; });
       analyzersRef.current.delete(socketId);
+    };
+
+    sock.on('cam_started', ({ socketId, username: uname }) => {
+      console.log('Received cam_started from', uname, socketId);
+      handlePeerMediaStarted(socketId, uname);
+    });
+    sock.on('cam_stopped', ({ socketId }) => {
+      console.log('Received cam_stopped from', socketId);
+      handlePeerMediaStopped(socketId);
+    });
+    // Mic-only sharing (no camera) needs its own bootstrap/teardown signal —
+    // reusing 'cam_started' would incorrectly run it through the room's camera
+    // permission check on the server (see backend's 'mic_started' handler,
+    // which checks permissions.mic instead of permissions.cam).
+    sock.on('mic_started', ({ socketId, username: uname }) => {
+      console.log('Received mic_started from', uname, socketId);
+      handlePeerMediaStarted(socketId, uname);
+    });
+    sock.on('mic_stopped', ({ socketId }) => {
+      console.log('Received mic_stopped from', socketId);
+      handlePeerMediaStopped(socketId);
     });
     // The other participant hung up — this is a call, not a shared broadcast,
     // so end it on our side too: stop our own camera/mic and close the call screen.
@@ -8288,8 +8315,14 @@ const Room = () => {
               else pc.addTrack(newTrack, localCamRef.current);
             });
           } else {
-            // No camera stream — keep the audio-only stream
+            // No camera stream — keep the audio-only stream. Nobody has a
+            // PeerConnection to us yet in this case (the whole camera-share mesh
+            // is only ever bootstrapped by 'cam_started'/'mic_started' — turning
+            // mic on alone never emitted anything before), so without this our
+            // voice would silently go nowhere until someone's camera happened to
+            // come on.
             localCamRef.current = audioStream;
+            socket?.emit('mic_started', { roomId: (roomId || '').toLowerCase() });
           }
         } catch (err) {
           if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
@@ -8319,10 +8352,14 @@ const Room = () => {
             try { pc.removeTrack(s); } catch {}
           });
         });
-        // If camera is also off, clean up the entire stream
+        // If camera is also off, clean up the entire stream and tell peers we
+        // have nothing left to share — mirrors the mic-only 'mic_started' emit
+        // above, so their now-empty PeerConnection gets closed instead of
+        // lingering open forever.
         if (!isCamOn) {
           localCamRef.current.getTracks().forEach(t => t.stop());
           localCamRef.current = null;
+          socket?.emit('mic_stopped', { roomId: (roomId || '').toLowerCase() });
         }
       }
     }
@@ -9880,8 +9917,14 @@ const Room = () => {
                       const uIsMe = u.socketId === socket?.id;
                       const rawAvatar = u.avatarPath || knownAvatars[u.username];
                       const avatarSrc = getAvatarUrl(rawAvatar);
+                      const uIsSpeaking = speakingIds.has(uIsMe ? 'local' : u.socketId);
                       return (
-                        <div key={u.socketId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s', background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'), border: uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent' }} className="usr-row">
+                        <div key={u.socketId} style={{
+                          display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 16, transition: 'all 0.2s',
+                          background: uIsMe ? (isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)') : (isLight ? '#f8fafc' : 'rgba(255,255,255,0.02)'),
+                          border: uIsSpeaking ? '1px solid #a855f7' : (uIsMe ? (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.1)') : '1px solid transparent'),
+                          boxShadow: uIsSpeaking ? '0 0 0 3px rgba(168,85,247,0.25)' : 'none',
+                        }} className="usr-row">
                           <div onClick={() => navigate(`/profile/${u.username}`)} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
                             <Avatar name={u.username} src={avatarSrc} isHost={uIsHost} isAdmin={uIsAdmin} isMuted={!!u.isMuted} size={38} />
                             <div style={{ flex: 1, minWidth: 0 }}>

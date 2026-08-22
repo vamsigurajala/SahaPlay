@@ -8890,6 +8890,33 @@ io.on('connection', (socket) => {
       console.error('[SOCKET] cam_stopped error:', err.message, 'user:', socket.username);
     }
   });
+  // Mic-only sharing (no camera) — separate from cam_started/cam_stopped so it's
+  // gated by permissions.mic instead of permissions.cam. Bootstraps the same
+  // camera-share PeerConnection mesh on the receiving clients (see Room.jsx's
+  // handlePeerMediaStarted, shared with cam_started).
+  socket.on('mic_started', ({ roomId }) => {
+    try {
+    if (!rooms.has(roomId)) return;
+    const room = rooms.get(roomId);
+
+    const allowMic = room.permissions?.mic || 'all';
+    if (allowMic === 'host' && !isUserAdmin(room, socket)) {
+      socket.emit('error_notification', 'Only administrators can use the microphone.');
+      return;
+    }
+
+    socket.to(roomId).emit('mic_started', { socketId: socket.id, username: socket.username });
+    } catch (err) {
+      console.error('[SOCKET] mic_started error:', err.message, 'user:', socket.username);
+    }
+  });
+  socket.on('mic_stopped', ({ roomId }) => {
+    try {
+    socket.to(roomId).emit('mic_stopped', { socketId: socket.id });
+    } catch (err) {
+      console.error('[SOCKET] mic_stopped error:', err.message, 'user:', socket.username);
+    }
+  });
   // Either participant hanging up a call ends it for everyone in it —
   // tells peers to stop their own camera/mic and close the call screen too.
   socket.on('call_ended', ({ roomId: rawRoomId }) => {
