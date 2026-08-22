@@ -26,6 +26,34 @@ import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersist
 import MediaLightbox from './MediaLightbox';
 import { isCapacitorApp } from '../lib/platform';
 
+// ── Chat bubble "Customize" themes (Instagram-style) ──────────────────────────
+// 'default' is intentionally the app's existing sent-bubble gradient, unchanged
+// — picking "Default" (or never opening the picker at all) must look exactly
+// like it always has. Every other entry replaces that gradient, and forces the
+// chat background to solid black (see chatLocked-adjacent isCustomTheme usage
+// below) so the gradient reads clearly, matching Instagram's own behavior.
+const CHAT_THEMES = [
+  { id: 'default', name: 'Default', gradient: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' },
+  { id: 'ocean', name: 'Ocean', gradient: 'linear-gradient(180deg,#2563eb 0%,#1d4ed8 100%)' },
+  { id: 'berry', name: 'Berry', gradient: 'linear-gradient(180deg,#1e3a8a 0%,#7c3aed 55%,#ef4444 100%)' },
+  { id: 'candy', name: 'Candy', gradient: 'linear-gradient(180deg,#f9a8d4 0%,#93c5fd 55%,#22d3ee 100%)' },
+  { id: 'unicorn', name: 'Unicorn', gradient: 'linear-gradient(180deg,#d946ef 0%,#7c3aed 100%)' },
+  { id: 'maple', name: 'Maple', gradient: 'linear-gradient(180deg,#7f1d1d 0%,#b45309 100%)' },
+  { id: 'sushi', name: 'Sushi', gradient: 'linear-gradient(180deg,#f87171 0%,#fbbf24 100%)' },
+  { id: 'rocket', name: 'Rocket', gradient: 'linear-gradient(180deg,#f59e0b 0%,#ef4444 55%,#ec4899 100%)' },
+  { id: 'lollipop', name: 'Lollipop', gradient: 'linear-gradient(180deg,#f472b6 0%,#a78bfa 100%)' },
+  { id: 'shadow', name: 'Shadow', gradient: 'linear-gradient(180deg,#4c1d95 0%,#312e81 100%)' },
+  { id: 'sunset', name: 'Sunset', gradient: 'linear-gradient(180deg,#fb923c 0%,#db2777 100%)' },
+  { id: 'mint', name: 'Mint', gradient: 'linear-gradient(180deg,#34d399 0%,#0891b2 100%)' },
+];
+// Roughly the average rendered height (px) of one message bubble, used to
+// approximate each bubble's position along ONE continuous gradient spanning
+// the whole conversation (see the sent-bubble background-position/size below)
+// — an index-based estimate rather than measuring real DOM heights, since the
+// point is "later messages read as a visibly different shade than earlier
+// ones", not pixel-perfect continuity across bubbles of varying height.
+const CHAT_THEME_BUBBLE_STRIDE = 70;
+
 // Desktop-browser equivalent of the native app's push notifications — the
 // in-page toast below only helps while this tab is actually visible, so a
 // message that arrives while the user is on a different tab (browser open,
@@ -1654,6 +1682,52 @@ const GlobalChatWidget = forwardRef(({
     } catch { return []; }
   });
   const [chatLockEnabled, setChatLockEnabled] = useState(false);
+  // Chat bubble "Customize" theme — chatKey -> theme id (see CHAT_THEMES).
+  // localStorage seeds instant paint on load; the server fetch below (and the
+  // POST on every change) is what makes a theme picked here show up for this
+  // same account on every other platform (mobile web, TWA, PWA, desktop).
+  const [chatThemes, setChatThemes] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`chat_themes_${myUsername}`) || '{}');
+    } catch { return {}; }
+  });
+  const [showThemeSheet, setShowThemeSheet] = useState(false);
+  const chatThemeLongPress = useLongPress();
+  useEffect(() => {
+    if (chatThemeLongPress.activeId) {
+      setShowThemeSheet(true);
+      chatThemeLongPress.close();
+    }
+  }, [chatThemeLongPress.activeId]);
+  useEffect(() => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn || tkn === 'null' || tkn === 'undefined') return;
+    fetch(`${API}/api/chat-theme-prefs`, { headers: { 'Authorization': `Bearer ${tkn}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.themes && typeof data.themes === 'object') {
+          setChatThemes(data.themes);
+          localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(data.themes));
+        }
+      })
+      .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
+  }, []);
+  const setChatTheme = useCallback((chatKey, themeId) => {
+    setChatThemes(prev => {
+      const next = { ...prev };
+      if (themeId && themeId !== 'default') next[chatKey] = themeId;
+      else delete next[chatKey];
+      localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next));
+      return next;
+    });
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn || tkn === 'null' || tkn === 'undefined') return;
+    fetch(`${API}/api/chat-theme-prefs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+      body: JSON.stringify({ chatKey, themeId }),
+    }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
+  }, [myUsername]);
 
   // The widget is a fixed, very-high-zIndex overlay — a page-level react-hot-toast
   // (default zIndex much lower) renders BEHIND it, so errors like "too many files"
@@ -5304,6 +5378,21 @@ const GlobalChatWidget = forwardRef(({
   const linksBlocked = perms?.allowLinks === false;
   const mediaBlocked = perms?.allowMedia === false;
 
+  // Chat bubble "Customize" theme for whichever conversation is open — same
+  // chatKey shape used everywhere else in this file (room: id/partner, private: partner).
+  const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner) : null;
+  const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
+  const activeTheme = CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0];
+  const isCustomTheme = activeThemeId !== 'default';
+  // Long-pressing truly empty space inside the open conversation (never a
+  // bubble/button — those have their own touch handlers, and the touchstart
+  // check above only fires this when the touch started directly on the
+  // scroll container itself, not bubbled up from a child) opens the
+  // Instagram-style "Customize" theme sheet. Touch-only by nature (no mouse
+  // equivalent), which is exactly the mobile web/TWA/PWA scoping this was
+  // asked for — desktop pointer input can't trigger a touch event at all.
+  const chatThemeSheetHandlers = chatThemeLongPress.getHandlers('__theme__');
+
   if (!isOpen) return null;
 
   return (
@@ -6679,7 +6768,10 @@ const GlobalChatWidget = forwardRef(({
                 }
               }}
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}
+              onTouchStart={(e) => { if (e.target === e.currentTarget) chatThemeSheetHandlers.onTouchStart(e); }}
+              onTouchMove={chatThemeSheetHandlers.onTouchMove}
+              onTouchEnd={chatThemeSheetHandlers.onTouchEnd}
+              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', background: isCustomTheme ? '#000' : 'transparent' }}
             >
               {historyLoading && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -6887,7 +6979,17 @@ const GlobalChatWidget = forwardRef(({
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
+                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
+                                // isMe + custom theme: every sent bubble reads its own slice of ONE
+                                // continuous gradient spanning the whole conversation (index-based
+                                // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
+                                // of each bubble independently repeating the full gradient. That's
+                                // what makes older vs. newer sent messages land in a visibly
+                                // different shade, matching Instagram's own per-conversation theme.
+                                ...(isMe && isCustomTheme && !isMediaOnly ? {
+                                  backgroundSize: `100% ${Math.max(messages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
+                                  backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
+                                } : {}),
                                 padding: isMediaOnly ? '0' : '10px 16px',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                                 fontSize: 14,
@@ -7481,6 +7583,51 @@ const GlobalChatWidget = forwardRef(({
               </>
             )}
           </div>
+        )}
+        {/* Chat bubble "Customize" theme sheet — opened by long-pressing empty
+            space inside an open conversation (see chatThemeLongPress above).
+            Tapping a swatch applies + persists it immediately (server + local
+            cache) and closes the sheet; no separate "Apply" step. */}
+        {showThemeSheet && activeChat && createPortal(
+          <div
+            onMouseDown={() => setShowThemeSheet(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          >
+            <div
+              onMouseDown={e => e.stopPropagation()}
+              style={{
+                width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
+                background: '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
+                boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+              className="no-scrollbar"
+            >
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
+              <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+                {t('customizeChat', 'Customize')}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                {CHAT_THEMES.map(th => {
+                  const selected = th.id === activeThemeId;
+                  return (
+                    <button
+                      key={th.id}
+                      onClick={() => { setChatTheme(activeChatKey, th.id); setShowThemeSheet(false); }}
+                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{
+                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
+                        border: selected ? '3px solid #fff' : '3px solid transparent',
+                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                      }} />
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{th.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
         {/* Block User Confirmation Modal */}
          {blockUserPending && createPortal(

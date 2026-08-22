@@ -1514,6 +1514,14 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "firstJoined" TEXT DEFAULT '{}'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] firstJoined:', e.message);
   });
+  // chat_theme_prefs: per-user JSON map of chatKey -> theme id, for the chat
+  // bubble "Customize" theme picker (mirrors firstJoined's map-in-a-column
+  // pattern). Server-authoritative so a theme picked on one device/platform
+  // (mobile web, TWA, PWA, desktop) shows up everywhere for that account,
+  // instead of being stuck in one device's localStorage.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS chat_theme_prefs TEXT DEFAULT '{}'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] chat_theme_prefs:', e.message);
+  });
   // google_sub: Google's stable per-account subject ID. Used (alongside CHAT_ENCRYPTION_SECRET)
   // to derive a per-user server-side wrapping key for encryptedPrivateKey, since Google OAuth
   // users have no password to derive a client-side wrapping key from.
@@ -3867,6 +3875,38 @@ app.get('/api/chats/private-partners', authenticateToken, async (req, res) => {
   } catch (e) {
     console.error('[private-partners] error:', e.message);
     res.status(500).json({ error: 'Failed to load private chats' });
+  }
+});
+
+// â"€â"€ Chat bubble "Customize" themes â”€â”€ per-user, per-conversation, so the same
+// theme shows up for this account on every platform (mobile web, TWA, PWA,
+// desktop), not just the device it was picked on.
+app.get('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT chat_theme_prefs FROM users WHERE LOWER(username) = LOWER($1)', [req.user.username]);
+    let themes = {};
+    try { themes = JSON.parse(result.rows[0]?.chat_theme_prefs || '{}'); } catch {}
+    res.json({ themes });
+  } catch (err) {
+    console.error('[chat-theme-prefs GET] error:', err.message);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
+  try {
+    const { chatKey, themeId } = req.body;
+    if (!chatKey) return res.status(400).json({ error: 'chatKey required' });
+    const result = await pool.query('SELECT chat_theme_prefs FROM users WHERE LOWER(username) = LOWER($1)', [req.user.username]);
+    let themes = {};
+    try { themes = JSON.parse(result.rows[0]?.chat_theme_prefs || '{}'); } catch {}
+    if (themeId && themeId !== 'default') themes[chatKey] = themeId;
+    else delete themes[chatKey];
+    await pool.query('UPDATE users SET chat_theme_prefs = $1 WHERE LOWER(username) = LOWER($2)', [JSON.stringify(themes), req.user.username]);
+    res.json({ success: true, themes });
+  } catch (err) {
+    console.error('[chat-theme-prefs POST] error:', err.message);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 
