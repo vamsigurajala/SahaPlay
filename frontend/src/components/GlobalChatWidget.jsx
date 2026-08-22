@@ -25,34 +25,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { isCapacitorApp } from '../lib/platform';
-
-// ── Chat bubble "Customize" themes (Instagram-style) ──────────────────────────
-// 'default' is intentionally the app's existing sent-bubble gradient, unchanged
-// — picking "Default" (or never opening the picker at all) must look exactly
-// like it always has. Every other entry replaces that gradient, and forces the
-// chat background to solid black (see chatLocked-adjacent isCustomTheme usage
-// below) so the gradient reads clearly, matching Instagram's own behavior.
-const CHAT_THEMES = [
-  { id: 'default', name: 'Default', gradient: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' },
-  { id: 'ocean', name: 'Ocean', gradient: 'linear-gradient(180deg,#2563eb 0%,#1d4ed8 100%)' },
-  { id: 'berry', name: 'Berry', gradient: 'linear-gradient(180deg,#1e3a8a 0%,#7c3aed 55%,#ef4444 100%)' },
-  { id: 'candy', name: 'Candy', gradient: 'linear-gradient(180deg,#f9a8d4 0%,#93c5fd 55%,#22d3ee 100%)' },
-  { id: 'unicorn', name: 'Unicorn', gradient: 'linear-gradient(180deg,#d946ef 0%,#7c3aed 100%)' },
-  { id: 'maple', name: 'Maple', gradient: 'linear-gradient(180deg,#7f1d1d 0%,#b45309 100%)' },
-  { id: 'sushi', name: 'Sushi', gradient: 'linear-gradient(180deg,#f87171 0%,#fbbf24 100%)' },
-  { id: 'rocket', name: 'Rocket', gradient: 'linear-gradient(180deg,#f59e0b 0%,#ef4444 55%,#ec4899 100%)' },
-  { id: 'lollipop', name: 'Lollipop', gradient: 'linear-gradient(180deg,#f472b6 0%,#a78bfa 100%)' },
-  { id: 'shadow', name: 'Shadow', gradient: 'linear-gradient(180deg,#4c1d95 0%,#312e81 100%)' },
-  { id: 'sunset', name: 'Sunset', gradient: 'linear-gradient(180deg,#fb923c 0%,#db2777 100%)' },
-  { id: 'mint', name: 'Mint', gradient: 'linear-gradient(180deg,#34d399 0%,#0891b2 100%)' },
-];
-// Roughly the average rendered height (px) of one message bubble, used to
-// approximate each bubble's position along ONE continuous gradient spanning
-// the whole conversation (see the sent-bubble background-position/size below)
-// — an index-based estimate rather than measuring real DOM heights, since the
-// point is "later messages read as a visibly different shade than earlier
-// ones", not pixel-perfect continuity across bubbles of varying height.
-const CHAT_THEME_BUBBLE_STRIDE = 70;
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 
 // Desktop-browser equivalent of the native app's push notifications — the
 // in-page toast below only helps while this tab is actually visible, so a
@@ -1727,7 +1700,7 @@ const GlobalChatWidget = forwardRef(({
   });
   const applyChatTheme = useCallback((target, themeId) => {
     if (!target) return;
-    const chatKey = target.type === 'room' ? (target.partner || target.id) : target.partner;
+    const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
     if (!chatKey) return;
     setChatThemes(prev => {
       const next = { ...prev };
@@ -1737,7 +1710,7 @@ const GlobalChatWidget = forwardRef(({
       return next;
     });
     if (target.type === 'private' && activeChatRef.current?.type === 'private' &&
-        (activeChatRef.current.partner || activeChatRef.current.id) === chatKey) {
+        (activeChatRef.current.partner || activeChatRef.current.id)?.toLowerCase() === chatKey) {
       setMessages(prev => [...prev, makeThemeNoticeMsg(target, myUsername)]);
     }
     const tkn = localStorage.getItem('watch_token');
@@ -2754,7 +2727,7 @@ const GlobalChatWidget = forwardRef(({
       });
       const current = activeChatRef.current;
       if (changedBy && changedBy.toLowerCase() !== (myUsername || '').toLowerCase() &&
-          current?.type === 'private' && (current.partner || current.id) === chatKey) {
+          current?.type === 'private' && (current.partner || current.id)?.toLowerCase() === chatKey) {
         setMessages(prev => [...prev, makeThemeNoticeMsg(current, changedBy)]);
       }
     });
@@ -5420,9 +5393,12 @@ const GlobalChatWidget = forwardRef(({
   const linksBlocked = perms?.allowLinks === false;
   const mediaBlocked = perms?.allowMedia === false;
 
-  // Chat bubble "Customize" theme for whichever conversation is open — same
-  // chatKey shape used everywhere else in this file (room: id/partner, private: partner).
-  const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner) : null;
+  // Chat bubble "Customize" theme for whichever conversation is open. Always
+  // lowercased — RoomChatPanel.jsx (a second, independent chat UI reachable
+  // from within a room) computes the same private-chat chatKey as
+  // dmTarget.toLowerCase(), so a theme set from either surface has to land on
+  // the identical map key for the other to see it too.
+  const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
   const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
   const activeTheme = CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0];
   const isCustomTheme = activeThemeId !== 'default';
@@ -5430,7 +5406,7 @@ const GlobalChatWidget = forwardRef(({
   // isn't the one currently on screen (opened from a list row's "..." menu),
   // so its "currently selected" swatch is computed from themeSheetTarget, not
   // activeChat.
-  const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner) : null;
+  const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase() : null;
   const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
 
   if (!isOpen) return null;

@@ -9,8 +9,9 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette
 } from 'lucide-react';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -645,12 +646,14 @@ const MenuStyles = () => (
       --dropdown-border: rgba(255,255,255,0.08);
       --dropdown-shadow: 0 8px 32px rgba(0,0,0,0.7);
       --menu-item-text: #eee;
+      --menu-divider: rgba(255,255,255,0.22);
     }
     html[data-theme='light'] #room-chat-panel {
       --dropdown-bg: #ffffff;
       --dropdown-border: rgba(0,0,0,0.08);
       --dropdown-shadow: 0 10px 30px rgba(0,0,0,0.1);
       --menu-item-text: #0f172a;
+      --menu-divider: #cbd5e1;
     }
 
     @keyframes menuFadeIn {
@@ -2626,6 +2629,9 @@ export default function RoomChatPanel({ p }) {
                   <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); toggleMuteChat(p.roomId);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                     {mutedChats.includes((p.roomId||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.roomId||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                   </div>
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); p.openChatThemeSheet({ type: 'room', id: p.roomId });}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                    <Palette size={16}/> {t('chatTheme', 'Chat theme')}
+                  </div>
                   <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); setClearGroupChatModalOpen(true);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                     <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                   </div>
@@ -2647,7 +2653,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:12,display:'flex',flexDirection:'column',gap:10}}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -2690,6 +2696,9 @@ export default function RoomChatPanel({ p }) {
               const lastGroupMsg = p.groupMessages[lastGroupRenderIdx];
               const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
               const renderGroupReceiptIndex = isLastGroupSentByMe ? lastGroupRenderIdx : -1;
+              const groupThemeId = (p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()]) || 'default';
+              const groupTheme = CHAT_THEMES.find(th => th.id === groupThemeId) || CHAT_THEMES[0];
+              const isGroupCustomTheme = groupThemeId !== 'default';
               return p.groupMessages.map((msg,i)=>{
               const rowKey = msg.tempId || msg.id || i;
               if (groupMediaRunsInfo.memberKeys.has(rowKey)) return null;
@@ -2831,7 +2840,11 @@ export default function RoomChatPanel({ p }) {
                         <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
                           zIndex: 2,
-                          background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                          background: isMediaOnly ? 'transparent' : (isMe ? (isGroupCustomTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                          ...(isMe && isGroupCustomTheme && !isMediaOnly ? {
+                            backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
+                            backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
+                          } : {}),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
@@ -3282,6 +3295,9 @@ export default function RoomChatPanel({ p }) {
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                           {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                         </div>
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.openChatThemeSheet({ type: 'private', partner: p.dmTarget });}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          <Palette size={16}/> {t('chatTheme', 'Chat theme')}
+                        </div>
                         <div style={{ height: '1px', background: 'var(--menu-divider)', margin: '6px 8px' }} />
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                           <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? t('unblock', 'Unblock') : t('block', 'Block')}
@@ -3312,7 +3328,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:10,display:'flex',flexDirection:'column',gap:8}}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -3358,7 +3374,31 @@ export default function RoomChatPanel({ p }) {
                     const lastDMMsg = dmMessages[lastDMRenderIdx];
                     const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
                     const renderDMReceiptIndex = isLastDMSentByMe ? lastDMRenderIdx : -1;
+                    const dmThemeId = (p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()]) || 'default';
+                    const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
+                    const isDMCustomTheme = dmThemeId !== 'default';
                     return dmMessages.map((msg,i)=>{
+                    if (msg.__themeNotice) {
+                      const isMeChange = (msg.themeChangedBy || '').toLowerCase() === p.username?.toLowerCase();
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
+                            background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
+                            color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 500,
+                            padding: '6px 14px', borderRadius: 14, maxWidth: '85%', textAlign: 'center',
+                          }}>
+                            <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.themeChangedBy })}</span>
+                            <button
+                              onClick={() => p.openChatThemeSheet(msg.themeNoticeChat)}
+                              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              {t('changeTheme', 'Change theme')}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
                     const rowKey = msg.tempId || msg.id || i;
                     if (dmMediaRunsInfo.memberKeys.has(rowKey)) return null;
                     const mediaGroupItems = dmMediaRunsInfo.heads.get(rowKey) || null;
@@ -3462,7 +3502,11 @@ export default function RoomChatPanel({ p }) {
                               <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (isMe ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                                background: isMediaOnly ? 'transparent' : (isMe ? (isDMCustomTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                                ...(isMe && isDMCustomTheme && !isMediaOnly ? {
+                                  backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
+                                  backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
+                                } : {}),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,

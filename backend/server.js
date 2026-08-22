@@ -3908,9 +3908,15 @@ async function upsertChatThemePref(username, chatKey, themeId) {
 
 app.post('/api/chat-theme-prefs', authenticateToken, async (req, res) => {
   try {
-    const { chatKey, themeId, chatType } = req.body;
-    if (!chatKey) return res.status(400).json({ error: 'chatKey required' });
-    const username = req.user.username;
+    const { chatKey: rawChatKey, themeId, chatType } = req.body;
+    if (!rawChatKey) return res.status(400).json({ error: 'chatKey required' });
+    // Lowercased consistently — two independent frontend chat UIs
+    // (GlobalChatWidget.jsx and RoomChatPanel.jsx) both write/read this map,
+    // and must land on the identical key for the same conversation regardless
+    // of which one a user happens to be on, or which display-case username
+    // either client passes.
+    const chatKey = rawChatKey.toLowerCase();
+    const username = req.user.username.toLowerCase();
     const myThemes = await upsertChatThemePref(username, chatKey, themeId);
 
     // A private chat's theme is a shared conversation property, not a personal

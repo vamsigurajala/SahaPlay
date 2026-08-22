@@ -8,6 +8,7 @@ import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
+import { CHAT_THEMES } from './lib/chatThemes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -788,6 +789,19 @@ const isGameOrActivity = (url) => {
 };
 
 const isCallActivity = (url) => url === 'activity://videocall' || url === 'activity://voicecall';
+
+// Builds the "so-and-so changed the chat theme" notice inserted inline into a
+// private conversation (RoomChatPanel's own DM thread) — client-side/ephemeral
+// only (not written to message history), matching GlobalChatWidget's
+// identical makeThemeNoticeMsg. Visible to whoever has the conversation open
+// live at the time, not persisted across a later reopen.
+const makeThemeNoticeMsg = (chat, changedBy) => ({
+  id: `theme-notice-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  __themeNotice: true,
+  themeChangedBy: changedBy,
+  themeNoticeChat: chat,
+  timestamp: Date.now(),
+});
 
 const isMediaGame = (url) => {
   if (!url) return false;
@@ -2223,6 +2237,56 @@ const Room = () => {
   const dmTargetRef = useRef(null);
   const [dmThreads, setDmThreads] = useState({});
   const dmClearedTsRef = useRef({});
+  // Chat bubble "Customize" theme (RoomChatPanel's own DM/group chat) — same
+  // chat_theme_prefs backend and chat:theme_changed socket event GlobalChatWidget
+  // uses (a second, independent chat UI reachable from within a room), so a
+  // theme picked on either surface shows up on both. chatKey is always
+  // lowercase to match RoomChatPanel's existing (partner||roomId).toLowerCase()
+  // convention.
+  const [chatThemes, setChatThemes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`chat_themes_${username}`) || '{}'); } catch { return {}; }
+  });
+  const [themeSheetTarget, setThemeSheetTarget] = useState(null);
+  const [showThemeSheet, setShowThemeSheet] = useState(false);
+  const openChatThemeSheet = useCallback((target) => {
+    setThemeSheetTarget(target);
+    setShowThemeSheet(true);
+  }, []);
+  useEffect(() => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    fetch(`${SOCKET_SERVER_URL}/api/chat-theme-prefs`, { headers: { 'Authorization': `Bearer ${tkn}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.themes && typeof data.themes === 'object') {
+          setChatThemes(data.themes);
+          try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(data.themes)); } catch {}
+        }
+      })
+      .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
+  }, []);
+  const applyChatTheme = useCallback((target, themeId) => {
+    if (!target) return;
+    const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
+    if (!chatKey) return;
+    setChatThemes(prev => {
+      const next = { ...prev };
+      if (themeId && themeId !== 'default') next[chatKey] = themeId;
+      else delete next[chatKey];
+      try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+    if (target.type === 'private' && (dmTargetRef.current || '').toLowerCase() === chatKey) {
+      setDmThreads(prev => ({ ...prev, [chatKey]: [...(prev[chatKey] || []), makeThemeNoticeMsg(target, username)] }));
+    }
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    fetch(`${SOCKET_SERVER_URL}/api/chat-theme-prefs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+      body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
+    }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
+  }, [username]);
   const [dmUnread, setDmUnread] = useState({});
   const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
@@ -5130,6 +5194,22 @@ const Room = () => {
     sock.on('mic_stopped', ({ socketId }) => {
       console.log('Received mic_stopped from', socketId);
       handlePeerMediaStopped(socketId);
+    });
+    // Chat bubble "Customize" theme — shared with GlobalChatWidget's identical
+    // listener (see /api/chat-theme-prefs). chatKey here is already expressed
+    // from THIS client's own point of view (their username, for whoever changed it).
+    sock.on('chat:theme_changed', ({ chatKey, themeId, changedBy }) => {
+      setChatThemes(prev => {
+        const next = { ...prev };
+        if (themeId && themeId !== 'default') next[chatKey] = themeId;
+        else delete next[chatKey];
+        try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      if (changedBy && changedBy.toLowerCase() !== (username || '').toLowerCase() &&
+          (dmTargetRef.current || '').toLowerCase() === chatKey) {
+        setDmThreads(prev => ({ ...prev, [chatKey]: [...(prev[chatKey] || []), makeThemeNoticeMsg({ type: 'private', partner: dmTargetRef.current }, changedBy)] }));
+      }
     });
     // The other participant hung up — this is a call, not a shared broadcast,
     // so end it on our side too: stop our own camera/mic and close the call screen.
@@ -10375,6 +10455,55 @@ const Room = () => {
         (isTouchPlayer && isMobileFsMode && playerWrapRef.current) ? playerWrapRef.current : document.body
       )}
 
+      {/* Chat bubble "Customize" theme sheet — shared by RoomChatPanel's DM and
+          group chat "..." menus (see openChatThemeSheet). Tapping a swatch
+          applies + persists immediately; no separate "Apply" step. */}
+      {showThemeSheet && themeSheetTarget && createPortal(
+        <div
+          onMouseDown={() => setShowThemeSheet(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+        >
+          <div
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
+              background: '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
+              boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            className="no-scrollbar"
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
+            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+              Customize
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {(() => {
+                const sheetChatKey = (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase();
+                const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
+                return CHAT_THEMES.map(th => {
+                  const selected = th.id === sheetThemeId;
+                  return (
+                    <button
+                      key={th.id}
+                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
+                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{
+                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
+                        border: selected ? '3px solid #fff' : '3px solid transparent',
+                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                      }} />
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{th.name}</span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <CustomizeRoomModal
         isOpen={showCustomizeModal}
         onClose={() => setShowCustomizeModal(false)}
@@ -13345,6 +13474,7 @@ const Room = () => {
                 {/* Chat tab — RoomChatPanel rendered but hidden when not active (preserves scroll/state) */}
                 <div style={{ flex: 1, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
                   <RoomChatPanel p={{
+                    chatThemes, openChatThemeSheet,
                     chatTab, setChatTab, chatTabRef,
                     groupMessages, groupUnread, setGroupUnread,
                     room, isAdmin,
@@ -13621,6 +13751,7 @@ const Room = () => {
             /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
             (
               <RoomChatPanel p={{
+                chatThemes, openChatThemeSheet,
                 chatTab, setChatTab, chatTabRef,
                 groupMessages, groupUnread, setGroupUnread,
                 room, isAdmin,
