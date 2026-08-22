@@ -2309,7 +2309,7 @@ const Room = () => {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
       body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
     }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
-  }, [username, keyPair]);
+  }, [username]);
   const [dmUnread, setDmUnread] = useState({});
   const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
