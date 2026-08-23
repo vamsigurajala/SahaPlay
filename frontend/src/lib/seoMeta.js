@@ -142,6 +142,10 @@ export const PAGE_META = {
     title: 'Terms of Service — SahaPlay',
     description: "Read SahaPlay's terms of service governing use of our watch party platform.",
   },
+  '/legal/law-enforcement': {
+    title: 'Law Enforcement Guidelines — SahaPlay',
+    description: "What SahaPlay can and cannot provide under legal process, and how to submit a legitimate government or law enforcement request.",
+  },
 };
 
 export function getPageMeta(pathname) {

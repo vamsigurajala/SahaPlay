@@ -127,6 +127,7 @@ const Footer = () => {
             </button>
             <button className="footer-link-btn" onClick={() => navigate('/terms')}>{t('termsOfService', 'Terms of Service')}</button>
             <button className="footer-link-btn" onClick={() => navigate('/cookies')}>{t('cookiePolicy', 'Cookie Policy')}</button>
+            <button className="footer-link-btn" onClick={() => navigate('/legal/law-enforcement')}>{t('lawEnforcementGuidelines', 'Law Enforcement Guidelines')}</button>
           </div>
         </div>
       </div>

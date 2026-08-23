@@ -38,6 +38,7 @@ const ReportBug = lazy(() => import('./ReportBug'));
 const Safety = lazy(() => import('./Safety'));
 const Cookies = lazy(() => import('./Cookies'));
 const Terms = lazy(() => import('./Terms'));
+const LawEnforcement = lazy(() => import('./LawEnforcement'));
 const Admin = lazy(() => import('./Admin'));
 
 class ErrorBoundary extends React.Component {
@@ -1233,6 +1234,7 @@ function App() {
             <Route path="/safety" element={<Safety />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/legal/law-enforcement" element={<LawEnforcement />} />
             <Route path="/" element={<RootRoute />} />
             <Route path="/public" element={<ProtectedRoute><PublicRooms /></ProtectedRoute>} />
             <Route path="/pinned-rooms" element={<ProtectedRoute><PinnedRooms /></ProtectedRoute>} />
