@@ -423,7 +423,7 @@ export default function LawEnforcement() {
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
             >
-              <Send size={16} color="#fff" /> {t('leCtaBtn', 'Contact Us')} &rarr;
+              <Send size={16} color="#fff" /> {t('contactUs', 'Contact Us')} &rarr;
             </Link>
           </div>
         </section>
