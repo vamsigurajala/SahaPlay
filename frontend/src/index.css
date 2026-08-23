@@ -1548,6 +1548,30 @@ body.sp-mobile-fs-active .room-player-col {
   background: #000 !important;
 }
 
+/* A game/activity (Timer, Whiteboard, etc.) isn't video — it has its own
+   theme-aware background, so forcing black behind it in light mode (all
+   three rules above) reproduces the exact "black tint in fullscreen" bug
+   already fixed on desktop, just via the mobile rotate-trick's own
+   !important rules instead of the desktop inline style. Room.jsx toggles
+   this class alongside sp-mobile-fs-active only when isLight AND the
+   current media is a game/activity — every selector here needs to match
+   or beat the specificity of the rule it's overriding above. */
+.player-mob-fs.sp-mobile-fs-light-activity,
+.player-mob-fs-portrait.sp-mobile-fs-light-activity {
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+html.sp-mobile-fs-light-activity,
+body.sp-mobile-fs-light-activity,
+html.sp-mobile-fs-light-activity body,
+html[data-theme='light'].sp-mobile-fs-light-activity body {
+  background: #fff !important;
+}
+body.sp-mobile-fs-light-activity .room-main-layout,
+body.sp-mobile-fs-light-activity .room-player-col {
+  background: #fff !important;
+}
+
 /* Part 1 — Mobile center: avatar + room name + members pill */
 .room-mob-center {
   display: none; /* hidden on desktop */

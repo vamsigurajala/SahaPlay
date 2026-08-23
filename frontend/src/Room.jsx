@@ -1327,7 +1327,23 @@ const Room = () => {
   const resetGameControlsTimer = () => {
     setShowGameControls(true);
     clearTimeout(gameControlsTimerRef.current);
-    gameControlsTimerRef.current = setTimeout(() => setShowGameControls(false), 2800);
+    gameControlsTimerRef.current = setTimeout(() => setShowGameControls(false), 4000);
+  };
+  // Mirrored via ref so a tap always reads the latest value, even from
+  // inside a setTimeout closure created on a stale render — same pattern
+  // as showControlsRef/toggleControlsVisibility below for the video player.
+  const showGameControlsRef = useRef(showGameControls);
+  useEffect(() => { showGameControlsRef.current = showGameControls; }, [showGameControls]);
+  // Tap on mobile toggles: shown -> hides immediately; hidden -> shows and
+  // (re)starts the 4s auto-hide. Desktop hover keeps using
+  // resetGameControlsTimer directly (always show + re-arm), unchanged.
+  const toggleGameControlsVisibility = () => {
+    if (showGameControlsRef.current) {
+      clearTimeout(gameControlsTimerRef.current);
+      setShowGameControls(false);
+    } else {
+      resetGameControlsTimer();
+    }
   };
   const [roomTheme, setRoomTheme] = useState('default');
   const [isPublic, setIsPublic] = useState(true);
@@ -8731,11 +8747,21 @@ const Room = () => {
     const active = isTouchPlayer && isMobileFsMode;
     document.documentElement.classList.toggle('sp-mobile-fs-active', active);
     document.body.classList.toggle('sp-mobile-fs-active', active);
+    // A game/activity (Timer, Whiteboard, etc.) has its own theme-aware
+    // background — the black-letterbox rules above (and .player-mob-fs /
+    // .player-mob-fs-portrait's own !important background) are meant for
+    // actual video, and were forcing black behind these too, in light mode,
+    // exactly like the desktop fullscreen version of this same bug.
+    const lightActivity = active && isLight && isGameOrActivity(mediaUrl);
+    document.documentElement.classList.toggle('sp-mobile-fs-light-activity', lightActivity);
+    document.body.classList.toggle('sp-mobile-fs-light-activity', lightActivity);
     return () => {
       document.documentElement.classList.remove('sp-mobile-fs-active');
       document.body.classList.remove('sp-mobile-fs-active');
+      document.documentElement.classList.remove('sp-mobile-fs-light-activity');
+      document.body.classList.remove('sp-mobile-fs-light-activity');
     };
-  }, [isTouchPlayer, isMobileFsMode]);
+  }, [isTouchPlayer, isMobileFsMode, isLight, mediaUrl]);
 
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true' && localStorage.getItem('watch_is_tv') !== 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
@@ -10643,7 +10669,7 @@ const Room = () => {
 
           <div
             ref={playerWrapRef}
-            className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isRotatedFs ? ' player-mob-fs' : ' player-mob-fs-portrait') : ''}`}
+            className={`player-wrap${isTouchPlayer && isMobileFsMode ? (isRotatedFs ? ' player-mob-fs' : ' player-mob-fs-portrait') : ''}${isTouchPlayer && isMobileFsMode && isLight && isGameOrActivity(mediaUrl) ? ' sp-mobile-fs-light-activity' : ''}`}
             onMouseMove={() => { if (!isTouchPlayer) resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseEnter={() => { if (!isTouchPlayer) resetControlsTimer(); if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             onMouseLeave={() => {
@@ -10654,11 +10680,12 @@ const Room = () => {
               if (!isTouchPlayer) setShowControls(false);
             }}
             // Touch players own show/hide entirely through the tap-gesture zones below
-            // (handlePlayerZoneTap → toggleControlsVisibility) — this bubbles up from every
-            // tap in those zones too, and unconditionally showing here raced with (and
-            // always won against) a tap's decision to hide, so a second tap never actually
-            // hid the controls. Game overlays still get their own timer reset.
-            onTouchStart={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
+            // (handlePlayerZoneTap → toggleControlsVisibility) — those zones are never
+            // rendered for games/activities (see isGameOrActivity exclusion below), so
+            // this is the only touch handler active for them: tap toggles
+            // show/hide (toggleGameControlsVisibility), same pattern as the video
+            // player's own toggleControlsVisibility.
+            onTouchStart={() => { if (isGameOrActivity(mediaUrl)) toggleGameControlsVisibility(); }}
             style={{
               flex: 1,
               // Video/screenshare content wants the usual black-letterbox look
@@ -10666,10 +10693,13 @@ const Room = () => {
               // has its own theme-aware background and forcing black behind it
               // regardless of the user's light/dark setting was exactly what
               // made fullscreen light mode show a dark tint around/behind it
-              // that never appeared in the small panel view.
-              background: (isLight && !isTvMode && (!isFullscreen || isGameOrActivity(mediaUrl))) ? '#fff' : '#000',
+              // that never appeared in the small panel view. Mobile/tablet's
+              // "fullscreen" is isMobileFsMode (the touch player's own real-
+              // Fullscreen + rotate handling), not just isFullscreen — missing
+              // it here was why this fix only ever applied on desktop.
+              background: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '#fff' : '#000',
               borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 16,
-              border: (isLight && !isTvMode && (!isFullscreen || isGameOrActivity(mediaUrl))) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
+              border: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
               overflow: 'hidden', 
               position: 'relative',
@@ -10695,6 +10725,7 @@ const Room = () => {
                 <button
                   className="stay-white"
                   onClick={() => setShowActivityMenu(!showActivityMenu)}
+                  onTouchStart={e => e.stopPropagation()}
                   style={{
                     background: 'rgba(15, 15, 25, 0.75)',
                     backdropFilter: 'blur(12px)',
@@ -10813,6 +10844,7 @@ const Room = () => {
               <button
                 className="stay-white"
                 onClick={handleFullscreen}
+                onTouchStart={e => e.stopPropagation()}
                 title={isFullscreen || isMobileFsMode ? 'Exit Fullscreen' : 'Fullscreen'}
                 style={{
                   position: 'absolute', top: 12, right: 12, zIndex: 200,
@@ -10857,6 +10889,7 @@ const Room = () => {
                     toast.error('Only the host can launch the Virtual Browser. Please ask the host to launch it.');
                   }
                 }}
+                onTouchStart={e => e.stopPropagation()}
                 title="Launch in Virtual Browser"
                 style={{
                   position: 'absolute', top: 12, right: 58, zIndex: 200,
@@ -10926,6 +10959,7 @@ const Room = () => {
                 </p>
                 <button
                   onClick={dismissGlobeInstruction}
+                  onTouchStart={e => e.stopPropagation()}
                   className="stay-white"
                   style={{
                     background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))',
