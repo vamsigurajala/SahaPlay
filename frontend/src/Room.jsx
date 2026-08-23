@@ -829,6 +829,20 @@ const isMediaGame = (url) => {
 // The virtual browser (Cloud Browser) must be opened manually by the user.
 const isVirtualBrowserUrl = (_url) => false;
 
+// Games AND non-game Activities (Whiteboard, Protected Notes, Mentimeter,
+// Truth or Dare, Would You Rather, etc.) that are real iframe-embedded pages
+// and so can hit "Page blocks embedding" — unlike isMediaGame, this also
+// covers the Activities category, so the proactive "launch in Virtual
+// Browser" shortcut isn't games-only. Excludes activity://* (native
+// React components — Timer, calls — nothing to embed) and the native
+// CrazyGames lobby, neither of which can ever fail to embed.
+const isIframeGameOrActivity = (url) => {
+  if (!url) return false;
+  if (url.startsWith('activity://')) return false;
+  if (url === 'lobby://crazygames') return false;
+  return isGameOrActivity(url);
+};
+
 const CrazyGamesCard = ({ game, onSelectGame }) => {
   const [hovered, setHovered] = React.useState(false);
   return (
@@ -10798,8 +10812,11 @@ const Room = () => {
               </button>
             )}
 
-            {/* Game Virtual Browser Fallback Button — only for games, top-right, next to fullscreen button */}
-            {!isTvMode && (hasMounted && mediaUrl) && isMediaGame(mediaUrl) && !hyperbeamSession && !hbSessionId && (
+            {/* Game/Activity Virtual Browser Fallback Button — games AND iframe
+                activities like Whiteboard, top-right, next to fullscreen button.
+                Lets the host jump straight to the Virtual Browser instead of
+                waiting for the page to actually fail to embed first. */}
+            {!isTvMode && (hasMounted && mediaUrl) && isIframeGameOrActivity(mediaUrl) && !hyperbeamSession && !hbSessionId && (
               <button
                 className="stay-white"
                 onClick={() => {
@@ -10838,7 +10855,7 @@ const Room = () => {
             )}
 
             {/* Onboarding / Instruction Tooltip pointing to the Globe button */}
-            {!isTvMode && (hasMounted && mediaUrl) && isMediaGame(mediaUrl) && !hyperbeamSession && !hbSessionId && showGlobeInstruction && (
+            {!isTvMode && (hasMounted && mediaUrl) && isIframeGameOrActivity(mediaUrl) && !hyperbeamSession && !hbSessionId && showGlobeInstruction && (
               <div
                 style={{
                   position: 'absolute',

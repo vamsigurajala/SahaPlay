@@ -332,6 +332,14 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           overflow: hidden;
           padding: 10px;
           box-sizing: border-box;
+          /* Every size below is expressed in cqmin (1% of whichever of this
+             box's own width/height is smaller) instead of fixed px, so this
+             scales to actually fill whatever it's shown in — a modest room
+             panel or a 1080p+ browser-fullscreen box — instead of staying a
+             small fixed-size cluster floating in a huge empty area when the
+             container is much bigger than the panel this was designed at. */
+          container-type: size;
+          container-name: timerbox;
         }
 
         .timer-right-content {
@@ -341,16 +349,16 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         .timer-toggle {
           display: flex;
           gap: 3px;
-          margin-bottom: 30px;
+          margin-bottom: clamp(22px, 4.3cqmin, 46px);
           border-radius: 14px;
-          padding: 4px;
+          padding: clamp(4px, 0.6cqmin, 8px);
         }
 
         .timer-ring-wrapper {
           position: relative;
-          width: 250px;
-          height: 250px;
-          margin-bottom: 24px;
+          width: clamp(220px, 35.7cqmin, 440px);
+          height: clamp(220px, 35.7cqmin, 440px);
+          margin-bottom: clamp(20px, 3.5cqmin, 40px);
         }
 
         .timer-display-inner {
@@ -364,36 +372,36 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         }
 
         .timer-time-text {
-          font-size: 54px;
+          font-size: clamp(40px, 7.7cqmin, 88px);
           font-weight: 900;
           letter-spacing: -3px;
           font-variant-numeric: tabular-nums;
           line-height: 1;
           transition: color 0.3s, text-shadow 0.3s;
         }
-        
+
         .timer-time-text.long-time {
-          font-size: 44px;
+          font-size: clamp(34px, 6.3cqmin, 72px);
         }
 
         .timer-inputs-wrapper {
           display: flex;
           align-items: flex-end;
-          gap: 6px;
-          margin-bottom: 24px;
+          gap: clamp(5px, 0.9cqmin, 10px);
+          margin-bottom: clamp(18px, 3.5cqmin, 40px);
         }
 
         .timer-input-label {
-          font-size: 9px;
+          font-size: clamp(8px, 1.3cqmin, 12px);
           font-weight: 800;
           letter-spacing: 1.5px;
         }
 
         .timer-input-box {
-          width: 62px;
-          height: 50px;
+          width: clamp(48px, 8.9cqmin, 96px);
+          height: clamp(40px, 7.1cqmin, 78px);
           border-radius: 12px;
-          font-size: 22px;
+          font-size: clamp(16px, 3.1cqmin, 32px);
           font-weight: 800;
           text-align: center;
           outline: none;
@@ -408,46 +416,51 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         }
 
         .timer-input-sep {
-          font-size: 22px;
+          font-size: clamp(16px, 3.1cqmin, 32px);
           font-weight: 900;
-          margin-bottom: 10px;
+          margin-bottom: clamp(8px, 1.4cqmin, 16px);
         }
 
         .timer-controls {
           display: flex;
-          gap: 16px;
+          gap: clamp(12px, 2.3cqmin, 26px);
           align-items: center;
         }
 
         .timer-btn-reset {
-          width: 50px;
-          height: 50px;
+          width: clamp(40px, 7.1cqmin, 78px);
+          height: clamp(40px, 7.1cqmin, 78px);
           border-radius: 14px;
         }
 
         .timer-btn-start {
-          width: 78px;
-          height: 78px;
+          width: clamp(60px, 11.1cqmin, 120px);
+          height: clamp(60px, 11.1cqmin, 120px);
           border-radius: 22px;
         }
 
         .timer-btn-spacer {
-          width: 50px;
-          height: 50px;
+          width: clamp(40px, 7.1cqmin, 78px);
+          height: clamp(40px, 7.1cqmin, 78px);
         }
 
         .timer-svg-icon {
-          width: 20px;
-          height: 20px;
+          width: clamp(16px, 2.9cqmin, 32px);
+          height: clamp(16px, 2.9cqmin, 32px);
         }
 
         .timer-svg-icon-large {
-          width: 28px;
-          height: 28px;
+          width: clamp(22px, 4cqmin, 42px);
+          height: clamp(22px, 4cqmin, 42px);
         }
 
-        /* iPad / Tablet viewports & Medium Heights */
-        @media (max-width: 1024px) or (max-height: 700px) {
+        /* iPad / Tablet viewports & Medium Heights — thresholds are now
+           relative to this component's own box (via @container), not the
+           page viewport, so the same breakpoints correctly describe "this
+           panel/box is small" whether that's because the room panel itself
+           is small or (now fixed above) because it's a genuinely small
+           fullscreen device, not a mismatch between the two. */
+        @container timerbox (max-width: 1024px) or (max-height: 700px) {
           .timer-container {
             flex-direction: row;
             justify-content: space-evenly;
@@ -518,8 +531,8 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           }
         }
 
-        /* Mobile viewports */
-        @media (max-width: 500px) or (max-height: 500px) {
+        /* Mobile-sized containers */
+        @container timerbox (max-width: 500px) or (max-height: 500px) {
           .timer-container {
             flex-direction: row;
             justify-content: space-evenly;
