@@ -26,6 +26,8 @@ import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersist
 import MediaLightbox from './MediaLightbox';
 import { isCapacitorApp } from '../lib/platform';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
+import ExpiryReminderBanner from './ExpiryReminderBanner';
+import { countSoonExpiringMedia, dismissExpiryBannerForever, snoozeExpiryBanner } from '../utils/expiryReminders';
 
 // Desktop-browser equivalent of the native app's push notifications — the
 // in-page toast below only helps while this tab is actually visible, so a
@@ -2057,6 +2059,10 @@ const GlobalChatWidget = forwardRef(({
     return () => observer.disconnect();
   }, []);
   const messagesEndRef = useRef(null);
+  // Bumped after the expiry-reminder banner's own buttons are clicked, since
+  // dismissal/snooze state lives in localStorage (shared across chats), not
+  // React state — this forces a re-check of countSoonExpiringMedia.
+  const [expiryBannerTick, setExpiryBannerTick] = useState(0);
   const prevMsgCountRef = useRef(0);
   const isFirstRenderGlobalChat = useRef(true);
   const inputRef = useRef(null);
@@ -6826,6 +6832,22 @@ const GlobalChatWidget = forwardRef(({
 
           {/* ── Re-auth overlay removed as requested ── */}
 
+          {view === 'chat' && activeChat && (() => {
+            const bannerChatKey = (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase();
+            // eslint-disable-next-line no-unused-expressions
+            expiryBannerTick;
+            const soonCount = countSoonExpiringMedia(messages, bannerChatKey);
+            if (!soonCount) return null;
+            return (
+              <ExpiryReminderBanner
+                count={soonCount}
+                isLight={isLight}
+                onGotIt={() => { dismissExpiryBannerForever(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
+                onRemindLater={() => { snoozeExpiryBanner(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
+              />
+            );
+          })()}
+
           {view === 'chat' && (
             <div
               ref={scrollContainerRef}
@@ -6919,7 +6941,11 @@ const GlobalChatWidget = forwardRef(({
                   const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
                   const prevMsg = i > 0 ? messages[i - 1] : null;
                   const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
-                  const canReport = activeChat?.type === 'room' && !isMe;
+                  // The SahaPlay Updates channel is a one-way broadcast — regular users
+                  // can't post there at all (see the composer gate below), so reporting/
+                  // replying to the admin's own announcement messages doesn't make sense.
+                  const canReport = activeChat?.type === 'room' && !isMe && !isSahaplayOfficialGroup(activeChat);
+                  const canReplyToMsg = !(activeChat?.type === 'room' && !isMe && isSahaplayOfficialGroup(activeChat));
                   const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => setReplyToMsg(msg));
                   const longPressHandlers = longPress.getHandlers(rowKey);
                   const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -7316,8 +7342,10 @@ const GlobalChatWidget = forwardRef(({
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
                             {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
                             <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatTime(msg.timestamp)}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
-                            {activeChat?.type === 'room' && !isMe && (
+                            {canReplyToMsg && (
+                              <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                            )}
+                            {canReport && (
                               <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
                             )}
                           </div>

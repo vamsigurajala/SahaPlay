@@ -12,6 +12,8 @@ import {
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
+import ExpiryReminderBanner from './ExpiryReminderBanner';
+import { countSoonExpiringMedia, dismissExpiryBannerForever, snoozeExpiryBanner } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -2639,7 +2641,20 @@ export default function RoomChatPanel({ p }) {
               )}
             </div>
           </div>
-          <div 
+          {(() => {
+            const roomKey = (p.roomId || '').toLowerCase();
+            const soonCount = countSoonExpiringMedia(p.groupMessages, roomKey);
+            if (!soonCount) return null;
+            return (
+              <ExpiryReminderBanner
+                count={soonCount}
+                isLight={isLight}
+                onGotIt={() => { dismissExpiryBannerForever(roomKey); p.bumpExpiryBannerTick?.(); }}
+                onRemindLater={() => { snoozeExpiryBanner(roomKey); p.bumpExpiryBannerTick?.(); }}
+              />
+            );
+          })()}
+          <div
             ref={groupScrollContainerRef}
             className="no-scrollbar"
             onScroll={(e) => {
@@ -3312,7 +3327,20 @@ export default function RoomChatPanel({ p }) {
                     )}
                   </div>
                 </div>
-                <div 
+                {(() => {
+                  const dmKey = (p.dmTarget || '').toLowerCase();
+                  const soonCount = countSoonExpiringMedia(dmMessages, dmKey);
+                  if (!soonCount) return null;
+                  return (
+                    <ExpiryReminderBanner
+                      count={soonCount}
+                      isLight={isLight}
+                      onGotIt={() => { dismissExpiryBannerForever(dmKey); p.bumpExpiryBannerTick?.(); }}
+                      onRemindLater={() => { snoozeExpiryBanner(dmKey); p.bumpExpiryBannerTick?.(); }}
+                    />
+                  );
+                })()}
+                <div
                   ref={dmScrollContainerRef}
                   className="no-scrollbar"
                   onScroll={(e) => {

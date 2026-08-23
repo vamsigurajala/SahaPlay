@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Play, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin, Globe } from 'lucide-react';
+import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin, Globe } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
 import { useFollowRequests } from '../hooks/useFollowRequests';
 import { clearUserSession } from '../lib/authUtils.js';
@@ -903,9 +903,7 @@ const Navbar = () => {
             {/* Drawer Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Play fill="#fff" size={12} style={{ marginLeft: 1 }} />
-                </div>
+                <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 28, height: 28 }} />
                 <span style={{ fontWeight: 700, fontSize: 15, color: isLight ? '#111' : '#fff' }}>Menu</span>
               </div>
               <button

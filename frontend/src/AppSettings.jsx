@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -1816,6 +1816,41 @@ const AppSettings = () => {
                 }}>
                   {t('mediaStorageNote', 'Files are automatically deleted after the above period to save storage space. Download important files before they expire. Text messages and reactions are never deleted.')}
                 </div>
+
+                {/* Upload size limits — same everywhere (web, tablet, mobile web, TWA/PWA, app) since it's the same client-side check regardless of platform */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 20 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Paperclip size={20} color="var(--brand-1)" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: (theme === 'light') ? '#111' : '#f9fafb' }}>{t('uploadSizeLimits', 'Upload Size Limits')}</div>
+                    <div style={{ fontSize: 13, color: (theme === 'light') ? '#6b7280' : '#9ca3af', marginTop: 2 }}>{t('uploadSizeLimitsDesc', 'Same on web, tablet, mobile, and the app')}</div>
+                  </div>
+                </div>
+                {[
+                  { Icon: Image, typeKey: 'mediaTypeImages', typeDefault: 'Images', limit: '10 MB', color: '#6366f1' },
+                  { Icon: Video, typeKey: 'mediaTypeVideos', typeDefault: 'Videos', limit: '100 MB', color: '#f59e0b' },
+                  { Icon: FileText, typeKey: 'mediaTypeFilesDocuments', typeDefault: 'Files & Documents', limit: '25 MB', color: '#ef4444' },
+                  { Icon: Mic, typeKey: 'mediaTypeVoiceNotes', typeDefault: 'Voice Notes', limit: '10 MB', color: '#a855f7' },
+                ].map((item, i, arr) => (
+                  <div key={item.typeKey} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 0',
+                    borderBottom: i < arr.length - 1 ? `1px solid ${(theme === 'light') ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'}` : 'none'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${item.color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <item.Icon size={16} color={item.color} />
+                      </div>
+                      <span style={{ fontSize: 14, color: (theme === 'light') ? '#374151' : '#d1d5db', fontWeight: 500 }}>
+                        {t(item.typeKey, item.typeDefault)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: item.color, background: `${item.color}15`, padding: '3px 10px', borderRadius: 20 }}>
+                      {t('maxSizeValue', 'Max {{limit}}', { limit: item.limit })}
+                    </span>
+                  </div>
+                ))}
 
                 {/* Download reminder toggle */}
                 <div style={{

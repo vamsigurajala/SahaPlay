@@ -111,7 +111,7 @@ export default function ProfileActionMenu({
     <>
       <button className={`nav-link-btn${currentPath === '/profile' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onProfileClick}>
         <User size={16} />
-        {`${t('profile', 'Profile')} ${loggedInUsername ? `(${loggedInUsername})` : ''}`}
+        {`${t('profile', 'Profile')} ${loggedInUsername ? `(${loggedInUsername.length > 10 ? loggedInUsername.slice(0, 10) + '...' : loggedInUsername})` : ''}`}
       </button>
 
       <button className={`nav-link-btn${currentPath === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onAppSettingsClick}>

@@ -2240,6 +2240,12 @@ const Room = () => {
     setThemeSheetTarget(target);
     setShowThemeSheet(true);
   }, []);
+  // Forces RoomChatPanel to re-render (and so re-check countSoonExpiringMedia)
+  // after the expiry reminder banner's own "Got it"/"Remind me later" buttons
+  // write their dismissal state to localStorage — that write alone doesn't
+  // trigger React reactivity on its own.
+  const [expiryBannerTick, setExpiryBannerTick] = useState(0);
+  const bumpExpiryBannerTick = useCallback(() => setExpiryBannerTick(v => v + 1), []);
   useEffect(() => {
     const tkn = localStorage.getItem('watch_token');
     if (!tkn) return;
@@ -13500,7 +13506,7 @@ const Room = () => {
                 {/* Chat tab — RoomChatPanel rendered but hidden when not active (preserves scroll/state) */}
                 <div style={{ flex: 1, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
                   <RoomChatPanel p={{
-                    chatThemes, openChatThemeSheet,
+                    chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                     chatTab, setChatTab, chatTabRef,
                     groupMessages, groupUnread, setGroupUnread,
                     room, isAdmin,
