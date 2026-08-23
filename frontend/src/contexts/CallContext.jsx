@@ -134,6 +134,11 @@ export function CallProvider({ children }) {
   // and every peer's video sender is swapped to the screen-capture track
   // instead, same replaceTrack pattern flipCamera uses.
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  // Kept entirely separate from localStreamRef (the mic/camera capture) so a
+  // video element bound to "my local video" never has to guess which of two
+  // video tracks on the same MediaStream to render — the UI just switches
+  // which stream object it points at.
+  const [screenShareStream, setScreenShareStream] = useState(null);
   const screenShareTrackRef = useRef(null);
   const screenShareCleanupRef = useRef(null); // tears down native MediaProjection capture, if used
   const cameraTrackDuringShareRef = useRef(null);
@@ -611,10 +616,15 @@ export function CallProvider({ children }) {
   }
 
   function broadcastState(callId) {
+    // Screen share always reports camOn: true regardless of the (deliberately
+    // disabled) camera track — from the remote peer's perspective "camOn"
+    // just means "there's a video track worth rendering," which is exactly
+    // as true for a shared screen as for a camera feed.
+    const sharingScreen = !!screenShareTrackRef.current;
     socketRef.current?.emit('call:state', {
       callId,
       micOn: localStreamRef.current?.getAudioTracks().some(t => t.enabled) ?? false,
-      camOn: localStreamRef.current?.getVideoTracks().some(t => t.enabled) ?? false,
+      camOn: sharingScreen ? true : (localStreamRef.current?.getVideoTracks().some(t => t.enabled) ?? false),
     });
   }
 
@@ -967,7 +977,8 @@ export function CallProvider({ children }) {
   // releasing the camera outright and needing a fresh getUserMedia prompt
   // to resume.
   const startScreenShare = useCallback(async () => {
-    if (pcsRef.current.size === 0 || screenShareTrackRef.current) return;
+    const cs = callStateRef.current;
+    if (!cs || pcsRef.current.size === 0 || screenShareTrackRef.current) return;
     try {
       let rawStream, cleanup = null;
       if (isCapacitorApp()) {
@@ -988,25 +999,44 @@ export function CallProvider({ children }) {
       cameraTrackDuringShareRef.current = cameraTrack;
       if (cameraTrack) cameraTrack.enabled = false;
 
-      for (const pc of pcsRef.current.values()) {
+      // A video call already has a video sender per peer — swap it in place.
+      // A voice call has none yet, so this is the same "add a video track to
+      // an audio-only connection" renegotiation toggleCamera already does.
+      for (const [uname, pc] of pcsRef.current) {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) await sender.replaceTrack(screenTrack);
+        if (sender) {
+          await sender.replaceTrack(screenTrack);
+        } else {
+          pc.addTrack(screenTrack, rawStream);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          await sendSignal('call:offer', cs.callId, uname, { type: 'offer', sdp: offer.sdp });
+        }
+      }
+
+      if (!cameraTrack) {
+        // Started from a voice call with no camera track to speak of — this
+        // call now carries video, same bookkeeping toggleCamera does.
+        setCallState(prev => (prev ? { ...prev, type: 'video' } : prev));
+        socketRef.current?.emit('call:mark-video', { callId: cs.callId });
       }
 
       screenShareTrackRef.current = screenTrack;
       screenShareCleanupRef.current = cleanup;
+      setScreenShareStream(rawStream);
       // The OS's own "stop sharing" affordance (a system bar/notification on
       // desktop getDisplayMedia, or the MediaProjection stop action natively)
       // ends the track directly — this is the only way to hear about that.
       screenTrack.onended = () => stopScreenShareRef.current?.();
       setIsScreenSharing(true);
+      broadcastState(cs.callId);
     } catch (e) {
       if (e?.name !== 'AbortError' && e?.name !== 'NotAllowedError') {
         console.error('[Call] startScreenShare failed:', e);
         toast.error('Could not start screen share');
       }
     }
-  }, []);
+  }, [sendSignal]);
 
   const stopScreenShare = useCallback(async () => {
     const screenTrack = screenShareTrackRef.current;
@@ -1015,18 +1045,40 @@ export function CallProvider({ children }) {
     try { screenTrack.stop(); } catch {}
     screenShareTrackRef.current = null;
     screenShareCleanupRef.current = null;
+    setScreenShareStream(null);
 
     const cameraTrack = cameraTrackDuringShareRef.current;
     cameraTrackDuringShareRef.current = null;
+    const cs = callStateRef.current;
+
     if (cameraTrack) {
+      // Video call: hand the sender back the (still-warm) camera track.
       cameraTrack.enabled = isCamOn;
       for (const pc of pcsRef.current.values()) {
         const sender = pc.getSenders().find(s => s.track === screenTrack || (s.track && s.track.kind === 'video'));
         if (sender) await sender.replaceTrack(cameraTrack).catch(() => {});
       }
+    } else {
+      // Voice call: the screen track had no camera to fall back to — remove
+      // its sender outright and renegotiate so the call reverts to audio-only
+      // instead of leaving the remote side staring at a frozen last frame.
+      for (const [uname, pc] of pcsRef.current) {
+        const sender = pc.getSenders().find(s => s.track === screenTrack);
+        if (!sender) continue;
+        try { pc.removeTrack(sender); } catch {}
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          if (cs) await sendSignal('call:offer', cs.callId, uname, { type: 'offer', sdp: offer.sdp });
+        } catch (e) {
+          console.error('[Call] stopScreenShare renegotiation failed:', e);
+        }
+      }
+      if (cs && !isCamOn) setCallState(prev => (prev ? { ...prev, type: 'voice' } : prev));
     }
+    if (cs) broadcastState(cs.callId);
     setIsScreenSharing(false);
-  }, [isCamOn]);
+  }, [isCamOn, sendSignal]);
 
   useEffect(() => { stopScreenShareRef.current = stopScreenShare; }, [stopScreenShare]);
 
@@ -1121,6 +1173,7 @@ export function CallProvider({ children }) {
     flipCamera,
     isFlippingCamera,
     isScreenSharing,
+    screenShareStream,
     startScreenShare,
     stopScreenShare,
     audioRoute,

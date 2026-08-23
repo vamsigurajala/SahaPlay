@@ -124,11 +124,15 @@ export default function OneOnOneCallScreen({
   isCoarsePointer,
   onEndCall,
   isScreenSharing,
+  screenShareStream,
   startScreenShare,
   stopScreenShare,
   onSendMessage,
 }) {
   const isVideo = mode === 'video';
+  // While sharing, the local tile should show the shared screen, not the
+  // (deliberately disabled) camera feed sitting unchanged in localStream.
+  const localDisplayStream = isScreenSharing && screenShareStream ? screenShareStream : localStream;
   const remotes = getRemoteParticipants(callState, remoteStreams, participantMeta);
   const isGroup = remotes.length > 1;
   const answeredAt = callState.answeredAt;
@@ -405,8 +409,9 @@ export default function OneOnOneCallScreen({
         <SoloStage
           remote={remotes[0]}
           isVideo={isVideo}
-          localStream={localStream}
+          localStream={localDisplayStream}
           isCamOn={isCamOn}
+          isScreenSharing={isScreenSharing}
           isMicOn={isMicOn}
           myAvatarUrl={myAvatarUrl}
           isFlippingCamera={isFlippingCamera}
@@ -428,8 +433,8 @@ export default function OneOnOneCallScreen({
             </div>
           ))}
           <div className="ooc-tile">
-            {isVideo && isCamOn && localStream ? (
-              <VideoTile stream={localStream} muted />
+            {isVideo && (isCamOn || isScreenSharing) && localDisplayStream ? (
+              <VideoTile stream={localDisplayStream} muted />
             ) : (
               <Avatar url={myAvatarUrl} name={myUsername} size={64} pulsing={isMicOn} />
             )}
@@ -489,15 +494,13 @@ export default function OneOnOneCallScreen({
       {/* ── More options: screen share / send message ── */}
       {moreMenuOpen && (
         <div className="ooc-more-menu" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
-          {isVideo && (
-            <button
-              className="ooc-more-opt"
-              style={{ color: '#fff' }}
-              onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
-            >
-              <ScreenShare size={17} color="#fff" /> <span style={{ color: '#fff' }}>{isScreenSharing ? 'Stop screen share' : 'Screen share'}</span>
-            </button>
-          )}
+          <button
+            className="ooc-more-opt"
+            style={{ color: '#fff' }}
+            onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
+          >
+            <ScreenShare size={17} color="#fff" /> <span style={{ color: '#fff' }}>{isScreenSharing ? 'Stop screen share' : 'Screen share'}</span>
+          </button>
           {primaryRemote && (
             <button
               className="ooc-more-opt"
@@ -543,8 +546,16 @@ export default function OneOnOneCallScreen({
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <button
               className="ooc-ctrl-btn"
-              onClick={toggleCamera}
-              style={{ background: (isVideo && isCamOn) ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
+              // Disabled while screen sharing: the camera track is
+              // deliberately held disabled for the duration of the share, and
+              // toggling it here would fight with that (and do nothing
+              // useful, since the video sender is carrying the screen, not
+              // the camera, until the share ends).
+              onClick={() => { if (!isScreenSharing) toggleCamera(); }}
+              style={{
+                background: (isVideo && isCamOn) ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)',
+                opacity: isScreenSharing ? 0.4 : 1,
+              }}
             >
               {/* Voice call: tapping upgrades to video (toggleCamera handles both
                   the upgrade AND, once already video, the plain on/off toggle —
@@ -611,11 +622,11 @@ export default function OneOnOneCallScreen({
 const PIP_W = 128, PIP_H = 176, PIP_MARGIN = 16, PIP_PEEK = 18;
 const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed position
 
-function SoloStage({ remote, isVideo, localStream, isCamOn, isMicOn, myAvatarUrl, isFlippingCamera }) {
+function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isMicOn, myAvatarUrl, isFlippingCamera }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
 
-  const localHasVideo = isVideo && isCamOn && !!localStream;
+  const localHasVideo = isVideo && (isCamOn || isScreenSharing) && !!localStream;
   const mainHasVideo = mainIsLocal ? localHasVideo : remote.hasVideo;
   const mainAvatarUrl = mainIsLocal ? myAvatarUrl : remote.avatarUrl;
   const mainName = mainIsLocal ? 'You' : remote.displayName;

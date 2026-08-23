@@ -266,6 +266,7 @@ export default function GlobalCallOverlay() {
           flipCamera={call.flipCamera}
           isFlippingCamera={call.isFlippingCamera}
           isScreenSharing={call.isScreenSharing}
+          screenShareStream={call.screenShareStream}
           startScreenShare={call.startScreenShare}
           stopScreenShare={call.stopScreenShare}
           audioRoute={call.audioRoute}
