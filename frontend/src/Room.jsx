@@ -671,6 +671,7 @@ const getActiveMediaName = (mediaUrl) => {
   }
   if (mediaUrl.includes('triviaduel.com')) return 'Mini Quiz';
   if (mediaUrl.includes('mentimeter.com')) return 'Mentimeter';
+  if (mediaUrl.includes('radio.garden')) return 'Radio Garden';
   if (mediaUrl.includes('skribbl.io')) return 'Skribbl.io';
   if (mediaUrl.includes('magma.com')) return 'Sketch Together';
   if (mediaUrl.includes('musiclab.chromeexperiments.com')) {
@@ -781,7 +782,8 @@ const isGameOrActivity = (url) => {
     lowerUrl.includes('mrracer.online') ||
     lowerUrl.includes('stickmankombat.io') ||
     lowerUrl.includes('blockblastmaster.io') ||
-    lowerUrl.includes('numicolor.com')
+    lowerUrl.includes('numicolor.com') ||
+    lowerUrl.includes('radio.garden')
   ) {
     return true;
   }

@@ -3,7 +3,7 @@ import {
   X, Monitor, Link as LinkIcon, Upload, ChevronRight, Search,
   Gamepad2, Tv, Activity, FileText, Timer, HelpCircle, Palette,
   Globe, Users, Sparkles, CheckSquare, BookOpen, Film, AlertTriangle,
-  Users2, User, Music, Video, Mic
+  Users2, User, Music, Video, Mic, Radio
 } from 'lucide-react';
 
 import { FaYoutube, FaTwitch, FaVimeo, FaInstagram, FaApple, FaSpotify, FaTiktok, FaSoundcloud, FaFacebook } from 'react-icons/fa';
@@ -122,6 +122,7 @@ export const OPTIONS = [
   { id: 'wouldyourather',name: 'Would You Rather', category: 'Activities', activityTab: 'General', subtitle: 'Fascinating pick scenarios generator',       badge: 'Simple', color: '#8b5cf6', icon: HelpCircle,   type: 'virtual_browser', skipWarning: true, url: 'https://playgama.com/export/game/would-you-rather-game?clid=p_812594fc-a09b-4324-8ddc-06ebc2892025',  image: '/images/apps/wouldurather.png' },
   { id: 'quiz',          name: 'Mini Quiz',        category: 'Activities', activityTab: 'General', subtitle: 'Trivia duel — quick quiz battles',           badge: 'Beta',   color: '#10b981', icon: BookOpen,     type: 'virtual_browser', skipWarning: true, url: 'https://www.triviaduel.com/',                                  image: '/images/apps/miniquiz.png' },
   { id: 'mentimeter',    name: 'Mentimeter',       category: 'Activities', activityTab: 'General', subtitle: 'Interactive live polls and presentations',   badge: 'Beta',   color: '#3b82f6', icon: CheckSquare,  type: 'virtual_browser', skipWarning: true, url: 'https://www.mentimeter.com/',                                  image: '/images/apps/mentimeter.png' },
+  { id: 'radiogarden',   name: 'Radio Garden',     category: 'Activities', activityTab: 'General', subtitle: 'Listen to live radio stations from around the world', badge: 'Beta', color: '#22c55e', icon: Radio,        type: 'virtual_browser', skipWarning: true, url: 'https://radio.garden/',                                        image: '/images/apps/radiogarden.png' },
   { id: 'scribble',      name: 'Skribbl.io',       category: 'Activities', activityTab: 'General', subtitle: 'Draw and guess pictures together',           badge: 'Live',   color: '#f97316', icon: Palette,      type: 'embed',           url: 'https://skribbl.io/',                                          image: '/images/apps/skribbl.png' },
   { id: 'hangman',       name: 'Hangman',          category: 'Activities', activityTab: 'General', subtitle: 'Guess the word before time runs out',        badge: 'Simple', color: '#fbbf24', icon: Sparkles,     type: 'virtual_browser', skipWarning: true, url: 'https://www.coolmathgames.com/0-hangman#immersiveModal',                  image: '/images/apps/hangman.png' },
 
