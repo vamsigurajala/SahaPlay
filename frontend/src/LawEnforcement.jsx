@@ -403,15 +403,16 @@ export default function LawEnforcement() {
           textAlign: 'center', paddingTop: 60, paddingBottom: 60,
         }}>
           <div className="hiw-container">
-            <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 800, color: '#fff', marginBottom: 12 }}>
+            <h2 className="stay-white" style={{ fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 800, color: '#fff', marginBottom: 12 }}>
               {t('leCtaTitle', 'Questions about this policy?')}
             </h2>
-            <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, maxWidth: 520, margin: '0 auto 24px' }}>
+            <p className="stay-white" style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15, maxWidth: 520, margin: '0 auto 24px' }}>
               {t('leCtaDesc', 'General inquiries about this page should go through Contact Us — the legal address above is for official government and law enforcement requests only.')}
             </p>
 
             <Link
               to="/contact"
+              className="stay-white"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 padding: '14px 32px', background: 'rgba(255,255,255,0.15)',
