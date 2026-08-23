@@ -360,8 +360,11 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
 
         .timer-ring-wrapper {
           position: relative;
-          width: clamp(240px, 42cqmin, 480px);
-          height: clamp(240px, 42cqmin, 480px);
+          /* Sized well past the running time text's own footprint (font-size
+             stays clamp(40px, 7.7cqmin, 88px) below, unchanged) so "00:00.00"
+             never gets close to the ring stroke, at any container size. */
+          width: clamp(260px, 58cqmin, 620px);
+          height: clamp(260px, 58cqmin, 620px);
         }
 
         .timer-display-inner {
@@ -471,8 +474,8 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
             gap: 12px;
           }
           .timer-ring-wrapper {
-            width: 170px;
-            height: 170px;
+            width: 240px;
+            height: 240px;
           }
           .timer-display-inner {
             gap: 4px;
@@ -537,8 +540,8 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
             border-radius: 8px !important;
           }
           .timer-ring-wrapper {
-            width: 130px;
-            height: 130px;
+            width: 165px;
+            height: 165px;
           }
           .timer-display-inner {
             gap: 2px;
@@ -549,11 +552,11 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           }
           .timer-time-text {
             font-size: 22px;
-            letter-spacing: -1px;
+            letter-spacing: 0px;
           }
           .timer-time-text.long-time {
             font-size: 16px;
-            letter-spacing: -0.5px;
+            letter-spacing: 0px;
           }
           .timer-inputs-wrapper {
             gap: 2px;
