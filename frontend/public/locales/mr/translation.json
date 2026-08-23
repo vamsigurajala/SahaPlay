@@ -1792,5 +1792,9 @@
   "chatThemeLollipop": "लॉलीपॉप",
   "chatThemeShadow": "सावली",
   "chatThemeSunset": "सूर्यास्त",
-  "chatThemeMint": "मिंट"
+  "chatThemeMint": "मिंट",
+  "usernameOrEmailLabel": "युजरनेम/ईमेल",
+  "agreeTermsPrefix": "मी सहमत आहे:",
+  "agreePrivacyPrefix": "मी सहमत आहे:",
+  "termsAndConditions": "अटी व शर्ती"
 }

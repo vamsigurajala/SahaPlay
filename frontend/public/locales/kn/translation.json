@@ -1803,5 +1803,9 @@
   "chatThemeLollipop": "ಲಾಲಿಪಾಪ್",
   "chatThemeShadow": "ನೆರಳು",
   "chatThemeSunset": "ಸೂರ್ಯಾಸ್ತ",
-  "chatThemeMint": "ಮಿಂಟ್"
+  "chatThemeMint": "ಮಿಂಟ್",
+  "usernameOrEmailLabel": "ಬಳಕೆದಾರಹೆಸರು/ಇಮೇಲ್",
+  "agreeTermsPrefix": "ನಾನು ಒಪ್ಪುತ್ತೇನೆ:",
+  "agreePrivacyPrefix": "ನಾನು ಒಪ್ಪುತ್ತೇನೆ:",
+  "termsAndConditions": "ನಿಯಮಗಳು ಮತ್ತು ಷರತ್ತುಗಳು"
 }

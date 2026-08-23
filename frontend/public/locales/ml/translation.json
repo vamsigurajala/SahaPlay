@@ -1803,5 +1803,9 @@
   "chatThemeLollipop": "ലോലിപോപ്പ്",
   "chatThemeShadow": "ഷാഡോ",
   "chatThemeSunset": "സൂര്യാസ്തമയം",
-  "chatThemeMint": "മിന്റ്"
+  "chatThemeMint": "മിന്റ്",
+  "usernameOrEmailLabel": "യൂസർനെയിം/ഇമെയിൽ",
+  "agreeTermsPrefix": "ഞാൻ സമ്മതിക്കുന്നു:",
+  "agreePrivacyPrefix": "ഞാൻ സമ്മതിക്കുന്നു:",
+  "termsAndConditions": "നിബന്ധനകളും വ്യവസ്ഥകളും"
 }

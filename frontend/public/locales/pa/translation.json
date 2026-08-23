@@ -1803,5 +1803,9 @@
   "chatThemeLollipop": "ਲਾਲੀਪੌਪ",
   "chatThemeShadow": "ਪਰਛਾਵਾਂ",
   "chatThemeSunset": "ਸੂਰਜ ਡੁੱਬਣਾ",
-  "chatThemeMint": "ਮਿੰਟ"
+  "chatThemeMint": "ਮਿੰਟ",
+  "usernameOrEmailLabel": "ਯੂਜ਼ਰਨੇਮ/ਈਮੇਲ",
+  "agreeTermsPrefix": "ਮੈਂ ਸਹਿਮਤ ਹਾਂ:",
+  "agreePrivacyPrefix": "ਮੈਂ ਸਹਿਮਤ ਹਾਂ:",
+  "termsAndConditions": "ਨਿਯਮ ਅਤੇ ਸ਼ਰਤਾਂ"
 }

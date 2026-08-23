@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "Piruleta",
   "chatThemeShadow": "Sombra",
   "chatThemeSunset": "Atardecer",
-  "chatThemeMint": "Menta"
+  "chatThemeMint": "Menta",
+  "usernameOrEmailLabel": "Usuario/Correo electrónico",
+  "agreeTermsPrefix": "Acepto los",
+  "agreePrivacyPrefix": "Acepto la",
+  "termsAndConditions": "Términos y Condiciones"
 }

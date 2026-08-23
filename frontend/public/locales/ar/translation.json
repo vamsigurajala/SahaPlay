@@ -1804,5 +1804,9 @@
   "chatThemeLollipop": "المصاصة",
   "chatThemeShadow": "الظل",
   "chatThemeSunset": "الغروب",
-  "chatThemeMint": "النعناع"
+  "chatThemeMint": "النعناع",
+  "usernameOrEmailLabel": "اسم المستخدم/البريد الإلكتروني",
+  "agreeTermsPrefix": "أوافق على",
+  "agreePrivacyPrefix": "أوافق على",
+  "termsAndConditions": "الشروط والأحكام"
 }

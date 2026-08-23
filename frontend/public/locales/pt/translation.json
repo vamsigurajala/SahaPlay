@@ -1804,5 +1804,9 @@
   "chatThemeLollipop": "Pirulito",
   "chatThemeShadow": "Sombra",
   "chatThemeSunset": "Pôr do sol",
-  "chatThemeMint": "Menta"
+  "chatThemeMint": "Menta",
+  "usernameOrEmailLabel": "Nome de usuário/E-mail",
+  "agreeTermsPrefix": "Concordo com os",
+  "agreePrivacyPrefix": "Concordo com a",
+  "termsAndConditions": "Termos e Condições"
 }

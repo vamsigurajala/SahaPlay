@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "Sucette",
   "chatThemeShadow": "Ombre",
   "chatThemeSunset": "Coucher de soleil",
-  "chatThemeMint": "Menthe"
+  "chatThemeMint": "Menthe",
+  "usernameOrEmailLabel": "Nom d'utilisateur/E-mail",
+  "agreeTermsPrefix": "J'accepte les",
+  "agreePrivacyPrefix": "J'accepte la",
+  "termsAndConditions": "Conditions Générales"
 }

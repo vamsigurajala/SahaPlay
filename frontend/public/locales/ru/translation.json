@@ -1804,5 +1804,9 @@
   "chatThemeLollipop": "Леденец",
   "chatThemeShadow": "Тень",
   "chatThemeSunset": "Закат",
-  "chatThemeMint": "Мята"
+  "chatThemeMint": "Мята",
+  "usernameOrEmailLabel": "Имя пользователя/Email",
+  "agreeTermsPrefix": "Я согласен с",
+  "agreePrivacyPrefix": "Я согласен с",
+  "termsAndConditions": "Условиями использования"
 }

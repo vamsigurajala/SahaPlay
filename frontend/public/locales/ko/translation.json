@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "롤리팝",
   "chatThemeShadow": "섀도우",
   "chatThemeSunset": "선셋",
-  "chatThemeMint": "민트"
+  "chatThemeMint": "민트",
+  "usernameOrEmailLabel": "사용자명/이메일",
+  "agreeTermsPrefix": "동의합니다:",
+  "agreePrivacyPrefix": "동의합니다:",
+  "termsAndConditions": "이용약관"
 }

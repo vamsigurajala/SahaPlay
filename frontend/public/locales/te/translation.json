@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "లాలీపాప్",
   "chatThemeShadow": "నీడ",
   "chatThemeSunset": "సూర్యాస్తమయం",
-  "chatThemeMint": "మింట్"
+  "chatThemeMint": "మింట్",
+  "usernameOrEmailLabel": "యూజర్‌నేమ్/ఈమెయిల్",
+  "agreeTermsPrefix": "నేను అంగీకరిస్తున్నాను:",
+  "agreePrivacyPrefix": "నేను అంగీకరిస్తున్నాను:",
+  "termsAndConditions": "నిబంధనలు మరియు షరతులు"
 }

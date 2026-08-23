@@ -1790,5 +1790,9 @@
   "chatThemeLollipop": "லாலிபாப்",
   "chatThemeShadow": "நிழல்",
   "chatThemeSunset": "மாலை சூரிய அஸ்தமனம்",
-  "chatThemeMint": "மிண்ட்"
+  "chatThemeMint": "மிண்ட்",
+  "usernameOrEmailLabel": "பயனர்பெயர்/மின்னஞ்சல்",
+  "agreeTermsPrefix": "நான் ஒப்புக்கொள்கிறேன்:",
+  "agreePrivacyPrefix": "நான் ஒப்புக்கொள்கிறேன்:",
+  "termsAndConditions": "விதிமுறைகள் மற்றும் நிபந்தனைகள்"
 }

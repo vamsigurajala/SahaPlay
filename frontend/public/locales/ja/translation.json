@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "ロリポップ",
   "chatThemeShadow": "シャドウ",
   "chatThemeSunset": "サンセット",
-  "chatThemeMint": "ミント"
+  "chatThemeMint": "ミント",
+  "usernameOrEmailLabel": "ユーザー名/メールアドレス",
+  "agreeTermsPrefix": "同意します：",
+  "agreePrivacyPrefix": "同意します：",
+  "termsAndConditions": "利用規約"
 }

@@ -1803,5 +1803,9 @@
   "chatThemeLollipop": "লজেন্স",
   "chatThemeShadow": "ছায়া",
   "chatThemeSunset": "সূর্যাস্ত",
-  "chatThemeMint": "মিন্ট"
+  "chatThemeMint": "মিন্ট",
+  "usernameOrEmailLabel": "ইউজারনেম/ইমেইল",
+  "agreeTermsPrefix": "আমি সম্মত:",
+  "agreePrivacyPrefix": "আমি সম্মত:",
+  "termsAndConditions": "শর্তাবলী"
 }

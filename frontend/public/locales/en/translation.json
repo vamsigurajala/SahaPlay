@@ -1766,5 +1766,8 @@
   "chatThemeLollipop": "Lollipop",
   "chatThemeShadow": "Shadow",
   "chatThemeSunset": "Sunset",
-  "chatThemeMint": "Mint"
+  "chatThemeMint": "Mint",
+  "agreeTermsPrefix": "I agree to the",
+  "agreePrivacyPrefix": "I agree to the",
+  "termsAndConditions": "Terms & Conditions"
 }

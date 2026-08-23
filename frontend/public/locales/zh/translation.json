@@ -1802,5 +1802,9 @@
   "chatThemeLollipop": "棒棒糖",
   "chatThemeShadow": "暗影",
   "chatThemeSunset": "日落",
-  "chatThemeMint": "薄荷"
+  "chatThemeMint": "薄荷",
+  "usernameOrEmailLabel": "用户名/邮箱",
+  "agreeTermsPrefix": "我同意：",
+  "agreePrivacyPrefix": "我同意：",
+  "termsAndConditions": "服务条款"
 }

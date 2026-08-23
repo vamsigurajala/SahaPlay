@@ -1804,5 +1804,9 @@
   "chatThemeLollipop": "Lecca-lecca",
   "chatThemeShadow": "Ombra",
   "chatThemeSunset": "Tramonto",
-  "chatThemeMint": "Menta"
+  "chatThemeMint": "Menta",
+  "usernameOrEmailLabel": "Nome utente/Email",
+  "agreeTermsPrefix": "Accetto i",
+  "agreePrivacyPrefix": "Accetto l'",
+  "termsAndConditions": "Termini e Condizioni"
 }
