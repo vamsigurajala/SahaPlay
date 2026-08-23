@@ -1,7 +1,7 @@
 import { Clock, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export default function ExpiryReminderBanner({ count, isLight, onGotIt, onRemindLater }) {
+export default function ExpiryReminderBanner({ count, isLight, onGotIt, onRemindLater, onClose }) {
   const { t } = useTranslation();
   if (!count) return null;
 
@@ -20,7 +20,7 @@ export default function ExpiryReminderBanner({ count, isLight, onGotIt, onRemind
             : t('expiryBannerMany', '{{count}} files in this chat expire within 24 hours. Download them before they\'re gone.', { count })}
         </span>
         <button
-          onClick={onGotIt}
+          onClick={onClose}
           title={t('dismiss', 'Dismiss')}
           style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}
         >

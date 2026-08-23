@@ -2667,6 +2667,7 @@ export default function RoomChatPanel({ p }) {
                 isLight={isLight}
                 onGotIt={() => { dismissExpiryBanner12h(roomExpiryKey); p.bumpExpiryBannerTick?.(); }}
                 onRemindLater={() => { snoozeExpiryBannerUntilClose(roomExpiryKey); p.bumpExpiryBannerTick?.(); }}
+                onClose={() => { snoozeExpiryBannerUntilClose(roomExpiryKey); p.bumpExpiryBannerTick?.(); }}
               />
             );
           })()}
@@ -3352,6 +3353,7 @@ export default function RoomChatPanel({ p }) {
                       isLight={isLight}
                       onGotIt={() => { dismissExpiryBanner12h(dmExpiryKey); p.bumpExpiryBannerTick?.(); }}
                       onRemindLater={() => { snoozeExpiryBannerUntilClose(dmExpiryKey); p.bumpExpiryBannerTick?.(); }}
+                      onClose={() => { snoozeExpiryBannerUntilClose(dmExpiryKey); p.bumpExpiryBannerTick?.(); }}
                     />
                   );
                 })()}
