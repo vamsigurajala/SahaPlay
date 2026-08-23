@@ -388,6 +388,28 @@ function sendCallCancelPush(username, callId) {
   sendPushToUser(username, { data: { type: 'call-cancel', callId }, dataOnly: true }).catch(() => {});
 }
 
+// A real, title/body-bearing "missed call" notification — distinct from
+// sendCallCancelPush above, which only dismisses whatever ring UI is showing
+// and carries no user-facing content of its own. Sent ONLY to the callee
+// (the person who didn't answer), matching WhatsApp's convention that the
+// caller doesn't get a "missed call" notification about their own outgoing
+// call — they already know they called and it wasn't picked up.
+async function sendMissedCallPush(calleeUsername, callId, callerUsername) {
+  if (!calleeUsername || !callId) return;
+  try {
+    const callerRow = await queryGet('SELECT displayName FROM users WHERE LOWER(username) = LOWER(?)', [callerUsername]);
+    const callerDisplayName = callerRow?.displayName || callerUsername;
+    await sendPushToUser(calleeUsername, {
+      title: 'Missed call',
+      body: `${callerDisplayName} called`,
+      data: { type: 'call-missed', callId, callerUsername, callerDisplayName },
+      dataOnly: true,
+    });
+  } catch (e) {
+    console.error('[Call] sendMissedCallPush error:', e.message);
+  }
+}
+
 // Everyone who has ever opened this room's chat (see getOrInitFirstJoined —
 // firstJoined is a JSON map of roomId -> first-open timestamp, already
 // tracked for the unrelated "don't show history from before you joined"
@@ -9124,6 +9146,7 @@ io.on('connection', (socket) => {
         if (call) {
           emitToUser(call.caller, 'call:timeout', { callId });
           emitToUser(call.callee, 'call:timeout', { callId });
+          sendMissedCallPush(call.callee, callId, call.caller);
         }
       }, CALL_RING_TIMEOUT_MS);
 
@@ -9165,6 +9188,10 @@ io.on('connection', (socket) => {
     if (!call || call.caller !== socket.username?.toLowerCase() || call.status !== 'ringing') return;
     endCallInternal(callId);
     emitToUser(call.callee, 'call:cancelled', { callId });
+    // The callee never got to answer — a missed call from their side too,
+    // same as a plain ring-timeout (see the CALL_RING_TIMEOUT_MS handler
+    // above), just triggered by the caller hanging up early instead.
+    sendMissedCallPush(call.callee, callId, call.caller);
   });
 
   socket.on('call:accept', ({ callId }) => {
@@ -9304,7 +9331,10 @@ io.on('connection', (socket) => {
 
       const timeoutHandle = setTimeout(() => {
         const c = activeCalls.get(callId);
-        if (c?.members.get(target)?.status === 'ringing') leaveActiveCall(callId, target, { reason: 'missed' });
+        if (c?.members.get(target)?.status === 'ringing') {
+          leaveActiveCall(callId, target, { reason: 'missed' });
+          sendMissedCallPush(target, callId, me);
+        }
       }, CALL_RING_TIMEOUT_MS);
 
       call.members.set(target, { status: 'ringing', joinedAt: null, timeoutHandle, invitedBy: me });

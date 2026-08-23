@@ -1,10 +1,16 @@
 package com.sahaplay.app;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.telecom.TelecomManager;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 
 import com.capacitorjs.plugins.pushnotifications.MessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -122,6 +128,47 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // tapping its Answer/Decline would silently do nothing, since
             // the server no longer has any record of it.
             IncomingCallActivity.cancelForCallId(this, data.get("callId"));
+        } else if ("call-missed".equals(data.get("type"))) {
+            // A real, dismissible notification for a call that rang out (or
+            // was cancelled) before it was answered — distinct from
+            // "call-cancel" above, which only dismisses whatever ring UI is
+            // showing and carries no content of its own. Sent server-side
+            // only to whoever didn't answer (see sendMissedCallPush in
+            // backend/server.js), never to the caller. Own dedicated
+            // channel: DEFAULT importance/sound is right for this (a
+            // completed, non-urgent event), unlike the ringing channel's
+            // IMPORTANCE_HIGH or the ongoing-call channel's silent
+            // IMPORTANCE_LOW.
+            String callerDisplayName = data.get("callerDisplayName");
+            String callerUsername = data.get("callerUsername");
+            String callId = data.get("callId");
+            String who = callerDisplayName != null ? callerDisplayName : callerUsername;
+
+            final String missedChannelId = "sahaplay_missed_call";
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(missedChannelId, "Missed Calls", NotificationManager.IMPORTANCE_DEFAULT);
+                nm.createNotificationChannel(channel);
+            }
+
+            Intent openIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
+            PendingIntent contentPendingIntent = (openIntent != null)
+                ? PendingIntent.getActivity(this, 0, openIntent, piFlags)
+                : null;
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, missedChannelId)
+                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setContentTitle("Missed call")
+                .setContentText(who != null ? (who + " called") : "You have a missed call")
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+            if (contentPendingIntent != null) builder.setContentIntent(contentPendingIntent);
+
+            if (nm != null) {
+                int notificationId = (callId != null ? callId : String.valueOf(System.currentTimeMillis())).hashCode();
+                nm.notify(notificationId, builder.build());
+            }
         }
     }
 
