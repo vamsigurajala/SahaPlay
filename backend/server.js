@@ -5643,6 +5643,16 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
         if (err) console.error('DELETE ACCOUNT ERROR (blocks):', err);
       });
 
+      // Sender-only: removes everything this account authored (DMs + group
+      // messages) without touching messages OTHER people sent them — a DM row
+      // is shared storage (recipient ciphertext + sender's-own-copy ciphertext
+      // on the same row), so deleting rows where they were merely the
+      // recipient would also erase the counterparty's own sent message from
+      // the counterparty's history, which they never asked to lose.
+      db.run('DELETE FROM messages WHERE LOWER("senderName") = LOWER(?)', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (messages):', err);
+      });
+
       // Also delete any rooms they were hosting
       db.run('DELETE FROM room_names WHERE hostUsername = ?', [user.username], function(err) {
         if (err) console.error('DELETE ACCOUNT ERROR (room_names):', err);
@@ -12859,6 +12869,33 @@ async function cleanupExpiredMedia() {
 }
 migrationsReady.then(() => cleanupExpiredMedia());
 setInterval(cleanupExpiredMedia, 24 * 60 * 60 * 1000);
+
+// Retention: a room or DM thread ("roomId" is shared by every message in that
+// thread — both types="private" DMs and type='room'/'group' chats key off it,
+// see the 'dm-' + sorted-usernames construction used everywhere a DM row is
+// inserted) with no new message in RETENTION_MONTHS gets every one of its
+// message rows purged. message_seen cascades via its own FK. Message content
+// is already ciphertext (E2EE) so there's no separate "metadata-only" strip —
+// purging means deleting the row itself once the thread has gone quiet.
+const RETENTION_MONTHS = 12;
+async function cleanupStaleMessages() {
+  console.log('[Cleanup] Running stale message-thread purge...');
+  try {
+    const cutoff = Date.now() - RETENTION_MONTHS * 30 * 24 * 60 * 60 * 1000;
+    const { rows: staleRooms } = await pool.query(
+      `SELECT "roomId" FROM messages GROUP BY "roomId" HAVING MAX(timestamp) < $1`,
+      [cutoff]
+    );
+    if (staleRooms.length === 0) { console.log('[Cleanup] No stale message threads.'); return; }
+    const roomIds = staleRooms.map(r => r.roomId);
+    const { rowCount } = await pool.query(`DELETE FROM messages WHERE "roomId" = ANY($1::text[])`, [roomIds]);
+    console.log(`[Cleanup] Purged ${rowCount} message row(s) across ${roomIds.length} inactive thread(s) ✅`);
+  } catch (err) {
+    console.error('[Cleanup] Error during stale message purge:', err.message);
+  }
+}
+migrationsReady.then(() => cleanupStaleMessages());
+setInterval(cleanupStaleMessages, 24 * 60 * 60 * 1000);
 
 process.on('uncaughtException', (err) => {
   console.error(JSON.stringify({ level: 'fatal', event: 'uncaughtException', pid: process.pid, ts: new Date().toISOString(), name: err.name, message: err.message }));
