@@ -8752,7 +8752,11 @@ const Room = () => {
     // .player-mob-fs-portrait's own !important background) are meant for
     // actual video, and were forcing black behind these too, in light mode,
     // exactly like the desktop fullscreen version of this same bug.
-    const lightActivity = active && isLight && isGameOrActivity(mediaUrl);
+    // Reads the DOM attribute directly (not the component's own `isLight`
+    // const, which is declared much further down this function, after some
+    // early returns) — same value, no dependency-order hazard.
+    const lightNow = document.documentElement.getAttribute('data-theme') === 'light';
+    const lightActivity = active && lightNow && isGameOrActivity(mediaUrl);
     document.documentElement.classList.toggle('sp-mobile-fs-light-activity', lightActivity);
     document.body.classList.toggle('sp-mobile-fs-light-activity', lightActivity);
     return () => {
@@ -8761,7 +8765,7 @@ const Room = () => {
       document.documentElement.classList.remove('sp-mobile-fs-light-activity');
       document.body.classList.remove('sp-mobile-fs-light-activity');
     };
-  }, [isTouchPlayer, isMobileFsMode, isLight, mediaUrl]);
+  }, [isTouchPlayer, isMobileFsMode, mediaUrl]);
 
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true' && localStorage.getItem('watch_is_tv') !== 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
