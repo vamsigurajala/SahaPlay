@@ -13507,6 +13507,7 @@ const Room = () => {
                 <div style={{ flex: 1, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
                   <RoomChatPanel p={{
                     chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
+                    chatVisible: rightPanelTab === 'chat',
                     chatTab, setChatTab, chatTabRef,
                     groupMessages, groupUnread, setGroupUnread,
                     room, isAdmin,
@@ -13783,7 +13784,7 @@ const Room = () => {
             /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
             (
               <RoomChatPanel p={{
-                chatThemes, openChatThemeSheet,
+                chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                 chatTab, setChatTab, chatTabRef,
                 groupMessages, groupUnread, setGroupUnread,
                 room, isAdmin,

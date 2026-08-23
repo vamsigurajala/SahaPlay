@@ -27,7 +27,7 @@ import MediaLightbox from './MediaLightbox';
 import { isCapacitorApp } from '../lib/platform';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
-import { countSoonExpiringMedia, dismissExpiryBannerForever, snoozeExpiryBanner } from '../utils/expiryReminders';
+import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
 // Desktop-browser equivalent of the native app's push notifications — the
 // in-page toast below only helps while this tab is actually visible, so a
@@ -2067,6 +2067,16 @@ const GlobalChatWidget = forwardRef(({
   // dismissal/snooze state lives in localStorage (shared across chats), not
   // React state — this forces a re-check of countSoonExpiringMedia.
   const [expiryBannerTick, setExpiryBannerTick] = useState(0);
+  const bannerChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
+  // "Remind me later" only suppresses the banner until this chat is closed
+  // (navigated back to the list, or the target/widget itself changes) —
+  // clear that suppression here so it reappears next time the same chat is
+  // reopened, instead of it being time-based. `view` is included since
+  // handleBackToList() only flips view to 'list' without clearing
+  // activeChat, so bannerChatKey alone wouldn't change on "back".
+  useEffect(() => {
+    return () => { clearExpiryBannerCloseSuppression(bannerChatKey); };
+  }, [bannerChatKey, view, isOpen]);
   const prevMsgCountRef = useRef(0);
   const isFirstRenderGlobalChat = useRef(true);
   const inputRef = useRef(null);
@@ -6837,7 +6847,6 @@ const GlobalChatWidget = forwardRef(({
           {/* ── Re-auth overlay removed as requested ── */}
 
           {view === 'chat' && activeChat && (() => {
-            const bannerChatKey = (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase();
             // eslint-disable-next-line no-unused-expressions
             expiryBannerTick;
             const soonCount = countSoonExpiringMedia(messages, bannerChatKey);
@@ -6846,8 +6855,8 @@ const GlobalChatWidget = forwardRef(({
               <ExpiryReminderBanner
                 count={soonCount}
                 isLight={isLight}
-                onGotIt={() => { dismissExpiryBannerForever(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
-                onRemindLater={() => { snoozeExpiryBanner(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
+                onGotIt={() => { dismissExpiryBanner12h(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
+                onRemindLater={() => { snoozeExpiryBannerUntilClose(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
               />
             );
           })()}

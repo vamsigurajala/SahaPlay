@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
-import { countSoonExpiringMedia, dismissExpiryBannerForever, snoozeExpiryBanner } from '../utils/expiryReminders';
+import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -1256,6 +1256,19 @@ export default function RoomChatPanel({ p }) {
   const dmScrollContainerRef = React.useRef(null);
   const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
   const call = useCall();
+
+  // "Remind me later" on the expiry banner only suppresses it until this
+  // chat is closed (switched away from group/dm/list, or unmounted) — clear
+  // that suppression whenever chatTab changes away or the target changes, so
+  // it reappears next time the same chat is reopened.
+  const roomExpiryKey = (p.roomId || '').toLowerCase();
+  React.useEffect(() => {
+    return () => { clearExpiryBannerCloseSuppression(roomExpiryKey); };
+  }, [roomExpiryKey, p.chatTab, p.chatVisible]);
+  const dmExpiryKey = (p.dmTarget || '').toLowerCase();
+  React.useEffect(() => {
+    return () => { clearExpiryBannerCloseSuppression(dmExpiryKey); };
+  }, [dmExpiryKey, p.chatTab, p.chatVisible]);
 
   const prevGroupMsgCount = React.useRef(p.groupMessages.length);
   const prevFirstGroupMsgId = React.useRef(null);
@@ -2646,15 +2659,14 @@ export default function RoomChatPanel({ p }) {
             </div>
           </div>
           {(() => {
-            const roomKey = (p.roomId || '').toLowerCase();
-            const soonCount = countSoonExpiringMedia(p.groupMessages, roomKey);
+            const soonCount = countSoonExpiringMedia(p.groupMessages, roomExpiryKey);
             if (!soonCount) return null;
             return (
               <ExpiryReminderBanner
                 count={soonCount}
                 isLight={isLight}
-                onGotIt={() => { dismissExpiryBannerForever(roomKey); p.bumpExpiryBannerTick?.(); }}
-                onRemindLater={() => { snoozeExpiryBanner(roomKey); p.bumpExpiryBannerTick?.(); }}
+                onGotIt={() => { dismissExpiryBanner12h(roomExpiryKey); p.bumpExpiryBannerTick?.(); }}
+                onRemindLater={() => { snoozeExpiryBannerUntilClose(roomExpiryKey); p.bumpExpiryBannerTick?.(); }}
               />
             );
           })()}
@@ -3332,15 +3344,14 @@ export default function RoomChatPanel({ p }) {
                   </div>
                 </div>
                 {(() => {
-                  const dmKey = (p.dmTarget || '').toLowerCase();
-                  const soonCount = countSoonExpiringMedia(dmMessages, dmKey);
+                  const soonCount = countSoonExpiringMedia(dmMessages, dmExpiryKey);
                   if (!soonCount) return null;
                   return (
                     <ExpiryReminderBanner
                       count={soonCount}
                       isLight={isLight}
-                      onGotIt={() => { dismissExpiryBannerForever(dmKey); p.bumpExpiryBannerTick?.(); }}
-                      onRemindLater={() => { snoozeExpiryBanner(dmKey); p.bumpExpiryBannerTick?.(); }}
+                      onGotIt={() => { dismissExpiryBanner12h(dmExpiryKey); p.bumpExpiryBannerTick?.(); }}
+                      onRemindLater={() => { snoozeExpiryBannerUntilClose(dmExpiryKey); p.bumpExpiryBannerTick?.(); }}
                     />
                   );
                 })()}

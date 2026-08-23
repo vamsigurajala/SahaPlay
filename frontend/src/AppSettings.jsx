@@ -1889,6 +1889,17 @@ const AppSettings = () => {
                     }} />
                   </div>
                 </div>
+
+                {expiryReminders && (
+                  <div style={{
+                    marginTop: 10, padding: '12px 16px',
+                    background: (theme === 'light') ? 'rgba(var(--brand-1-rgb),0.06)' : 'rgba(var(--brand-1-rgb),0.1)',
+                    border: '1px solid rgba(var(--brand-1-rgb),0.2)', borderRadius: 10,
+                    fontSize: 12.5, color: (theme === 'light') ? '#4b5563' : '#9ca3af', lineHeight: 1.6
+                  }}>
+                    {t('expiryRemindersButtonsNote', '"Got it" hides the banner for about 12 hours. "Remind me later" hides it only until you close and reopen the chat. Both are the same whether you use the Room chat or the chat window, and turning this toggle off stops the banner everywhere.')}
+                  </div>
+                )}
               </div>
             </div>
           )}
