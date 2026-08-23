@@ -742,7 +742,7 @@ class SupabaseAdapter {
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
         'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
         'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus',
-        'mutedChats'
+        'mutedChats', 'notifyCalls'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -1553,6 +1553,13 @@ const migrationsReady = (async () => {
   // too, not just the in-app toast.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "mutedChats" TEXT DEFAULT '[]'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] mutedChats:', e.message);
+  });
+  // Quoted/case-preserved to match notifyApp/notifyJoin/notifyMessages/etc. —
+  // see the SupabaseAdapter._convertSql camelCols list below, which auto-
+  // quotes exactly these known mixed-case columns for the `?`-style db.get/
+  // db.run call sites; notifyCalls needs adding there too for the same reason.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "notifyCalls" BOOLEAN DEFAULT TRUE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] notifyCalls:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -5784,10 +5791,11 @@ app.get('/api/settings', authenticateTokenOptional, (req, res) => {
       notifyMessages: true,
       notifyFriendRequests: true,
       notifyLeave: true,
-      notifyJoinRequests: true
+      notifyJoinRequests: true,
+      notifyCalls: true
     });
   }
-  db.get('SELECT language, country, country_code, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests FROM users WHERE id = ?', [req.user.id], (err, row) => {
+  db.get('SELECT language, country, country_code, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests, notifyCalls FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);
@@ -5799,7 +5807,7 @@ app.put('/api/settings', authenticateTokenOptional, (req, res) => {
   if (!req.user || req.user.id === 0 || req.user.isGuest) {
     return res.json({ message: 'Guest settings updated locally' });
   }
-  const allowed = ['language', 'country', 'country_code', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests'];
+  const allowed = ['language', 'country', 'country_code', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'notifyCalls'];
   const updates = [];
   const values = [];
   for (const key of allowed) {

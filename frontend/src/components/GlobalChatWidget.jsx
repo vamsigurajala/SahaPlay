@@ -24,41 +24,10 @@ import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
-import { isCapacitorApp } from '../lib/platform';
+import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
-
-// Desktop-browser equivalent of the native app's push notifications — the
-// in-page toast below only helps while this tab is actually visible, so a
-// message that arrives while the user is on a different tab (browser open,
-// just not looking at this one) previously produced nothing at all. This is
-// exactly what WhatsApp Web does: no real Push subscription, just the
-// Notifications API firing from the already-open tab's live socket
-// connection. Skipped entirely on the native app (isCapacitorApp) — FCM
-// already covers that case, and Notification permission prompts don't apply
-// there anyway.
-let desktopNotifyPermissionRequested = false;
-function ensureDesktopNotifyPermission() {
-  if (isCapacitorApp() || desktopNotifyPermissionRequested) return;
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
-  desktopNotifyPermissionRequested = true;
-  if (Notification.permission === 'default') {
-    Notification.requestPermission().catch(() => {});
-  }
-}
-function showDesktopNotification(title, body, tag) {
-  if (isCapacitorApp()) return;
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-  // Tab is visible AND focused — the in-page toast already covers this;
-  // showing an OS notification too would just be a redundant duplicate.
-  if (!document.hidden && document.hasFocus()) return;
-  try {
-    const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
-    n.onclick = () => { window.focus(); n.close(); };
-  } catch {}
-}
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 

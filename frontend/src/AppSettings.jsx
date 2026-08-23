@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip, Phone } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -426,6 +426,7 @@ const AppSettings = () => {
   const [notifyFriendRequests, setNotifyFriendRequests] = useState(true);
   const [notifyLeave, setNotifyLeave] = useState(true);
   const [notifyJoinRequests, setNotifyJoinRequests] = useState(true);
+  const [notifyCalls, setNotifyCalls] = useState(true);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [openSection, setOpenSection] = useState('general');
   const [expiryReminders, setExpiryReminders] = useState(() => localStorage.getItem('expiry_reminders') !== 'false');
@@ -658,6 +659,11 @@ const AppSettings = () => {
           setNotifyFriendRequests(data.notifyFriendRequests === 1 || data.notifyFriendRequests === true);
           setNotifyLeave(data.notifyLeave === 1 || data.notifyLeave === true);
           setNotifyJoinRequests(data.notifyJoinRequests === 1 || data.notifyJoinRequests === true);
+          const callsEnabled = data.notifyCalls === 1 || data.notifyCalls === true;
+          setNotifyCalls(callsEnabled);
+          // Mirrored into localStorage so CallContext.jsx (which has no
+          // settings-fetch of its own) can read this synchronously.
+          try { localStorage.setItem('notifyCalls', String(callsEnabled)); } catch {}
         };
         const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
         if (remaining > 0) setTimeout(apply, remaining);
@@ -844,6 +850,17 @@ const AppSettings = () => {
     const next = !current;
     setter(next);
     saveSetting(key, next ? 1 : 0);
+  };
+
+  // Same as toggleNotifSetting, plus mirroring into localStorage — calls are
+  // the one notification type CallContext.jsx actually reads back out (it
+  // has no settings-fetch of its own, so this is the only way it can see the
+  // setting change without a page reload).
+  const toggleCallNotifSetting = () => {
+    const next = !notifyCalls;
+    setNotifyCalls(next);
+    saveSetting('notifyCalls', next ? 1 : 0);
+    try { localStorage.setItem('notifyCalls', String(next)); } catch {}
   };
 
   // Mic test
@@ -1723,6 +1740,19 @@ const AppSettings = () => {
                   </div>
                 </div>
                 <Toggle on={notifyMessages} onToggle={() => toggleNotifSetting('notifyMessages', notifyMessages, setNotifyMessages)} disabled={!notifyApp} />
+              </div>
+
+              <div className="notif-row">
+                <div className="notif-label">
+                  <div className="notif-icon" style={{ background: 'rgba(34,197,94,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Phone size={16} color="#22c55e" />
+                  </div>
+                  <div>
+                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('callNotifications', 'Call Notifications')}</div>
+                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneCalls', 'Incoming and missed calls, including on this browser/desktop when it\'s in the background')}</div>
+                  </div>
+                </div>
+                <Toggle on={notifyCalls} onToggle={toggleCallNotifSetting} disabled={!notifyApp} />
               </div>
 
               <div className="notif-row">

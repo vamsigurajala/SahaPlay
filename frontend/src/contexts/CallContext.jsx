@@ -39,7 +39,15 @@ import { requestMediaAccess } from '../lib/mediaPermissionGate';
 import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
+import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
+
+// Mirrors the notifyCalls setting into localStorage (see AppSettings.jsx) so
+// this check is synchronous — this file has no settings-fetch of its own and
+// isn't worth adding one just for a single boolean gate.
+function callNotificationsEnabled() {
+  return localStorage.getItem('notifyCalls') !== 'false';
+}
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
 // user-typed text — a control character sequence a human could never type,
@@ -201,6 +209,7 @@ export function CallProvider({ children }) {
 
     const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
+    ensureDesktopNotifyPermission();
 
     sock.on('call:incoming', async ({ callId, callerUsername, callType, groupParticipants }) => {
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.
@@ -208,6 +217,13 @@ export function CallProvider({ children }) {
       peerPublicKeysRef.current = new Map();
       peerGoneRef.current = false;
       const brief = await fetchUserBrief(callerUsername);
+      if (callNotificationsEnabled()) {
+        showDesktopNotification(
+          callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
+          `${brief?.displayName || callerUsername} is calling…`,
+          `call-${callId}`
+        );
+      }
       // groupParticipants (when present) is the full list of everyone
       // already active in the call, INCLUDING whoever is inviting me — see
       // backend/server.js's call:add-member, which computes it before
@@ -259,8 +275,18 @@ export function CallProvider({ children }) {
     });
 
     sock.on('call:cancelled', ({ callId, reason }) => {
-      if (callStateRef.current?.callId !== callId) return;
-      if (reason === 'disconnect') writeCallLog(callStateRef.current, 'missed');
+      const cs = callStateRef.current;
+      if (cs?.callId !== callId) return;
+      if (reason === 'disconnect') writeCallLog(cs, 'missed');
+      // I was the one ringing and the caller ended it before I answered —
+      // a missed call from my side regardless of why (their own disconnect,
+      // or them explicitly cancelling). The shared chat-log bubble for this
+      // is already written by whichever side took the action (see the
+      // comment above this handler block) — this only adds the notification,
+      // not a second log entry.
+      if (cs.phase === 'incoming' && callNotificationsEnabled()) {
+        showDesktopNotification('Missed call', `You missed a call from ${cs.peerDisplayName || cs.peerUsername}`, `call-missed-${callId}`);
+      }
       teardownCall();
     });
 
@@ -278,6 +304,11 @@ export function CallProvider({ children }) {
       if (!cs || cs.callId !== callId) return;
       if (cs.phase === 'outgoing') {
         writeCallLog(cs, 'missed');
+      } else if (cs.phase === 'incoming' && callNotificationsEnabled()) {
+        // The ring simply expired unanswered on my end — the caller's own
+        // client (which also gets this same event) is what writes the
+        // shared chat-log bubble; this just adds the notification.
+        showDesktopNotification('Missed call', `You missed a call from ${cs.peerDisplayName || cs.peerUsername}`, `call-missed-${callId}`);
       }
       teardownCall();
     });
