@@ -1,6 +1,7 @@
 package com.sahaplay.app;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.telecom.Connection;
 import android.telecom.DisconnectCause;
@@ -70,9 +71,30 @@ public class SahaplayConnection extends Connection {
     // and by Telecom itself (onAnswer below) — both paths must produce the
     // same effect, so Telecom's own state stays in sync regardless of which
     // one the user actually tapped.
+    //
+    // Deliberately does NOT route through CallEngineService.acceptIncomingCall()
+    // (a headless native accept over its own separate socket) — that path
+    // never opens the WebView, so on any device where Telecom's self-managed
+    // PhoneAccount actually cooperates (most non-MIUI devices), tapping
+    // Answer while backgrounded/locked silently accepted the call at the
+    // protocol level with nothing on screen: the caller flipped to "active"
+    // while the callee saw nothing happen, forcing a re-call. setActive()
+    // still tells Telecom the call is live (audio focus/Bluetooth routing);
+    // the actual accept + call UI always goes through the same guaranteed
+    // sahaplay://call-answer hand-off the plain REST/deep-link fallback
+    // below uses — real getUserMedia/RTCPeerConnection only exists in the
+    // WebView/JS layer (see IncomingCallActivity's own class comment).
     public void answerFromUi() {
         setActive();
-        CallEngineService.get(appContext).acceptIncomingCall(callId);
+        launchWebAnswer();
+    }
+
+    private void launchWebAnswer() {
+        Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
+        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+        intent.setPackage(appContext.getPackageName());
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try { appContext.startActivity(intent); } catch (Exception ignored) {}
     }
 
     public void declineFromUi() {

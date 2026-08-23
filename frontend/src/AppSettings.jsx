@@ -16,6 +16,7 @@ import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA, isCapacitorApp } from './lib/platform';
 import { requestMediaAccess } from './lib/mediaPermissionGate';
+import { ensureWebPushSubscription } from './lib/webPushSubscribe';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -427,6 +428,9 @@ const AppSettings = () => {
   const [notifyLeave, setNotifyLeave] = useState(true);
   const [notifyJoinRequests, setNotifyJoinRequests] = useState(true);
   const [notifyCalls, setNotifyCalls] = useState(true);
+  const [browserNotifPermission, setBrowserNotifPermission] = useState(
+    (typeof window !== 'undefined' && 'Notification' in window) ? Notification.permission : 'unsupported'
+  );
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [openSection, setOpenSection] = useState('general');
   const [expiryReminders, setExpiryReminders] = useState(() => localStorage.getItem('expiry_reminders') !== 'false');
@@ -861,6 +865,47 @@ const AppSettings = () => {
     setNotifyCalls(next);
     saveSetting('notifyCalls', next ? 1 : 0);
     try { localStorage.setItem('notifyCalls', String(next)); } catch {}
+    // Turning this ON is a real click, so it's the one place in the app that
+    // can actually get the browser to show its OS notification-permission
+    // prompt (see requestBrowserCallAlerts's own comment for why the
+    // automatic request CallContext.jsx fires on every page load doesn't
+    // work — browsers silently suppress permission requests that aren't
+    // tied to a user gesture like this one).
+    if (next) requestBrowserCallAlerts({ silent: true });
+  };
+
+  // Real, gesture-backed request for OS-level call notifications on the
+  // web/desktop app — as opposed to CallContext.jsx's automatic call to the
+  // same underlying API on every socket connect (page load), which fires
+  // with no click behind it at all. Chrome (and other browsers) treat a
+  // gesture-less Notification.requestPermission() as spammy: it either shows
+  // a tiny, easy-to-miss address-bar chip instead of a real prompt, or gets
+  // silently ignored outright — so users who never happened to notice that
+  // chip were never actually asked, and permission stayed stuck on
+  // 'default' forever with no visible sign anything was wrong. Wiring an
+  // explicit ask to this button (and to turning the toggle on above) gives
+  // the browser a genuine click to attribute the prompt to.
+  const requestBrowserCallAlerts = async ({ silent } = {}) => {
+    if (isCapacitorApp() || typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      setBrowserNotifPermission('granted');
+      ensureWebPushSubscription(token);
+      if (!silent) toast.success(t('browserAlertsAlreadyOn', 'Browser call alerts are already on'));
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setBrowserNotifPermission('denied');
+      if (!silent) toast.error(t('browserAlertsBlocked', "Notifications are blocked for this site in your browser settings — enable them there, then reload the page."));
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setBrowserNotifPermission(result);
+    if (result === 'granted') {
+      ensureWebPushSubscription(token);
+      if (!silent) toast.success(t('browserAlertsEnabled', 'Browser call alerts enabled'));
+    } else if (!silent) {
+      toast.error(t('browserAlertsDismissed', "Browser alerts weren't enabled"));
+    }
   };
 
   // Mic test
@@ -1750,6 +1795,20 @@ const AppSettings = () => {
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('callNotifications', 'Call Notifications')}</div>
                     <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneCalls', 'Incoming and missed calls, including on this browser/desktop when it\'s in the background')}</div>
+                    {!isCapacitorApp() && browserNotifPermission !== 'unsupported' && browserNotifPermission !== 'granted' && (
+                      <button
+                        onClick={requestBrowserCallAlerts}
+                        style={{
+                          marginTop: 6, background: 'none', border: 'none', padding: 0,
+                          color: 'var(--brand-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {browserNotifPermission === 'denied'
+                          ? t('browserAlertsBlockedHint', 'Notifications blocked — tap for how to enable')
+                          : t('enableBrowserAlerts', 'Enable browser alerts on this device')}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <Toggle on={notifyCalls} onToggle={toggleCallNotifSetting} disabled={!notifyApp} />
