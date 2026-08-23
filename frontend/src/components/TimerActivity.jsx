@@ -324,9 +324,10 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           position: absolute;
           inset: 0;
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
           justify-content: center;
+          gap: clamp(28px, 7cqmin, 72px);
           font-family: 'Outfit', 'Inter', sans-serif;
           user-select: none;
           overflow: hidden;
@@ -343,22 +344,24 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         }
 
         .timer-right-content {
-          display: contents;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: clamp(14px, 2.5cqmin, 28px);
         }
 
         .timer-toggle {
           display: flex;
           gap: 3px;
-          margin-bottom: clamp(22px, 4.3cqmin, 46px);
           border-radius: 14px;
           padding: clamp(4px, 0.6cqmin, 8px);
         }
 
         .timer-ring-wrapper {
           position: relative;
-          width: clamp(220px, 35.7cqmin, 440px);
-          height: clamp(220px, 35.7cqmin, 440px);
-          margin-bottom: clamp(20px, 3.5cqmin, 40px);
+          width: clamp(240px, 42cqmin, 480px);
+          height: clamp(240px, 42cqmin, 480px);
         }
 
         .timer-display-inner {
@@ -374,7 +377,7 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         .timer-time-text {
           font-size: clamp(40px, 7.7cqmin, 88px);
           font-weight: 900;
-          letter-spacing: -3px;
+          letter-spacing: 1px;
           font-variant-numeric: tabular-nums;
           line-height: 1;
           transition: color 0.3s, text-shadow 0.3s;
@@ -388,7 +391,6 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           display: flex;
           align-items: flex-end;
           gap: clamp(5px, 0.9cqmin, 10px);
-          margin-bottom: clamp(18px, 3.5cqmin, 40px);
         }
 
         .timer-input-label {
@@ -462,25 +464,15 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
            fullscreen device, not a mismatch between the two. */
         @container timerbox (max-width: 1024px) or (max-height: 700px) {
           .timer-container {
-            flex-direction: row;
-            justify-content: space-evenly;
-            align-items: center;
             padding: 8px;
+            gap: 20px;
           }
           .timer-right-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             gap: 12px;
-          }
-          .timer-toggle {
-            margin-bottom: 0;
           }
           .timer-ring-wrapper {
             width: 170px;
             height: 170px;
-            margin-bottom: 0;
           }
           .timer-display-inner {
             gap: 4px;
@@ -492,7 +484,6 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
             font-size: 26px;
           }
           .timer-inputs-wrapper {
-            margin-bottom: 0;
             gap: 4px;
           }
           .timer-input-box {
@@ -534,20 +525,11 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
         /* Mobile-sized containers */
         @container timerbox (max-width: 500px) or (max-height: 500px) {
           .timer-container {
-            flex-direction: row;
-            justify-content: space-evenly;
-            align-items: center;
             padding: 4px;
+            gap: 10px;
           }
           .timer-right-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
             gap: 8px;
-          }
-          .timer-toggle {
-            margin-bottom: 0;
           }
           .timer-toggle button {
             padding: 5px 12px !important;
@@ -557,7 +539,6 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
           .timer-ring-wrapper {
             width: 130px;
             height: 130px;
-            margin-bottom: 0;
           }
           .timer-display-inner {
             gap: 2px;
@@ -575,7 +556,6 @@ export default function TimerActivity({ isLight = false, socket, roomId }) {
             letter-spacing: -0.5px;
           }
           .timer-inputs-wrapper {
-            margin-bottom: 0;
             gap: 2px;
           }
           .timer-input-box {

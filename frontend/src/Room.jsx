@@ -1431,6 +1431,11 @@ const Room = () => {
   const [iframeHintExpanded, setIframeHintExpanded] = useState(true);
   const [hoveringIframeHint, setHoveringIframeHint] = useState(false);
   const iframeBlockTimeoutRef = useRef(null);
+  // One auto-launch attempt per media selection — without this, a Virtual
+  // Browser session that fails to open (backend down, etc.) would re-arm
+  // isLaunchingVirtualBrowser back to false while iframeBlockSuspected is
+  // still true, and the auto-launch effect below would retry forever.
+  const autoLaunchAttemptedRef = useRef(false);
   const [showGlobePopup, setShowGlobePopup] = useState(false);
   const [showGlobeInstruction, setShowGlobeInstruction] = useState(() => {
     return localStorage.getItem('hasSeenGameGlobeInstruction') !== 'true';
@@ -5839,6 +5844,7 @@ const Room = () => {
     setIframeBlockSuspected(false);
     setShowGlobePopup(false);
     clearTimeout(iframeBlockTimeoutRef.current);
+    autoLaunchAttemptedRef.current = false;
 
     if (mediaUrl && isWebIframe(mediaUrl)) {
       // If the iframe is loaded but potentially blocked or taking too long, we show the 
@@ -7410,6 +7416,24 @@ const Room = () => {
     hyperbeamTargetUrlRef.current = null;
     if (socket) socket.emit('hyperbeam_closed', { roomId: rid });
   };
+
+  // Auto-launch the Virtual Browser for the host the moment a site looks
+  // blocked/stuck (iframeBlockSuspected) or is confirmed blocked
+  // (iframeError), instead of making them read an explanation and click a
+  // button first — for the host, "not loading" should just mean "switch to
+  // the working view" immediately. Non-hosts still can't launch it (no
+  // permission to control the shared session) so this only fires for the
+  // effective host; they see the (now minimal) fallback text until the
+  // host's browser opens and hyperbeamSession/hbSessionId arrive over the
+  // socket, at which point this and the fallback overlay stop rendering.
+  useEffect(() => {
+    if (!(iframeBlockSuspected || iframeError)) return;
+    if (!isEffectiveHost) return;
+    if (hyperbeamSession || hbSessionId || isVirtualBrowserMedia) return;
+    if (isLaunchingVirtualBrowser || autoLaunchAttemptedRef.current) return;
+    autoLaunchAttemptedRef.current = true;
+    handleOpenCloudBrowser();
+  }, [iframeBlockSuspected, iframeError, isEffectiveHost, hyperbeamSession, hbSessionId, isVirtualBrowserMedia, isLaunchingVirtualBrowser]);
 
   // ─── Responsive breakpoint tracker ──────────────────────────────────────
   useEffect(() => {
@@ -10637,9 +10661,15 @@ const Room = () => {
             onTouchStart={() => { if (isGameOrActivity(mediaUrl)) resetGameControlsTimer(); }}
             style={{
               flex: 1,
-              background: (isLight && !isFullscreen && !isTvMode) ? '#fff' : '#000',
+              // Video/screenshare content wants the usual black-letterbox look
+              // when fullscreen — but a game/activity (Timer, Whiteboard, etc.)
+              // has its own theme-aware background and forcing black behind it
+              // regardless of the user's light/dark setting was exactly what
+              // made fullscreen light mode show a dark tint around/behind it
+              // that never appeared in the small panel view.
+              background: (isLight && !isTvMode && (!isFullscreen || isGameOrActivity(mediaUrl))) ? '#fff' : '#000',
               borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 16,
-              border: (isLight && !isFullscreen && !isTvMode) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
+              border: (isLight && !isTvMode && (!isFullscreen || isGameOrActivity(mediaUrl))) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
               overflow: 'hidden', 
               position: 'relative',
@@ -11324,7 +11354,12 @@ const Room = () => {
                       )}
                     </div>
 
-                    {/* ── Block Fallback Overlay ── */}
+                    {/* ── Block Fallback Overlay — minimal, since the effective
+                        host now auto-launches the Virtual Browser the moment
+                        this appears (see the iframeBlockSuspected/iframeError
+                        effect above handleCloseCloudBrowser); this is just the
+                        brief "switching over" state, not something anyone
+                        needs to read or act on. ── */}
                     {iframeBlockSuspected && !hyperbeamSession && !isVirtualBrowserMedia && (
                       <div style={{
                         position: 'absolute', inset: 0, zIndex: 30,
@@ -11332,39 +11367,13 @@ const Room = () => {
                         backdropFilter: 'blur(16px)',
                         display: 'flex', flexDirection: 'column',
                         alignItems: 'center', justifyContent: 'center',
-                        gap: 20
+                        gap: 14
                       }}>
-                        <div style={{ fontSize: 44 }}>🌐</div>
-                        <div style={{ textAlign: 'center', maxWidth: 360, padding: '0 20px' }}>
-                          <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, marginBottom: 8 }}>
-                            Page blocks embedding
-                          </div>
-                          <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6 }}>
-                            This portal does not support direct iframe embedding. Open it in a Virtual Browser to browse and play together.
-                          </div>
+                        <div className="stay-white" style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--brand-2)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                        <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13.5, fontWeight: 600 }}>
+                          Not loading — opening in Virtual Browser…
                         </div>
-                        {isEffectiveHost ? (
-                          <button
-                            onClick={() => handleOpenCloudBrowser()}
-                            style={{
-                              background: 'linear-gradient(135deg, var(--brand-2-dark), var(--brand-2))',
-                              border: 'none', borderRadius: 14,
-                              padding: '13px 28px', fontSize: 15, fontWeight: 700,
-                              color: '#fff', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              boxShadow: '0 8px 30px rgba(var(--brand-2-rgb),0.45)',
-                              transition: 'all 0.25s cubic-bezier(0.175,0.885,0.32,1.275)'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.06) translateY(-2px)'; e.currentTarget.style.boxShadow = '0 14px 40px rgba(var(--brand-2-rgb),0.6)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1) translateY(0)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(var(--brand-2-rgb),0.45)'; }}
-                          >
-                            🌐 Open in Virtual Browser
-                          </button>
-                        ) : (
-                          <div style={{ color: 'var(--brand-2)', fontSize: 13, fontWeight: 600 }}>
-                            Waiting for the host to launch Virtual Browser...
-                          </div>
-                        )}
+                        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                       </div>
                     )}
 
