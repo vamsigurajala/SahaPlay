@@ -40,6 +40,7 @@ import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../li
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
+import { ensureWebPushSubscription } from '../lib/webPushSubscribe';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
 // Mirrors the notifyCalls setting into localStorage (see AppSettings.jsx) so
@@ -210,6 +211,11 @@ export function CallProvider({ children }) {
     const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
     socketRef.current = sock;
     ensureDesktopNotifyPermission();
+    // Covers the browser-fully-closed case Notification-API-from-a-live-tab
+    // above can't — real Web Push wakes the service worker even with no tab
+    // open at all. Only does real work once permission is already granted
+    // and there's no existing subscription yet; safe/no-op otherwise.
+    ensureWebPushSubscription(token);
 
     sock.on('call:incoming', async ({ callId, callerUsername, callType, groupParticipants }) => {
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.

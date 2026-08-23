@@ -308,6 +308,25 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
   console.warn('[WARN] FIREBASE_SERVICE_ACCOUNT_JSON not set — push notifications will not be sent');
 }
 
+// Web Push (VAPID) — the browser/desktop equivalent of the above, for users
+// who haven't installed the native app. Same delivery guarantee data-only
+// FCM messages give call invites: the browser's service worker gets every
+// push handed to its own `push` event regardless of whether a tab is open,
+// so the SW itself decides what (if anything) to show — see the `push`
+// handler in frontend/public/sw.js.
+const webpush = require('web-push');
+let webPushConfigured = false;
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT || 'mailto:contact@sahaplay.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+  webPushConfigured = true;
+} else {
+  console.warn('[WARN] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — web push notifications will not be sent');
+}
+
 // data payload values must all be strings for FCM; notification.title/body
 // stay as-is. `data` always carries enough for the tap handler (see
 // nativePush.js) to open the right chat directly without a round-trip.
@@ -361,14 +380,55 @@ async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly 
   }
 }
 
-async function sendPushToUser(username, payload) {
-  if (!firebaseAdmin || !username) return;
-  try {
-    const rows = await pool.query('SELECT token FROM push_tokens WHERE LOWER(username) = LOWER($1)', [username]);
-    await sendPushToTokens(rows.rows.map(r => r.token), payload);
-  } catch (e) {
-    console.error('[FCM] sendPushToUser error:', e.message);
+// Web Push delivers every push to the service worker's own `push` event
+// regardless of whether a tab is open — there's no FCM-style "data-only vs.
+// notification block" transport distinction to worry about, so `payload` is
+// forwarded to the browser as-is and frontend/public/sw.js's `push` handler
+// decides what (if anything) to show, same division of responsibility FCM's
+// dataOnly path already has with SahaplayFirebaseMessagingService.java.
+async function sendWebPushToTokens(subscriptions, payload) {
+  if (!webPushConfigured || !subscriptions || subscriptions.length === 0) return;
+  const deadEndpoints = [];
+  await Promise.all(subscriptions.map(async (sub) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth } },
+        JSON.stringify(payload)
+      );
+    } catch (e) {
+      // 404/410 = the subscription no longer exists on the browser's push
+      // service (uninstalled, cleared site data, etc.) — same "dead token"
+      // cleanup sendPushToTokens does for FCM above.
+      if (e.statusCode === 404 || e.statusCode === 410) {
+        deadEndpoints.push(sub.endpoint);
+      } else {
+        console.error('[WebPush] sendNotification error:', e.message);
+      }
+    }
+  }));
+  if (deadEndpoints.length > 0) {
+    await pool.query('DELETE FROM webpush_subscriptions WHERE endpoint = ANY($1::text[])', [deadEndpoints]).catch(() => {});
   }
+}
+
+async function sendPushToUser(username, payload) {
+  if (!username) return;
+  const tasks = [];
+  if (firebaseAdmin) {
+    tasks.push(
+      pool.query('SELECT token FROM push_tokens WHERE LOWER(username) = LOWER($1)', [username])
+        .then(rows => sendPushToTokens(rows.rows.map(r => r.token), payload))
+        .catch(e => console.error('[FCM] sendPushToUser error:', e.message))
+    );
+  }
+  if (webPushConfigured) {
+    tasks.push(
+      pool.query('SELECT endpoint, keys_p256dh, keys_auth FROM webpush_subscriptions WHERE LOWER(username) = LOWER($1)', [username])
+        .then(rows => sendWebPushToTokens(rows.rows, payload))
+        .catch(e => console.error('[WebPush] sendPushToUser error:', e.message))
+    );
+  }
+  await Promise.all(tasks);
 }
 
 // Tells a device to immediately dismiss/finish whatever incoming-call UI
@@ -1803,6 +1863,26 @@ const migrationsReady = (async () => {
   `).catch(e => console.warn('[Migration] push_tokens table:', e.message));
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_username ON push_tokens (LOWER(username))`)
     .catch(e => console.warn('[Migration] idx_push_tokens_username:', e.message));
+
+  // ─── Web Push (VAPID) subscriptions — browser/desktop equivalent of the
+  // above push_tokens table. `endpoint` (unique per browser+origin+profile)
+  // plays the same role `token` does for push_tokens: one row per
+  // subscription, upserted by endpoint so re-subscribing (e.g. after
+  // permission is re-granted) cleanly replaces the old keys instead of
+  // accumulating dead rows.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS webpush_subscriptions (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      endpoint TEXT NOT NULL UNIQUE,
+      keys_p256dh TEXT NOT NULL,
+      keys_auth TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] webpush_subscriptions table:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_webpush_subscriptions_username ON webpush_subscriptions (LOWER(username))`)
+    .catch(e => console.warn('[Migration] idx_webpush_subscriptions_username:', e.message));
 
   // Per-recipient-per-chat pending notification aggregation — lets a burst
   // of messages while the app is closed show as one updating notification
@@ -4705,6 +4785,47 @@ app.post('/api/push/unregister', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error('[Push] unregister error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Public by design — a VAPID public key is meant to be exposed to any client
+// that wants to subscribe, same as the private key is meant to never leave
+// this server. authenticateToken isn't needed here.
+app.get('/api/push/webpush/vapid-public-key', (req, res) => {
+  if (!webPushConfigured) return res.status(503).json({ error: 'Web push not configured' });
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// Browser/desktop equivalent of the pair above — same shape, keyed by
+// `endpoint` (a subscription's unique identity) instead of an FCM `token`.
+app.post('/api/push/webpush/register', authenticateToken, async (req, res) => {
+  const { subscription } = req.body || {};
+  const endpoint = subscription?.endpoint;
+  const p256dh = subscription?.keys?.p256dh;
+  const auth = subscription?.keys?.auth;
+  if (!endpoint || !p256dh || !auth) return res.status(400).json({ error: 'valid subscription required' });
+  try {
+    await pool.query(
+      `INSERT INTO webpush_subscriptions (username, endpoint, keys_p256dh, keys_auth, updated_at) VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (endpoint) DO UPDATE SET username = $1, keys_p256dh = $3, keys_auth = $4, updated_at = NOW()`,
+      [req.user.username, endpoint, p256dh, auth]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] webpush register error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/push/webpush/unregister', authenticateToken, async (req, res) => {
+  const { endpoint } = req.body || {};
+  if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
+  try {
+    await pool.query('DELETE FROM webpush_subscriptions WHERE endpoint = $1', [endpoint]);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] webpush unregister error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
