@@ -783,7 +783,9 @@ const isGameOrActivity = (url) => {
     lowerUrl.includes('stickmankombat.io') ||
     lowerUrl.includes('blockblastmaster.io') ||
     lowerUrl.includes('numicolor.com') ||
-    lowerUrl.includes('radio.garden')
+    lowerUrl.includes('radio.garden') ||
+    lowerUrl.includes('madkidgames.com') ||
+    lowerUrl.includes('onlinegames.io')
   ) {
     return true;
   }
