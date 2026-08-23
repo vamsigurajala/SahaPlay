@@ -87,8 +87,12 @@ const FILE_LIMITS = {
   'image/jpeg':{ max:10*1024*1024, label:'10MB' }, 'image/jpg':{ max:10*1024*1024, label:'10MB' },
   'image/png':{ max:10*1024*1024, label:'10MB' }, 'image/gif':{ max:10*1024*1024, label:'10MB' },
   'image/webp':{ max:10*1024*1024, label:'10MB' },
-  'video/mp4':{ max:100*1024*1024, label:'100MB' }, 'video/webm':{ max:100*1024*1024, label:'100MB' },
-  'video/mov':{ max:100*1024*1024, label:'100MB' }, 'video/quicktime':{ max:100*1024*1024, label:'100MB' },
+  // Server-enforced ceiling: /api/upload/chat's multer config caps every
+  // upload at 50MB regardless of type (`limits: { fileSize: 50*1024*1024 }`,
+  // server.js) — these video entries used to claim 100MB, which the server
+  // would then reject past 50MB anyway, an inconsistent/misleading check.
+  'video/mp4':{ max:50*1024*1024, label:'50MB' }, 'video/webm':{ max:50*1024*1024, label:'50MB' },
+  'video/mov':{ max:50*1024*1024, label:'50MB' }, 'video/quicktime':{ max:50*1024*1024, label:'50MB' },
   'application/pdf':{ max:25*1024*1024, label:'25MB' },
   'application/msword':{ max:25*1024*1024, label:'25MB' },
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document':{ max:25*1024*1024, label:'25MB' },

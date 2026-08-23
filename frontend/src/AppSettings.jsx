@@ -1829,7 +1829,7 @@ const AppSettings = () => {
                 </div>
                 {[
                   { Icon: Image, typeKey: 'mediaTypeImages', typeDefault: 'Images', limit: '10 MB', color: '#6366f1' },
-                  { Icon: Video, typeKey: 'mediaTypeVideos', typeDefault: 'Videos', limit: '100 MB', color: '#f59e0b' },
+                  { Icon: Video, typeKey: 'mediaTypeVideos', typeDefault: 'Videos', limit: '50 MB', color: '#f59e0b' },
                   { Icon: FileText, typeKey: 'mediaTypeFilesDocuments', typeDefault: 'Files & Documents', limit: '25 MB', color: '#ef4444' },
                   { Icon: Mic, typeKey: 'mediaTypeVoiceNotes', typeDefault: 'Voice Notes', limit: '10 MB', color: '#a855f7' },
                 ].map((item, i, arr) => (
