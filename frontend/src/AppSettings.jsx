@@ -1661,16 +1661,15 @@ const AppSettings = () => {
                       <div style={{ width: 40, height: 40, background: 'rgba(16,185,129,0.1)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <MapPin size={20} color="#10b981" />
                       </div>
-                      <div>
-                        <div style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 14 }}>
-                          {showCountry ? t('showMyCountry', 'Show my country to others') : t('countryHidden', 'Country hidden from others')}
-                        </div>
-                        <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-                          {showCountry
-                            ? t('showMyCountryDesc', 'Your flag and country are visible in rooms and on your profile')
-                            : t('countryHiddenDesc', 'Your flag and country are hidden in rooms and on your profile')}
-                        </div>
-                      </div>
+                      <NotifRowText
+                        id="country"
+                        title={showCountry ? t('showMyCountryShort', 'Show Country') : t('countryHiddenShort', 'Country Hidden')}
+                        titleColor={isLight ? '#1e293b' : '#fff'}
+                        titleWeight={600}
+                        desc={showCountry
+                          ? t('showMyCountryDesc', 'Your flag and country are visible in rooms and on your profile')
+                          : t('countryHiddenDesc', 'Your flag and country are hidden in rooms and on your profile')}
+                      />
                     </div>
                     <Toggle on={showCountry} onToggle={handleShowCountryToggle} />
                   </div>
