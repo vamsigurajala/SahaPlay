@@ -2015,6 +2015,11 @@ const GlobalChatWidget = forwardRef(({
     }
   });
 
+  // True only while the user reached the current /profile/* route by leaving
+  // an already-open chat (see leaveChatToViewProfile / hiddenByProfileRoute
+  // below); reset to false the moment a chat is opened fresh from outside.
+  const cameFromOpenChatRef = useRef(false);
+
   // Leaving to view someone's profile from within an open chat does NOT
   // close this overlay (unlike every other "leave" path) — it stays fully
   // mounted with its state untouched (activeChat, view, scroll position...)
@@ -2030,10 +2035,18 @@ const GlobalChatWidget = forwardRef(({
   // of the shared stack and incorrectly collapses the chat view instead of
   // just revealing it.
   const leaveChatToViewProfile = (targetUsername) => {
+    cameFromOpenChatRef.current = true;
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
   };
-  const hiddenByProfileRoute = location.pathname.startsWith('/profile');
+  // Only hide behind the profile route if we actually GOT to this profile by
+  // leaving an already-open chat (leaveChatToViewProfile). Without this flag,
+  // landing on a profile page any other way (e.g. clicking someone's avatar
+  // in a room's group chat) and then opening a fresh chat from that profile's
+  // own Message button would set activeChat/view correctly but stay
+  // display:none forever — this widget instance never became visible because
+  // the route-based hide fired unconditionally for every /profile/* route.
+  const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -2461,6 +2474,7 @@ const GlobalChatWidget = forwardRef(({
 
   useImperativeHandle(ref, () => ({
     openChatWith: (partnerUsername, displayName, avatarPath) => {
+      cameFromOpenChatRef.current = false;
       openChat({
         id: partnerUsername,
         partner: partnerUsername,

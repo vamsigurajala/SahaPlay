@@ -357,6 +357,25 @@ const Profile = () => {
     }, 300);
   }, [fetchFollowPage, followModalTarget]);
 
+  const followSwipeStartRef = useRef(null);
+  const handleFollowListTouchStart = useCallback((e) => {
+    const t0 = e.touches[0];
+    followSwipeStartRef.current = { x: t0.clientX, y: t0.clientY };
+  }, []);
+  const handleFollowListTouchEnd = useCallback((e) => {
+    const start = followSwipeStartRef.current;
+    followSwipeStartRef.current = null;
+    if (!start) return;
+    const t0 = e.changedTouches[0];
+    const dx = t0.clientX - start.x;
+    const dy = t0.clientY - start.y;
+    // Horizontal swipe only — a mostly-vertical drag is a normal list scroll,
+    // not a tab switch.
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+    if (dx < 0 && followModalTab === 'followers') switchFollowTab('following');
+    else if (dx > 0 && followModalTab === 'following') switchFollowTab('followers');
+  }, [followModalTab, switchFollowTab]);
+
   const handleFollowListScroll = useCallback((e) => {
     if (followListLoading || followLoadingMore || !followHasMore[followModalTab]) return;
     const el = e.currentTarget;
@@ -1173,6 +1192,8 @@ const Profile = () => {
         .follow-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #fff; font-size: 13px; }
         .follow-search-input::placeholder { color: #666; }
         .follow-modal-list { overflow-y: auto; padding: 8px 6px 16px; flex: 1; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+        .follow-list-page { animation: followTabIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes followTabIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         .follow-user-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s; }
         .follow-user-item:hover { background: rgba(255,255,255,0.05); }
         .follow-user-name { color: #fff; font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1660,12 +1681,17 @@ const Profile = () => {
                         onClick={() => {
                           if (isGuest) { requireLogin(); return; }
                           if (!iMutuallyFollow) {
+                            // Fixed id: a repeated click on this already-disabled-in-
+                            // spirit button re-issues the SAME toast in place instead
+                            // of stacking a new one on top each time, which is what
+                            // was flooding the screen on rapid/repeated clicks.
+                            const toastOpts = { icon: '🔒', id: 'dm-follow-gate' };
                             if (!otherProfile.isFollowingMe && followStatus !== 'accepted') {
-                              toast.error(t('needToFollowEachOther', 'You need to follow each other to send messages'), { icon: '🔒' });
+                              toast.error(t('needToFollowEachOther', 'You need to follow each other to send messages'), toastOpts);
                             } else if (!otherProfile.isFollowingMe) {
-                              toast.error(t('userNotFollowingBack', { username: otherProfile.displayName || otherProfile.username, defaultValue: `${otherProfile.displayName || otherProfile.username} is not following you back yet` }), { icon: '🔒' });
+                              toast.error(t('userNotFollowingBack', { username: otherProfile.displayName || otherProfile.username, defaultValue: `${otherProfile.displayName || otherProfile.username} is not following you back yet` }), toastOpts);
                             } else {
-                              toast.error(t('youAreNotFollowingUser', { username: otherProfile.displayName || otherProfile.username, defaultValue: `You are not following ${otherProfile.displayName || otherProfile.username} yet` }), { icon: '🔒' });
+                              toast.error(t('youAreNotFollowingUser', { username: otherProfile.displayName || otherProfile.username, defaultValue: `You are not following ${otherProfile.displayName || otherProfile.username} yet` }), toastOpts);
                             }
                             return;
                           }
@@ -2271,7 +2297,8 @@ const Profile = () => {
                 />
               </div>
               {/* User list — scrolls internally; background page never scrolls */}
-              <div className="follow-modal-list" onScroll={handleFollowListScroll}>
+              <div className="follow-modal-list" onScroll={handleFollowListScroll} onTouchStart={handleFollowListTouchStart} onTouchEnd={handleFollowListTouchEnd}>
+                <div key={followModalTab} className="follow-list-page">
                 {followListLoading ? (
                   <div style={{ textAlign: 'center', color: '#555', padding: 40, fontSize: 14 }}>{t('loading', 'Loading...')}</div>
                 ) : (followItems[followModalTab] || []).length === 0 ? (
@@ -2298,6 +2325,7 @@ const Profile = () => {
                     )}
                   </>
                 )}
+                </div>
               </div>
             </div>
           </div>

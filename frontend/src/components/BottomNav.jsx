@@ -185,11 +185,14 @@ export default function BottomNav() {
   // of existing bottom-anchored controls, so it's excluded here. Admin has
   // its own "Back to App" exit and a fixed bottom nav here would sit on top
   // of / cover its own bottom-anchored UI (e.g. table pagination controls).
-  // Account (/profile, own profile only — not /profile/:username, which is
-  // still a browsable page like any other) and App Settings (/settings,
-  // /app-settings) are their own full-screen settings surfaces with their
-  // own bottom-anchored save buttons/forms — the tab bar sat on top of those.
-  const isSettingsPage = location.pathname === '/profile' || location.pathname.startsWith('/app-settings') || location.pathname.startsWith('/settings');
+  // Account (/profile and /profile/:username alike — viewing your own
+  // profile or someone else's is the same full-screen surface with its own
+  // header/back-nav) and App Settings (/settings, /app-settings) each have
+  // their own bottom-anchored save buttons/forms — the tab bar sat on top of
+  // those. Previously only bare /profile was excluded here, which made the
+  // tab bar show on someone else's profile but not your own — reported as
+  // the bar randomly appearing/disappearing while browsing profiles.
+  const isSettingsPage = location.pathname.startsWith('/profile') || location.pathname.startsWith('/app-settings') || location.pathname.startsWith('/settings');
   if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/') || location.pathname.startsWith('/admin') || isSettingsPage) return null;
 
   const closeAll = () => { setShowChat(false); closeOverlays(); };

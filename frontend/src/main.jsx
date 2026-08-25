@@ -137,7 +137,16 @@ if (isCapacitorApp() && window.location.pathname === '/') {
       const { roomId, ts } = JSON.parse(raw);
       const RESUME_WINDOW_MS = 15 * 60 * 1000;
       if (roomId && ts && Date.now() - ts < RESUME_WINDOW_MS) {
-        window.history.replaceState(null, '', `/room/${encodeURIComponent(roomId)}`);
+        // replaceState alone would leave the room as the ONLY entry in the
+        // WebView's back-navigation history — initNativeBackButton's
+        // canGoBack check (see nativeShell.js) would then be false on the
+        // very first swipe-back/hardware-back, and it falls through to
+        // app.exitApp() instead of navigating to Home, closing the whole
+        // app. Replacing with Home first, then pushing the room on top,
+        // gives back navigation a real Home entry to land on — same as if
+        // the user had actually clicked into the room from Home normally.
+        window.history.replaceState(null, '', '/');
+        window.history.pushState(null, '', `/room/${encodeURIComponent(roomId)}`);
       }
     }
   } catch { /* malformed marker — just stay on the default route */ }
