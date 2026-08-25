@@ -8,7 +8,6 @@ import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
-import NativeCallDebugPanel from './components/NativeCallDebugPanel';
 import { appCache } from './cache/appCache.js';
 import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
@@ -829,7 +828,6 @@ const AppSettings = () => {
     const next = !showCountry;
     setShowCountry(next);
     saveSetting('showCountry', next ? 1 : 0);
-    toast.success(next ? 'Country visible' : 'Country hidden');
   };
 
   // Theme toggle
@@ -838,7 +836,6 @@ const AppSettings = () => {
     setTheme(next);
     localStorage.setItem('watch_theme', next);
     window.dispatchEvent(new Event('theme_changed'));
-    toast.success(next === 'light' ? 'Light mode activated' : 'Dark mode activated');
   };
 
   // Accent color theme — independent axis from light/dark above (App.jsx's
@@ -1012,9 +1009,16 @@ const AppSettings = () => {
 
   const selectedLang = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];
 
+  // A plain `transition: background` between a solid color and a gradient
+  // can't actually interpolate — the browser just snaps at the end, no
+  // matter the declared duration, which is why this read as un-smooth
+  // despite already having a transition on it. Layering the gradient as a
+  // separate element and cross-fading its opacity (which DOES interpolate)
+  // fixes that; the knob's own slide was already smooth and is unchanged.
   const Toggle = ({ on, onToggle, disabled }) => (
-    <button className={`custom-toggle ${on ? 'toggle-on' : 'toggle-off'}`} onClick={onToggle} disabled={disabled} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: on ? 'var(--brand-gradient)' : 'rgba(255,255,255,0.1)', position: 'relative', transition: 'background 0.25s', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
-      <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: on ? 25 : 3, transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
+    <button className={`custom-toggle ${on ? 'toggle-on' : 'toggle-off'}`} onClick={onToggle} disabled={disabled} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: 'rgba(255,255,255,0.1)', position: 'relative', overflow: 'hidden', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'var(--brand-gradient)', opacity: on ? 1 : 0, transition: 'opacity 0.25s ease' }} />
+      <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: on ? 25 : 3, transition: 'left 0.25s cubic-bezier(0.4,0,0.2,1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)', zIndex: 1 }} />
     </button>
   );
 
@@ -1086,10 +1090,15 @@ const AppSettings = () => {
         .acc-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #e2e8f0; display: flex; align-items: center; gap: 10px; }
         .acc-body { margin-top: 24px; animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .notif-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .notif-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 12px; }
         .notif-row:last-child { border-bottom: none; }
-        .notif-label { display: flex; align-items: center; gap: 12px; }
-        .notif-icon { width: 36; height: 36; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .notif-label { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+        .notif-label > div:last-child { min-width: 0; }
+        .notif-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        /* Keeps every row's description on one line regardless of translation
+           length, so a long string can't stretch that row taller and make its
+           (fixed-size) icon look small/misaligned next to its neighbors. */
+        .notif-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .device-select { 
           width: 100%; 
           padding: 12px 16px; 
@@ -1539,11 +1548,10 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{theme === 'light' ? t('lightMode', 'Light Mode') : t('darkMode', 'Dark Mode')}</div>
-                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? t('lightModeDesc', 'Bright and clean') : t('darkModeDesc', 'Easy on the eyes')}</div>
+                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? t('lightModeDesc', 'Bright and clean') : t('darkModeDesc', 'Comfort and peace')}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: '#888' }}>{theme === 'light' ? t('lightLabel', 'Light') : t('darkLabel', 'Dark')}</span>
                   <Toggle on={theme === 'light'} onToggle={handleThemeToggle} />
                 </div>
               </div>
@@ -1741,7 +1749,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{t('appNotifications', 'App Notifications')}</div>
-                    <div style={{ color: '#888', fontSize: 12 }}>{t('masterNotifToggle', 'Master toggle for all notifications')}</div>
+                    <div className="notif-desc" style={{ color: '#888', fontSize: 12 }}>{t('masterNotifToggle', 'Master toggle for all notifications')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyApp} onToggle={() => toggleNotifSetting('notifyApp', notifyApp, setNotifyApp)} />
@@ -1755,7 +1763,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('joinNotifications', 'Join Notifications')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneJoins', 'When someone joins your room')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneJoins', 'When someone joins your room')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyJoin} onToggle={() => toggleNotifSetting('notifyJoin', notifyJoin, setNotifyJoin)} disabled={!notifyApp} />
@@ -1768,7 +1776,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('joinReqNotifications', 'Join Request Result Toasts')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneAsksJoin', 'Show toast after approving or denying a join request')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneAsksJoin', 'Toast after you approve or deny a request')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyJoinRequests} onToggle={() => toggleNotifSetting('notifyJoinRequests', notifyJoinRequests, setNotifyJoinRequests)} disabled={!notifyApp} />
@@ -1781,7 +1789,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('msgNotifications', 'Message Notifications')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneSendsChat', 'When someone sends a chat message')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneSendsChat', 'When someone sends a chat message')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyMessages} onToggle={() => toggleNotifSetting('notifyMessages', notifyMessages, setNotifyMessages)} disabled={!notifyApp} />
@@ -1794,7 +1802,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('callNotifications', 'Call Notifications')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneCalls', 'Incoming and missed calls, including on this browser/desktop when it\'s in the background')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneCalls', 'Incoming and missed calls')}</div>
                     {!isCapacitorApp() && browserNotifPermission !== 'unsupported' && browserNotifPermission !== 'granted' && (
                       <button
                         onClick={requestBrowserCallAlerts}
@@ -1821,7 +1829,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('friendRequestNotifications', 'Friend Request Notifications')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenFriendRequest', 'When you receive a friend request')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenFriendRequest', 'When you receive a friend request')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyFriendRequests} onToggle={() => toggleNotifSetting('notifyFriendRequests', notifyFriendRequests, setNotifyFriendRequests)} disabled={!notifyApp} />
@@ -1834,7 +1842,7 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('leaveNotifications', 'Leave Notifications')}</div>
-                    <div style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneLeaves', 'When someone leaves your room')}</div>
+                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneLeaves', 'When someone leaves your room')}</div>
                   </div>
                 </div>
                 <Toggle on={notifyLeave} onToggle={() => toggleNotifSetting('notifyLeave', notifyLeave, setNotifyLeave)} disabled={!notifyApp} />
@@ -2004,7 +2012,6 @@ const AppSettings = () => {
       />
       <SupportModal isOpen={showSupportModal} onClose={() => setShowSupportModal(false)} />
       <DownloadAppModal isOpen={showDownloadAppModal} onClose={() => setShowDownloadAppModal(false)} />
-      <NativeCallDebugPanel />
     </div>
   );
 };

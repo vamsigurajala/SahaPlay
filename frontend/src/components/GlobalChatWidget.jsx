@@ -449,6 +449,37 @@ function groupMediaRuns(list) {
   return { heads, memberKeys };
 }
 
+// Consecutive "changed the chat theme" system lines (isNotice) collapse into
+// one "Theme changed N times" pill instead of flooding the chat — a user
+// idly clicking through wallpaper options produced one full-width line per
+// click. Only runs of 2+ IN A ROW collapse; a single isolated theme change
+// (or one separated from another by a real message) still renders as its
+// own line, unchanged. Returns rowKey -> { headKey, isHead, isLast, runLength }
+// for every message that's part of a collapsible run; messages not in the
+// map render exactly as before.
+function groupNoticeRuns(list) {
+  const info = new Map();
+  let i = 0;
+  while (i < list.length) {
+    if (list[i].isNotice) {
+      let j = i;
+      while (j < list.length && list[j].isNotice) j++;
+      const runLength = j - i;
+      if (runLength > 1) {
+        const headKey = list[i].tempId || list[i].id || i;
+        for (let k = i; k < j; k++) {
+          const key = list[k].tempId || list[k].id || k;
+          info.set(key, { headKey, isHead: k === i, isLast: k === j - 1, runLength });
+        }
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return info;
+}
+
 function resolveDecryptedUrl(m, decryptedMediaUrlsRef) {
   const msgKey = String(m.id || m.timestamp);
   return decryptedMediaUrlsRef.current[msgKey] || m._localMediaUrl ||
@@ -1659,6 +1690,9 @@ const GlobalChatWidget = forwardRef(({
   // getWallpaperDominantColor) since it's not known until the image decodes,
   // unlike CHAT_THEMES' hand-picked gradients which are available instantly.
   const [wallpaperColor, setWallpaperColor] = useState(null);
+  // Which collapsed "Theme changed N times" runs (keyed by the run's head
+  // message key — see groupNoticeRuns) the user has manually expanded.
+  const [expandedNoticeRuns, setExpandedNoticeRuns] = useState(() => new Set());
   // Which conversation the open theme sheet applies to — NOT necessarily
   // activeChat, since the sheet can also be opened from a conversation row's
   // "..." menu in the list view without that chat being open at all.
@@ -6955,6 +6989,7 @@ const GlobalChatWidget = forwardRef(({
                 (() => {
                   const effectiveSeenMap = getEffectiveSeenBy(messages, myUsername);
                   const mediaRuns = groupMediaRuns(messages);
+                  const noticeRuns = groupNoticeRuns(messages);
                   // A "seen" event can land on any message in a media batch (whichever one
                   // the reader's client happened to report), not necessarily the head — but
                   // only the head row ever renders a receipt. Merge readers from every
@@ -6987,8 +7022,10 @@ const GlobalChatWidget = forwardRef(({
                     if (msg.isNotice) {
                       const isMeChange = msg.isMe;
                       const otherParty = activeChat?.partner || activeChat?.id;
-                      return (
-                        <div key={msg.id || i} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                      const rowKey = msg.tempId || msg.id || i;
+                      const runInfo = noticeRuns.get(rowKey);
+                      const noticeLine = (keyOverride) => (
+                        <div key={keyOverride} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
                             background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
@@ -7004,6 +7041,43 @@ const GlobalChatWidget = forwardRef(({
                             </button>
                           </div>
                         </div>
+                      );
+
+                      if (!runInfo) return noticeLine(rowKey);
+
+                      const isExpanded = expandedNoticeRuns.has(runInfo.headKey);
+                      if (!isExpanded) {
+                        if (!runInfo.isHead) return null;
+                        return (
+                          <div key={rowKey} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                            <button
+                              onClick={() => setExpandedNoticeRuns(prev => new Set(prev).add(runInfo.headKey))}
+                              style={{
+                                background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
+                                color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 600,
+                                border: 'none', padding: '6px 14px', borderRadius: 14, cursor: 'pointer',
+                              }}
+                            >
+                              {t('themeChangedNTimes', 'Theme changed {{n}} times', { n: runInfo.runLength })} · <span style={{ color: 'var(--brand-1-light)', fontWeight: 700 }}>{t('seeUpdates', 'See updates')}</span>
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <React.Fragment key={rowKey}>
+                          {noticeLine(undefined)}
+                          {runInfo.isLast && (
+                            <div style={{ display: 'flex', justifyContent: 'center', margin: '2px 0 6px' }}>
+                              <button
+                                onClick={() => setExpandedNoticeRuns(prev => { const next = new Set(prev); next.delete(runInfo.headKey); return next; })}
+                                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                              >
+                                {t('hideUpdates', 'Hide updates')}
+                              </button>
+                            </div>
+                          )}
+                        </React.Fragment>
                       );
                     }
                     const mUserLower = myUsername?.toLowerCase();

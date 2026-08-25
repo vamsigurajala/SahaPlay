@@ -267,6 +267,37 @@ function groupMediaRuns(list) {
   return { heads, memberKeys };
 }
 
+// Consecutive "changed the chat theme" system lines (isNotice) collapse into
+// one "Theme changed N times" pill instead of flooding the chat — a user
+// idly clicking through wallpaper options produced one full-width line per
+// click. Only runs of 2+ IN A ROW collapse; a single isolated theme change
+// (or one separated from another by a real message) still renders as its
+// own line, unchanged. Returns rowKey -> { headKey, isHead, isLast, runLength }
+// for every message that's part of a collapsible run; messages not in the
+// map render exactly as before.
+function groupNoticeRuns(list) {
+  const info = new Map();
+  let i = 0;
+  while (i < list.length) {
+    if (list[i].isNotice) {
+      let j = i;
+      while (j < list.length && list[j].isNotice) j++;
+      const runLength = j - i;
+      if (runLength > 1) {
+        const headKey = list[i].tempId || list[i].id || i;
+        for (let k = i; k < j; k++) {
+          const key = list[k].tempId || list[k].id || k;
+          info.set(key, { headKey, isHead: k === i, isLast: k === j - 1, runLength });
+        }
+      }
+      i = j;
+    } else {
+      i++;
+    }
+  }
+  return info;
+}
+
 function resolveDecryptedUrl(m, decryptedUrlsRef) {
   const decrypted = decryptedUrlsRef?.current && (
     decryptedUrlsRef.current[m.id] ||
@@ -1254,6 +1285,9 @@ export default function RoomChatPanel({ p }) {
   
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
+  // Which collapsed "Theme changed N times" runs (keyed by the run's head
+  // message key — see groupNoticeRuns) the user has manually expanded.
+  const [expandedNoticeRuns, setExpandedNoticeRuns] = React.useState(() => new Set());
   const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
   const call = useCall();
 
@@ -3422,11 +3456,14 @@ export default function RoomChatPanel({ p }) {
                     const dmThemeId = (p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()]) || 'default';
                     const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
                     const isDMCustomTheme = dmThemeId !== 'default';
+                    const dmNoticeRuns = groupNoticeRuns(dmMessages);
                     return dmMessages.map((msg,i)=>{
                     if (msg.isNotice) {
                       const isMeChange = msg.isMe;
-                      return (
-                        <div key={msg.id || i} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                      const noticeRowKey = msg.tempId || msg.id || i;
+                      const noticeRunInfo = dmNoticeRuns.get(noticeRowKey);
+                      const noticeLine = (keyOverride) => (
+                        <div key={keyOverride} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center',
                             background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
@@ -3442,6 +3479,43 @@ export default function RoomChatPanel({ p }) {
                             </button>
                           </div>
                         </div>
+                      );
+
+                      if (!noticeRunInfo) return noticeLine(noticeRowKey);
+
+                      const isExpanded = expandedNoticeRuns.has(noticeRunInfo.headKey);
+                      if (!isExpanded) {
+                        if (!noticeRunInfo.isHead) return null;
+                        return (
+                          <div key={noticeRowKey} style={{ display: 'flex', justifyContent: 'center', margin: '6px 0' }}>
+                            <button
+                              onClick={() => setExpandedNoticeRuns(prev => new Set(prev).add(noticeRunInfo.headKey))}
+                              style={{
+                                background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.06)',
+                                color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 600,
+                                border: 'none', padding: '6px 14px', borderRadius: 14, cursor: 'pointer',
+                              }}
+                            >
+                              {t('themeChangedNTimes', 'Theme changed {{n}} times', { n: noticeRunInfo.runLength })} · <span style={{ color: 'var(--brand-1-light)', fontWeight: 700 }}>{t('seeUpdates', 'See updates')}</span>
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <React.Fragment key={noticeRowKey}>
+                          {noticeLine(undefined)}
+                          {noticeRunInfo.isLast && (
+                            <div style={{ display: 'flex', justifyContent: 'center', margin: '2px 0 6px' }}>
+                              <button
+                                onClick={() => setExpandedNoticeRuns(prev => { const next = new Set(prev); next.delete(noticeRunInfo.headKey); return next; })}
+                                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                              >
+                                {t('hideUpdates', 'Hide updates')}
+                              </button>
+                            </div>
+                          )}
+                        </React.Fragment>
                       );
                     }
                     const rowKey = msg.tempId || msg.id || i;
