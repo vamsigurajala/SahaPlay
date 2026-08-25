@@ -7,6 +7,7 @@ import { clearUserSession } from '../lib/authUtils.js';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { consumePendingNotificationTap } from '../lib/nativePush';
 import GlobalChatWidget from './GlobalChatWidget';
 import SearchTabContent from './SearchTabContent';
 import ProfileActionMenu from './ProfileActionMenu';
@@ -171,6 +172,11 @@ export default function BottomNav() {
       setPendingOpenChat({ partner: data.chatId, type: data.type === 'dm' ? 'private' : 'room' });
     };
     window.addEventListener('open_chat_from_notification', handler);
+    // Cold start: the native tap may have already fired (and been lost,
+    // with no listener yet attached) before this effect ever ran — see
+    // nativePush.js's pendingTap comment. Check for and consume it now.
+    const pending = consumePendingNotificationTap();
+    if (pending) handler({ detail: pending });
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 

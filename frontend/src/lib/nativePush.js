@@ -20,6 +20,25 @@ const appPlugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.App : nul
 // token exists) can resend the token that arrived too early to register.
 let cachedToken = null;
 
+// A notification tap that COLD-STARTS the app (it wasn't running at all, not
+// even backgrounded) fires pushNotificationActionPerformed as part of the
+// native bridge's own startup sequence — this can resolve before React has
+// rendered anything at all, let alone before BottomNav.jsx's effect has
+// registered its 'open_chat_from_notification' listener. A DOM CustomEvent
+// dispatched with no listener attached yet is just lost, which is exactly
+// why cold-start notification taps landed on the home screen instead of the
+// chat/profile they were tapped for, while a warm/backgrounded resume (where
+// BottomNav was already mounted) worked fine. Caching the tap payload here
+// lets any component that mounts later ask "did a tap already happen before
+// I was ready?" via consumePendingNotificationTap(), instead of depending on
+// exact timing against a live listener.
+let pendingTap = null;
+export function consumePendingNotificationTap() {
+  const data = pendingTap;
+  pendingTap = null;
+  return data;
+}
+
 function authHeaders() {
   const token = localStorage.getItem('watch_token');
   if (!token || token === 'null' || token === 'undefined') return null;
@@ -86,7 +105,10 @@ export function initNativePush(onNotificationTap) {
   // being silently dropped by the guard below.
   p.addListener('pushNotificationActionPerformed', (action) => {
     const data = action?.notification?.data;
-    if (data?.chatId || data?.username || data?.callId) onNotificationTap?.(data);
+    if (data?.chatId || data?.username || data?.callId) {
+      pendingTap = data;
+      onNotificationTap?.(data);
+    }
   });
 
   // "Once app is opened, all notifications should be closed" — clears

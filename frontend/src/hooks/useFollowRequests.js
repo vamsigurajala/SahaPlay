@@ -36,6 +36,12 @@ export function useFollowRequests() {
       if (!d.error) {
         toast.success(`Accepted ${requestingUser}'s follow request`);
         setFollowRequests(prev => prev.map(u => u.username === requestingUser ? { ...u, status: 'accepted' } : u));
+        // Unlike followBack below, this never told anyone else the follow
+        // graph changed — Profile.jsx listens for this exact event to
+        // refetch otherProfile, which is why accepting someone's request
+        // left their profile page's Follow/Message buttons stuck showing
+        // the pre-accept state until a manual refresh.
+        window.dispatchEvent(new Event('follow_status_updated'));
       }
     } catch {}
   }, [token]);
