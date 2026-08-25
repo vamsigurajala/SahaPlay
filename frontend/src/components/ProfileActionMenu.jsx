@@ -22,7 +22,12 @@ import { User, Settings, HelpCircle, Download, Sparkles, LogOut, ChevronRight } 
 // React doesn't treat it as a new component type on every render.
 const CompactRow = ({ icon: Icon, label, onClick, active, danger, color }) => (
   <button className={`profile-drawer-item${active ? ' active' : ''}${danger ? ' danger' : ''}`} onClick={onClick}>
-    <span className="profile-drawer-item-icon" style={color ? { background: `${color}1f`, color } : undefined}>
+    {/* color-mix() (not string-concatenating a hex alpha suffix onto `color`)
+        because `color` here is sometimes a CSS var() reference (var(--brand-1),
+        var(--brand-2)) — "var(--brand-1)1f" is invalid CSS and silently drops
+        the whole background declaration, leaving Account/App Settings with
+        no visible tint while the plain-hex rows (Contact Support) worked. */}
+    <span className="profile-drawer-item-icon" style={color ? { background: `color-mix(in srgb, ${color} 16%, transparent)`, color } : undefined}>
       <Icon size={17} />
     </span>
     <span className="profile-drawer-item-label">{label}</span>

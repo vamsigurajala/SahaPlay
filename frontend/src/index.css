@@ -1916,6 +1916,12 @@ html[data-theme='light'] .mob-bottom-sheet {
 html[data-theme='light'] .mob-sheet-handle {
   background: rgba(0,0,0,0.15);
 }
+.room-peek-handle-bar {
+  background: rgba(255,255,255,0.25);
+}
+html[data-theme='light'] .room-peek-handle-bar {
+  background: rgba(0,0,0,0.2);
+}
 html[data-theme='light'] .mob-sheet-item {
   color: #0f172a;
 }

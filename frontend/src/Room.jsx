@@ -13294,7 +13294,7 @@ const Room = () => {
               onTouchCancel={endPeekDrag}
               style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '8px 0', flexShrink: 0, touchAction: 'none' }}
             >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }} />
+              <div className="room-peek-handle-bar" style={{ width: 36, height: 4, borderRadius: 2 }} />
             </div>
           )}
           {/* Mobile: Browse Media button pinned above chat when no media playing.
