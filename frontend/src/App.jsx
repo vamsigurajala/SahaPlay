@@ -87,7 +87,7 @@ class ErrorBoundary extends React.Component {
           justifyContent: 'center', height: '100vh', background: '#0f0a1e',
           color: '#fff', gap: 16,
         }}>
-          <h2>Something went wrong</h2>
+          <h2 className="stay-white">Something went wrong</h2>
           <p style={{ color: '#aaa', fontSize: 14 }}>Please refresh the page</p>
           <button
             onClick={() => window.location.reload()}
@@ -95,6 +95,7 @@ class ErrorBoundary extends React.Component {
               background: 'var(--brand-2-dark)', color: '#fff', border: 'none',
               padding: '10px 24px', borderRadius: 8, cursor: 'pointer', fontSize: 14,
             }}
+            className="stay-white"
           >
             Refresh
           </button>

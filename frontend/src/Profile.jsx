@@ -2149,7 +2149,7 @@ const Profile = () => {
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24 }}>
               <button className="crop-btn" onClick={() => fileInputRef.current.click()}>Reselect</button>
               <button className="crop-btn" onClick={() => setShowCropModal(false)}>Cancel</button>
-              <button className="save-btn" onClick={handleCropConfirm}><Check size={16} style={{ marginRight: 4 }} /> Save</button>
+              <button className="save-btn" onClick={handleCropConfirm}>Save</button>
             </div>
           </div>
         </div>
