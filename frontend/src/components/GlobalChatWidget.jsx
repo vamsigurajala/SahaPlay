@@ -7113,7 +7113,15 @@ const GlobalChatWidget = forwardRef(({
                               <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                             </div>
                             <div
-                              className={`msg-bubble ${isMe ? 'msg-sent stay-white' : 'msg-received'}`}
+                              // .stay-white is the established, !important-backed escape
+                              // hatch from the site-wide light-mode text-color override
+                              // (already relied on by every sent bubble) — applied to a
+                              // received bubble too whenever a Background/wallpaper theme
+                              // is active, since white text there needs the exact same
+                              // "wins regardless of app theme" guarantee sent bubbles get,
+                              // not just a plain inline color that a same-specificity rule
+                              // could contest.
+                              className={`msg-bubble ${isMe ? 'msg-sent stay-white' : (activeWallpaper ? 'msg-received stay-white' : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               style={{

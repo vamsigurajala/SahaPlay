@@ -47,23 +47,23 @@ export const CHAT_THEME_BUBBLE_STRIDE = 70;
 // mechanism a future "upload your own photo" theme would reuse, so it's built
 // as a real image-analysis step now rather than a hardcoded color per design.
 //
-// Every image here is a self-contained inline SVG data URI (a handful of
-// blurred, overlapping color blobs — a common "mesh gradient" wallpaper
-// look) rather than a bundled photo/raster asset: zero network requests,
-// tiny bundle size, and no external image licensing to track. ids are
-// prefixed 'wp-' so they can share the same chatThemes[chatKey] storage slot
-// as CHAT_THEMES ids above without colliding — the rendering code just checks
-// which list an id resolves in.
-function meshWallpaper(base, blobs) {
-  const circles = blobs.map(([cx, cy, r, color]) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">`
-    + `<rect width="400" height="400" fill="${base}"/>`
-    + `<g filter="url(#b)">${circles}</g>`
-    + `<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="60"/></filter></defs>`
-    + `</svg>`;
+// Every image here is a self-contained inline SVG data URI — an actual
+// illustrated scene (sky gradient + horizon silhouette + sun/moon/stars),
+// not a bundled photo/raster asset: zero network requests, tiny bundle
+// size, and no external image licensing to track. A real photo would need
+// either fetching a URL nobody supplied (not something to guess at) or an
+// image-generation tool this environment doesn't have, so this is the best
+// "looks like a picture, not a color swatch" option actually available —
+// deliberately built as a recognizable landscape (mountains/waves/dunes
+// against a gradient sky) rather than the earlier soft blurred color blobs,
+// which read as an abstract gradient rather than a picture of anything.
+// ids are prefixed 'wp-' so they can share the same chatThemes[chatKey]
+// storage slot as CHAT_THEMES ids above without colliding — the rendering
+// code just checks which list an id resolves in.
+function encodeSvg(svg) {
   // encodeURIComponent deliberately leaves '(' and ')' unescaped (they're in
-  // its unreserved set) — but the SVG itself contains a literal url(#b) (the
-  // filter reference above), so without escaping those two characters here,
+  // its unreserved set) — but every scene below references its own <filter>
+  // via a literal url(#...), so without escaping those two characters here,
   // embedding this data URI as an unquoted CSS background-image: url(...)
   // gets its OWN url() terminated early at that inner ')', silently
   // truncating the image to nothing rendering at all. Quoting the outer
@@ -72,13 +72,109 @@ function meshWallpaper(base, blobs) {
   return `data:image/svg+xml,${encodeURIComponent(svg).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
 }
 
+// Builds one landscape scene: a vertical sky gradient, optional stars/dots
+// scattered in the upper sky, an optional sun/moon disc (with a soft glow
+// halo), optional soft atmospheric bands (aurora ribbons), and one or more
+// horizon-silhouette layers drawn back-to-front as flat-color polygons
+// (mountains, dunes, hills, or a stack of waves depending on the points
+// given) — the same handful of primitives composed differently is enough
+// to make six visually distinct, genuinely scene-like wallpapers.
+function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, layers }) {
+  const W = 400, H = 400;
+  let defs = `<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${skyTop}"/><stop offset="100%" stop-color="${skyBottom}"/></linearGradient>`;
+  defs += `<filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="18"/></filter>`;
+  let body = `<rect width="${W}" height="${H}" fill="url(#sky)"/>`;
+  if (dots) {
+    body += dots.map(d => `<circle cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="${d.color || '#ffffff'}" opacity="${d.o ?? 0.85}"/>`).join('');
+  }
+  if (bands) {
+    body += `<g filter="url(#soft)" opacity="0.55">` + bands.map(b => `<ellipse cx="${b.cx}" cy="${b.cy}" rx="${b.rx}" ry="${b.ry}" fill="${b.color}" transform="rotate(${b.rot || 0} ${b.cx} ${b.cy})"/>`).join('') + `</g>`;
+  }
+  if (sun) {
+    body += `<circle cx="${sun.cx}" cy="${sun.cy}" r="${sun.r * 2}" fill="${sun.color}" opacity="0.22"/>`;
+    body += `<circle cx="${sun.cx}" cy="${sun.cy}" r="${sun.r}" fill="${sun.color}"/>`;
+    if (sun.crescent) body += `<circle cx="${sun.cx + sun.r * 0.42}" cy="${sun.cy - sun.r * 0.28}" r="${sun.r * 0.92}" fill="${skyTop}"/>`;
+  }
+  layers.forEach(l => { body += `<polygon points="${l.points}" fill="${l.color}"/>`; });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${defs}</defs>${body}</svg>`;
+  return encodeSvg(svg);
+}
+
 export const CHAT_WALLPAPERS = [
-  { id: 'wp-aurora', name: 'Aurora', image: meshWallpaper('#04211d', [[80, 90, 180, '#0d9488'], [320, 120, 160, '#22d3ee'], [220, 320, 200, '#134e4a']]) },
-  { id: 'wp-sunset-blaze', name: 'Sunset Blaze', image: meshWallpaper('#1a0b12', [[60, 80, 190, '#f97316'], [330, 100, 170, '#ec4899'], [200, 330, 210, '#7c2d92']]) },
-  { id: 'wp-deep-ocean', name: 'Deep Ocean', image: meshWallpaper('#020a17', [[70, 70, 190, '#1d4ed8'], [330, 130, 170, '#0891b2'], [200, 340, 220, '#082f49']]) },
-  { id: 'wp-lavender-dusk', name: 'Lavender Dusk', image: meshWallpaper('#0f0a1e', [[80, 90, 180, '#7c3aed'], [320, 110, 170, '#ec4899'], [210, 330, 210, '#3b0764']]) },
-  { id: 'wp-golden-hour', name: 'Golden Hour', image: meshWallpaper('#1c1206', [[70, 80, 190, '#f59e0b'], [330, 110, 170, '#fbbf24'], [210, 330, 210, '#78350f']]) },
-  { id: 'wp-rose-quartz', name: 'Rose Quartz', image: meshWallpaper('#1c0e16', [[70, 90, 190, '#f472b6'], [330, 110, 170, '#fb7185'], [210, 330, 210, '#701a3f']]) },
+  {
+    id: 'wp-aurora', name: 'Aurora',
+    image: sceneWallpaper({
+      skyTop: '#03110e', skyBottom: '#0a2b26',
+      dots: [{ cx: 50, cy: 35, r: 1.3 }, { cx: 340, cy: 25, r: 1.1 }, { cx: 200, cy: 50, r: 1.5 }, { cx: 110, cy: 75, r: 1 }, { cx: 300, cy: 85, r: 1.2 }, { cx: 250, cy: 40, r: 1 }],
+      bands: [
+        { cx: 130, cy: 120, rx: 170, ry: 40, color: '#22d3ee', rot: -18 },
+        { cx: 260, cy: 90, rx: 150, ry: 34, color: '#34d399', rot: 12 },
+        { cx: 200, cy: 150, rx: 190, ry: 30, color: '#a78bfa', rot: -8 },
+      ],
+      layers: [
+        { color: '#0d3b34', points: '0,300 60,250 140,285 220,235 300,275 400,240 400,400 0,400' },
+        { color: '#082420', points: '0,345 100,310 200,335 320,300 400,325 400,400 0,400' },
+      ],
+    }),
+  },
+  {
+    id: 'wp-sunset-blaze', name: 'Sunset Blaze',
+    image: sceneWallpaper({
+      skyTop: '#2a0a3d', skyBottom: '#f97316',
+      sun: { cx: 200, cy: 250, r: 55, color: '#fde68a' },
+      layers: [
+        { color: '#4c1d5b', points: '0,260 70,210 150,245 230,190 310,235 400,200 400,400 0,400' },
+        { color: '#2d0f3a', points: '0,300 110,270 220,290 330,255 400,280 400,400 0,400' },
+      ],
+    }),
+  },
+  {
+    id: 'wp-deep-ocean', name: 'Deep Ocean',
+    image: sceneWallpaper({
+      skyTop: '#020a17', skyBottom: '#0a3a5c',
+      dots: [{ cx: 90, cy: 40, r: 1.2 }, { cx: 320, cy: 55, r: 1 }, { cx: 250, cy: 30, r: 1.4 }],
+      sun: { cx: 320, cy: 90, r: 34, color: '#e0f2fe' },
+      layers: [
+        { color: '#0e4a72', points: '0,230 40,215 90,232 140,212 190,230 240,210 290,228 340,208 400,225 400,400 0,400' },
+        { color: '#0b3556', points: '0,280 60,262 130,282 210,258 290,280 360,260 400,275 400,400 0,400' },
+        { color: '#082542', points: '0,335 100,318 220,338 320,315 400,330 400,400 0,400' },
+      ],
+    }),
+  },
+  {
+    id: 'wp-lavender-dusk', name: 'Lavender Dusk',
+    image: sceneWallpaper({
+      skyTop: '#160a2e', skyBottom: '#5b2a8c',
+      dots: [{ cx: 60, cy: 50, r: 1.4 }, { cx: 330, cy: 40, r: 1.2 }, { cx: 150, cy: 30, r: 1 }, { cx: 260, cy: 70, r: 1.3 }, { cx: 100, cy: 90, r: 1 }],
+      sun: { cx: 310, cy: 80, r: 30, color: '#f5f3ff', crescent: true },
+      layers: [
+        { color: '#3b0764', points: '0,290 80,255 170,280 260,240 340,270 400,245 400,400 0,400' },
+        { color: '#25043f', points: '0,330 120,305 240,325 360,300 400,315 400,400 0,400' },
+      ],
+    }),
+  },
+  {
+    id: 'wp-golden-hour', name: 'Golden Hour',
+    image: sceneWallpaper({
+      skyTop: '#7c2d12', skyBottom: '#fbbf24',
+      sun: { cx: 200, cy: 240, r: 60, color: '#fff7d6' },
+      layers: [
+        { color: '#c2670f', points: '0,290 50,275 120,292 190,270 260,290 330,272 400,288 400,400 0,400' },
+        { color: '#78350f', points: '0,335 90,318 200,338 310,315 400,332 400,400 0,400' },
+      ],
+    }),
+  },
+  {
+    id: 'wp-rose-quartz', name: 'Rose Quartz',
+    image: sceneWallpaper({
+      skyTop: '#4a1030', skyBottom: '#fb7185',
+      dots: [{ cx: 70, cy: 60, r: 3, color: '#fecdd3', o: 0.7 }, { cx: 320, cy: 45, r: 2.4, color: '#fecdd3', o: 0.6 }, { cx: 260, cy: 90, r: 2, color: '#ffe4e6', o: 0.55 }, { cx: 130, cy: 100, r: 2.6, color: '#fecdd3', o: 0.6 }],
+      layers: [
+        { color: '#9d174d', points: '0,300 90,270 190,295 280,260 400,285 400,400 0,400' },
+        { color: '#701a3f', points: '0,340 120,318 250,336 400,312 400,400 0,400' },
+      ],
+    }),
+  },
 ];
 
 export function findWallpaper(id) {
