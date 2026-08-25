@@ -7733,7 +7733,7 @@ const GlobalChatWidget = forwardRef(({
                             outline: 'none',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
                           onBlur={e => { e.target.style.background = 'rgba(255,255,255,0.04)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                         />
 
@@ -7763,7 +7763,7 @@ const GlobalChatWidget = forwardRef(({
                               type="button"
                               onClick={startRecording}
                               title="Record voice note"
-                              style={{ background:'transparent', border:'none', color:'var(--brand-1-light)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
+                              style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
                             >
                               <Mic size={18} />
                             </button>

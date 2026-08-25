@@ -3194,7 +3194,7 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        onFocus={(e) => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+                        onFocus={(e) => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
                         style={{
@@ -3224,7 +3224,7 @@ export default function RoomChatPanel({ p }) {
                           <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                             <Paperclip size={18}/>
                           </button>
-                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color:'var(--brand-1-light)',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
+                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
                             <Mic size={18}/>
                           </button>
                         </div>
@@ -3940,7 +3940,7 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                            onFocus={(e) => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} }, 300); }}
+                            onFocus={(e) => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,
@@ -3969,7 +3969,7 @@ export default function RoomChatPanel({ p }) {
                               <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#aaa'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                 <Paperclip size={18}/>
                               </button>
-                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color:'var(--brand-1-light)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
+                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
                                 <Mic size={18}/>
                               </button>
                             </div>

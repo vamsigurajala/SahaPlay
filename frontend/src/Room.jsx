@@ -1147,6 +1147,8 @@ const Room = () => {
   useEffect(() => { socketRef.current = socket; }, [socket]);
 
   const [userList, setUserList] = useState([]);
+  const userListRef = useRef([]);
+  useEffect(() => { userListRef.current = userList; }, [userList]);
   const [hostId, setHostId] = useState(null);
   const [mySocketId, setMySocketId] = useState(null);
   const [knownUsers, setKnownUsers] = useState(() => {
@@ -2263,6 +2265,8 @@ const Room = () => {
   }, [dmTarget, roomId]);
   const dmTargetRef = useRef(null);
   const [dmThreads, setDmThreads] = useState({});
+  const dmThreadsRef = useRef({});
+  useEffect(() => { dmThreadsRef.current = dmThreads; }, [dmThreads]);
   const dmClearedTsRef = useRef({});
   // Chat bubble "Customize" theme (RoomChatPanel's own DM/group chat) — same
   // chat_theme_prefs backend and chat:theme_changed socket event GlobalChatWidget
@@ -3597,6 +3601,14 @@ const Room = () => {
       transports: ['websocket', 'polling']
     });
     setSocket(sock);
+    // A room's DM tab is a room-scoped view onto private chats, not a mirror
+    // of the account's whole DM inbox — reset per room session so switching
+    // rooms (Room.jsx doesn't remount across a roomId change, see the
+    // room-to-room navigation fix elsewhere) or rejoining doesn't carry over
+    // a previous room's threads. See the 'private_message' handler below for
+    // the matching filter that keeps unrelated global DM activity out in the
+    // first place.
+    setDmThreads({});
 
     sock.on('connect', () => {
       console.log('[SOCKET] Connected to server');
@@ -4908,10 +4920,25 @@ const Room = () => {
         reactions: msg.reactions || {}
       };
 
-      setDmThreads(prev => {
+      // 'private_message' is delivered to this socket for ANY of the
+      // account's DMs, anywhere (the global chat widget, another room) — it
+      // isn't scoped to "relevant to this room". Without this guard, simply
+      // having the global widget open in the background while sitting in an
+      // unrelated room silently populated this room's own DM tab (and its
+      // unread badge/toast) with completely unrelated conversations. Only
+      // treat it as room-relevant when it's something this room's session
+      // should plausibly show: a DM the user themselves sent (from this
+      // room's own DM UI), one from someone who's actually in this room
+      // right now, or a continuation of a thread already visible here.
+      const dmKeyForRelevance = otherName.toLowerCase();
+      const dmIsRoomRelevant = isMine
+        || userListRef.current.some(u => (u.username || '').toLowerCase() === dmKeyForRelevance)
+        || !!dmThreadsRef.current[dmKeyForRelevance];
+
+      if (dmIsRoomRelevant) setDmThreads(prev => {
         const key = otherName.toLowerCase();
         const thread = [...(prev[key] || [])];
-        
+
         // Reconciliation: If an optimistic message matches, replace it
         if (msg.tempId) {
           const optIdx = thread.findIndex(m => m.id === msg.tempId || (m.timestamp && String(m.timestamp) === String(msg.tempId)));
