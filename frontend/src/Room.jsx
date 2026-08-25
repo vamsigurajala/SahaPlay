@@ -1149,6 +1149,31 @@ const Room = () => {
   const [userList, setUserList] = useState([]);
   const userListRef = useRef([]);
   useEffect(() => { userListRef.current = userList; }, [userList]);
+
+  // Heartbeat for main.jsx's cold-boot resume check: on Android the OS can
+  // kill this app's whole process while backgrounded (a device battery
+  // manager decision, not something in-app code controls) — the next launch
+  // is a genuine cold start with no memory of what was open. Refreshing this
+  // marker while actually in a room, and only while actually in a room,
+  // lets a cold launch tell "was recently, actively in this room" apart from
+  // "hasn't opened the app in ages" purely from wall-clock time.
+  // The cleanup here — clearing the marker — only runs on a NORMAL unmount
+  // (navigating away within a still-alive JS session, e.g. clicking Leave
+  // Room). If the OS kills the process instead, no JS gets to run at all,
+  // so the marker survives exactly when it should: that's what tells the
+  // resume check apart from a deliberate leave.
+  useEffect(() => {
+    if (!roomId || !room) return;
+    const write = () => {
+      try { localStorage.setItem('sp_last_active_room', JSON.stringify({ roomId, ts: Date.now() })); } catch {}
+    };
+    write();
+    const interval = setInterval(write, 30000);
+    return () => {
+      clearInterval(interval);
+      try { localStorage.removeItem('sp_last_active_room'); } catch {}
+    };
+  }, [roomId, room]);
   const [hostId, setHostId] = useState(null);
   const [mySocketId, setMySocketId] = useState(null);
   const [knownUsers, setKnownUsers] = useState(() => {

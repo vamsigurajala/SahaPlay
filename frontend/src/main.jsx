@@ -115,6 +115,34 @@ if (isStandalonePWA()) {
 // multi-second warm-up head start before any user-initiated request happens.
 fetch(`${API}/health`).catch(() => {});
 
+// On Android, the OS can kill this app's whole process while it's
+// backgrounded (a device battery manager decision — not a bug in how this
+// app is built) — the next launch is then a genuine cold start: this whole
+// module re-evaluates, at the default `/` route, with no memory of what was
+// open before. Room.jsx writes/refreshes a "still actively in this room"
+// marker (see its heartbeat effect) while mounted, and clears it on a real
+// user-initiated leave; if that marker is fresh, this was very likely a
+// kill-and-relaunch rather than a deliberate return to the home screen, so
+// rewrite the URL to that room before the router ever mounts. This can't
+// restore the live call/video state itself (that's genuinely gone with the
+// old process) — it just avoids dumping the user back at the home screen
+// when they were mid-conversation a moment ago.
+if (isCapacitorApp() && window.location.pathname === '/') {
+  try {
+    const token = localStorage.getItem('watch_token');
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    const isAuthed = (!!token && token !== 'null' && token !== 'undefined') || isGuest;
+    const raw = isAuthed ? localStorage.getItem('sp_last_active_room') : null;
+    if (raw) {
+      const { roomId, ts } = JSON.parse(raw);
+      const RESUME_WINDOW_MS = 15 * 60 * 1000;
+      if (roomId && ts && Date.now() - ts < RESUME_WINDOW_MS) {
+        window.history.replaceState(null, '', `/room/${encodeURIComponent(roomId)}`);
+      }
+    }
+  } catch { /* malformed marker — just stay on the default route */ }
+}
+
 // Registers a minimal pass-through service worker (see public/sw.js) — this
 // exists purely to satisfy Chrome's PWA installability requirement for the
 // Android TWA wrapper, not to add offline support or caching.
