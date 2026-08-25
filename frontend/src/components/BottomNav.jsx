@@ -7,7 +7,7 @@ import { clearUserSession } from '../lib/authUtils.js';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
-import { consumePendingNotificationTap } from '../lib/nativePush';
+import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 import GlobalChatWidget from './GlobalChatWidget';
 import SearchTabContent from './SearchTabContent';
 import ProfileActionMenu from './ProfileActionMenu';
@@ -157,9 +157,14 @@ export default function BottomNav() {
       if (!data) return;
       setShowSearch(false);
       setShowProfile(false);
+      // Navbar.jsx owns friend-request/friend-accept taps (opens its bell
+      // dropdown) — see its own peekPendingNotificationTap() check, which
+      // independently claims that payload without going through this event.
+      // Just make sure Navbar is actually mounted to receive it: it isn't
+      // rendered on Room/Admin routes, so force back to '/' if we're on one
+      // of those (a no-op navigate() when already elsewhere Navbar renders).
       if (data.type === 'friend_request' || data.type === 'friend_accept') {
-        setShowChat(false);
-        navigate(`/profile/${data.username}`);
+        navigate('/');
         return;
       }
       if (!data.chatId) return;
@@ -174,9 +179,15 @@ export default function BottomNav() {
     window.addEventListener('open_chat_from_notification', handler);
     // Cold start: the native tap may have already fired (and been lost,
     // with no listener yet attached) before this effect ever ran — see
-    // nativePush.js's pendingTap comment. Check for and consume it now.
-    const pending = consumePendingNotificationTap();
-    if (pending) handler({ detail: pending });
+    // nativePush.js's pendingTap comment. Peek (not clear) it here: a
+    // friend-request/friend-accept tap belongs to Navbar.jsx's own peek,
+    // not this one, so only claim (and clear) it when it's actually a chat
+    // tap this component handles.
+    const pending = peekPendingNotificationTap();
+    if (pending && pending.chatId) {
+      clearPendingNotificationTap();
+      handler({ detail: pending });
+    }
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 

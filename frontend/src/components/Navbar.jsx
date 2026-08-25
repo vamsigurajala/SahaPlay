@@ -16,6 +16,7 @@ import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
 import { isTauriApp, isStandalonePWA } from '../lib/platform';
+import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 
 const Navbar = () => {
   const isDesktopApp = isTauriApp();
@@ -138,6 +139,34 @@ const Navbar = () => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Friend-request/friend-accept notification tap — main.jsx rebroadcasts
+  // the native tap as 'open_chat_from_notification' (same event
+  // BottomNav.jsx listens for; BottomNav only claims chat-type taps and
+  // deliberately leaves this type for this listener). Opens this bell
+  // dropdown instead of jumping straight to the requester's profile, so
+  // both accepting and viewing other pending requests are one tap away.
+  useEffect(() => {
+    const isFriendTap = (data) => data && (data.type === 'friend_request' || data.type === 'friend_accept');
+    const handler = (e) => {
+      if (!isFriendTap(e.detail)) return;
+      setShowNotifications(true);
+      setShowSearch(false);
+      setShowRecentChats(false);
+    };
+    window.addEventListener('open_chat_from_notification', handler);
+    // Cold start: this may have already fired (and, on standalone/native,
+    // been lost before any listener existed) before this effect ran —
+    // Navbar's own lazy route chunk can resolve after BottomNav.jsx (which
+    // mounts immediately, not lazily) already peeked the same pending tap,
+    // so this only claims it if it's actually a friend-request type.
+    const pending = peekPendingNotificationTap();
+    if (isFriendTap(pending)) {
+      clearPendingNotificationTap();
+      handler({ detail: pending });
+    }
+    return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 
   // Close menus when clicking outside

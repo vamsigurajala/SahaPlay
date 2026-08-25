@@ -10,6 +10,7 @@ import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import PinSetupModal from './PinSetupModal';
 import { API } from '../lib/api';
+import { appCache } from '../cache/appCache.js';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -2854,11 +2855,23 @@ const GlobalChatWidget = forwardRef(({
     });
 
     const handleFollowEvent = (data) => {
-      window.dispatchEvent(new CustomEvent('follow_status_updated', { detail: data }));
-      const currentChat = activeChatRef.current;
       const actor = data.requester || data.follower || data.actor;
       const target = data.accepter || data.following || data.target;
-      
+      // A socket push is instant, but the refetch that
+      // follow_status_updated's listeners (Profile.jsx, useFollowRequests)
+      // trigger goes through the same cached window.fetch every other GET
+      // does — /api/users/:username has a 5-minute client-side TTL (see
+      // fetchInterceptor.js), so without busting it here that refetch just
+      // re-served the pre-accept response for up to several minutes,
+      // making an instant server-side change look like it "didn't update"
+      // on the receiving device.
+      if (actor) appCache.invalidatePrefix(`/api/users/${actor.toLowerCase()}`);
+      if (target) appCache.invalidatePrefix(`/api/users/${target.toLowerCase()}`);
+      appCache.invalidatePrefix('/api/follow/requests');
+      appCache.invalidatePrefix('/api/profile');
+      window.dispatchEvent(new CustomEvent('follow_status_updated', { detail: data }));
+      const currentChat = activeChatRef.current;
+
       if (currentChat && (
         (actor && actor.toLowerCase() === currentChat.partner?.toLowerCase()) || 
         (target && target.toLowerCase() === currentChat.partner?.toLowerCase())

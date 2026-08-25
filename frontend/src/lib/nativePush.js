@@ -30,13 +30,20 @@ let cachedToken = null;
 // chat/profile they were tapped for, while a warm/backgrounded resume (where
 // BottomNav was already mounted) worked fine. Caching the tap payload here
 // lets any component that mounts later ask "did a tap already happen before
-// I was ready?" via consumePendingNotificationTap(), instead of depending on
-// exact timing against a live listener.
+// I was ready?", instead of depending on exact timing against a live
+// listener. Split into peek/clear (rather than one atomic "consume") because
+// BottomNav.jsx (mounted immediately, not lazy-loaded) and Navbar.jsx
+// (mounted only once its lazy route chunk resolves, which can be well after
+// BottomNav on a cold start) each only handle ONE tap type — chat taps vs.
+// friend-request taps — and need to independently check "is this payload
+// mine?" without whichever one happens to run first stealing/clearing a
+// payload meant for the other.
 let pendingTap = null;
-export function consumePendingNotificationTap() {
-  const data = pendingTap;
+export function peekPendingNotificationTap() {
+  return pendingTap;
+}
+export function clearPendingNotificationTap() {
   pendingTap = null;
-  return data;
 }
 
 function authHeaders() {
