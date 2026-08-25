@@ -2293,6 +2293,14 @@ const Room = () => {
   const [dmThreads, setDmThreads] = useState({});
   const dmThreadsRef = useRef({});
   useEffect(() => { dmThreadsRef.current = dmThreads; }, [dmThreads]);
+  // Full, unfiltered DM history from the server (every conversation the
+  // account has ever had, not scoped to this room) — cached here so it's
+  // available the moment the user actually opens/continues a chat, but
+  // deliberately never auto-merged into dmThreads (see chat_history_dm
+  // handler below): a room's DM list should only ever contain people the
+  // user has actually chatted with during THIS room visit, not a mirror of
+  // their global DM history.
+  const dmHistoryCacheRef = useRef({});
   const dmClearedTsRef = useRef({});
   // Chat bubble "Customize" theme (RoomChatPanel's own DM/group chat) — same
   // chat_theme_prefs backend and chat:theme_changed socket event GlobalChatWidget
@@ -5120,10 +5128,19 @@ const Room = () => {
          threads[key] = resolveReplyMessages(threads[key]);
       }
 
+      // Cache everything (unfiltered) so it's ready the instant the user
+      // actually opens a chat — but only merge into the room's VISIBLE
+      // dmThreads for partners already present there (i.e. a chat the user
+      // has already opened/exchanged messages with this room visit). This
+      // is what keeps unrelated, never-touched-in-this-room conversations
+      // out of the room's own DM list entirely.
+      dmHistoryCacheRef.current = { ...dmHistoryCacheRef.current, ...threads };
+
       setDmThreads(prev => {
         const merged = { ...prev };
         for (const [name, msgs] of Object.entries(threads)) {
           const key = name.toLowerCase();
+          if (!(key in prev)) continue;
           // If this conversation was cleared in this session, filter out messages
           // that predate the clear timestamp (secondary defense against server
           // re-sending cleared messages on reconnect before hiddenFor propagates).
@@ -8690,12 +8707,15 @@ const Room = () => {
   const openDM = (uname) => {
     dmTargetRef.current = uname; setDmTarget(uname); setChatTab('dm');
     chatTabRef.current = 'dm';
-    // Seed an empty thread so this person appears in the Chats sidebar immediately,
-    // even before the first message is sent.
+    // Seed this thread so the person appears in the Chats sidebar immediately.
+    // If there's real prior history with them (from dmHistoryCacheRef), show
+    // it now that the user has actually opened this chat; otherwise start
+    // empty, same as before.
     setDmThreads(prev => {
       const key = uname.toLowerCase();
       if (prev[key]) return prev;
-      return { ...prev, [key]: [] };
+      const cached = dmHistoryCacheRef.current[key];
+      return { ...prev, [key]: cached || [] };
     });
     setDmUnread(prev => {
       const next = { ...prev };
