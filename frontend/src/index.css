@@ -128,7 +128,17 @@ body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   line-height: 1.6;
+  /* 100vh doesn't shrink when the on-screen keyboard opens (it tracks the
+     "large" viewport, ignoring keyboard occlusion), so with the keyboard up
+     body stays taller than the real visible area and becomes scrollable —
+     any focused-input auto-scroll then briefly reveals body's own animated
+     gradient background (a different color from whatever fixed overlay,
+     e.g. the chat window or search sheet, is supposed to be covering the
+     screen) in the gap below it, both while the keyboard is opening and
+     while it's closing. 100dvh tracks the actual, keyboard-adjusted
+     viewport instead; vh stays as the fallback for older browsers. */
   min-height: 100vh;
+  min-height: 100dvh;
   /* GenZ Animated Mesh-like Gradient Background */
   background: radial-gradient(circle at 15% 50%, var(--bg-gradient-1), transparent 50%),
     radial-gradient(circle at 85% 30%, var(--bg-gradient-2), transparent 50%);

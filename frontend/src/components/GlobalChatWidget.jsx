@@ -1586,6 +1586,15 @@ const GlobalChatWidget = forwardRef(({
   const scrollContainerRef = useRef(null);
   const scrollAnchorRef = useRef(null);
   const isPrependingHistoryRef = useRef(false);
+  // Narrow viewports already close this widget via swipe-back/hardware-back
+  // (useBackIntercept, see gcwBack below) — the header's X button is only
+  // needed on desktop, where there's no back gesture to fall back on.
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => window.innerWidth < 640);
+  useEffect(() => {
+    const onResize = () => setIsNarrowViewport(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [conversations, setConversations] = useState(() => {
     try {
       const cached = localStorage.getItem('watch_recent_chats');
@@ -5654,7 +5663,15 @@ const GlobalChatWidget = forwardRef(({
         borderRadius: transparentMode ? 0 : 32,
         border: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
-        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        // NOT `transition: all` — this used to also animate height/width/top/
+        // right, which meant every on-screen-keyboard resize (the mobile
+        // media query's height:100dvh recalculating as the keyboard slides
+        // in/out) got dragged through this same 0.4s overshoot easing. Since
+        // the panel's background is opaque, that just looked like a stray
+        // flash of the page behind it for the transition's duration — most
+        // visible in dark mode against the page's lighter chrome. Only the
+        // purely cosmetic properties need to animate.
+        transition: 'border-radius 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         fontFamily: "'Inter', sans-serif"
       }}>
         {/* Lightbox portal — fixed overlay above everything */}
@@ -6058,9 +6075,11 @@ const GlobalChatWidget = forwardRef(({
                 )}
               </div>
             )}
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}>
-              <X size={20} />
-            </button>
+            {!isNarrowViewport && (
+              <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}>
+                <X size={20} />
+              </button>
+            )}
           </div>
         </div>
 
