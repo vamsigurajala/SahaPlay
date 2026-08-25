@@ -25,7 +25,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -1644,6 +1644,11 @@ const GlobalChatWidget = forwardRef(({
     } catch { return {}; }
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
+  // Dominant color extracted from the active conversation's Background
+  // wallpaper (if any) — resolved asynchronously (canvas pixel sampling, see
+  // getWallpaperDominantColor) since it's not known until the image decodes,
+  // unlike CHAT_THEMES' hand-picked gradients which are available instantly.
+  const [wallpaperColor, setWallpaperColor] = useState(null);
   // Which conversation the open theme sheet applies to — NOT necessarily
   // activeChat, since the sheet can also be opened from a conversation row's
   // "..." menu in the list view without that chat being open at all.
@@ -5419,8 +5424,19 @@ const GlobalChatWidget = forwardRef(({
   // the identical map key for the other to see it too.
   const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
   const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
-  const activeTheme = CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0];
+  // wp- ids (see chatThemes.js) share this same storage slot as the plain
+  // gradient CHAT_THEMES ids above — a full-chat background image instead of
+  // just a sent-bubble gradient, so it's resolved from a separate list.
+  const activeWallpaper = findWallpaper(activeThemeId);
+  const activeTheme = activeWallpaper ? null : (CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0]);
   const isCustomTheme = activeThemeId !== 'default';
+
+  useEffect(() => {
+    if (!activeWallpaper) { setWallpaperColor(null); return; }
+    let cancelled = false;
+    getWallpaperDominantColor(activeWallpaper).then(c => { if (!cancelled) setWallpaperColor(c); });
+    return () => { cancelled = true; };
+  }, [activeWallpaper]);
   // Separate from the above: the sheet can be open for a conversation that
   // isn't the one currently on screen (opened from a list row's "..." menu),
   // so its "currently selected" swatch is computed from themeSheetTarget, not
@@ -6843,7 +6859,19 @@ const GlobalChatWidget = forwardRef(({
                 }
               }}
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
-              style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', background: isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent' }}
+              style={{
+                padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain',
+                ...(activeWallpaper ? {
+                  // A flat dark scrim under the wallpaper keeps received-bubble
+                  // text (and the wallpaper's own busiest areas) legible
+                  // regardless of how bright the image itself is — same
+                  // treatment WhatsApp applies under its own chat wallpapers.
+                  backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url(${activeWallpaper.image})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                } : { background: isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent' }),
+              }}
             >
               {historyLoading && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -7077,21 +7105,26 @@ const GlobalChatWidget = forwardRef(({
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))),
+                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
+                                  ? (activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
+                                  : (activeWallpaper ? 'rgba(255,255,255,0.14)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
                                 // of each bubble independently repeating the full gradient. That's
                                 // what makes older vs. newer sent messages land in a visibly
                                 // different shade, matching Instagram's own per-conversation theme.
-                                ...(isMe && isCustomTheme && !isMediaOnly ? {
+                                // Not applied for a Background/wallpaper theme — its sent-bubble
+                                // color is one flat color extracted from the image (see
+                                // wallpaperColor), not a multi-stop gradient to slice.
+                                ...(isMe && isCustomTheme && !isMediaOnly && !activeWallpaper ? {
                                   backgroundSize: `100% ${Math.max(messages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                                 } : {}),
                                 padding: isMediaOnly ? '0' : '10px 16px',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                                 fontSize: 14,
-                                color: transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
+                                color: (transparentMode || activeWallpaper) ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
                                 textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
                                 maxWidth: '100%',
                                 wordBreak: 'break-word',
@@ -7722,6 +7755,33 @@ const GlobalChatWidget = forwardRef(({
                         boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                       }} />
                       <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Backgrounds — full-chat wallpaper images with a bubble color
+                  derived from the image itself (see chatThemes.js), rather
+                  than a hand-picked flat gradient like the swatches above. */}
+              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 14px' }}>
+                {t('chatBackgrounds', 'Backgrounds')}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                {CHAT_WALLPAPERS.map(w => {
+                  const selected = w.id === sheetThemeId;
+                  const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
+                  return (
+                    <button
+                      key={w.id}
+                      onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
+                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{
+                        width: '100%', aspectRatio: '3/4', borderRadius: 16,
+                        backgroundImage: `url(${w.image})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                        border: selected ? '3px solid #fff' : '3px solid transparent',
+                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                      }} />
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(bgKey, w.name)}</span>
                     </button>
                   );
                 })}

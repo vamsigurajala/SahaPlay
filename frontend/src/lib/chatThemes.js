@@ -39,3 +39,87 @@ export const CHAT_THEME_BUBBLE_STRIDE = 70;
 // out of view) read dark and the most recent message (closest to the
 // composer) read light. Keep this invariant when editing/adding a theme —
 // don't just reorder for looks, reorder by actual luminance.
+
+// ── Chat "Backgrounds" (Instagram/WhatsApp-style wallpaper themes) ────────────
+// Distinct from CHAT_THEMES above: a background covers the WHOLE chat, not
+// just the sent bubble, and the sent-bubble color is DERIVED from the image
+// (see getWallpaperDominantColor below) rather than hand-picked — the same
+// mechanism a future "upload your own photo" theme would reuse, so it's built
+// as a real image-analysis step now rather than a hardcoded color per design.
+//
+// Every image here is a self-contained inline SVG data URI (a handful of
+// blurred, overlapping color blobs — a common "mesh gradient" wallpaper
+// look) rather than a bundled photo/raster asset: zero network requests,
+// tiny bundle size, and no external image licensing to track. ids are
+// prefixed 'wp-' so they can share the same chatThemes[chatKey] storage slot
+// as CHAT_THEMES ids above without colliding — the rendering code just checks
+// which list an id resolves in.
+function meshWallpaper(base, blobs) {
+  const circles = blobs.map(([cx, cy, r, color]) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">`
+    + `<rect width="400" height="400" fill="${base}"/>`
+    + `<g filter="url(#b)">${circles}</g>`
+    + `<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="60"/></filter></defs>`
+    + `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+export const CHAT_WALLPAPERS = [
+  { id: 'wp-aurora', name: 'Aurora', image: meshWallpaper('#04211d', [[80, 90, 180, '#0d9488'], [320, 120, 160, '#22d3ee'], [220, 320, 200, '#134e4a']]) },
+  { id: 'wp-sunset-blaze', name: 'Sunset Blaze', image: meshWallpaper('#1a0b12', [[60, 80, 190, '#f97316'], [330, 100, 170, '#ec4899'], [200, 330, 210, '#7c2d92']]) },
+  { id: 'wp-deep-ocean', name: 'Deep Ocean', image: meshWallpaper('#020a17', [[70, 70, 190, '#1d4ed8'], [330, 130, 170, '#0891b2'], [200, 340, 220, '#082f49']]) },
+  { id: 'wp-lavender-dusk', name: 'Lavender Dusk', image: meshWallpaper('#0f0a1e', [[80, 90, 180, '#7c3aed'], [320, 110, 170, '#ec4899'], [210, 330, 210, '#3b0764']]) },
+  { id: 'wp-golden-hour', name: 'Golden Hour', image: meshWallpaper('#1c1206', [[70, 80, 190, '#f59e0b'], [330, 110, 170, '#fbbf24'], [210, 330, 210, '#78350f']]) },
+  { id: 'wp-rose-quartz', name: 'Rose Quartz', image: meshWallpaper('#1c0e16', [[70, 90, 190, '#f472b6'], [330, 110, 170, '#fb7185'], [210, 330, 210, '#701a3f']]) },
+];
+
+export function findWallpaper(id) {
+  return CHAT_WALLPAPERS.find(w => w.id === id) || null;
+}
+
+// Real "pick the majority color from the image" extraction: downsamples onto
+// a tiny canvas, quantizes each pixel's RGB into coarse buckets (32 levels
+// per channel) and returns the average color of whichever bucket has the
+// most pixels — a majority vote, not just a flat average of every pixel
+// (which would muddy two strong, roughly-equal-area colors into a gray
+// nobody actually sees in the image). Memoized per wallpaper id since it's
+// the same handful of SVGs reused by every chat that picks them.
+const dominantColorCache = new Map();
+
+export function getWallpaperDominantColor(wallpaper) {
+  if (!wallpaper) return Promise.resolve(null);
+  if (dominantColorCache.has(wallpaper.id)) return Promise.resolve(dominantColorCache.get(wallpaper.id));
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const size = 32;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, size, size);
+        const { data } = ctx.getImageData(0, 0, size, size);
+        const buckets = new Map();
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i + 3] < 128) continue; // skip transparent pixels
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const key = `${r >> 5},${g >> 5},${b >> 5}`;
+          const entry = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+          entry.count++; entry.r += r; entry.g += g; entry.b += b;
+          buckets.set(key, entry);
+        }
+        let best = null;
+        for (const entry of buckets.values()) { if (!best || entry.count > best.count) best = entry; }
+        const color = best
+          ? `rgb(${Math.round(best.r / best.count)}, ${Math.round(best.g / best.count)}, ${Math.round(best.b / best.count)})`
+          : '#6366f1';
+        dominantColorCache.set(wallpaper.id, color);
+        resolve(color);
+      } catch {
+        resolve('#6366f1');
+      }
+    };
+    img.onerror = () => resolve('#6366f1');
+    img.src = wallpaper.image;
+  });
+}
