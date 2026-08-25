@@ -2719,7 +2719,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -3407,7 +3407,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />

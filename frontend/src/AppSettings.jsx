@@ -1015,6 +1015,33 @@ const AppSettings = () => {
   // despite already having a transition on it. Layering the gradient as a
   // separate element and cross-fading its opacity (which DOES interpolate)
   // fixes that; the knob's own slide was already smooth and is unchanged.
+  // Notification rows: tapping a row's title shows its full description
+  // (some don't fit on the row's forced single line — see .notif-desc)
+  // and tapping it again collapses back — independent per row, not tied
+  // to that row's on/off Toggle.
+  const [expandedNotifRows, setExpandedNotifRows] = useState(() => new Set());
+  const toggleNotifRowExpanded = (id) => setExpandedNotifRows(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const NotifRowText = ({ id, title, titleColor = '#fff', titleWeight = 500, titleSize = 14, desc, descColor = '#666' }) => {
+    const isExpanded = expandedNotifRows.has(id);
+    return (
+      <div style={{ minWidth: 0 }}>
+        <div
+          onClick={() => toggleNotifRowExpanded(id)}
+          style={{ color: titleColor, fontWeight: titleWeight, fontSize: titleSize, cursor: 'pointer' }}
+        >
+          {title}
+        </div>
+        <div className={isExpanded ? undefined : 'notif-desc'} style={{ color: descColor, fontSize: 12 }}>
+          {desc}
+        </div>
+      </div>
+    );
+  };
+
   const Toggle = ({ on, onToggle, disabled }) => (
     <button className={`custom-toggle ${on ? 'toggle-on' : 'toggle-off'}`} onClick={onToggle} disabled={disabled} style={{ width: 48, height: 26, borderRadius: 13, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer', background: 'rgba(255,255,255,0.1)', position: 'relative', overflow: 'hidden', opacity: disabled ? 0.4 : 1, flexShrink: 0 }}>
       <div style={{ position: 'absolute', inset: 0, background: 'var(--brand-gradient)', opacity: on ? 1 : 0, transition: 'opacity 0.25s ease' }} />
@@ -1548,7 +1575,14 @@ const AppSettings = () => {
                   </div>
                   <div>
                     <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{theme === 'light' ? t('lightMode', 'Light Mode') : t('darkMode', 'Dark Mode')}</div>
-                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? t('lightModeDesc', 'Bright and clean') : t('darkModeDesc', 'Comfort and peace')}</div>
+                    {/* 'darkModeDesc' is shared with Features.jsx's marketing card, which
+                        legitimately wants its own longer copy — every locale file already
+                        has that key populated ("Switch to dark theme for comfortable late
+                        night watching"), so re-using it here just re-displayed the long
+                        marketing line no matter what fallback text was passed. A distinct
+                        key (not present in any locale file yet, so it always falls back to
+                        the short default below) keeps this row independent of that. */}
+                    <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>{theme === 'light' ? t('lightModeDesc', 'Bright and clean') : t('darkModeDescShort', 'For comfortable watching')}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1747,10 +1781,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(var(--brand-2-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {notifyApp ? <Bell size={16} color="var(--brand-2)" /> : <BellOff size={16} color="#666" />}
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>{t('appNotifications', 'App Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#888', fontSize: 12 }}>{t('masterNotifToggle', 'Master toggle for all notifications')}</div>
-                  </div>
+                  <NotifRowText id="app" title={t('appNotifications', 'App Notifications')} titleWeight={600} titleSize={15} desc={t('masterNotifToggle', 'Master toggle for all notifications')} descColor="#888" />
                 </div>
                 <Toggle on={notifyApp} onToggle={() => toggleNotifSetting('notifyApp', notifyApp, setNotifyApp)} />
               </div>
@@ -1761,10 +1792,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(16,185,129,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <LogIn size={16} color="#10b981" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('joinNotifications', 'Join Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneJoins', 'When someone joins your room')}</div>
-                  </div>
+                  <NotifRowText id="join" title={t('joinNotifications', 'Join Notifications')} desc={t('whenSomeoneJoins', 'When someone joins your room')} />
                 </div>
                 <Toggle on={notifyJoin} onToggle={() => toggleNotifSetting('notifyJoin', notifyJoin, setNotifyJoin)} disabled={!notifyApp} />
               </div>
@@ -1774,10 +1802,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(var(--brand-2-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <ShieldCheck size={16} color="var(--brand-2)" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('joinReqNotifications', 'Join Request Result Toasts')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneAsksJoin', 'Toast after you approve or deny a request')}</div>
-                  </div>
+                  <NotifRowText id="joinReq" title={t('joinReqNotifications', 'Join Request Result Toasts')} desc={t('whenSomeoneAsksJoin', 'Toast after you approve or deny a request')} />
                 </div>
                 <Toggle on={notifyJoinRequests} onToggle={() => toggleNotifSetting('notifyJoinRequests', notifyJoinRequests, setNotifyJoinRequests)} disabled={!notifyApp} />
               </div>
@@ -1787,10 +1812,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(var(--brand-1-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <MessageSquare size={16} color="var(--brand-1)" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('msgNotifications', 'Message Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneSendsChat', 'When someone sends a chat message')}</div>
-                  </div>
+                  <NotifRowText id="msg" title={t('msgNotifications', 'Message Notifications')} desc={t('whenSomeoneSendsChat', 'When someone sends a chat message')} />
                 </div>
                 <Toggle on={notifyMessages} onToggle={() => toggleNotifSetting('notifyMessages', notifyMessages, setNotifyMessages)} disabled={!notifyApp} />
               </div>
@@ -1800,9 +1822,8 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(34,197,94,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Phone size={16} color="#22c55e" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('callNotifications', 'Call Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneCalls', 'Incoming and missed calls')}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <NotifRowText id="call" title={t('callNotifications', 'Call Notifications')} desc={t('whenSomeoneCalls', 'Incoming and missed calls')} />
                     {!isCapacitorApp() && browserNotifPermission !== 'unsupported' && browserNotifPermission !== 'granted' && (
                       <button
                         onClick={requestBrowserCallAlerts}
@@ -1827,10 +1848,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(245,158,11,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <UserPlus size={16} color="#f59e0b" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('friendRequestNotifications', 'Friend Request Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenFriendRequest', 'When you receive a friend request')}</div>
-                  </div>
+                  <NotifRowText id="friendReq" title={t('friendRequestNotifications', 'Friend Request Notifications')} desc={t('whenFriendRequest', 'When you receive a friend request')} />
                 </div>
                 <Toggle on={notifyFriendRequests} onToggle={() => toggleNotifSetting('notifyFriendRequests', notifyFriendRequests, setNotifyFriendRequests)} disabled={!notifyApp} />
               </div>
@@ -1840,10 +1858,7 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(239,68,68,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <LogOutIcon size={16} color="#ef4444" />
                   </div>
-                  <div>
-                    <div style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{t('leaveNotifications', 'Leave Notifications')}</div>
-                    <div className="notif-desc" style={{ color: '#666', fontSize: 12 }}>{t('whenSomeoneLeaves', 'When someone leaves your room')}</div>
-                  </div>
+                  <NotifRowText id="leave" title={t('leaveNotifications', 'Leave Notifications')} desc={t('whenSomeoneLeaves', 'When someone leaves your room')} />
                 </div>
                 <Toggle on={notifyLeave} onToggle={() => toggleNotifSetting('notifyLeave', notifyLeave, setNotifyLeave)} disabled={!notifyApp} />
               </div>

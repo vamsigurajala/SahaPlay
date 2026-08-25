@@ -339,6 +339,16 @@ h1 {
   -ms-overflow-style: none !important;
   scrollbar-width: none !important;
   overflow: -moz-scrollbars-none !important;
+  /* Native momentum/inertial scrolling — this class is used for every
+     independently-scrolling chat/message list, and each such element needs
+     its own declaration (it doesn't inherit from html/body's own). Without
+     it, WebKit-based views can fall back to a stepped, non-inertial scroll
+     that reads as sluggish/stuck compared to a native list. */
+  -webkit-overflow-scrolling: touch;
+  /* Hints the compositor to promote this element to its own GPU layer up
+     front instead of only on first scroll, avoiding a stutter on the very
+     first frame of a scroll gesture in a long message list. */
+  will-change: scroll-position;
 }
 
 /* Animations */
