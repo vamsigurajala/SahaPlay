@@ -3735,8 +3735,10 @@ app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('
   }
 });
 
-// Serve avatars statically
-app.use('/avatars', express.static(path.join(__dirname, 'avatars')));
+// Serve avatars statically — long-lived cache since this only serves legacy
+// pre-Supabase-migration local paths (new uploads go straight to Supabase
+// Storage's own immutable-cached CDN URLs, see /api/profile/avatar above).
+app.use('/avatars', express.static(path.join(__dirname, 'avatars'), { maxAge: '30d' }));
 
 // â"€â"€ GET Profile (own) â"€â"€
 const queryAll = (sql, params) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows)));

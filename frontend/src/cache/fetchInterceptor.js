@@ -180,7 +180,21 @@ export function installCacheInterceptor() {
       });
     }
 
-    // Cache miss — real fetch, store on success
+    // In-session cache missed (expired or never fetched this session), but a
+    // copy persisted from a previous app launch may still exist — serve it
+    // immediately as a placeholder (this is what makes a cold app open show
+    // pinned rooms / avatars instantly instead of a blank state) while a
+    // real fetch quietly replaces it in the background.
+    const stale = appCache.getStale(key);
+    if (stale !== null) {
+      revalidateInBackground(input, init, key, ttl);
+      return new Response(JSON.stringify(stale), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // True cache miss — real fetch, store on success
     const response = await _innerFetch(input, init);
     if (response.ok) {
       response.clone().json()
