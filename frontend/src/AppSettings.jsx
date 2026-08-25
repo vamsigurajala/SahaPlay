@@ -1656,10 +1656,10 @@ const AppSettings = () => {
                       })()}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                      <div style={{ width: 40, height: 40, background: 'rgba(16,185,129,0.1)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <MapPin size={20} color="#10b981" />
+                  <div className="notif-row" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="notif-label">
+                      <div className="notif-icon" style={{ background: 'rgba(16,185,129,0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <MapPin size={16} color="#10b981" />
                       </div>
                       <NotifRowText
                         id="country"
