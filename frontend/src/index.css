@@ -1823,11 +1823,16 @@ body.sp-mobile-fs-light-activity .room-player-col {
   /* Calls need much more room than the regular 260px video mini-player —
      the lobby (avatar + title + subtitle + Join/Exit buttons) doesn't fit
      in 260px and was getting clipped. Give it most of the screen, like a
-     real call UI, while still leaving chat reachable below. */
+     real call UI, while still leaving chat reachable below. Reads the same
+     --peek-player-height custom property the pull-to-expand gesture drives
+     for regular media (see .mob-media-active above and Room.jsx's
+     getPeekBaseHeight) — unset (idle) falls back to the same 62vh/340px
+     floor this always had; set (dragging/expanded) lets the gesture resize
+     it exactly like it already does for movies/games. */
   .mob-call-active .room-player-col {
-    height: 62vh !important;
-    min-height: 340px !important;
-    max-height: 62vh !important;
+    height: var(--peek-player-height, 62vh) !important;
+    min-height: var(--peek-player-height, 340px) !important;
+    max-height: var(--peek-player-height, 62vh) !important;
   }
   /* Part 5 — Media selector modal: mobile resizes */
   .media-selector-modal-inner {

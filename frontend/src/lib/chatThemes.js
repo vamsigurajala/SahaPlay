@@ -61,7 +61,15 @@ function meshWallpaper(base, blobs) {
     + `<g filter="url(#b)">${circles}</g>`
     + `<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="60"/></filter></defs>`
     + `</svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  // encodeURIComponent deliberately leaves '(' and ')' unescaped (they're in
+  // its unreserved set) — but the SVG itself contains a literal url(#b) (the
+  // filter reference above), so without escaping those two characters here,
+  // embedding this data URI as an unquoted CSS background-image: url(...)
+  // gets its OWN url() terminated early at that inner ')', silently
+  // truncating the image to nothing rendering at all. Quoting the outer
+  // url() at each call site is a second layer of defense, but this is the
+  // actual fix — the data URI must be fully percent-encoded on its own.
+  return `data:image/svg+xml,${encodeURIComponent(svg).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
 }
 
 export const CHAT_WALLPAPERS = [

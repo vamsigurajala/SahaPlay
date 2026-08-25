@@ -3092,20 +3092,37 @@ const Room = () => {
   // the video itself, once expanded, drags UP to collapse back.
   const ROOM_PEEK_MIN_HEIGHT = 260;
   const roomMainLayoutRef = useRef(null);
-  const peekDragRef = useRef({ active: false, startY: 0, startProgress: 0, containerHeight: 0 });
+  const peekDragRef = useRef({ active: false, startY: 0, startProgress: 0, containerHeight: 0, baseHeight: ROOM_PEEK_MIN_HEIGHT });
   const [peekProgress, setPeekProgress] = useState(0); // 0..1, live only while dragging
   const [isPeekDragging, setIsPeekDragging] = useState(false);
   const [isPeekExpanded, setIsPeekExpanded] = useState(false); // settled state after release
 
-  const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && !isCallActivity(mediaUrl) && (!!mediaUrl || isScreensharing || isViewer);
+  // In-room calls (activity://videocall|voicecall) rest at a much taller
+  // collapsed height than regular media (see .mob-call-active .room-player-col
+  // in index.css, 62vh/340px floor vs. the 260px media default — the call
+  // lobby/tiles don't fit in a 260px strip) — the drag math needs the SAME
+  // floor its own CSS rests at, or the very first pixel of a drag would snap
+  // the box down to 260px before growing back out, a jarring flash of the
+  // wrong size. window.innerHeight is a close enough stand-in for the actual
+  // 62vh the CSS resolves to; only governs live-drag math, not the idle
+  // (non-dragging) size, which the CSS's own var(--peek-player-height, ...)
+  // fallback already renders correctly on its own.
+  const getPeekBaseHeight = () => (isCallActivity(mediaUrl) ? Math.max(340, window.innerHeight * 0.62) : ROOM_PEEK_MIN_HEIGHT);
+
+  // Calls used to be excluded from this gesture entirely (no drag handle
+  // shown at all) — re-enabled per explicit request: the same drag-down/
+  // swipe-up pattern users already have for regular media should also work
+  // for the in-room call view, not just movies/games.
+  const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && (!!mediaUrl || isScreensharing || isViewer);
 
   const startPeekDrag = (e) => {
     if (!canPeekGesture) return;
     const touch = e.touches?.[0];
     if (!touch) return;
     const containerHeight = roomMainLayoutRef.current?.getBoundingClientRect().height || 0;
-    if (containerHeight <= ROOM_PEEK_MIN_HEIGHT) return;
-    peekDragRef.current = { active: true, startY: touch.clientY, startProgress: isPeekExpanded ? 1 : 0, containerHeight };
+    const baseHeight = getPeekBaseHeight();
+    if (containerHeight <= baseHeight) return;
+    peekDragRef.current = { active: true, startY: touch.clientY, startProgress: isPeekExpanded ? 1 : 0, containerHeight, baseHeight };
     setIsPeekDragging(true);
   };
   const movePeekDrag = (e) => {
@@ -3114,7 +3131,7 @@ const Room = () => {
     const touch = e.touches?.[0];
     if (!touch) return;
     const deltaY = touch.clientY - g.startY; // positive = dragging down = toward expanded
-    const range = g.containerHeight - ROOM_PEEK_MIN_HEIGHT;
+    const range = g.containerHeight - g.baseHeight;
     if (range <= 0) return;
     e.preventDefault();
     setPeekProgress(Math.max(0, Math.min(1, g.startProgress + deltaY / range)));
@@ -10640,9 +10657,13 @@ const Room = () => {
             flex: 3, display: 'flex', flexDirection: 'column', gap: isTvMode ? 0 : 12,
             overflow: 'hidden',
             maxHeight: '100%', position: 'relative',
+            // Idle (not dragging, not expanded): leave the var unset and let
+            // each layout's own CSS default apply — .mob-media-active falls
+            // back to 260px, .mob-call-active to 62vh (see index.css) — since
+            // a single JS-side constant can't correctly represent both.
             '--peek-player-height': isPeekDragging
-              ? `${ROOM_PEEK_MIN_HEIGHT + peekProgress * (peekDragRef.current.containerHeight - ROOM_PEEK_MIN_HEIGHT)}px`
-              : (isPeekExpanded ? '100%' : `${ROOM_PEEK_MIN_HEIGHT}px`),
+              ? `${peekDragRef.current.baseHeight + peekProgress * (peekDragRef.current.containerHeight - peekDragRef.current.baseHeight)}px`
+              : (isPeekExpanded ? '100%' : undefined),
             transition: isPeekDragging ? 'none' : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
           className="no-scrollbar room-player-col"

@@ -6880,7 +6880,7 @@ const GlobalChatWidget = forwardRef(({
                   // text (and the wallpaper's own busiest areas) legible
                   // regardless of how bright the image itself is — same
                   // treatment WhatsApp applies under its own chat wallpapers.
-                  backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url(${activeWallpaper.image})`,
+                  backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   backgroundRepeat: 'no-repeat',
@@ -7745,13 +7745,13 @@ const GlobalChatWidget = forwardRef(({
               onMouseDown={e => e.stopPropagation()}
               style={{
                 width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
-                background: '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
+                background: isLight ? '#ffffff' : '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
                 boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               }}
               className="no-scrollbar"
             >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
-              <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+              <div style={{ width: 36, height: 4, borderRadius: 2, background: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
+              <div style={{ textAlign: 'center', color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
                 {t('customizeChat', 'Customize')}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
@@ -7768,7 +7768,7 @@ const GlobalChatWidget = forwardRef(({
                         border: selected ? '3px solid #fff' : '3px solid transparent',
                         boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                       }} />
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
                     </button>
                   );
                 })}
@@ -7776,7 +7776,7 @@ const GlobalChatWidget = forwardRef(({
               {/* Backgrounds — full-chat wallpaper images with a bubble color
                   derived from the image itself (see chatThemes.js), rather
                   than a hand-picked flat gradient like the swatches above. */}
-              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 14px' }}>
+              <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 14px' }}>
                 {t('chatBackgrounds', 'Backgrounds')}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
@@ -7791,11 +7791,11 @@ const GlobalChatWidget = forwardRef(({
                     >
                       <div style={{
                         width: '100%', aspectRatio: '3/4', borderRadius: 16,
-                        backgroundImage: `url(${w.image})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                        backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
                         border: selected ? '3px solid #fff' : '3px solid transparent',
                         boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                       }} />
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(bgKey, w.name)}</span>
+                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(bgKey, w.name)}</span>
                     </button>
                   );
                 })}
