@@ -2,10 +2,20 @@ name: Keep Backend Alive
 
 # Render's free tier spins the backend down after ~15 min idle, causing a
 # 30-60s cold start on the next request (surfaced as slow/failed logins).
-# Pinging /health every 10 minutes keeps it from ever going to sleep.
+# Pinging /health periodically keeps it warm most of the time.
+#
+# Deliberately NOT frequent enough to guarantee zero cold starts (that would
+# need <15 min, i.e. ~144 runs/day) — at every 10 min, GitHub Actions billing
+# rounds each of those runs up to a full minute regardless of the job's real
+# ~10s duration, which was consuming the large majority of this account's
+# monthly Actions-minutes allowance (observed: ~1,600 of 2,000 included
+# min/month from this workflow alone) and repeatedly triggering the
+# account's $0-budget "stop usage" block on real CI builds. Hourly is a
+# deliberate trade: an occasional cold start on the first request after a
+# long idle gap, in exchange for ~24 runs/day instead of ~144.
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
