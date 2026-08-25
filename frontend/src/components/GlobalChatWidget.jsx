@@ -1952,7 +1952,7 @@ const GlobalChatWidget = forwardRef(({
     : view === 'chat' ? (anyChatOverlayOpen ? 4 : 3)
     : anyFolderOpen ? 2
     : 1;
-  useBackIntercept(gcwLevel, (newLevel) => {
+  const gcwBack = useBackIntercept(gcwLevel, (newLevel) => {
     if (newLevel === 0) {
       onClose && onClose();
     } else if (newLevel === 1) {
@@ -5698,17 +5698,36 @@ const GlobalChatWidget = forwardRef(({
                     leaveChatToViewProfile(activeChat.partner);
                   }
                 } else if (view === 'chat' && activeChat?.type === 'room') {
-                  // Same "leave the widget, hand off to the real page" pattern
-                  // leaveChatToViewProfile uses for a private chat's name —
-                  // just a plain route push. Room.jsx's own mount-time logic
-                  // (membership/approval/password/ban checks, same as every
-                  // other "open a room" entry point in the app — Dashboard's
-                  // join-by-code, PublicRooms, PinnedRoomsGrid) is what
-                  // actually enforces whatever the host has configured; this
-                  // click has no business pre-checking any of that itself.
+                  // Room.jsx's own mount-time logic (membership/approval/
+                  // password/ban checks, same as every other "open a room"
+                  // entry point — Dashboard's join-by-code, PublicRooms,
+                  // PinnedRoomsGrid) is what actually enforces whatever the
+                  // host has configured; this click has no business
+                  // pre-checking any of that itself.
+                  //
+                  // Unlike leaveChatToViewProfile (which deliberately leaves
+                  // this widget open/hidden behind the profile route — see
+                  // hiddenByProfileRoute — so it's exactly as you left it on
+                  // return), this widget needs to actually CLOSE here: since
+                  // /room/:roomId has no key, Room.jsx (and the copy of this
+                  // widget it renders) doesn't remount across a room-to-room
+                  // navigation, so gcwLevel's already-pushed history entries
+                  // would otherwise dangle underneath this navigate()'s own
+                  // history entry. A later, unrelated in-app close of this
+                  // widget or of the room's own media-selector modal (each a
+                  // separate useBackIntercept instance) would then call
+                  // history.go() for a step count computed before this
+                  // navigation happened, overshooting it and landing back on
+                  // a stale pre-navigation URL — the exact "uploading media
+                  // exits the room" bug this fixes. skipNextClose(), called
+                  // before the close actually drops gcwLevel, makes the hook
+                  // leave its own pushed entries inert instead of physically
+                  // consuming them here, so nothing races this navigate()'s
+                  // own pushState.
                   const roomId = activeChat.partner || activeChat.id;
                   if (roomId) {
-                    suppressNextPop();
+                    gcwBack.skipNextClose();
+                    onClose && onClose();
                     navigate(`/room/${roomId}`);
                   }
                 }
