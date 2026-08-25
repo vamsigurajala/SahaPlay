@@ -5688,7 +5688,7 @@ const GlobalChatWidget = forwardRef(({
                 fontWeight: 600, fontSize: '1.1rem',
                 color: 'var(--header-text)',
                 textDecoration: 'none',
-                cursor: view === 'chat' && activeChat?.type === 'private' ? 'pointer' : 'default',
+                cursor: view === 'chat' && (activeChat?.type === 'private' || activeChat?.type === 'room') ? 'pointer' : 'default',
               }}
               onClick={() => {
                 if (view === 'chat' && activeChat?.type === 'private' && activeChat?.partner) {
@@ -5697,9 +5697,23 @@ const GlobalChatWidget = forwardRef(({
                   if (!isBlocked) {
                     leaveChatToViewProfile(activeChat.partner);
                   }
+                } else if (view === 'chat' && activeChat?.type === 'room') {
+                  // Same "leave the widget, hand off to the real page" pattern
+                  // leaveChatToViewProfile uses for a private chat's name —
+                  // just a plain route push. Room.jsx's own mount-time logic
+                  // (membership/approval/password/ban checks, same as every
+                  // other "open a room" entry point in the app — Dashboard's
+                  // join-by-code, PublicRooms, PinnedRoomsGrid) is what
+                  // actually enforces whatever the host has configured; this
+                  // click has no business pre-checking any of that itself.
+                  const roomId = activeChat.partner || activeChat.id;
+                  if (roomId) {
+                    suppressNextPop();
+                    navigate(`/room/${roomId}`);
+                  }
                 }
               }}
-              title={view === 'chat' && activeChat?.type === 'private' ? ((blockingMe.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase()) || blockedChats.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase())) ? 'Blocked User' : `Go to ${activeChat?.partner}'s profile`) : ''}
+              title={view === 'chat' && activeChat?.type === 'private' ? ((blockingMe.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase()) || blockedChats.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase())) ? 'Blocked User' : `Go to ${activeChat?.partner}'s profile`) : (view === 'chat' && activeChat?.type === 'room' ? `Go to ${activeChat?.displayName || 'room'}` : '')}
             >
               {view === 'list' ? t('conversations', 'Conversations') : (activeChat?.type === 'private' && (blockingMe.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase()) || blockedChats.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase())) ? t('user', 'User') : activeChat?.displayName)}
             </span>
