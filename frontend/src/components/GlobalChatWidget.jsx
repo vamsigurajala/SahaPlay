@@ -1585,6 +1585,7 @@ const GlobalChatWidget = forwardRef(({
   const paginationStateRef = useRef({});
   const scrollContainerRef = useRef(null);
   const scrollAnchorRef = useRef(null);
+  const isPrependingHistoryRef = useRef(false);
   const [conversations, setConversations] = useState(() => {
     try {
       const cached = localStorage.getItem('watch_recent_chats');
@@ -3678,6 +3679,16 @@ const GlobalChatWidget = forwardRef(({
   }, [token, myUsername]);
 
   useLayoutEffect(() => {
+    // Older-history prepends grow messages.length too, but must NOT jump the
+    // view to the bottom — the scrollAnchorRef effect above already restored
+    // the correct scroll position for those. Only auto-scroll-to-bottom for
+    // genuinely new (appended) messages or the initial chat open.
+    if (isPrependingHistoryRef.current) {
+      isPrependingHistoryRef.current = false;
+      prevMsgCountRef.current = messages.length;
+      return;
+    }
+
     const isChatView = view === 'chat' && activeChat;
     const shouldScroll = (messages.length > prevMsgCountRef.current) || (isChatView && isFirstRenderGlobalChat.current);
     if (isChatView) {
@@ -4276,6 +4287,7 @@ const GlobalChatWidget = forwardRef(({
 
         const processed = await decryptGlobalChatMessages(fetched, type, cleanPartner);
 
+        isPrependingHistoryRef.current = true;
         setMessages(prev => {
           return mergeHistoryBatch(prev, processed);
         });
@@ -4292,6 +4304,7 @@ const GlobalChatWidget = forwardRef(({
       }
     } else if (isGuest) {
 
+      isPrependingHistoryRef.current = true;
       window.dispatchEvent(new CustomEvent('guest_request_more_history', {
         detail: {
           roomId: partner,
