@@ -39,7 +39,7 @@ import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-ut
 import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
-import { getFlagUrl, getFlagUrlFromName } from './utils/countryFlags.js';
+import { getFlagEmoji, getFlagEmojiFromName } from './utils/countryFlags.js';
 import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
@@ -10277,15 +10277,10 @@ const Room = () => {
                                     <Shield size={12} color={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} fill={isLight ? "var(--brand-1-dark)" : "var(--brand-1-light)"} />
                                   </span>
                                 ) : null}
-                                {(getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)) && (
-                                  <img
-                                    src={getFlagUrl(u.countryCode) || getFlagUrlFromName(u.country)}
-                                    alt={u.country || u.countryCode}
-                                    title={u.country || u.countryCode}
-                                    loading="lazy"
-                                    style={{ width: 16, height: 12, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
-                                    onError={e => { e.target.style.display = 'none'; }}
-                                  />
+                                {(getFlagEmoji(u.countryCode) || getFlagEmojiFromName(u.country)) && (
+                                  <span title={u.country || u.countryCode} style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>
+                                    {getFlagEmoji(u.countryCode) || getFlagEmojiFromName(u.country)}
+                                  </span>
                                 )}
                               </div>
                             </div>
