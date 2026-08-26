@@ -706,29 +706,21 @@ const Navbar = () => {
                                     </div>
                                     <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                                       {u.status === 'pending' ? (
-                                        <button onClick={(e) => allowRequest(u.username, e)} style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                                        <button onClick={(e) => allowRequest(u.username, e)} className="notif-action-btn" style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                                       ) : (
-                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
+                                        <button disabled className="notif-action-btn" style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: 'none', color: '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                                       )}
-                                      
+
                                       {u.myFollowStatus === 'accepted' ? (
-                                        <button disabled style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
+                                        <button disabled className="notif-action-btn" style={{ padding: '6px 12px', background: 'rgba(16,185,129,0.15)', border: 'none', color: '#10b981', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followingStatus', 'Following')}</button>
                                       ) : (
                                         <button onClick={(e) => {
                                           e.stopPropagation();
                                           if (u.myFollowStatus === 'pending') return;
                                           followBack(u.username, e);
                                         }}
-                                          className={u.myFollowStatus === 'pending' ? '' : 'stay-white'}
-                                          style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer', WebkitAppearance: 'none', appearance: 'none' }}
-                                          onMouseEnter={e => {
-                                            e.currentTarget.style.background = u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)';
-                                            e.currentTarget.style.color = u.myFollowStatus === 'pending' ? '#6b7280' : '#fff';
-                                          }}
-                                          onMouseLeave={e => {
-                                            e.currentTarget.style.background = u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)';
-                                            e.currentTarget.style.color = u.myFollowStatus === 'pending' ? '#6b7280' : '#fff';
-                                          }}>
+                                          className={`notif-action-btn${u.myFollowStatus === 'pending' ? '' : ' stay-white'}`}
+                                          style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? 'rgba(255,255,255,0.05)' : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? '#6b7280' : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
                                           {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                                         </button>
                                       )}

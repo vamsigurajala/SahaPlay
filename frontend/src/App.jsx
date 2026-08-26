@@ -640,7 +640,7 @@ function App() {
       html[data-theme='light'] .nav-dropdown:not(.gcw-force-dark .nav-dropdown) {
         color: #1e293b !important;
       }
-      html[data-theme='light'] .nav-dropdown button:not(.gcw-force-dark button) {
+      html[data-theme='light'] .nav-dropdown button:not(.gcw-force-dark button):not(.notif-action-btn) {
         color: #1e293b !important;
       }
       /* Preserve Log Out button red text */
@@ -829,7 +829,15 @@ function App() {
         stroke: #ef4444 !important;
       }
 
-      html[data-theme='light'] .nav-dropdown button:hover {
+      /* Generic hover highlight for plain menu-row buttons (Settings, Log
+         Out, etc.) inside a dropdown — excludes .notif-action-btn (Allow/
+         Follower/Following/Follow Back in the notifications dropdown),
+         whose background/color is meaningful state, not decoration. This
+         rule's background:rgba(0,0,0,0.06) was completely replacing those
+         buttons' own gradient/tinted backgrounds on hover (background is a
+         shorthand — it wipes the previous background-image too), which is
+         why hovering Follow Back visibly washed it out to near-white. */
+      html[data-theme='light'] .nav-dropdown button:not(.notif-action-btn):hover {
         background: rgba(0,0,0,0.06) !important;
       }
 
