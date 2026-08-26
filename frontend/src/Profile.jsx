@@ -558,7 +558,7 @@ const Profile = () => {
   }, [showFollowModal, showCropModal]);
 
   // Mobile/iPad swipe-back should close these modals instead of navigating away.
-  useBackIntercept((showFollowModal || showCropModal) ? 1 : 0, (newLevel) => {
+  const { skipNextClose: skipFollowModalClose } = useBackIntercept((showFollowModal || showCropModal) ? 1 : 0, (newLevel) => {
     if (newLevel === 0) { closeFollowModal(); setShowCropModal(false); }
   });
 
@@ -2310,7 +2310,7 @@ const Profile = () => {
                 ) : (
                   <>
                     {(followItems[followModalTab] || []).map(u => (
-                      <div key={u.username} className="follow-user-item" onClick={() => { closeFollowModal(); navigate(`/profile/${u.username}`); }}>
+                      <div key={u.username} className="follow-user-item" onClick={() => { skipFollowModalClose(); closeFollowModal(); navigate(`/profile/${u.username}`); }}>
                         <div style={{ width: 42, height: 42, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="var(--brand-1)" />}
                         </div>
