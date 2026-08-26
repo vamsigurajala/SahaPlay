@@ -1383,7 +1383,7 @@ const Profile = () => {
                           </div>
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             {u.status === 'pending' ? (
-                              <button onClick={(e) => handleAllowRequest(u.username, e)} className="notif-action-btn" style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
+                              <button onClick={(e) => handleAllowRequest(u.username, e)} className="notif-action-btn" style={{ padding: '6px 12px', background: 'rgba(var(--brand-1-rgb),0.15)', border: 'none', color: isLight ? '#000000' : 'var(--brand-1-light)', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('allow', 'Allow')}</button>
                             ) : (
                               <button disabled className="notif-action-btn" style={{ padding: '6px 12px', background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)', border: 'none', color: isLight ? '#666' : '#6b7280', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{t('followerStatus', 'Follower')}</button>
                             )}
