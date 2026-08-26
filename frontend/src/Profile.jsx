@@ -128,6 +128,13 @@ const Profile = () => {
   // shimmer wave actually has time to be seen on fast (local) connections instead of flashing by.
   const hasLoadedProfileOnce = useRef(false);
   const hasLoadedOtherProfileOnce = useRef(false);
+  // Always holds the CURRENT viewingUsername, read inside fetchOtherProfile's
+  // async response handlers to detect and discard a stale, out-of-order
+  // response for a profile the user has since navigated away from (see
+  // fetchOtherProfile below) — a plain closure over viewingUsername can't do
+  // this since it's fixed at the time the fetch started, not the time it resolves.
+  const viewingUsernameRef = useRef(viewingUsername);
+  viewingUsernameRef.current = viewingUsername;
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -597,22 +604,32 @@ const Profile = () => {
 
   const fetchOtherProfile = useCallback(() => {
     if (!viewingUsername) return;
+    const requestedUsername = viewingUsername;
     const isInitialLoad = !hasLoadedOtherProfileOnce.current;
     const startedAt = Date.now();
     const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
-    fetch(`${API}/api/users/${viewingUsername}`, { headers })
+    fetch(`${API}/api/users/${requestedUsername}`, { headers })
       .then(r => {
-        if (r.status === 404) { setUserNotFound(true); return null; }
+        if (r.status === 404) { if (viewingUsernameRef.current === requestedUsername) setUserNotFound(true); return null; }
         if (!r.ok) return null;
         return r.json();
       })
       .then(data => {
         if (!data) return;
+        // Rapid profile-to-profile navigation (e.g. clicking through a
+        // Followers/Following list) can leave an earlier profile's fetch
+        // still in flight when a later one is kicked off — since this
+        // component never remounts across viewingUsername changes, an
+        // out-of-order response here would otherwise overwrite the profile
+        // currently being viewed with stale data for one no longer shown,
+        // producing a visible flicker between the two.
+        if (viewingUsernameRef.current !== requestedUsername) return;
         if (data.error) { setUserNotFound(true); return; }
         const apply = () => {
+          if (viewingUsernameRef.current !== requestedUsername) return;
           hasLoadedOtherProfileOnce.current = true;
           setOtherProfile(data);
-          try { localStorage.setItem(`profile_cache_${viewingUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
+          try { localStorage.setItem(`profile_cache_${requestedUsername.toLowerCase()}`, JSON.stringify(data)); } catch {}
         };
         const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
         if (remaining > 0) setTimeout(apply, remaining);
