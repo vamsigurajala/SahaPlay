@@ -9,7 +9,7 @@ import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
 import { appCache } from './cache/appCache.js';
-import { getFlagEmoji, getFlagEmojiFromName } from './utils/countryFlags.js';
+import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
@@ -1636,10 +1636,8 @@ const AppSettings = () => {
               {country || countryCode ? (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', marginBottom: 12 }}>
-                    {(getFlagEmoji(countryCode) || getFlagEmojiFromName(country)) && (
-                      <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>
-                        {getFlagEmoji(countryCode) || getFlagEmojiFromName(country)}
-                      </span>
+                    {(getFlagClass(countryCode) || getFlagClassFromName(country)) && (
+                      <span className={getFlagClass(countryCode) || getFlagClassFromName(country)} style={{ fontSize: 28, flexShrink: 0, borderRadius: 4 }} />
                     )}
                     <span style={{ color: isLight ? '#1e293b' : '#fff', fontWeight: 600, fontSize: 15 }}>
                       {(() => {

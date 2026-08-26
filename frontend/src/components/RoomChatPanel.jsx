@@ -22,7 +22,6 @@ import { useTimestampPeek } from '../hooks/useTimestampPeek';
 import { useBackIntercept } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import crownImg from '../assets/crown.svg';
-import { getFlagUrl } from '../utils/countryFlags.js';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
 import ChatLockScreen from './ChatLockScreen';
 import MediaLightbox from './MediaLightbox';

@@ -12,7 +12,7 @@ import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from './utils/CropImage';
-import { getFlagEmoji, getFlagEmojiFromName } from './utils/countryFlags.js';
+import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
 import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { useBackIntercept } from './hooks/useBackIntercept';
@@ -1563,13 +1563,8 @@ const Profile = () => {
                         {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={38} color="var(--brand-1)" />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
-                        <h2 style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: 800, color: isLight ? '#1e293b' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherProfile.displayName || otherProfile.username}</span>
-                          {(getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)) && (
-                            <span style={{ fontSize: 15, flexShrink: 0 }} title={otherProfile.country || otherProfile.country_code}>
-                              {getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)}
-                            </span>
-                          )}
+                        <h2 style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: 800, color: isLight ? '#1e293b' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {otherProfile.displayName || otherProfile.username}
                         </h2>
                         <div style={{ color: '#6b7280', fontSize: '13px', marginBottom: '8px' }}>@{otherProfile.username}</div>
                         <div style={{ display: 'flex', gap: '20px' }}>
@@ -1592,10 +1587,8 @@ const Profile = () => {
                           <div className="options-dropdown" style={{ position: 'absolute', top: '100%', right: 0, background: isLight ? '#fff' : '#111', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 8, minWidth: 200, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)', zIndex: 100 }}>
                             {otherProfile.country && (
                               <div className="options-dropdown-country" style={{ padding: '10px 12px', color: isLight ? '#64748b' : '#bbb', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
-                                {(getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)) && (
-                                  <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>
-                                    {getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)}
-                                  </span>
+                                {(getFlagClass(otherProfile.country_code) || getFlagClassFromName(otherProfile.country)) && (
+                                  <span className={getFlagClass(otherProfile.country_code) || getFlagClassFromName(otherProfile.country)} style={{ fontSize: 16, flexShrink: 0, borderRadius: 3 }} />
                                 )}
                                 {t('country', 'Country')}: {getLocalizedCountryName(otherProfile.country_code, otherProfile.country)}
                               </div>
@@ -1641,10 +1634,8 @@ const Profile = () => {
                           <div className="options-dropdown" style={{ position: 'absolute', top: '100%', right: 0, background: isLight ? '#fff' : '#111', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 8, minWidth: 200, boxShadow: isLight ? '0 10px 40px rgba(0,0,0,0.1)' : '0 10px 40px rgba(0,0,0,0.8)', zIndex: 100 }}>
                             {otherProfile.country && (
                               <div className="options-dropdown-country" style={{ padding: '10px 12px', color: isLight ? '#64748b' : '#bbb', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.05)', marginBottom: 4 }}>
-                                {(getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)) && (
-                                  <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>
-                                    {getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)}
-                                  </span>
+                                {(getFlagClass(otherProfile.country_code) || getFlagClassFromName(otherProfile.country)) && (
+                                  <span className={getFlagClass(otherProfile.country_code) || getFlagClassFromName(otherProfile.country)} style={{ fontSize: 16, flexShrink: 0, borderRadius: 3 }} />
                                 )}
                                 {t('country', 'Country')}: {getLocalizedCountryName(otherProfile.country_code, otherProfile.country)}
                               </div>
@@ -1664,13 +1655,8 @@ const Profile = () => {
                       </div>
                     </div>
                     <div style={{ marginBottom: 20 }}>
-                      <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#1e293b' : '#fff', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h2 style={{ margin: '0 0 4px', fontSize: 24, fontWeight: 800, color: isLight ? '#1e293b' : '#fff' }}>
                         {otherProfile.displayName || otherProfile.username}
-                        {(getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)) && (
-                          <span style={{ fontSize: 20, flexShrink: 0 }} title={otherProfile.country || otherProfile.country_code}>
-                            {getFlagEmoji(otherProfile.country_code) || getFlagEmojiFromName(otherProfile.country)}
-                          </span>
-                        )}
                       </h2>
                       <div style={{ color: '#6b7280', fontSize: 14, marginBottom: 12 }}>@{otherProfile.username}</div>
                       {otherProfile.bio && <p className="profile-bio-text" style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0' }}>{otherProfile.bio}</p>}
@@ -2322,7 +2308,7 @@ const Profile = () => {
                 ) : (
                   <>
                     {(followItems[followModalTab] || []).map(u => (
-                      <div key={u.username} className="follow-user-item" onClick={() => { skipFollowModalClose(); closeFollowModal(); navigate(`/profile/${u.username}`); }}>
+                      <div key={u.username} className="follow-user-item" onClick={() => { skipFollowModalClose(); closeFollowModal(); navigate(`/profile/${u.username}`, { replace: true }); }}>
                         <div style={{ width: 42, height: 42, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                           {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt={u.username} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={18} color="var(--brand-1)" />}
                         </div>

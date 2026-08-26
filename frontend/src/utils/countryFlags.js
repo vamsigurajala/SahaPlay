@@ -24,37 +24,22 @@ const COUNTRY_NAME_TO_CODE = {
   'Yemen': 'YE', 'Zimbabwe': 'ZW',
 };
 
-// Build a flagcdn.com image URL from a 2-letter ISO code.
-export function getFlagUrl(code, size = 40) {
+// CSS class for the bundled `flag-icons` SVG set (see main.jsx's import of
+// flag-icons.min.css). An earlier version of this file rendered flags as
+// Unicode emoji instead — reliable everywhere except Windows, whose emoji
+// font doesn't compose the two-letter Regional Indicator Symbol sequence
+// into a flag glyph, showing two boxed letters (e.g. "IN") instead. These
+// SVGs are bundled at build time (Vite rewrites the CSS's relative url()s
+// into hashed asset paths), so there's still zero runtime network
+// dependency, while rendering identically on every OS.
+export function getFlagClass(code) {
   if (!code || code.length !== 2) return null;
-  return `https://flagcdn.com/w${size}/${code.toLowerCase()}.png`;
+  return `fi fi-${code.toLowerCase()}`;
 }
 
-// Look up the code from a country name, then build the URL.
-export function getFlagUrlFromName(name, size = 40) {
+// Look up the code from a country name, then build the CSS class.
+export function getFlagClassFromName(name) {
   if (!name) return null;
   const code = COUNTRY_NAME_TO_CODE[name];
-  return code ? getFlagUrl(code, size) : null;
-}
-
-// Unicode flag emoji from a 2-letter ISO code (each letter maps to its
-// Regional Indicator Symbol, U+1F1E6 = 'A' + 0x1F1E6-0x41 offset) — renders
-// via the OS/browser's own emoji font, with zero network request. Used in
-// preference to getFlagUrl's flagcdn.com <img> wherever reliability matters
-// more than the sharper bitmap look: flagcdn.com being blocked or slow
-// (corporate networks, ad/tracker blockers treating a third-party image CDN
-// as trackable, flaky mobile data) silently produced a flag-shaped hole via
-// the <img>'s onError handler, with no way to tell "never loaded" apart from
-// "genuinely no country set" from the UI alone.
-export function getFlagEmoji(code) {
-  if (!code || code.length !== 2) return null;
-  const codePoints = code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
-  return String.fromCodePoint(...codePoints);
-}
-
-// Look up the code from a country name, then build the emoji.
-export function getFlagEmojiFromName(name) {
-  if (!name) return null;
-  const code = COUNTRY_NAME_TO_CODE[name];
-  return code ? getFlagEmoji(code) : null;
+  return code ? getFlagClass(code) : null;
 }
