@@ -41,7 +41,24 @@ export default function NotificationsPanelContent({ followRequests, onAllow, onF
                       e.stopPropagation();
                       if (u.myFollowStatus === 'pending') return;
                       onFollowBack(u.username, e);
-                    }} className={u.myFollowStatus === 'pending' ? '' : 'stay-white'} style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer' }}>
+                    }}
+                      className={u.myFollowStatus === 'pending' ? '' : 'stay-white'}
+                      style={{ padding: '6px 12px', background: u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)', border: 'none', color: u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: u.myFollowStatus === 'pending' ? 'default' : 'pointer', WebkitAppearance: 'none', appearance: 'none' }}
+                      // A native <button> with no appearance:none can pick up the
+                      // OS/browser's own hover chrome (a light overlay Chrome/Windows
+                      // adds on hover) on top of custom background colors — barely
+                      // visible on the pale Allow/Request-Sent buttons but washed the
+                      // bold gradient here out to near-white. Reasserting the exact
+                      // same background/color on hover/leave guarantees this button
+                      // never visibly changes, regardless of that browser chrome.
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)';
+                        e.currentTarget.style.color = u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = u.myFollowStatus === 'pending' ? (isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)') : 'var(--brand-gradient)';
+                        e.currentTarget.style.color = u.myFollowStatus === 'pending' ? (isLight ? '#666' : '#6b7280') : '#fff';
+                      }}>
                       {u.myFollowStatus === 'pending' ? t('requestSent', 'Request Sent') : t('followBack', 'Follow Back')}
                     </button>
                   )}
