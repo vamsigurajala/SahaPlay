@@ -85,159 +85,171 @@ function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, layers }) {
   return encodeSvg(svg);
 }
 
-// Animated / Illustrated Cozy Scene Wallpapers (NO realistic faces)
-function rainyEmbraceScene() {
+// Animated / Illustrated Anime Couple Scenes (NO realistic faces)
+function animeRainyBlanketScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#0f0914"/>
-        <stop offset="60%" stop-color="#21102e"/>
-        <stop offset="100%" stop-color="#3d1c24"/>
+      <linearGradient id="animeBg1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0a0a1a"/>
+        <stop offset="55%" stop-color="#1c1233"/>
+        <stop offset="100%" stop-color="#3b1d36"/>
       </linearGradient>
-      <radialGradient id="lampGlow" cx="0.8" cy="0.65" r="0.45">
-        <stop offset="0%" stop-color="#ffb703" stop-opacity="0.8"/>
-        <stop offset="40%" stop-color="#fb8500" stop-opacity="0.35"/>
-        <stop offset="100%" stop-color="#21102e" stop-opacity="0"/>
+      <radialGradient id="animeGlow1" cx="0.75" cy="0.6" r="0.45">
+        <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.85"/>
+        <stop offset="50%" stop-color="#d97706" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#1c1233" stop-opacity="0"/>
       </radialGradient>
-      <filter id="blur"><feGaussianBlur stdDeviation="6"/></filter>
+      <filter id="animeBlur1"><feGaussianBlur stdDeviation="7"/></filter>
     </defs>
-    <rect width="${W}" height="${H}" fill="url(#bg)"/>
-    <circle cx="320" cy="260" r="160" fill="url(#lampGlow)"/>
-    <circle cx="80" cy="120" r="22" fill="#ffb703" opacity="0.25" filter="url(#blur)"/>
-    <circle cx="160" cy="90" r="30" fill="#f72585" opacity="0.2" filter="url(#blur)"/>
-    <circle cx="280" cy="100" r="18" fill="#4cc9f0" opacity="0.25" filter="url(#blur)"/>
-    <circle cx="220" cy="180" r="14" fill="#ffb703" opacity="0.3" filter="url(#blur)"/>
-    <rect x="20" y="20" width="360" height="360" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="6"/>
-    <line x1="200" y1="20" x2="200" y2="380" stroke="#ffffff" stroke-opacity="0.12" stroke-width="4"/>
-    <line x1="20" y1="190" x2="380" y2="190" stroke="#ffffff" stroke-opacity="0.12" stroke-width="4"/>
-    <circle cx="65" cy="85" r="3.5" fill="#e0f2fe" opacity="0.75"/>
-    <circle cx="120" cy="140" r="2.5" fill="#e0f2fe" opacity="0.7"/>
-    <circle cx="240" cy="70" r="3" fill="#e0f2fe" opacity="0.8"/>
-    <circle cx="310" cy="150" r="4" fill="#e0f2fe" opacity="0.7"/>
-    <line x1="65" y1="85" x2="65" y2="115" stroke="#e0f2fe" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-    <line x1="240" y1="70" x2="240" y2="105" stroke="#e0f2fe" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
-    <line x1="310" y1="150" x2="310" y2="185" stroke="#e0f2fe" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
-    <rect x="0" y="320" width="400" height="80" fill="#0d0714"/>
-    <path d="M 120 320 Q 120 300 135 300 L 145 300 Q 160 300 160 320 Z" fill="#fb8500" opacity="0.9"/>
-    <path d="M 170 320 Q 170 305 182 305 L 190 305 Q 202 305 202 320 Z" fill="#ffb703" opacity="0.85"/>
-    <path d="M 140 295 Q 135 280 145 270 Q 155 260 140 250" fill="none" stroke="#fff" stroke-width="2" opacity="0.4" stroke-linecap="round"/>
-    <path d="M 186 300 Q 180 288 190 280 Q 198 272 186 262" fill="none" stroke="#fff" stroke-width="2" opacity="0.35" stroke-linecap="round"/>
+    <rect width="${W}" height="${H}" fill="url(#animeBg1)"/>
+    <circle cx="300" cy="240" r="170" fill="url(#animeGlow1)"/>
+    <circle cx="70" cy="110" r="25" fill="#fbbf24" opacity="0.3" filter="url(#animeBlur1)"/>
+    <circle cx="150" cy="80" r="32" fill="#ec4899" opacity="0.25" filter="url(#animeBlur1)"/>
+    <circle cx="260" cy="95" r="20" fill="#38bdf8" opacity="0.3" filter="url(#animeBlur1)"/>
+    <circle cx="210" cy="170" r="16" fill="#fbbf24" opacity="0.35" filter="url(#animeBlur1)"/>
+    <rect x="25" y="25" width="350" height="350" rx="16" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="5"/>
+    <line x1="200" y1="25" x2="200" y2="375" stroke="#ffffff" stroke-opacity="0.14" stroke-width="4"/>
+    <line x1="25" y1="185" x2="375" y2="185" stroke="#ffffff" stroke-opacity="0.14" stroke-width="4"/>
+    <circle cx="75" cy="90" r="3.5" fill="#e0f2fe" opacity="0.8"/>
+    <circle cx="130" cy="145" r="2.8" fill="#e0f2fe" opacity="0.75"/>
+    <circle cx="245" cy="75" r="3.2" fill="#e0f2fe" opacity="0.85"/>
+    <circle cx="315" cy="155" r="4.2" fill="#e0f2fe" opacity="0.75"/>
+    <line x1="75" y1="90" x2="75" y2="120" stroke="#e0f2fe" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+    <line x1="245" y1="75" x2="245" y2="110" stroke="#e0f2fe" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 90 375 Q 90 280 150 270 Q 200 265 250 285 Q 290 300 290 375 Z" fill="#170c24"/>
+    <path d="M 120 375 Q 140 310 185 300 Q 230 295 270 330 Q 285 345 285 375 Z" fill="#f59e0b" opacity="0.85"/>
+    <rect x="150" y="340" width="22" height="24" rx="4" fill="#fbbf24"/>
+    <rect x="180" y="343" width="20" height="21" rx="4" fill="#f59e0b"/>
+    <path d="M 161 332 Q 155 315 168 305" fill="none" stroke="#fff" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+    <path d="M 190 336 Q 184 322 196 312" fill="none" stroke="#fff" stroke-width="2" opacity="0.45" stroke-linecap="round"/>
   </svg>`;
   return encodeSvg(svg);
 }
 
-function morningKitchenScene() {
+function animeRainyEmbraceScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
-      <linearGradient id="bgMorning" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#451a03"/>
-        <stop offset="50%" stop-color="#78350f"/>
-        <stop offset="100%" stop-color="#b45309"/>
+      <linearGradient id="animeBg2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#120826"/>
+        <stop offset="50%" stop-color="#2a0e3b"/>
+        <stop offset="100%" stop-color="#4a154b"/>
       </linearGradient>
-      <linearGradient id="sunbeam" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#fef08a" stop-opacity="0.6"/>
-        <stop offset="100%" stop-color="#fef08a" stop-opacity="0"/>
-      </linearGradient>
+      <radialGradient id="animeGlow2" cx="0.5" cy="0.45" r="0.5">
+        <stop offset="0%" stop-color="#f472b6" stop-opacity="0.7"/>
+        <stop offset="60%" stop-color="#ec4899" stop-opacity="0.25"/>
+        <stop offset="100%" stop-color="#120826" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="animeBlur2"><feGaussianBlur stdDeviation="8"/></filter>
     </defs>
-    <rect width="${W}" height="${H}" fill="url(#bgMorning)"/>
-    <polygon points="0,0 180,0 350,400 0,400" fill="url(#sunbeam)"/>
-    <polygon points="80,0 260,0 400,320 180,400" fill="url(#sunbeam)" opacity="0.7"/>
-    <rect x="40" y="30" width="320" height="220" rx="12" fill="none" stroke="#fde047" stroke-opacity="0.3" stroke-width="4"/>
-    <line x1="200" y1="30" x2="200" y2="250" stroke="#fde047" stroke-opacity="0.3" stroke-width="3"/>
-    <line x1="40" y1="140" x2="360" y2="140" stroke="#fde047" stroke-opacity="0.3" stroke-width="3"/>
-    <path d="M 60 250 L 80 250 L 76 225 L 64 225 Z" fill="#92400e"/>
-    <circle cx="70" cy="215" r="14" fill="#22c55e" opacity="0.9"/>
-    <circle cx="62" cy="208" r="10" fill="#16a34a" opacity="0.9"/>
-    <circle cx="78" cy="210" r="11" fill="#4ade80" opacity="0.95"/>
-    <rect x="0" y="310" width="400" height="90" fill="#291206"/>
-    <path d="M 260 310 L 290 310 L 285 260 L 265 260 Z" fill="#fef08a" opacity="0.95"/>
-    <path d="M 285 270 L 305 270 L 305 295 L 288 295" fill="none" stroke="#fef08a" stroke-width="3" opacity="0.9"/>
-    <rect x="200" y="285" width="24" height="25" rx="4" fill="#fbbf24"/>
-    <path d="M 224 290 Q 234 297 224 305" fill="none" stroke="#fbbf24" stroke-width="2.5"/>
-    <path d="M 212 280 Q 206 265 216 255" fill="none" stroke="#fff" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+    <rect width="${W}" height="${H}" fill="url(#animeBg2)"/>
+    <circle cx="200" cy="180" r="170" fill="url(#animeGlow2)"/>
+    <circle cx="85" cy="115" r="30" fill="#f472b6" opacity="0.3" filter="url(#animeBlur2)"/>
+    <circle cx="175" cy="75" r="42" fill="#fbbf24" opacity="0.25" filter="url(#animeBlur2)"/>
+    <circle cx="305" cy="125" r="34" fill="#a78bfa" opacity="0.3" filter="url(#animeBlur2)"/>
+    <circle cx="235" cy="195" r="26" fill="#f472b6" opacity="0.35" filter="url(#animeBlur2)"/>
+    <circle cx="65" cy="45" r="2" fill="#fff" opacity="0.8"/>
+    <circle cx="145" cy="105" r="2.5" fill="#fff" opacity="0.9"/>
+    <circle cx="255" cy="55" r="3" fill="#fff" opacity="0.85"/>
+    <circle cx="335" cy="85" r="2" fill="#fff" opacity="0.75"/>
+    <path d="M 110 375 C 110 300 160 270 200 270 C 240 270 290 300 290 375 Z" fill="#1b082e"/>
+    <path d="M 140 375 C 140 320 175 295 200 295 C 225 295 260 320 260 375 Z" fill="#ec4899" opacity="0.8"/>
+    <rect x="182" y="325" width="36" height="40" rx="8" fill="#f472b6"/>
+    <path d="M 200 315 C 192 300 208 290 200 275" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.6" stroke-linecap="round"/>
   </svg>`;
   return encodeSvg(svg);
 }
 
-function lateNightComfortScene() {
+function animeMorningKitchenScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
-      <linearGradient id="bgComfort" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#0b071e"/>
-        <stop offset="60%" stop-color="#190e38"/>
-        <stop offset="100%" stop-color="#311452"/>
+      <linearGradient id="animeBg3" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3e1e07"/>
+        <stop offset="50%" stop-color="#713f12"/>
+        <stop offset="100%" stop-color="#a16207"/>
       </linearGradient>
-      <radialGradient id="moonLight" cx="0.2" cy="0.25" r="0.4">
-        <stop offset="0%" stop-color="#e9d5ff" stop-opacity="0.9"/>
-        <stop offset="50%" stop-color="#c084fc" stop-opacity="0.3"/>
-        <stop offset="100%" stop-color="#0b071e" stop-opacity="0"/>
-      </radialGradient>
-      <radialGradient id="fairyGlow" cx="0.75" cy="0.7" r="0.35">
-        <stop offset="0%" stop-color="#fef08a" stop-opacity="0.7"/>
-        <stop offset="100%" stop-color="#311452" stop-opacity="0"/>
-      </radialGradient>
-    </defs>
-    <rect width="${W}" height="${H}" fill="url(#bgComfort)"/>
-    <circle cx="80" cy="100" r="140" fill="url(#moonLight)"/>
-    <circle cx="300" cy="280" r="130" fill="url(#fairyGlow)"/>
-    <rect x="30" y="30" width="160" height="220" rx="14" fill="#070414" stroke="#c084fc" stroke-opacity="0.25" stroke-width="3"/>
-    <circle cx="120" cy="80" r="22" fill="#f3e8ff"/>
-    <circle cx="130" cy="74" r="20" fill="#070414"/>
-    <circle cx="65" cy="65" r="1.5" fill="#fff"/>
-    <circle cx="155" cy="120" r="1.2" fill="#fff"/>
-    <circle cx="85" cy="160" r="1.8" fill="#e9d5ff"/>
-    <path d="M 190 40 Q 260 80 370 50" fill="none" stroke="#fde047" stroke-width="1.5" opacity="0.6"/>
-    <circle cx="210" cy="52" r="4" fill="#fde047" opacity="0.9"/>
-    <circle cx="250" cy="64" r="4.5" fill="#fef08a" opacity="0.95"/>
-    <circle cx="290" cy="65" r="4" fill="#fde047" opacity="0.9"/>
-    <circle cx="330" cy="58" r="4.5" fill="#fef08a" opacity="0.95"/>
-    <path d="M 210 400 L 210 320 Q 210 290 240 290 L 340 290 Q 370 290 370 320 L 370 400 Z" fill="#140a26"/>
-    <circle cx="260" cy="335" r="22" fill="#a855f7" opacity="0.8"/>
-    <circle cx="310" cy="335" r="20" fill="#c084fc" opacity="0.75"/>
-  </svg>`;
-  return encodeSvg(svg);
-}
-
-function holdingHandsWinterScene() {
-  const W = 400, H = 400;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <defs>
-      <linearGradient id="bgWinter" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#1e112a"/>
-        <stop offset="60%" stop-color="#3b112c"/>
-        <stop offset="100%" stop-color="#58132e"/>
+      <linearGradient id="animeSunbeam3" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#fde047" stop-opacity="0.65"/>
+        <stop offset="100%" stop-color="#fde047" stop-opacity="0"/>
       </linearGradient>
-      <radialGradient id="bokehGlow" cx="0.5" cy="0.4" r="0.5">
-        <stop offset="0%" stop-color="#fb7185" stop-opacity="0.6"/>
-        <stop offset="60%" stop-color="#f43f5e" stop-opacity="0.2"/>
-        <stop offset="100%" stop-color="#1e112a" stop-opacity="0"/>
-      </radialGradient>
-      <filter id="blurB"><feGaussianBlur stdDeviation="8"/></filter>
     </defs>
-    <rect width="${W}" height="${H}" fill="url(#bgWinter)"/>
-    <circle cx="200" cy="160" r="180" fill="url(#bokehGlow)"/>
-    <circle cx="90" cy="120" r="32" fill="#fde047" opacity="0.25" filter="url(#blurB)"/>
-    <circle cx="180" cy="80" r="45" fill="#fb7185" opacity="0.3" filter="url(#blurB)"/>
-    <circle cx="300" cy="130" r="36" fill="#f43f5e" opacity="0.25" filter="url(#blurB)"/>
-    <circle cx="240" cy="190" r="28" fill="#fda4af" opacity="0.3" filter="url(#blurB)"/>
-    <circle cx="70" cy="50" r="2" fill="#fff" opacity="0.8"/>
-    <circle cx="150" cy="110" r="2.5" fill="#fff" opacity="0.9"/>
-    <circle cx="260" cy="60" r="3" fill="#fff" opacity="0.85"/>
-    <circle cx="340" cy="90" r="2" fill="#fff" opacity="0.75"/>
-    <circle cx="110" cy="220" r="2.5" fill="#fff" opacity="0.8"/>
-    <circle cx="310" cy="230" r="2.5" fill="#fff" opacity="0.8"/>
-    <path d="M 140 330 C 140 280 180 270 200 270 C 220 270 260 280 260 330 L 260 400 L 140 400 Z" fill="#260914"/>
-    <rect x="175" y="290" width="50" height="55" rx="10" fill="#fb7185"/>
-    <path d="M 200 275 C 190 260 210 250 200 235" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.6" stroke-linecap="round"/>
-    <path d="M 212 280 C 205 268 220 258 212 245" fill="none" stroke="#fff" stroke-width="2.5" opacity="0.5" stroke-linecap="round"/>
+    <rect width="${W}" height="${H}" fill="url(#animeBg3)"/>
+    <polygon points="0,0 200,0 380,400 0,400" fill="url(#animeSunbeam3)"/>
+    <polygon points="90,0 280,0 400,300 160,400" fill="url(#animeSunbeam3)" opacity="0.65"/>
+    <rect x="35" y="30" width="330" height="210" rx="12" fill="none" stroke="#fde047" stroke-opacity="0.35" stroke-width="4"/>
+    <line x1="200" y1="30" x2="200" y2="240" stroke="#fde047" stroke-opacity="0.35" stroke-width="3"/>
+    <line x1="35" y1="135" x2="365" y2="135" stroke="#fde047" stroke-opacity="0.35" stroke-width="3"/>
+    <path d="M 55 240 L 75 240 L 71 215 L 59 215 Z" fill="#78350f"/>
+    <circle cx="65" cy="205" r="14" fill="#22c55e" opacity="0.9"/>
+    <circle cx="57" cy="198" r="10" fill="#16a34a" opacity="0.9"/>
+    <circle cx="73" cy="200" r="11" fill="#4ade80" opacity="0.95"/>
+    <rect x="0" y="300" width="400" height="100" fill="#241003"/>
+    <path d="M 250 300 L 280 300 L 275 250 L 255 250 Z" fill="#fde047" opacity="0.95"/>
+    <path d="M 275 260 L 295 260 L 295 285 L 278 285" fill="none" stroke="#fde047" stroke-width="3" opacity="0.9"/>
+    <rect x="190" y="275" width="24" height="25" rx="4" fill="#eab308"/>
+    <path d="M 214 280 Q 224 287 214 295" fill="none" stroke="#eab308" stroke-width="2.5"/>
+    <path d="M 202 270 Q 196 255 206 245" fill="none" stroke="#fff" stroke-width="2" opacity="0.65" stroke-linecap="round"/>
   </svg>`;
   return encodeSvg(svg);
 }
 
 export const CHAT_WALLPAPERS = [
+  // ── 3 Anime Animated Couple Themes (NO realistic faces - FIRST IN LIST) ──
+  {
+    id: 'wp-anime-rainy-blanket', name: 'Rainy Blanket',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: animeRainyBlanketScene(),
+  },
+  {
+    id: 'wp-anime-rainy-embrace', name: 'Rainy Evening',
+    brightColor: '#ec4899', darkColor: '#831843', lightColor: '#f472b6',
+    image: animeRainyEmbraceScene(),
+  },
+  {
+    id: 'wp-anime-morning-kitchen', name: 'Morning Coffee',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: animeMorningKitchenScene(),
+  },
+
+  // ── 7 Scenic Landscape & Interior Themes ──────────────────────
+  {
+    id: 'wp-rainy-window', name: 'Rainy Window',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window.jpg',
+  },
+  {
+    id: 'wp-sky-islands', name: 'Sky Islands',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/sky-islands.jpg',
+  },
+  {
+    id: 'wp-secret-garden', name: 'Secret Garden',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/secret-garden.jpg',
+  },
+  {
+    id: 'wp-deep-space', name: 'Deep Space',
+    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
+    image: '/wallpapers/deep-space.jpg',
+  },
+  {
+    id: 'wp-winter-village', name: 'Winter Village',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/winter-village.jpg',
+  },
+  {
+    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall',
+    brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
+    image: '/wallpapers/tropical-waterfall.jpg',
+  },
+  {
+    id: 'wp-zen-interior', name: 'Zen Interior',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/zen-interior.jpg',
+  },
+
   // ── Vector SVG Landscapes ────────────────────────────────
   {
     id: 'wp-aurora', name: 'Aurora',
@@ -318,63 +330,6 @@ export const CHAT_WALLPAPERS = [
         { color: '#701a3f', points: '0,340 120,318 250,336 400,312 400,400 0,400' },
       ],
     }),
-  },
-
-  // ── 11 New Requested Chat Themes ─────────────────────────────
-  {
-    id: 'wp-rainy-window', name: 'Rainy Window',
-    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
-    image: '/wallpapers/rainy-window.jpg',
-  },
-  {
-    id: 'wp-sky-islands', name: 'Sky Islands',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/sky-islands.jpg',
-  },
-  {
-    id: 'wp-secret-garden', name: 'Secret Garden',
-    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
-    image: '/wallpapers/secret-garden.jpg',
-  },
-  {
-    id: 'wp-deep-space', name: 'Deep Space',
-    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
-    image: '/wallpapers/deep-space.jpg',
-  },
-  {
-    id: 'wp-winter-village', name: 'Winter Village',
-    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
-    image: '/wallpapers/winter-village.jpg',
-  },
-  {
-    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall',
-    brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
-    image: '/wallpapers/tropical-waterfall.jpg',
-  },
-  {
-    id: 'wp-zen-interior', name: 'Zen Interior',
-    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
-    image: '/wallpapers/zen-interior.jpg',
-  },
-  {
-    id: 'wp-rainy-embrace', name: 'Rainy Embrace',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: rainyEmbraceScene(),
-  },
-  {
-    id: 'wp-morning-kitchen', name: 'Morning Kitchen',
-    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
-    image: morningKitchenScene(),
-  },
-  {
-    id: 'wp-late-night-comfort', name: 'Late Night Comfort',
-    brightColor: '#a855f7', darkColor: '#581c87', lightColor: '#c084fc',
-    image: lateNightComfortScene(),
-  },
-  {
-    id: 'wp-holding-hands-winter', name: 'Holding Hands Winter',
-    brightColor: '#f43f5e', darkColor: '#881337', lightColor: '#fb7185',
-    image: holdingHandsWinterScene(),
   },
 
   // ── Additional Wallpaper Collections ───────────────────────
