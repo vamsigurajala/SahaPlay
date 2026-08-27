@@ -199,6 +199,34 @@ export const CHAT_WALLPAPERS = [
     id: 'wp-sakura-twilight', name: 'Sakura Twilight',
     image: '/wallpapers/sakura-twilight.jpg',
   },
+  {
+    id: 'wp-tropical-sunset', name: 'Tropical Sunset',
+    image: '/wallpapers/tropical-sunset.jpg',
+  },
+  {
+    id: 'wp-midnight-library', name: 'Midnight Library',
+    image: '/wallpapers/midnight-library.jpg',
+  },
+  {
+    id: 'wp-autumn-cabin', name: 'Autumn Cabin',
+    image: '/wallpapers/autumn-cabin.jpg',
+  },
+  {
+    id: 'wp-starry-valley', name: 'Starry Valley',
+    image: '/wallpapers/starry-valley.jpg',
+  },
+  {
+    id: 'wp-neo-tokyo-rain', name: 'Neo Tokyo Rain',
+    image: '/wallpapers/neo-tokyo-rain.jpg',
+  },
+  {
+    id: 'wp-floating-islands', name: 'Floating Islands',
+    image: '/wallpapers/floating-islands.jpg',
+  },
+  {
+    id: 'wp-lavender-night', name: 'Lavender Night',
+    image: '/wallpapers/lavender-night.jpg',
+  },
 ];
 
 export function findWallpaper(id) {
