@@ -5,8 +5,10 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.media.projection.MediaProjectionManager;
+import android.os.Build;
 import android.util.DisplayMetrics;
 import android.view.Window;
 import android.view.WindowManager;
@@ -385,9 +387,26 @@ public class SahaplayMediaPlugin extends Plugin {
     // picker is deliberately permission-free), but a real system prompt is
     // requested anyway per explicit product request rather than relying on
     // that silent, scoped access.
+    //
+    // Deliberately does NOT use Capacitor's own getPermissionState("photos")
+    // to decide granted/denied (unlike ensureMediaPermissions above, which
+    // safely can — CAMERA/RECORD_AUDIO have no SDK-version split). The
+    // "photos" alias covers TWO manifest strings — READ_MEDIA_IMAGES (33+)
+    // and READ_EXTERNAL_STORAGE (maxSdkVersion="32", a no-op above API 32) —
+    // and Capacitor's alias-level GRANTED check requires EVERY string under
+    // an alias to individually read PERMISSION_GRANTED. On a real Android
+    // 13+ device, READ_EXTERNAL_STORAGE can never actually be granted (the
+    // OS silently ignores requesting it past its maxSdkVersion), so that
+    // combined check would stay stuck on "not granted" forever even
+    // immediately after the user taps "Allow" on the real READ_MEDIA_IMAGES
+    // dialog — which is what made the app's own fallback modal appear
+    // instead of (or right after) Android's real permission prompt.
+    // hasPhotoPermission() below checks only whichever single permission
+    // actually applies on this device's SDK version, sidestepping that
+    // AND-of-both-strings trap entirely.
     @PluginMethod
     public void ensurePhotoPermissions(PluginCall call) {
-        if (getPermissionState("photos") == PermissionState.GRANTED) {
+        if (hasPhotoPermission()) {
             JSObject ret = new JSObject();
             ret.put("granted", true);
             call.resolve(ret);
@@ -399,8 +418,15 @@ public class SahaplayMediaPlugin extends Plugin {
     @PermissionCallback
     private void photoPermissionCallback(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("granted", getPermissionState("photos") == PermissionState.GRANTED);
+        ret.put("granted", hasPhotoPermission());
         call.resolve(ret);
+    }
+
+    private boolean hasPhotoPermission() {
+        String perm = Build.VERSION.SDK_INT >= 33
+            ? Manifest.permission.READ_MEDIA_IMAGES
+            : Manifest.permission.READ_EXTERNAL_STORAGE;
+        return ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED;
     }
 
     // Deep-links into this app's own page in the system Settings app (the

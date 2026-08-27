@@ -5525,7 +5525,15 @@ const GlobalChatWidget = forwardRef(({
   // from within a room) computes the same private-chat chatKey as
   // dmTarget.toLowerCase(), so a theme set from either surface has to land on
   // the identical map key for the other to see it too.
-  const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
+  // Gated on view === 'chat' too, not just activeChat — handleBackToList()
+  // deliberately only flips `view` back to 'list' without clearing
+  // activeChat (see its own comment), so activeChat still points at the
+  // chat you just left. Without this gate, that chat's theme/wallpaper kept
+  // resolving (and its backdrop kept rendering, see activeWallpaper's usage
+  // below) behind the plain Conversations list too, which is the "theme
+  // leaks outside of chat" bug — a theme must only ever be visible while
+  // that specific chat is actually the thing on screen.
+  const activeChatKey = (activeChat && view === 'chat') ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
   const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
   // wp- ids (see chatThemes.js) share this same storage slot as the plain
   // gradient CHAT_THEMES ids above — a full-chat background image instead of
@@ -5814,8 +5822,15 @@ const GlobalChatWidget = forwardRef(({
           // normally; every other context just gets flat 16px, matching how
           // the rest of the app (Room's own header, Navbar) already does it.
           paddingTop: 'calc(16px + var(--sp-status-bar-inset, 0px))',
-          background: transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)',
-          borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)' 
+          // A per-chat wallpaper's backdrop image sits behind this whole
+          // panel (see activeWallpaper's z-index:-1 layer below), including
+          // the area under this header — the header's own background here
+          // MUST stay solid whenever a wallpaper is active, or the name/
+          // call icons/3-dots read as "transparent" with the wallpaper
+          // showing through them. transparentMode's normal translucent look
+          // only applies when there's no wallpaper to protect against.
+          background: activeWallpaper ? 'rgba(10,10,10,0.94)' : (transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)'),
+          borderBottom: activeWallpaper ? '1px solid rgba(255,255,255,0.08)' : (transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)')
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {view === 'chat' && (

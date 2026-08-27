@@ -91,8 +91,15 @@ export default function CameraCapture({ onCapture, onClose }) {
   const colorBarRef = useRef(null);
   const colorCircleRef = useRef(null);
   const colorDraggingRef = useRef(false);
-  const pendingColorRef = useRef(null);
-  const colorRafRef = useRef(null);
+  // The text-entry input is uncontrolled (see the editingText JSX below) —
+  // its value and live drag-color are both read from refs at commit time
+  // instead of React state, so neither typing a single character nor
+  // dragging the color slider ever re-renders this component. A controlled
+  // input re-rendering the whole CameraCapture tree (captured photo, video
+  // refs, etc.) on every keystroke/pointermove is exactly what read as
+  // "slow"/"glitchy" typing and re-editing on a real device.
+  const textInputRef = useRef(null);
+  const latestColorRef = useRef('#ffffff');
 
   const [facingMode, setFacingMode] = useState('environment');
   const [ready, setReady] = useState(false);
@@ -179,8 +186,6 @@ export default function CameraCapture({ onCapture, onClose }) {
     const id = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(id);
   }, []);
-
-  useEffect(() => () => { if (colorRafRef.current) cancelAnimationFrame(colorRafRef.current); }, []);
 
   // Discards whatever was captured/picked and returns to the live camera —
   // used by both the back-gesture (level 2 → 1, see above) and the custom
@@ -326,16 +331,22 @@ export default function CameraCapture({ onCapture, onClose }) {
   };
 
   const openTextEditor = () => {
+    const initialColor = textOverlay?.color || '#ffffff';
     setTextDraft(textOverlay?.text || '');
-    setTextDraftColor(textOverlay?.color || '#ffffff');
+    setTextDraftColor(initialColor);
+    latestColorRef.current = initialColor;
     setEditingText(true);
   };
 
+  // Reads the live values straight from the uncontrolled input + the color
+  // ref (see textInputRef/latestColorRef above) rather than React state —
+  // neither one was ever committed to state while the user was actually
+  // typing/dragging, only here, once, when they're done.
   const commitText = () => {
-    const t = textDraft.trim();
+    const t = (textInputRef.current?.value ?? '').trim();
     setEditingText(false);
     if (!t) { setTextOverlay(null); return; }
-    setTextOverlay(prev => ({ text: t, color: textDraftColor, xPct: prev?.xPct ?? 0.5, yPct: prev?.yPct ?? 0.5 }));
+    setTextOverlay(prev => ({ text: t, color: latestColorRef.current, xPct: prev?.xPct ?? 0.5, yPct: prev?.yPct ?? 0.5 }));
   };
 
   // Pointer events handle the actual drag (percentage position within the
@@ -371,28 +382,20 @@ export default function CameraCapture({ onCapture, onClose }) {
     openTextEditor();
   };
 
-  // Color slider drag: the moving parts (the big preview circle's position/
-  // color) are written straight to the DOM via refs instead of React state,
-  // so dragging stays smooth regardless of how fast pointermove fires — a
-  // React re-render per pixel of movement is exactly the kind of thing that
-  // reads as "laggy" on a mid-range phone. The actually-applied color
-  // (textDraftColor, which the input's text needs) is still real state, but
-  // committed at most once per animation frame via rAF instead of once per
-  // event, which is the other half of keeping this smooth.
-  const scheduleColorCommit = (color) => {
-    pendingColorRef.current = color;
-    if (colorRafRef.current) return;
-    colorRafRef.current = requestAnimationFrame(() => {
-      colorRafRef.current = null;
-      if (pendingColorRef.current) setTextDraftColor(pendingColorRef.current);
-    });
-  };
+  // Color slider drag: every moving part — the small preview circle's
+  // position/color AND the input text's own live color — is written
+  // straight to the DOM via refs, never through React state, so dragging
+  // never re-renders anything regardless of how fast pointermove fires (a
+  // React re-render per pixel of movement is exactly what read as "laggy"
+  // on a real device). latestColorRef just remembers the final value for
+  // commitText() to read once, when the drag is over.
   const updateColorFromClientY = (clientY) => {
     const bar = colorBarRef.current;
     if (!bar) return;
     const rect = bar.getBoundingClientRect();
     const frac = (clientY - rect.top) / rect.height;
     const color = colorAtFraction(frac);
+    latestColorRef.current = color;
     if (colorCircleRef.current) {
       colorCircleRef.current.style.background = color;
       // The editingText overlay is position:fixed inset:0 (spans the full
@@ -402,7 +405,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       const clampedY = Math.min(rect.bottom, Math.max(rect.top, clientY));
       colorCircleRef.current.style.top = `${clampedY}px`;
     }
-    scheduleColorCommit(color);
+    if (textInputRef.current) textInputRef.current.style.color = color;
   };
   const onColorPointerDown = (e) => {
     e.stopPropagation();
@@ -643,9 +646,9 @@ export default function CameraCapture({ onCapture, onClose }) {
           style={{ position: 'fixed', inset: 0, zIndex: 1000000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
         >
           <input
+            ref={textInputRef}
             autoFocus
-            value={textDraft}
-            onChange={e => setTextDraft(e.target.value)}
+            defaultValue={textDraft}
             onClick={e => e.stopPropagation()}
             onKeyDown={e => { if (e.key === 'Enter') commitText(); }}
             placeholder="Type something..."
@@ -654,10 +657,14 @@ export default function CameraCapture({ onCapture, onClose }) {
               borderRadius: 12, padding: '14px 16px', color: textDraftColor, fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
             }}
           />
-          {/* Continuous vertical color spectrum on the right edge, matching
-              iOS's own text-color slider, instead of a row of fixed swatches —
-              dragging shows a magnified preview circle to its left (below)
-              rather than jumping between discrete dots. */}
+          {/* Continuous vertical color spectrum, matching WhatsApp's own
+              text-color slider: thin, sitting close to the right edge, and
+              covering only the middle band of the screen rather than
+              stretching nearly full-height. Dragging shows a small handle
+              circle right on top of the bar (not a big detached "magnified"
+              preview) — both this circle and the input text's own live
+              color are written directly via refs (see updateColorFromClientY
+              above), so dragging is a pure DOM write with no re-render. */}
           <div
             ref={colorBarRef}
             onClick={e => e.stopPropagation()}
@@ -666,16 +673,16 @@ export default function CameraCapture({ onCapture, onClose }) {
             onPointerUp={onColorPointerUp}
             onPointerCancel={onColorPointerUp}
             style={{
-              position: 'absolute', right: 18, top: 70, bottom: 70, width: 26,
-              borderRadius: 13, background: GRADIENT_CSS, touchAction: 'none', cursor: 'pointer',
+              position: 'absolute', right: 16, top: '24%', bottom: '38%', width: 8,
+              borderRadius: 4, background: GRADIENT_CSS, touchAction: 'none', cursor: 'pointer',
               border: '1px solid rgba(255,255,255,0.25)',
             }}
           />
           <div
             ref={colorCircleRef}
             style={{
-              position: 'absolute', right: 54, top: '50%', width: 56, height: 56, borderRadius: '50%',
-              background: textDraftColor, border: '3px solid #fff', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+              position: 'absolute', right: 9, top: '50%', width: 20, height: 20, borderRadius: '50%',
+              background: textDraftColor, border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
               transform: 'translateY(-50%)', opacity: 0, transition: 'opacity 0.12s ease', pointerEvents: 'none',
             }}
           />
