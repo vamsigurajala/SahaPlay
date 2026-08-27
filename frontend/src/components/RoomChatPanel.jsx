@@ -13,8 +13,6 @@ import {
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import CameraCapture from './CameraCapture';
-import AccessPrimerModal from './AccessPrimerModal';
-import { hasSeenAccessPrimer } from '../lib/accessPrimer';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
@@ -1537,8 +1535,6 @@ export default function RoomChatPanel({ p }) {
   const dmFileInputRef = React.useRef(null);
   const [showGroupCamera, setShowGroupCamera] = React.useState(false);
   const [showDmCamera, setShowDmCamera] = React.useState(false);
-  const [showGroupGalleryPrimer, setShowGroupGalleryPrimer] = React.useState(false);
-  const [showDmGalleryPrimer, setShowDmGalleryPrimer] = React.useState(false);
   const groupFormRef = React.useRef(null);
   const dmFormRef = React.useRef(null);
   // Composer layout (emoji far-left, camera next to mic) only differs below
@@ -3279,7 +3275,7 @@ export default function RoomChatPanel({ p }) {
                                 <SmilePlus size={18}/>
                               </button>
                             )}
-                            <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => { if (!hasSeenAccessPrimer('gallery')) { setShowGroupGalleryPrimer(true); return; } fileInputRef.current?.click(); }} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                            <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                               <Paperclip size={18}/>
                             </button>
                             <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
@@ -3304,13 +3300,6 @@ export default function RoomChatPanel({ p }) {
                             }
                           }}
                           onClose={() => setShowGroupCamera(false)}
-                        />
-                      )}
-                      {showGroupGalleryPrimer && (
-                        <AccessPrimerModal
-                          kind="gallery"
-                          onAllow={() => { setShowGroupGalleryPrimer(false); fileInputRef.current?.click(); }}
-                          onDeny={() => setShowGroupGalleryPrimer(false)}
                         />
                       )}
 
@@ -4102,7 +4091,7 @@ export default function RoomChatPanel({ p }) {
                                     <SmilePlus size={18}/>
                                   </button>
                                 )}
-                                <button type="button" disabled={isUploading} onClick={() => { if (!hasSeenAccessPrimer('gallery')) { setShowDmGalleryPrimer(true); return; } dmFileInputRef.current?.click(); }} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                   <Paperclip size={18}/>
                                 </button>
                                 <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
@@ -4127,13 +4116,6 @@ export default function RoomChatPanel({ p }) {
                                 }
                               }}
                               onClose={() => setShowDmCamera(false)}
-                            />
-                          )}
-                          {showDmGalleryPrimer && (
-                            <AccessPrimerModal
-                              kind="gallery"
-                              onAllow={() => { setShowDmGalleryPrimer(false); dmFileInputRef.current?.click(); }}
-                              onDeny={() => setShowDmGalleryPrimer(false)}
                             />
                           )}
 

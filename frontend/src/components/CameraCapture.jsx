@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
 import { useBackIntercept } from '../hooks/useBackIntercept';
-import { hasSeenAccessPrimer } from '../lib/accessPrimer';
-import AccessPrimerModal from './AccessPrimerModal';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -13,13 +11,32 @@ import AccessPrimerModal from './AccessPrimerModal';
 // whatever caption text was typed (may be ''). Callers pass the file straight
 // into their existing media-upload function, then (if caption is non-empty)
 // drive their own text-send the same way Enter-to-send already does.
+//
+// Camera/gallery permission itself is intentionally NOT gated behind any
+// custom in-app dialog — getUserMedia() and <input type=file> already
+// trigger the real native Android/browser permission prompts on their own
+// (this app's AndroidManifest.xml already declares CAMERA for exactly this),
+// the same way WhatsApp's own camera button does. Adding a software dialog
+// in front of that would just be a second, fake "permission" screen.
+
+// Remembers which physical camera (deviceId) resolved for each facingMode
+// after the first successful open THIS PAGE SESSION — re-requesting by
+// deviceId on later opens/flips skips the browser's camera-selection
+// negotiation entirely, which is the slow part on most Android devices.
+// Deliberately not persisted (a device id isn't guaranteed stable/valid
+// across page loads or permission re-grants), just kept for this mount.
+const resolvedDeviceId = { environment: null, user: null };
+
+const TEXT_COLORS = ['#ffffff', '#000000', '#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+
 export default function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const dragStartY = useRef(null);
   const draggingRef = useRef(false);
   const galleryInputRef = useRef(null);
-  const textDragRef = useRef(null); // { startX, startY, origX, origY, moved }
+  const textDragRef = useRef(null); // { startX, startY, origX, origY, rect }
+  const textJustDraggedRef = useRef(false);
 
   const [facingMode, setFacingMode] = useState('environment');
   const [ready, setReady] = useState(false);
@@ -32,18 +49,23 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [flashActive, setFlashActive] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [rotation, setRotation] = useState(0); // 0 | 90 | 180 | 270
-  const [textOverlay, setTextOverlay] = useState(null); // { text, xPct, yPct }
+  const [textOverlay, setTextOverlay] = useState(null); // { text, xPct, yPct, color }
   const [editingText, setEditingText] = useState(false);
   const [textDraft, setTextDraft] = useState('');
+  const [textDraftColor, setTextDraftColor] = useState('#ffffff');
   const [caption, setCaption] = useState('');
   const [sending, setSending] = useState(false);
-  const [cameraPrimer, setCameraPrimer] = useState(() => !hasSeenAccessPrimer('camera'));
-  const [galleryPrimer, setGalleryPrimer] = useState(false);
 
-  // Mobile/tablet swipe-back (and Android hardware back) should close just
-  // this camera screen and return to the chat, not fall through to whatever
-  // else is listening for back and close the whole chat panel instead.
-  const { skipNextClose } = useBackIntercept(1, (newLevel) => { if (newLevel === 0) onClose && onClose(); });
+  // Two levels: 1 = live camera open, 2 = reviewing a captured/picked photo.
+  // A swipe-back (or the Android hardware back gesture) from level 2 drops
+  // to level 1 — back to the live camera, not out of it — and only from
+  // level 1 does it close this screen and return to the chat. The X button
+  // is a separate, deliberate "close entirely" shortcut regardless of level.
+  const level = capturedUrl ? 2 : 1;
+  const { skipNextClose } = useBackIntercept(level, (newLevel) => {
+    if (newLevel === 1) backToCamera();
+    else if (newLevel === 0) onClose && onClose();
+  });
 
   const stopStream = useCallback(() => {
     if (streamRef.current) {
@@ -57,15 +79,28 @@ export default function CameraCapture({ onCapture, onClose }) {
     setReady(false);
     stopStream();
     try {
-      // A plain ideal width (no forced square height) lets the camera driver
-      // pick its own native aspect ratio, which negotiates much faster on
-      // most Android devices than an unusual 1:1 constraint does — this is
-      // the actual "camera takes forever to open" fix, not just UI polish.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: mode }, width: { ideal: 960 } },
-        audio: false,
-      });
+      // Prefer the exact camera that already resolved for this facingMode
+      // earlier in the session — skips re-negotiating facingMode from
+      // scratch, which is the main thing slowing camera open down. Falls
+      // back to facingMode alone (ideal, not exact) if that ever fails, so
+      // a stale/invalid cached id can't leave the camera unable to open.
+      const cachedId = resolvedDeviceId[mode];
+      const constraints = cachedId
+        ? { video: { deviceId: { ideal: cachedId }, width: { ideal: 720 } }, audio: false }
+        : { video: { facingMode: { ideal: mode }, width: { ideal: 720 } }, audio: false };
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        if (cachedId) {
+          resolvedDeviceId[mode] = null;
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode }, width: { ideal: 720 } }, audio: false });
+        } else {
+          throw err;
+        }
+      }
       streamRef.current = stream;
+      resolvedDeviceId[mode] = stream.getVideoTracks()[0]?.getSettings?.().deviceId || resolvedDeviceId[mode];
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch(() => {});
@@ -79,11 +114,7 @@ export default function CameraCapture({ onCapture, onClose }) {
   }, [stopStream]);
 
   useEffect(() => {
-    // First-ever use asks via AccessPrimerModal below instead of firing
-    // getUserMedia (and its real OS/browser permission dialog) with zero
-    // warning — every later open skips straight to the stream, same as any
-    // real permission only ever being asked once.
-    if (!cameraPrimer) startStream(facingMode);
+    startStream(facingMode);
     return () => stopStream();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -93,8 +124,21 @@ export default function CameraCapture({ onCapture, onClose }) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Any close triggered from inside the UI (X, discard) is an in-app action,
-  // not a real back/swipe gesture — skipNextClose() must run first so
+  // Discards whatever was captured/picked and returns to the live camera —
+  // used by both the back-gesture (level 2 → 1, see above) and the custom
+  // swipe-down-to-dismiss gesture below, so both read the same way.
+  const backToCamera = useCallback(() => {
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    setCapturedUrl(null);
+    setCapturedBlob(null);
+    setRotation(0);
+    setTextOverlay(null);
+    setCaption('');
+    startStream(facingMode);
+  }, [capturedUrl, facingMode, startStream]);
+
+  // Any close triggered from inside the UI (X) is an in-app action, not a
+  // real back/swipe gesture — skipNextClose() must run first so
   // useBackIntercept's own history cleanup doesn't race a real back gesture
   // firing in close succession (see useBackIntercept.js's docs).
   const requestClose = useCallback(() => {
@@ -176,11 +220,6 @@ export default function CameraCapture({ onCapture, onClose }) {
 
   const rotateImage = () => setRotation(r => (r + 90) % 360);
 
-  const openGallery = () => {
-    if (!hasSeenAccessPrimer('gallery')) { setGalleryPrimer(true); return; }
-    galleryInputRef.current?.click();
-  };
-
   // Bakes rotation + the (optional) draggable text label into a real,
   // final JPEG — this is what actually gets downloaded/sent, not just what
   // CSS shows in the editor, so recipients see exactly what was previewed.
@@ -203,8 +242,8 @@ export default function CameraCapture({ onCapture, onClose }) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
-        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = textOverlay.color === '#000000' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)';
+        ctx.fillStyle = textOverlay.color || '#ffffff';
         const tx = textOverlay.xPct * w;
         const ty = textOverlay.yPct * h;
         ctx.strokeText(textOverlay.text, tx, ty);
@@ -228,21 +267,33 @@ export default function CameraCapture({ onCapture, onClose }) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
+  const openTextEditor = () => {
+    setTextDraft(textOverlay?.text || '');
+    setTextDraftColor(textOverlay?.color || '#ffffff');
+    setEditingText(true);
+  };
+
   const commitText = () => {
     const t = textDraft.trim();
     setEditingText(false);
     if (!t) { setTextOverlay(null); return; }
-    setTextOverlay(prev => ({ text: t, xPct: prev?.xPct ?? 0.5, yPct: prev?.yPct ?? 0.5 }));
+    setTextOverlay(prev => ({ text: t, color: textDraftColor, xPct: prev?.xPct ?? 0.5, yPct: prev?.yPct ?? 0.5 }));
   };
 
+  // Pointer events handle the actual drag (percentage position within the
+  // photo frame); a plain click re-opens editing for that same text — click
+  // is the reliable "was this a tap, not a drag" signal here since it fires
+  // after pointerup and (unlike checking pointer state directly) isn't lost
+  // to whichever handler happens to run first.
   const onTextPointerDown = (e) => {
     e.stopPropagation();
     const rect = e.currentTarget.parentElement.getBoundingClientRect();
     textDragRef.current = {
       startX: e.clientX, startY: e.clientY,
       origX: textOverlay?.xPct ?? 0.5, origY: textOverlay?.yPct ?? 0.5,
-      rect, moved: false,
+      rect,
     };
+    textJustDraggedRef.current = false;
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onTextPointerMove = (e) => {
@@ -250,18 +301,16 @@ export default function CameraCapture({ onCapture, onClose }) {
     const d = textDragRef.current;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) d.moved = true;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) textJustDraggedRef.current = true;
     const xPct = Math.min(0.95, Math.max(0.05, d.origX + dx / d.rect.width));
     const yPct = Math.min(0.95, Math.max(0.05, d.origY + dy / d.rect.height));
     setTextOverlay(prev => prev ? { ...prev, xPct, yPct } : prev);
   };
-  const onTextPointerUp = () => {
-    const moved = textDragRef.current?.moved;
-    textDragRef.current = null;
-    if (!moved && textOverlay) {
-      setTextDraft(textOverlay.text);
-      setEditingText(true);
-    }
+  const onTextPointerUp = () => { textDragRef.current = null; };
+  const onTextClick = (e) => {
+    e.stopPropagation();
+    if (textJustDraggedRef.current) { textJustDraggedRef.current = false; return; }
+    openTextEditor();
   };
 
   const send = async () => {
@@ -281,11 +330,10 @@ export default function CameraCapture({ onCapture, onClose }) {
   };
 
   // Swipe-down-to-dismiss: follows the finger 1:1 while dragging, snaps back
-  // if released short of the threshold, commits to a full close otherwise —
-  // same physical feel as a WhatsApp/Instagram full-screen sheet. Independent
-  // of the OS back-gesture handling above (useBackIntercept) — this is a
-  // hand-rolled in-overlay drag, so it must also call requestClose() (which
-  // itself calls skipNextClose()) rather than closing directly.
+  // if released short of the threshold. Committing drops one level, same as
+  // the back-gesture above (photo review → live camera; live camera → close)
+  // rather than always closing outright, so both ways of "going back" behave
+  // the same way.
   const onTouchStart = (e) => {
     if (e.touches.length !== 1 || editingText) return;
     // The draggable text label has its own pointer-based drag handling —
@@ -306,8 +354,12 @@ export default function CameraCapture({ onCapture, onClose }) {
   const onTouchEnd = () => {
     if (!draggingRef.current) return;
     draggingRef.current = false;
-    if (dragY > 120) requestClose();
-    else setDragY(0);
+    if (dragY > 120) {
+      if (capturedUrl) { backToCamera(); setDragY(0); }
+      else requestClose();
+    } else {
+      setDragY(0);
+    }
     dragStartY.current = null;
   };
 
@@ -356,10 +408,12 @@ export default function CameraCapture({ onCapture, onClose }) {
               onPointerDown={onTextPointerDown}
               onPointerMove={onTextPointerMove}
               onPointerUp={onTextPointerUp}
+              onClick={onTextClick}
               style={{
                 position: 'absolute', left: `${textOverlay.xPct * 100}%`, top: `${textOverlay.yPct * 100}%`,
-                transform: 'translate(-50%, -50%)', color: '#fff', fontWeight: 700, fontSize: 22,
-                textShadow: '0 2px 6px rgba(0,0,0,0.7)', cursor: 'grab', padding: 6, touchAction: 'none',
+                transform: 'translate(-50%, -50%)', color: textOverlay.color || '#fff', fontWeight: 700, fontSize: 22,
+                textShadow: textOverlay.color === '#000000' ? '0 1px 4px rgba(255,255,255,0.5)' : '0 2px 6px rgba(0,0,0,0.7)',
+                cursor: 'grab', padding: 6, touchAction: 'none',
                 userSelect: 'none', whiteSpace: 'nowrap',
               }}
             >
@@ -405,11 +459,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={downloadImage} aria-label="Download" style={iconBtnStyle}><Download size={18} color="#fff" /></button>
             <button onClick={rotateImage} aria-label="Rotate" style={iconBtnStyle}><RotateCcw size={18} color="#fff" /></button>
-            <button
-              onClick={() => { setTextDraft(textOverlay?.text || ''); setEditingText(true); }}
-              aria-label="Add text"
-              style={{ ...iconBtnStyle, fontSize: 14, fontWeight: 800, color: '#fff', width: 40 }}
-            >
+            <button onClick={openTextEditor} aria-label="Add text" style={{ ...iconBtnStyle, fontSize: 14, fontWeight: 800, color: '#fff', width: 40 }}>
               Aa
             </button>
           </div>
@@ -424,7 +474,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           padding: '28px 28px max(24px, env(safe-area-inset-bottom))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <button onClick={openGallery} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={() => galleryInputRef.current?.click()} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <ImageIcon size={19} color="#fff" />
           </button>
           <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFromGallery} />
@@ -494,25 +544,30 @@ export default function CameraCapture({ onCapture, onClose }) {
             placeholder="Type something..."
             style={{
               width: '100%', maxWidth: 360, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 12, padding: '14px 16px', color: '#fff', fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
+              borderRadius: 12, padding: '14px 16px', color: textDraftColor, fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
             }}
           />
+          {/* Vertical color strip on the right edge, matching Instagram/
+              WhatsApp's own text-color picker placement. */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(255,255,255,0.08)', padding: '10px 6px', borderRadius: 999 }}
+          >
+            {TEXT_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setTextDraftColor(c)}
+                aria-label={`Text color ${c}`}
+                style={{
+                  width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: textDraftColor === c ? '2px solid #fff' : '2px solid rgba(255,255,255,0.3)',
+                  boxShadow: textDraftColor === c ? '0 0 0 2px rgba(255,255,255,0.4)' : 'none',
+                  padding: 0,
+                }}
+              />
+            ))}
+          </div>
         </div>
-      )}
-
-      {cameraPrimer && (
-        <AccessPrimerModal
-          kind="camera"
-          onAllow={() => { setCameraPrimer(false); startStream(facingMode); }}
-          onDeny={requestClose}
-        />
-      )}
-      {galleryPrimer && (
-        <AccessPrimerModal
-          kind="gallery"
-          onAllow={() => { setGalleryPrimer(false); galleryInputRef.current?.click(); }}
-          onDeny={() => setGalleryPrimer(false)}
-        />
       )}
 
       <style>{`
