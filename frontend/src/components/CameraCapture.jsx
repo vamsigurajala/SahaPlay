@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { hasSeenAccessPrimer } from '../lib/accessPrimer';
+import AccessPrimerModal from './AccessPrimerModal';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -35,6 +37,8 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [textDraft, setTextDraft] = useState('');
   const [caption, setCaption] = useState('');
   const [sending, setSending] = useState(false);
+  const [cameraPrimer, setCameraPrimer] = useState(() => !hasSeenAccessPrimer('camera'));
+  const [galleryPrimer, setGalleryPrimer] = useState(false);
 
   // Mobile/tablet swipe-back (and Android hardware back) should close just
   // this camera screen and return to the chat, not fall through to whatever
@@ -53,8 +57,12 @@ export default function CameraCapture({ onCapture, onClose }) {
     setReady(false);
     stopStream();
     try {
+      // A plain ideal width (no forced square height) lets the camera driver
+      // pick its own native aspect ratio, which negotiates much faster on
+      // most Android devices than an unusual 1:1 constraint does — this is
+      // the actual "camera takes forever to open" fix, not just UI polish.
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: mode }, width: { ideal: 1280 }, height: { ideal: 1280 } },
+        video: { facingMode: { ideal: mode }, width: { ideal: 960 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -71,7 +79,11 @@ export default function CameraCapture({ onCapture, onClose }) {
   }, [stopStream]);
 
   useEffect(() => {
-    startStream(facingMode);
+    // First-ever use asks via AccessPrimerModal below instead of firing
+    // getUserMedia (and its real OS/browser permission dialog) with zero
+    // warning — every later open skips straight to the stream, same as any
+    // real permission only ever being asked once.
+    if (!cameraPrimer) startStream(facingMode);
     return () => stopStream();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -163,6 +175,11 @@ export default function CameraCapture({ onCapture, onClose }) {
   };
 
   const rotateImage = () => setRotation(r => (r + 90) % 360);
+
+  const openGallery = () => {
+    if (!hasSeenAccessPrimer('gallery')) { setGalleryPrimer(true); return; }
+    galleryInputRef.current?.click();
+  };
 
   // Bakes rotation + the (optional) draggable text label into a real,
   // final JPEG — this is what actually gets downloaded/sent, not just what
@@ -271,6 +288,13 @@ export default function CameraCapture({ onCapture, onClose }) {
   // itself calls skipNextClose()) rather than closing directly.
   const onTouchStart = (e) => {
     if (e.touches.length !== 1 || editingText) return;
+    // The draggable text label has its own pointer-based drag handling —
+    // without this check, the SAME touch also drove this swipe-to-dismiss
+    // tracking (touch and pointer events both fire independently for one
+    // physical touch), so every attempt to move the text also dragged the
+    // whole camera screen down at the same time, and neither gesture read
+    // as working properly.
+    if (e.target.closest && e.target.closest('[data-no-swipe]')) return;
     dragStartY.current = e.touches[0].clientY;
     draggingRef.current = true;
   };
@@ -328,6 +352,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           />
           {textOverlay && (
             <div
+              data-no-swipe="true"
               onPointerDown={onTextPointerDown}
               onPointerMove={onTextPointerMove}
               onPointerUp={onTextPointerUp}
@@ -399,7 +424,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           padding: '28px 28px max(24px, env(safe-area-inset-bottom))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <button onClick={() => galleryInputRef.current?.click()} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={openGallery} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <ImageIcon size={19} color="#fff" />
           </button>
           <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFromGallery} />
@@ -473,6 +498,21 @@ export default function CameraCapture({ onCapture, onClose }) {
             }}
           />
         </div>
+      )}
+
+      {cameraPrimer && (
+        <AccessPrimerModal
+          kind="camera"
+          onAllow={() => { setCameraPrimer(false); startStream(facingMode); }}
+          onDeny={requestClose}
+        />
+      )}
+      {galleryPrimer && (
+        <AccessPrimerModal
+          kind="gallery"
+          onAllow={() => { setGalleryPrimer(false); galleryInputRef.current?.click(); }}
+          onDeny={() => setGalleryPrimer(false)}
+        />
       )}
 
       <style>{`

@@ -9,6 +9,8 @@ import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import CameraCapture from './CameraCapture';
+import AccessPrimerModal from './AccessPrimerModal';
+import { hasSeenAccessPrimer } from '../lib/accessPrimer';
 import PinSetupModal from './PinSetupModal';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
@@ -2059,6 +2061,7 @@ const GlobalChatWidget = forwardRef(({
   const fileInputRef = useRef(null);
   const composerFormRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showGalleryPrimer, setShowGalleryPrimer] = useState(false);
   // Composer layout (emoji far-left, camera next to mic) only differs below
   // the same 1023.98px breakpoint every other mobile/tablet-only chrome in
   // this file already uses (see .desktop-only-menu-item) — tracked via
@@ -7899,6 +7902,7 @@ const GlobalChatWidget = forwardRef(({
                                     toast.error('📷 Media sharing is not allowed in this room.');
                                     return;
                                   }
+                                  if (!hasSeenAccessPrimer('gallery')) { setShowGalleryPrimer(true); return; }
                                   fileInputRef.current?.click();
                                 }}
                                 title="Attach image, video, document or file"
@@ -7947,6 +7951,13 @@ const GlobalChatWidget = forwardRef(({
                               }
                             }}
                             onClose={() => setShowCamera(false)}
+                          />
+                        )}
+                        {showGalleryPrimer && (
+                          <AccessPrimerModal
+                            kind="gallery"
+                            onAllow={() => { setShowGalleryPrimer(false); fileInputRef.current?.click(); }}
+                            onDeny={() => setShowGalleryPrimer(false)}
                           />
                         )}
 
