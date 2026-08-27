@@ -60,6 +60,25 @@ const Dashboard = () => {
     return () => clearTimeout(previewTimerRef.current);
   }, []);
 
+  // Belt-and-suspenders alongside this component's own height:100vh +
+  // overflow:hidden wrapper below: html itself still has its own
+  // `overflow-y: auto` (needed for mobile, see index.css) which can still
+  // let the whole page -- navbar included -- scroll if anything nudges
+  // body's rendered height a hair past the viewport. Forcing it hidden here
+  // (same pattern already used by Navbar's mobile menu / CreateRoomModal)
+  // guarantees it regardless of the cause, and is restored on unmount so
+  // other routes (Room, Profile, etc.) keep their normal scroll behavior.
+  useEffect(() => {
+    const prevHtml = document.documentElement.style.overflow;
+    const prevBody = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, []);
+
   const handleJoin = (e) => {
     e.preventDefault();
     if (!roomId.trim()) { toast.error('Please enter a Room ID to join!'); return; }
