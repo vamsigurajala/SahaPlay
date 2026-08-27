@@ -735,23 +735,14 @@ const MenuStyles = () => (
       -webkit-text-fill-color: var(--menu-item-text) !important;
       transition: all 0.2s ease !important;
     }
+    /* Hover = background tint only. Icon/text color deliberately does NOT
+       change here (kept at the base .menu-btn color) — a prior version forced
+       both to var(--brand-1) on hover, which is what needs to stop. */
     .menu-btn:hover {
-      background: rgba(var(--brand-1-rgb), 0.1) !important;
-      color: var(--brand-1) !important;
-      -webkit-text-fill-color: var(--brand-1) !important;
-    }
-    .menu-btn:hover svg {
-      color: var(--brand-1) !important;
-      -webkit-text-fill-color: var(--brand-1) !important;
+      background: rgba(59, 130, 246, 0.14) !important;
     }
     html[data-theme='light'] .menu-btn:hover {
-      background: rgba(var(--brand-1-rgb), 0.1) !important;
-      color: var(--brand-1-dark) !important;
-      -webkit-text-fill-color: var(--brand-1-dark) !important;
-    }
-    html[data-theme='light'] .menu-btn:hover svg {
-      color: var(--brand-1-dark) !important;
-      -webkit-text-fill-color: var(--brand-1-dark) !important;
+      background: rgba(59, 130, 246, 0.12) !important;
     }
     
     .menu-btn-danger {

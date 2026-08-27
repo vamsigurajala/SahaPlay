@@ -694,16 +694,15 @@ const typingCss = `
      message context menu looks/behaves identically in both surfaces. ── */
   .menu-btn { color: var(--menu-item-text); transition: all 0.2s ease; }
   .menu-btn svg { transition: all 0.2s ease; }
+  /* Hover = background tint only. Icon/text color deliberately does NOT
+     change here (kept at the base .menu-btn color) — a prior version forced
+     both to var(--brand-1) on hover, which is what needs to stop. */
   .chat-widget-main-panel .menu-btn:hover {
-    background: rgba(var(--brand-1-rgb), 0.1) !important;
-    color: var(--brand-1) !important;
+    background: rgba(59, 130, 246, 0.14) !important;
   }
-  .chat-widget-main-panel .menu-btn:hover svg { color: var(--brand-1) !important; }
   html[data-theme='light'] .chat-widget-main-panel .menu-btn:hover {
-    background: rgba(var(--brand-1-rgb), 0.1) !important;
-    color: var(--brand-1-dark) !important;
+    background: rgba(59, 130, 246, 0.12) !important;
   }
-  html[data-theme='light'] .chat-widget-main-panel .menu-btn:hover svg { color: var(--brand-1-dark) !important; }
 
   .chat-widget-main-panel .menu-btn-danger { color: #ef4444 !important; }
   .chat-widget-main-panel .menu-btn-danger svg { color: #ef4444 !important; }
@@ -5913,8 +5912,8 @@ const GlobalChatWidget = forwardRef(({
                       }} className="chat-menu-item menu-btn desktop-only-menu-item"
                       onMouseEnter={() => setHoveredMenuBtn('selectMessages')}
                       onMouseLeave={() => setHoveredMenuBtn(null)}
-                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='selectMessages' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
-                        <SquareCheck size={14} color={hoveredMenuBtn==='selectMessages' ? 'var(--brand-1-dark)' : undefined}/> {t('selectMessages', 'Select messages')}
+                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='selectMessages' ? 'rgba(59,130,246,0.14)' : 'transparent', border:'none', color: 'var(--menu-item-text)', WebkitTextFillColor: 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                        <SquareCheck size={14}/> {t('selectMessages', 'Select messages')}
                       </button>
                       <button onClick={() => {
                         setThemeSheetTarget(activeChat);
@@ -5923,8 +5922,8 @@ const GlobalChatWidget = forwardRef(({
                       }} className="chat-menu-item menu-btn"
                       onMouseEnter={() => setHoveredMenuBtn('chatTheme')}
                       onMouseLeave={() => setHoveredMenuBtn(null)}
-                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='chatTheme' ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent', border:'none', color: hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', WebkitTextFillColor: hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
-                        <Palette size={14} color={hoveredMenuBtn==='chatTheme' ? 'var(--brand-1-dark)' : undefined}/> {t('chatTheme', 'Chat theme')}
+                      style={{ display:'flex', alignItems:'center', gap:6, width:'100%', padding:'10px 14px', background: hoveredMenuBtn==='chatTheme' ? 'rgba(59,130,246,0.14)' : 'transparent', border:'none', color: 'var(--menu-item-text)', WebkitTextFillColor: 'var(--menu-item-text)', textAlign:'left', cursor:'pointer', borderRadius:8, fontSize:13, fontWeight:600, transition:'all 0.2s' }}>
+                        <Palette size={14}/> {t('chatTheme', 'Chat theme')}
                       </button>
                       {activeChat.type === 'private' && (
                         <>
