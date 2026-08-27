@@ -443,12 +443,24 @@ const Login = () => {
         }
 
         /* Compact auth screen for the Tauri desktop app: it's a fixed native
-           window, not a full-width marketing page, so the huge branding
-           panel and generously-padded card (sized for a browser viewport)
-           read as oversized. Hide the branding side and tighten the card. */
-        .login-layout--app .login-left { display: none !important; }
-        .login-layout--app .login-card { padding: 32px 28px !important; max-width: 400px !important; }
+           window, not a full-width marketing page, so the card (sized for a
+           browser viewport, with lots of inter-field spacing) reads as
+           oversized. Branding panel stays -- only the form card shrinks.
+           max-height+overflow is a safety net for an unusually short window;
+           it scopes the scroll to the card itself, never the page/navbar. */
+        .login-layout--app .login-card {
+          padding: 22px 26px !important; max-width: 400px !important;
+          max-height: calc(100vh - 32px) !important; overflow-y: auto !important;
+        }
         .login-layout--app .login-right { padding: 16px !important; }
+        .login-layout--app .login-card h1 { font-size: 20px !important; margin-bottom: 14px !important; }
+        .login-layout--app .login-card > p { margin-bottom: 14px !important; }
+        .login-layout--app .login-card form { gap: 12px !important; }
+        .login-layout--app .login-card label { margin-bottom: 4px !important; }
+        .login-layout--app .login-input { padding-top: 9px !important; padding-bottom: 9px !important; }
+        .login-layout--app .login-submit-btn { padding: 11px !important; }
+        .login-layout--app .login-card form + div { margin: 14px 0 !important; }
+        .login-layout--app .login-card form + div + div { margin-bottom: 12px !important; }
 
         .login-left {
           flex: 1.2;
