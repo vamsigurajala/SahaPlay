@@ -1535,6 +1535,8 @@ export default function RoomChatPanel({ p }) {
   const dmFileInputRef = React.useRef(null);
   const [showGroupCamera, setShowGroupCamera] = React.useState(false);
   const [showDmCamera, setShowDmCamera] = React.useState(false);
+  const groupFormRef = React.useRef(null);
+  const dmFormRef = React.useRef(null);
   // Composer layout (emoji far-left, camera next to mic) only differs below
   // the same 1023.98px breakpoint every other mobile/tablet-only chrome in
   // this codebase already uses — tracked via matchMedia so rotating a tablet
@@ -3215,7 +3217,7 @@ export default function RoomChatPanel({ p }) {
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
               const isDisabled = p.isMuted || chatLocked;
               return (
-                <form onSubmit={(e) => {
+                <form ref={groupFormRef} onSubmit={(e) => {
                     const val = p.groupChatInput.trim();
                     const hasLink = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/.test(val);
                     const hasImage = /data:image\/[a-zA-Z]*;base64,/.test(val);
@@ -3276,20 +3278,27 @@ export default function RoomChatPanel({ p }) {
                             <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                               <Paperclip size={18}/>
                             </button>
+                            <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
+                              <Mic size={18}/>
+                            </button>
+                            {/* Camera — mobile/tablet only, after mic per explicit request */}
                             {isMobileOrTablet && (
                               <button type="button" disabled={isDisabled || p.allowMedia === false} onClick={() => setShowGroupCamera(true)} title="Open camera" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                                 <Camera size={18}/>
                               </button>
                             )}
-                            <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
-                              <Mic size={18}/>
-                            </button>
                           </div>
                         </>
                       )}
                       {showGroupCamera && (
                         <CameraCapture
-                          onCapture={(file) => handleFileSelect({ target: { files: [file], value: null } }, 'group')}
+                          onCapture={async (file, caption) => {
+                            await handleFileSelect({ target: { files: [file], value: null } }, 'group');
+                            if (caption && caption.trim()) {
+                              p.setGroupChatInput(caption.trim());
+                              setTimeout(() => groupFormRef.current?.requestSubmit(), 60);
+                            }
+                          }}
                           onClose={() => setShowGroupCamera(false)}
                         />
                       )}
@@ -4031,7 +4040,7 @@ export default function RoomChatPanel({ p }) {
 
                     return (
                       <>
-                        <form onSubmit={(e) => {
+                        <form ref={dmFormRef} onSubmit={(e) => {
                           p.sendDmChat(e);
                           p.setShowDmEmojiPicker(false);
                         }} style={{display:'flex',gap:8,alignItems:'flex-end'}}>
@@ -4085,20 +4094,27 @@ export default function RoomChatPanel({ p }) {
                                 <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                   <Paperclip size={18}/>
                                 </button>
+                                <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
+                                  <Mic size={18}/>
+                                </button>
+                                {/* Camera — mobile/tablet only, after mic per explicit request */}
                                 {isMobileOrTablet && (
                                   <button type="button" onClick={() => setShowDmCamera(true)} title="Open camera" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                     <Camera size={18}/>
                                   </button>
                                 )}
-                                <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
-                                  <Mic size={18}/>
-                                </button>
                               </div>
                             </>
                           )}
                           {showDmCamera && (
                             <CameraCapture
-                              onCapture={(file) => handleFileSelect({ target: { files: [file], value: null } }, 'dm')}
+                              onCapture={async (file, caption) => {
+                                await handleFileSelect({ target: { files: [file], value: null } }, 'dm');
+                                if (caption && caption.trim()) {
+                                  p.setDmChatInput(caption.trim());
+                                  setTimeout(() => dmFormRef.current?.requestSubmit(), 60);
+                                }
+                              }}
                               onClose={() => setShowDmCamera(false)}
                             />
                           )}

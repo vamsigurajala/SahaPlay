@@ -2057,6 +2057,7 @@ const GlobalChatWidget = forwardRef(({
   const [typingStatuses, setTypingStatuses] = useState({}); // chatKey -> Set of usernames typing
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const composerFormRef = useRef(null);
   const [showCamera, setShowCamera] = useState(false);
   // Composer layout (emoji far-left, camera next to mic) only differs below
   // the same 1023.98px breakpoint every other mobile/tablet-only chrome in
@@ -7751,7 +7752,7 @@ const GlobalChatWidget = forwardRef(({
                     emoji/attach/mic/send — is skipped entirely rather than shown
                     disabled; there's nothing for them to do here at all. */}
                 {(!isSahaplayOfficialGroup(activeChat) || isHost) && (
-                <form onSubmit={(e) => {
+                <form ref={composerFormRef} onSubmit={(e) => {
                   handleSend(e);
                   // stop typing immediately on send
                   if (socketRef.current && activeChat) {
@@ -7905,7 +7906,17 @@ const GlobalChatWidget = forwardRef(({
                               >
                                 <Paperclip size={18} />
                               </button>
-                              {/* Camera button — mobile/tablet only, opens in-app capture */}
+                              {/* Mic button — inside input box, hidden while typing */}
+                              <button
+                                type="button"
+                                onClick={startRecording}
+                                title="Record voice note"
+                                style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
+                              >
+                                <Mic size={18} />
+                              </button>
+                              {/* Camera button — mobile/tablet only, opens in-app capture. Sits
+                                  after mic (not between attach and mic) per explicit request. */}
                               {isMobileOrTablet && (
                                 <button
                                   type="button"
@@ -7923,21 +7934,18 @@ const GlobalChatWidget = forwardRef(({
                                   <Camera size={18} />
                                 </button>
                               )}
-                              {/* Mic button — inside input box, hidden while typing */}
-                              <button
-                                type="button"
-                                onClick={startRecording}
-                                title="Record voice note"
-                                style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
-                              >
-                                <Mic size={18} />
-                              </button>
                             </div>
                           </>
                         )}
                         {showCamera && (
                           <CameraCapture
-                            onCapture={(file) => handleMediaUpload(file)}
+                            onCapture={async (file, caption) => {
+                              await handleMediaUpload(file);
+                              if (caption && caption.trim()) {
+                                setInputValue(caption.trim());
+                                setTimeout(() => composerFormRef.current?.requestSubmit(), 60);
+                              }
+                            }}
                             onClose={() => setShowCamera(false)}
                           />
                         )}
