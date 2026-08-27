@@ -128,6 +128,25 @@ export async function ensureNativeMediaPermissions() {
   }
 }
 
+// Explicit photos/files permission, requested before the gallery button
+// (inside the in-app camera screen) or the composer's paperclip button opens
+// the actual file chooser — see requestPhotoAccess() in mediaPermissionGate.js.
+// Unlike camera/mic, there's no browser API this permission maps to (storage
+// access has no WebView-recognized "web permission" counterpart the way
+// camera/mic do via getUserMedia), so this goes through
+// SahaplayMediaPlugin's own @Permission alias / requestPermissionForAlias —
+// the standard Capacitor mechanism, not a workaround like
+// ensureNativeMediaPermissions above needed.
+export async function ensureNativePhotoPermissions() {
+  if (!isCapacitorApp()) return true;
+  try {
+    const result = await plugin()?.ensurePhotoPermissions();
+    return !!result?.granted;
+  } catch {
+    return false;
+  }
+}
+
 // Opens this app's own "App info" page in the system Settings app — the
 // only way to grant CAMERA/RECORD_AUDIO once the user has already denied
 // the in-app prompt (Android stops showing its own permission dialog after

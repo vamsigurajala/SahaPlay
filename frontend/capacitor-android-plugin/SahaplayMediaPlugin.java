@@ -38,7 +38,13 @@ import com.getcapacitor.annotation.PermissionCallback;
 @CapacitorPlugin(
     name = "SahaplayMedia",
     permissions = {
-        @Permission(strings = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, alias = "media")
+        @Permission(strings = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, alias = "media"),
+        // Both strings under one alias — READ_EXTERNAL_STORAGE is a no-op on
+        // Android 13+ (READ_MEDIA_IMAGES applies there instead; see the
+        // matching maxSdkVersion="32" on it in AndroidManifest.xml), so this
+        // covers the full OS range with a single requestPermissionForAlias
+        // call rather than branching on Build.VERSION.SDK_INT here.
+        @Permission(strings = { Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_EXTERNAL_STORAGE }, alias = "photos")
     }
 )
 public class SahaplayMediaPlugin extends Plugin {
@@ -368,6 +374,32 @@ public class SahaplayMediaPlugin extends Plugin {
     private void mediaPermissionCallback(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("granted", getPermissionState("media") == PermissionState.GRANTED);
+        call.resolve(ret);
+    }
+
+    // Explicit gallery/attachment-picker permission, requested BEFORE the
+    // paperclip/camera-screen gallery button opens the actual file chooser —
+    // see requestPhotoAccess() in mediaPermissionGate.js, the JS-side choke
+    // point every such button now awaits first. A plain <input type=file>
+    // would open Android's Photo Picker without ever needing this (that
+    // picker is deliberately permission-free), but a real system prompt is
+    // requested anyway per explicit product request rather than relying on
+    // that silent, scoped access.
+    @PluginMethod
+    public void ensurePhotoPermissions(PluginCall call) {
+        if (getPermissionState("photos") == PermissionState.GRANTED) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+            return;
+        }
+        requestPermissionForAlias("photos", call, "photoPermissionCallback");
+    }
+
+    @PermissionCallback
+    private void photoPermissionCallback(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", getPermissionState("photos") == PermissionState.GRANTED);
         call.resolve(ret);
     }
 

@@ -193,6 +193,17 @@
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Explicit runtime prompt before the gallery/attachment picker opens
+         (SahaplayMediaPlugin.ensurePhotoPermissions) — a plain <input
+         type=file> would otherwise open Android's Photo Picker without
+         needing either of these at all (that picker is deliberately
+         permission-free by design), but the app asks anyway per explicit
+         product request rather than relying on that scoped, silent access.
+         READ_MEDIA_IMAGES is the Android 13+ permission; READ_EXTERNAL_STORAGE
+         is its pre-13 predecessor, capped with maxSdkVersion so it's ignored
+         (not requested) on 13+ where the newer permission already applies. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />

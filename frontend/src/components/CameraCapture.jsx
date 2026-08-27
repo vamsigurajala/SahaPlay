@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { requestPhotoAccess } from '../lib/mediaPermissionGate';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -580,7 +581,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           padding: '28px 28px max(24px, env(safe-area-inset-bottom))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <button onClick={() => galleryInputRef.current?.click()} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={async () => { if (!(await requestPhotoAccess())) return; galleryInputRef.current?.click(); }} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <ImageIcon size={19} color="#fff" />
           </button>
           <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFromGallery} />

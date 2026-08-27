@@ -1,5 +1,5 @@
 import { isCapacitorApp } from './platform';
-import { ensureNativeMediaPermissions } from './nativeMedia';
+import { ensureNativeMediaPermissions, ensureNativePhotoPermissions } from './nativeMedia';
 
 // Single choke point every camera/mic-touching feature (1:1 calls in
 // CallContext.jsx, joining a room / toggling video-mic in Room.jsx, the
@@ -25,6 +25,19 @@ export async function requestMediaAccess() {
   const granted = await ensureNativeMediaPermissions();
   if (granted) return true;
   return new Promise((resolve) => {
-    window.dispatchEvent(new CustomEvent('media_permission_needed', { detail: { resolve } }));
+    window.dispatchEvent(new CustomEvent('media_permission_needed', { detail: { resolve, kind: 'media' } }));
+  });
+}
+
+// Same choke point, for the gallery/attachment-picker permission — every
+// paperclip button and the in-app camera screen's own gallery button await
+// this before opening the actual file chooser. Also a no-op (true) outside
+// the Capacitor app, same reasoning as requestMediaAccess above.
+export async function requestPhotoAccess() {
+  if (!isCapacitorApp()) return true;
+  const granted = await ensureNativePhotoPermissions();
+  if (granted) return true;
+  return new Promise((resolve) => {
+    window.dispatchEvent(new CustomEvent('media_permission_needed', { detail: { resolve, kind: 'photos' } }));
   });
 }

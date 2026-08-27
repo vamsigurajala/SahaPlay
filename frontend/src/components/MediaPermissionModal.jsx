@@ -1,26 +1,45 @@
 // MediaPermissionModal.jsx — mounted once, globally, in App.jsx. Listens for
 // the 'media_permission_needed' event mediaPermissionGate.js's
-// requestMediaAccess() dispatches whenever a camera/mic-touching feature
-// (a 1:1 call, joining a room, the AppSettings device-test previews) finds
-// permission not yet granted on the Capacitor app. Replaces the old
-// behavior of just toast.error()-ing "access is required" with a real way
-// back to "allow it": a first tap re-runs the native permission request
-// (Android can still show its own dialog at this point unless the user
-// already denied it before), and if that still doesn't grant it, a second
-// button deep-links to this app's Settings page — the only way left once
-// Android stops showing its own dialog for an already-denied permission.
+// requestMediaAccess()/requestPhotoAccess() dispatch whenever a camera/mic-
+// touching feature (a 1:1 call, joining a room, the AppSettings device-test
+// previews) or a gallery/attachment button finds permission not yet granted
+// on the Capacitor app — detail.kind ('media' | 'photos') picks which copy/
+// icon/retry-function below. Replaces the old behavior of just
+// toast.error()-ing "access is required" with a real way back to "allow it":
+// a first tap re-runs the native permission request (Android can still show
+// its own dialog at this point unless the user already denied it before),
+// and if that still doesn't grant it, a second button deep-links to this
+// app's Settings page — the only way left once Android stops showing its
+// own dialog for an already-denied permission.
 import { useEffect, useState } from 'react';
-import { Video, Settings as SettingsIcon } from 'lucide-react';
-import { ensureNativeMediaPermissions, openNativeAppSettings } from '../lib/nativeMedia';
+import { Video, Image as ImageIcon, Settings as SettingsIcon } from 'lucide-react';
+import { ensureNativeMediaPermissions, ensureNativePhotoPermissions, openNativeAppSettings } from '../lib/nativeMedia';
+
+const COPY = {
+  media: {
+    icon: Video,
+    title: 'Camera & microphone access',
+    body: 'SahaPlay needs camera and microphone access to make and answer calls, and for video in rooms.',
+    deniedBody: 'Access is still turned off. Open Settings and allow Camera and Microphone for SahaPlay to continue.',
+  },
+  photos: {
+    icon: ImageIcon,
+    title: 'Photos & files access',
+    body: 'SahaPlay needs access to your photos and files to attach them in chat.',
+    deniedBody: 'Access is still turned off. Open Settings and allow Photos and videos for SahaPlay to continue.',
+  },
+};
 
 export default function MediaPermissionModal() {
   const [resolve, setResolveFn] = useState(null);
+  const [kind, setKind] = useState('media');
   const [deniedOnce, setDeniedOnce] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
       setDeniedOnce(false);
+      setKind(e.detail.kind || 'media');
       setResolveFn(() => e.detail.resolve);
     };
     window.addEventListener('media_permission_needed', handler);
@@ -28,6 +47,8 @@ export default function MediaPermissionModal() {
   }, []);
 
   if (!resolve) return null;
+  const copy = COPY[kind] || COPY.media;
+  const Icon = copy.icon;
 
   const finish = (granted) => {
     resolve(granted);
@@ -36,7 +57,7 @@ export default function MediaPermissionModal() {
 
   const tryAgain = async () => {
     setBusy(true);
-    const granted = await ensureNativeMediaPermissions();
+    const granted = kind === 'photos' ? await ensureNativePhotoPermissions() : await ensureNativeMediaPermissions();
     setBusy(false);
     if (granted) finish(true);
     else setDeniedOnce(true);
@@ -74,15 +95,13 @@ export default function MediaPermissionModal() {
           width: 56, height: 56, borderRadius: '50%', background: 'rgba(99,102,241,0.18)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
         }}>
-          <Video size={26} color="#818cf8" />
+          <Icon size={26} color="#818cf8" />
         </div>
         <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700, color: '#fff' }}>
-          Camera & microphone access
+          {copy.title}
         </h3>
         <p style={{ margin: '0 0 22px', fontSize: 14, lineHeight: 1.5, color: 'rgba(255,255,255,0.65)' }}>
-          {deniedOnce
-            ? "Access is still turned off. Open Settings and allow Camera and Microphone for SahaPlay to continue."
-            : 'SahaPlay needs camera and microphone access to make and answer calls, and for video in rooms.'}
+          {deniedOnce ? copy.deniedBody : copy.body}
         </p>
 
         {!deniedOnce ? (

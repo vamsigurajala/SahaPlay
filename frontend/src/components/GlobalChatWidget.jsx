@@ -27,6 +27,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
+import { requestPhotoAccess } from '../lib/mediaPermissionGate';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
@@ -7916,11 +7917,12 @@ const GlobalChatWidget = forwardRef(({
                               <button
                                 type="button"
                                 disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
-                                onClick={() => {
+                                onClick={async () => {
                                   if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
                                     toast.error('📷 Media sharing is not allowed in this room.');
                                     return;
                                   }
+                                  if (!(await requestPhotoAccess())) return;
                                   fileInputRef.current?.click();
                                 }}
                                 title="Attach image, video, document or file"
