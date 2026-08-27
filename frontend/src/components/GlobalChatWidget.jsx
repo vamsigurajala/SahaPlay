@@ -28,7 +28,7 @@ import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersist
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
 import { requestPhotoAccess } from '../lib/mediaPermissionGate';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getWallpaperGradient, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -7310,14 +7310,6 @@ const GlobalChatWidget = forwardRef(({
                               <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                             </div>
                             <div
-                              // .stay-white is the established, !important-backed escape
-                              // hatch from the site-wide light-mode text-color override
-                              // (already relied on by every sent bubble) — applied to a
-                              // received bubble too whenever a Background/wallpaper theme
-                              // is active, since white text there needs the exact same
-                              // "wins regardless of app theme" guarantee sent bubbles get,
-                              // not just a plain inline color that a same-specificity rule
-                              // could contest.
                               className={`msg-bubble ${isMe
                                 ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
                                 : (activeWallpaper ? `msg-received${wallpaperIsDark ? ' stay-white' : ''}` : 'msg-received')}`}
