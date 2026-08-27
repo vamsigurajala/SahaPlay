@@ -185,6 +185,19 @@ export function findWallpaper(id) {
   return CHAT_WALLPAPERS.find(w => w.id === id) || null;
 }
 
+// getWallpaperDominantColor returns an 'rgb(r, g, b)' string — this pulls the
+// numbers back out to decide whether that color reads as dark or light, so
+// bubble text/background choices can follow the actual extracted color
+// instead of being hardcoded white everywhere (which breaks the moment a
+// wallpaper's dominant tone is itself light/pastel).
+export function isRgbColorDark(rgbStr) {
+  if (!rgbStr) return true;
+  const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
+  if (!m) return true;
+  const [r, g, b] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+}
+
 // Real "pick the majority color from the image" extraction: downsamples onto
 // a tiny canvas, quantizes each pixel's RGB into coarse buckets (32 levels
 // per channel) and returns the average color of whichever bucket has the

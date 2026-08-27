@@ -26,7 +26,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -5513,6 +5513,21 @@ const GlobalChatWidget = forwardRef(({
   const activeWallpaper = findWallpaper(activeThemeId);
   const activeTheme = activeWallpaper ? null : (CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0]);
   const isCustomTheme = activeThemeId !== 'default';
+  // Both bubble kinds derive their look from the SAME extracted color instead
+  // of hardcoding white text everywhere — the sent bubble's own background
+  // IS wallpaperColor, so its darkness is the exact right signal for that
+  // bubble's text; the received bubble is a neutral frosted panel (not an
+  // attempt to match the image's color, WhatsApp doesn't do that either) but
+  // picking dark-panel-vs-light-panel off the same signal keeps both bubbles
+  // reading as one coherent "dark theme" or "light theme" pick per wallpaper.
+  const wallpaperIsDark = isRgbColorDark(wallpaperColor);
+  const wallpaperTextColor = wallpaperIsDark ? '#ffffff' : '#111111';
+  // Opaque enough to never look "transparent" over a busy/bright patch of the
+  // photo, plus backdrop-blur (applied at the bubble itself, see below) so
+  // whatever detail still shows through reads as frosted glass, not a raw see-
+  // through rectangle — this replaces the old flat rgba(255,255,255,0.14),
+  // which was too faint to register as a bubble at all against a bright image.
+  const wallpaperReceivedBg = wallpaperIsDark ? 'rgba(24,24,24,0.62)' : 'rgba(255,255,255,0.70)';
 
   useEffect(() => {
     if (!activeWallpaper) { setWallpaperColor(null); return; }
@@ -7273,7 +7288,9 @@ const GlobalChatWidget = forwardRef(({
                               // "wins regardless of app theme" guarantee sent bubbles get,
                               // not just a plain inline color that a same-specificity rule
                               // could contest.
-                              className={`msg-bubble ${isMe ? 'msg-sent stay-white' : (activeWallpaper ? 'msg-received stay-white' : 'msg-received')}`}
+                              className={`msg-bubble ${isMe
+                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
+                                : (activeWallpaper ? `msg-received${wallpaperIsDark ? ' stay-white' : ''}` : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               style={{
@@ -7281,7 +7298,8 @@ const GlobalChatWidget = forwardRef(({
                                 zIndex: 2,
                                 background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
                                   ? (activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
-                                  : (activeWallpaper ? 'rgba(255,255,255,0.14)' : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))),
+                                  : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))),
+                                ...(activeWallpaper && !isMe && !isMediaOnly ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
@@ -7298,7 +7316,7 @@ const GlobalChatWidget = forwardRef(({
                                 padding: isMediaOnly ? '0' : '10px 16px',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                                 fontSize: 14,
-                                color: (transparentMode || activeWallpaper) ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')),
+                                color: transparentMode ? '#fff' : (activeWallpaper ? wallpaperTextColor : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff'))),
                                 textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
                                 maxWidth: '100%',
                                 wordBreak: 'break-word',
