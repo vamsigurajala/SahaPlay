@@ -8021,12 +8021,21 @@ const GlobalChatWidget = forwardRef(({
         {showThemeSheet && themeSheetTarget && createPortal(
           <div
             onMouseDown={() => setShowThemeSheet(false)}
+            className="chat-theme-sheet-overlay"
             style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
           >
             <div
               onMouseDown={e => e.stopPropagation()}
               style={{
                 width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
+                // Without this, scrolling this list to its end and
+                // continuing to scroll "chained" straight through to the
+                // page behind the (fixed, full-screen) backdrop — on a
+                // desktop/laptop with a real scroll wheel this was very
+                // noticeable as the whole site scrolling underneath the
+                // modal. overscrollBehavior stops the scroll gesture at
+                // this container's own boundary instead of handing it off.
+                overscrollBehavior: 'contain',
                 background: isLight ? '#ffffff' : '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
                 boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               }}

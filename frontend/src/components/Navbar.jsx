@@ -175,6 +175,12 @@ const Navbar = () => {
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
       // Lightbox is portalled to document.body — don't treat those clicks as "outside"
       if (e.target.closest?.('.media-lightbox-overlay')) return;
+      // Same reason — the chat's "Customize" theme sheet is also portalled
+      // to document.body (outside chatWidgetRef's own DOM tree), so
+      // clicking its own backdrop to close JUST that sheet was falling
+      // through to here and closing the whole chat widget underneath it
+      // too.
+      if (e.target.closest?.('.chat-theme-sheet-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         setShowSearch(false);
         setShowRecentChats(false);

@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
 import { useBackIntercept } from '../hooks/useBackIntercept';
-import { requestPhotoAccess } from '../lib/mediaPermissionGate';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -561,7 +560,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0,
         background: 'linear-gradient(rgba(0,0,0,0.45), transparent)',
-        padding: 'calc(20px + var(--sp-status-bar-inset, 0px) + env(safe-area-inset-top)) 16px 28px',
+        padding: 'calc(8px + var(--sp-status-bar-inset, 0px) + env(safe-area-inset-top)) 16px 28px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <button onClick={requestClose} aria-label="Close camera" style={iconBtnStyle}>
@@ -591,7 +590,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           padding: '28px 28px max(24px, env(safe-area-inset-bottom))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <button onClick={async () => { if (!(await requestPhotoAccess())) return; galleryInputRef.current?.click(); }} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={() => galleryInputRef.current?.click()} aria-label="Choose from gallery" style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <ImageIcon size={19} color="#fff" />
           </button>
           <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickFromGallery} />
