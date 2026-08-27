@@ -16,7 +16,7 @@ import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import SeoHead from './components/SeoHead';
 import nacl from 'tweetnacl';
 import { API } from './lib/api';
-import { isCapacitorApp } from './lib/platform';
+import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
@@ -320,6 +320,8 @@ const Signup = () => {
     navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
   };
 
+  const isDesktopApp = isTauriApp();
+
   return (
     <>
       <SeoHead path="/signup" />
@@ -337,7 +339,7 @@ const Signup = () => {
         />
       )}
 
-      <div className="login-layout">
+      <div className={`login-layout${isDesktopApp ? ' login-layout--app' : ''}`}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
@@ -350,6 +352,15 @@ const Signup = () => {
             overflow-x: hidden;
             overflow-y: auto;
           }
+
+          /* Compact auth screen for the Tauri desktop app: it's a fixed
+             native window, not a full-width marketing page, so the huge
+             branding panel and generously-padded card (sized for a browser
+             viewport) read as oversized. Hide the branding side and tighten
+             the card. */
+          .login-layout--app .login-left { display: none !important; }
+          .login-layout--app .login-card { padding: 32px 28px !important; max-width: 400px !important; }
+          .login-layout--app .login-right { padding: 16px !important; }
 
           .login-left {
             flex: 1.2;

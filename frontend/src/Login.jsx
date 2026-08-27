@@ -12,7 +12,7 @@ import RecoveryPhraseModal from './components/RecoveryPhraseModal';
 import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import SeoHead from './components/SeoHead';
 import { API } from './lib/api';
-import { isCapacitorApp } from './lib/platform';
+import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
@@ -426,9 +426,10 @@ const Login = () => {
 
   const isTerminated = bannedInfo?.type === 'terminated';
   const isPermanent  = bannedInfo?.type === 'permanent';
+  const isDesktopApp = isTauriApp();
 
   return (
-    <div className="login-layout">
+    <div className={`login-layout${isDesktopApp ? ' login-layout--app' : ''}`}>
       <SeoHead path="/login" />
       <style>{`
         .login-layout {
@@ -440,6 +441,14 @@ const Login = () => {
           overflow-x: hidden;
           overflow-y: auto;
         }
+
+        /* Compact auth screen for the Tauri desktop app: it's a fixed native
+           window, not a full-width marketing page, so the huge branding
+           panel and generously-padded card (sized for a browser viewport)
+           read as oversized. Hide the branding side and tighten the card. */
+        .login-layout--app .login-left { display: none !important; }
+        .login-layout--app .login-card { padding: 32px 28px !important; max-width: 400px !important; }
+        .login-layout--app .login-right { padding: 16px !important; }
 
         .login-left {
           flex: 1.2;
