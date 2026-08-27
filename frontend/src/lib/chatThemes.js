@@ -183,6 +183,22 @@ export const CHAT_WALLPAPERS = [
     id: 'wp-cyberpunk-city', name: 'Cyberpunk City',
     image: '/wallpapers/cyberpunk-city.jpg',
   },
+  {
+    id: 'wp-rooftop-moonlight', name: 'Rooftop Moonlight',
+    image: '/wallpapers/rooftop-moonlight.jpg',
+  },
+  {
+    id: 'wp-enchanted-forest', name: 'Enchanted Forest',
+    image: '/wallpapers/enchanted-forest.jpg',
+  },
+  {
+    id: 'wp-northern-lights', name: 'Northern Lights',
+    image: '/wallpapers/northern-lights.jpg',
+  },
+  {
+    id: 'wp-sakura-twilight', name: 'Sakura Twilight',
+    image: '/wallpapers/sakura-twilight.jpg',
+  },
 ];
 
 export function findWallpaper(id) {
