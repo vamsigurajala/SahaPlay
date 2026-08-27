@@ -179,6 +179,10 @@ export const CHAT_WALLPAPERS = [
     id: 'wp-cozy-cafe', name: 'Cozy Café',
     image: '/wallpapers/cozy-cafe.jpg',
   },
+  {
+    id: 'wp-cyberpunk-city', name: 'Cyberpunk City',
+    image: '/wallpapers/cyberpunk-city.jpg',
+  },
 ];
 
 export function findWallpaper(id) {
