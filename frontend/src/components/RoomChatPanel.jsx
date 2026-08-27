@@ -9,9 +9,10 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
+import CameraCapture from './CameraCapture';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
@@ -1532,6 +1533,21 @@ export default function RoomChatPanel({ p }) {
   };
   const fileInputRef = React.useRef(null);
   const dmFileInputRef = React.useRef(null);
+  const [showGroupCamera, setShowGroupCamera] = React.useState(false);
+  const [showDmCamera, setShowDmCamera] = React.useState(false);
+  // Composer layout (emoji far-left, camera next to mic) only differs below
+  // the same 1023.98px breakpoint every other mobile/tablet-only chrome in
+  // this codebase already uses — tracked via matchMedia so rotating a tablet
+  // or resizing a desktop window updates it live instead of needing a reload.
+  const [isMobileOrTablet, setIsMobileOrTablet] = React.useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023.98px)').matches : false
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023.98px)');
+    const onChange = (e) => setIsMobileOrTablet(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const [hiddenChats, setHiddenChats] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(`hidden_chats_${myUser}`) || '[]'); } catch { return []; }
   });
@@ -3233,25 +3249,49 @@ export default function RoomChatPanel({ p }) {
                           borderRadius:10,
                           padding:'8px 12px',
                           paddingRight: (!p.groupChatInput && !isUploading) ? '95px' : '12px',
+                          paddingLeft: (isMobileOrTablet && !p.groupChatInput && !isUploading) ? '36px' : '12px',
                           color: isLight ? '#1e293b' : '#fff',
                           fontSize:13,
                           outline:'none',
                           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                         }}
                       />
-                      
+
                       {(!p.groupChatInput && !isUploading) && (
-                        <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
-                          <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                            <SmilePlus size={18}/>
-                          </button>
-                          <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
-                            <Paperclip size={18}/>
-                          </button>
-                          <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
-                            <Mic size={18}/>
-                          </button>
-                        </div>
+                        <>
+                          {/* Mobile/tablet only: emoji lives on the far left of the box. */}
+                          {isMobileOrTablet && (
+                            <div style={{ position: 'absolute', left: 5, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                              <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                <SmilePlus size={18}/>
+                              </button>
+                            </div>
+                          )}
+                          <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
+                            {!isMobileOrTablet && (
+                              <button type="button" className="emoji-btn-group" onClick={(e) => { e.stopPropagation(); p.setShowGroupEmojiPicker(!p.showGroupEmojiPicker); }} style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                <SmilePlus size={18}/>
+                              </button>
+                            )}
+                            <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => fileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                              <Paperclip size={18}/>
+                            </button>
+                            {isMobileOrTablet && (
+                              <button type="button" disabled={isDisabled || p.allowMedia === false} onClick={() => setShowGroupCamera(true)} title="Open camera" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                                <Camera size={18}/>
+                              </button>
+                            )}
+                            <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
+                              <Mic size={18}/>
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {showGroupCamera && (
+                        <CameraCapture
+                          onCapture={(file) => handleFileSelect({ target: { files: [file], value: null } }, 'group')}
+                          onClose={() => setShowGroupCamera(false)}
+                        />
                       )}
 
                       {isUploading && (
@@ -4018,25 +4058,49 @@ export default function RoomChatPanel({ p }) {
                               borderRadius:10,
                               padding:'8px 12px',
                               paddingRight: (!p.dmChatInput && !isUploading) ? '95px' : '12px',
+                              paddingLeft: (isMobileOrTablet && !p.dmChatInput && !isUploading) ? '36px' : '12px',
                               color: isLight ? '#1e293b' : '#fff',
                               fontSize:13,
                               outline:'none',
                               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}
                           />
-                          
+
                           {(!p.dmChatInput && !isUploading) && (
-                            <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
-                              <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                                <SmilePlus size={18}/>
-                              </button>
-                              <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                                <Paperclip size={18}/>
-                              </button>
-                              <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
-                                <Mic size={18}/>
-                              </button>
-                            </div>
+                            <>
+                              {/* Mobile/tablet only: emoji lives on the far left of the box. */}
+                              {isMobileOrTablet && (
+                                <div style={{ position: 'absolute', left: 5, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                                  <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                    <SmilePlus size={18}/>
+                                  </button>
+                                </div>
+                              )}
+                              <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 0 }}>
+                                {!isMobileOrTablet && (
+                                  <button type="button" className="emoji-btn-dm" onClick={(e) => { e.stopPropagation(); p.setShowDmEmojiPicker(!p.showDmEmojiPicker); }} style={{background:'transparent',border:'none',color: (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                    <SmilePlus size={18}/>
+                                  </button>
+                                )}
+                                <button type="button" disabled={isUploading} onClick={() => dmFileInputRef.current?.click()} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                  <Paperclip size={18}/>
+                                </button>
+                                {isMobileOrTablet && (
+                                  <button type="button" onClick={() => setShowDmCamera(true)} title="Open camera" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                    <Camera size={18}/>
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
+                                  <Mic size={18}/>
+                                </button>
+                              </div>
+                            </>
+                          )}
+                          {showDmCamera && (
+                            <CameraCapture
+                              onCapture={(file) => handleFileSelect({ target: { files: [file], value: null } }, 'dm')}
+                              onClose={() => setShowDmCamera(false)}
+                            />
                           )}
 
                           {isUploading && (

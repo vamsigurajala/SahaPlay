@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
+import CameraCapture from './CameraCapture';
 import PinSetupModal from './PinSetupModal';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
@@ -2056,6 +2057,21 @@ const GlobalChatWidget = forwardRef(({
   const [typingStatuses, setTypingStatuses] = useState({}); // chatKey -> Set of usernames typing
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [showCamera, setShowCamera] = useState(false);
+  // Composer layout (emoji far-left, camera next to mic) only differs below
+  // the same 1023.98px breakpoint every other mobile/tablet-only chrome in
+  // this file already uses (see .desktop-only-menu-item) — tracked via
+  // matchMedia, not a one-time innerWidth read, so rotating a tablet or
+  // resizing a desktop window updates it live instead of needing a reload.
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 1023.98px)').matches : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023.98px)');
+    const onChange = (e) => setIsMobileOrTablet(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -7846,6 +7862,7 @@ const GlobalChatWidget = forwardRef(({
                             borderRadius: 14,
                             padding: '12px 18px',
                             paddingRight: (!inputValue && !isUploading) ? '108px' : '18px',
+                            paddingLeft: (isMobileOrTablet && !inputValue && !isUploading) ? '40px' : '18px',
                             color: '#fff',
                             fontSize: 14,
                             outline: 'none',
@@ -7856,36 +7873,73 @@ const GlobalChatWidget = forwardRef(({
                         />
 
                         {!inputValue && !isUploading && (
-                          <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
-                              <SmilePlus size={20} />
-                            </button>
-                            {/* Attachment button — opens unified file picker */}
-                            <button
-                              type="button"
-                              disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
-                              onClick={() => {
-                                if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
-                                  toast.error('📷 Media sharing is not allowed in this room.');
-                                  return;
-                                }
-                                fileInputRef.current?.click();
-                              }}
-                              title="Attach image, video, document or file"
-                              style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
-                            >
-                              <Paperclip size={18} />
-                            </button>
-                            {/* Mic button — inside input box, hidden while typing */}
-                            <button
-                              type="button"
-                              onClick={startRecording}
-                              title="Record voice note"
-                              style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
-                            >
-                              <Mic size={18} />
-                            </button>
-                          </div>
+                          <>
+                            {/* Mobile/tablet only: emoji lives on the far left of the box
+                                instead of grouped with the other icons on the right. */}
+                            {isMobileOrTablet && (
+                              <div style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                                <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
+                                  <SmilePlus size={20} />
+                                </button>
+                              </div>
+                            )}
+                            <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 2 }}>
+                              {!isMobileOrTablet && (
+                                <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
+                                  <SmilePlus size={20} />
+                                </button>
+                              )}
+                              {/* Attachment button — opens unified file picker */}
+                              <button
+                                type="button"
+                                disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
+                                onClick={() => {
+                                  if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
+                                    toast.error('📷 Media sharing is not allowed in this room.');
+                                    return;
+                                  }
+                                  fileInputRef.current?.click();
+                                }}
+                                title="Attach image, video, document or file"
+                                style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
+                              >
+                                <Paperclip size={18} />
+                              </button>
+                              {/* Camera button — mobile/tablet only, opens in-app capture */}
+                              {isMobileOrTablet && (
+                                <button
+                                  type="button"
+                                  disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
+                                  onClick={() => {
+                                    if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
+                                      toast.error('📷 Media sharing is not allowed in this room.');
+                                      return;
+                                    }
+                                    setShowCamera(true);
+                                  }}
+                                  title="Open camera"
+                                  style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
+                                >
+                                  <Camera size={18} />
+                                </button>
+                              )}
+                              {/* Mic button — inside input box, hidden while typing */}
+                              <button
+                                type="button"
+                                onClick={startRecording}
+                                title="Record voice note"
+                                style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
+                              >
+                                <Mic size={18} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                        {showCamera && (
+                          <CameraCapture
+                            onCapture={(file) => handleMediaUpload(file)}
+                            onClose={() => setShowCamera(false)}
+                          />
                         )}
 
                         {isUploading && (
