@@ -8,8 +8,7 @@ import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
-import { applyChatThemeShared, deriveChatKeyFromTarget } from './lib/chatThemes';
-import ChatThemeSheet from './components/ChatThemeSheet';
+import { CHAT_THEMES } from './lib/chatThemes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -2337,53 +2336,63 @@ const Room = () => {
       })
       .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
   }, []);
-  // Sends the "changed the chat theme" notice as a REAL persisted, E2EE
-  // message (isNotice:true) via the same /api/chats/send path sendDmChat
-  // uses — see backend for why: it's the only way this survives a refresh
-  // and reaches the other person's account on every platform. Kept as its
-  // own function (rather than folded into the shared applyChatThemeShared
-  // in lib/chatThemes.js) since it depends on this file's own key-exchange
-  // refs (myKeyPair/dbPublicKeys/encryptDM) — GlobalChatWidget.jsx has an
-  // equivalent but differently-shaped sendThemeNoticeMessage of its own.
-  const sendRoomThemeNotice = useCallback(async (chatKey, themeId) => {
-    try {
-      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
-      if (!myKeyPair.current) return;
-      let targetPubKey = dbPublicKeys.current[chatKey] ? encodeBase64(dbPublicKeys.current[chatKey]) : (localStorage.getItem(`wt_pk_${chatKey}`) || null);
-      if (!targetPubKey) {
-        const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(chatKey)}`);
-        if (pkRes.ok) {
-          const pkData = await pkRes.json();
-          targetPubKey = pkData.publicKey || null;
-        }
-      }
-      if (!targetPubKey) return;
-      const enc = encryptDM('Changed the chat theme', targetPubKey, encodeBase64(myKeyPair.current.publicKey));
-      const tkn2 = localStorage.getItem('watch_token');
-      if (!tkn2) return;
-      await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn2}` },
-        body: JSON.stringify({
-          type: 'private',
-          partner: chatKey,
-          message: enc.ciphertext,
-          senderMessage: enc.senderCiphertext,
-          nonce: enc.nonce,
-          ephemeralPublicKey: enc.ephemeralPublicKey,
-          isNotice: true,
-          noticeThemeId: themeId || 'default',
-        }),
-      });
-    } catch (err) { console.error('[CHAT THEME] Notice send failure:', err); }
-  }, [keyPair]);
   const applyChatTheme = useCallback((target, themeId) => {
-    applyChatThemeShared({
-      target, themeId, setChatThemes,
-      storageKey: `chat_themes_${username}`, apiBase: SOCKET_SERVER_URL,
-      sendThemeNotice: (chatKey) => sendRoomThemeNotice(chatKey, themeId),
+    if (!target) return;
+    const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
+    if (!chatKey) return;
+    setChatThemes(prev => {
+      const next = { ...prev };
+      if (themeId && themeId !== 'default') next[chatKey] = themeId;
+      else delete next[chatKey];
+      try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
+      return next;
     });
-  }, [username, sendRoomThemeNotice]);
+    if (target.type === 'private') {
+      // Send the "changed the chat theme" notice as a REAL persisted, E2EE
+      // message (isNotice:true) via the same /api/chats/send path sendDmChat
+      // uses — see backend for why: it's the only way this survives a
+      // refresh and reaches the other person's account on every platform.
+      (async () => {
+        try {
+          if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+          if (!myKeyPair.current) return;
+          let targetPubKey = dbPublicKeys.current[chatKey] ? encodeBase64(dbPublicKeys.current[chatKey]) : (localStorage.getItem(`wt_pk_${chatKey}`) || null);
+          if (!targetPubKey) {
+            const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(chatKey)}`);
+            if (pkRes.ok) {
+              const pkData = await pkRes.json();
+              targetPubKey = pkData.publicKey || null;
+            }
+          }
+          if (!targetPubKey) return;
+          const enc = encryptDM('Changed the chat theme', targetPubKey, encodeBase64(myKeyPair.current.publicKey));
+          const tkn2 = localStorage.getItem('watch_token');
+          if (!tkn2) return;
+          await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn2}` },
+            body: JSON.stringify({
+              type: 'private',
+              partner: chatKey,
+              message: enc.ciphertext,
+              senderMessage: enc.senderCiphertext,
+              nonce: enc.nonce,
+              ephemeralPublicKey: enc.ephemeralPublicKey,
+              isNotice: true,
+              noticeThemeId: themeId || 'default',
+            }),
+          });
+        } catch (err) { console.error('[CHAT THEME] Notice send failure:', err); }
+      })();
+    }
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    fetch(`${SOCKET_SERVER_URL}/api/chat-theme-prefs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+      body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
+    }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
+  }, [username]);
   const [dmUnread, setDmUnread] = useState({});
   const dmUnreadRef = useRef({});
   // Async-decrypted DM media blob URLs: msgKey -> objectURL (same pattern as GlobalChatWidget)
@@ -10634,18 +10643,53 @@ const Room = () => {
       )}
 
       {/* Chat bubble "Customize" theme sheet — shared by RoomChatPanel's DM and
-          group chat "..." menus (see openChatThemeSheet), and with
-          GlobalChatWidget's private chat via the same ChatThemeSheet
-          component (see lib/chatThemes.js for the theme/wallpaper lists). */}
-      <ChatThemeSheet
-        open={showThemeSheet && !!themeSheetTarget}
-        onClose={() => setShowThemeSheet(false)}
-        isLight={isLight}
-        t={t}
-        chatThemes={chatThemes}
-        activeChatKey={deriveChatKeyFromTarget(themeSheetTarget)}
-        onSelect={(themeId) => applyChatTheme(themeSheetTarget, themeId)}
-      />
+          group chat "..." menus (see openChatThemeSheet). Tapping a swatch
+          applies + persists immediately; no separate "Apply" step. */}
+      {showThemeSheet && themeSheetTarget && createPortal(
+        <div
+          onMouseDown={() => setShowThemeSheet(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+        >
+          <div
+            onMouseDown={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
+              background: '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
+              boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            className="no-scrollbar"
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
+            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+              {t('customizeChat', 'Customize')}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {(() => {
+                const sheetChatKey = (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase();
+                const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
+                return CHAT_THEMES.map(th => {
+                  const selected = th.id === sheetThemeId;
+                  return (
+                    <button
+                      key={th.id}
+                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
+                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                    >
+                      <div style={{
+                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
+                        border: selected ? '3px solid #fff' : '3px solid transparent',
+                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                      }} />
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <CustomizeRoomModal
         isOpen={showCustomizeModal}

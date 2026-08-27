@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react';
-
 // ── Chat bubble "Customize" themes (Instagram-style) ──────────────────────────
 // Shared between GlobalChatWidget.jsx and RoomChatPanel.jsx — two independent
 // private/group chat UIs in this codebase that both need the exact same
@@ -52,16 +50,13 @@ export const CHAT_THEME_BUBBLE_STRIDE = 70;
 // Every image here is a self-contained inline SVG data URI — an actual
 // illustrated scene (sky gradient + horizon silhouette + sun/moon/stars),
 // not a bundled photo/raster asset: zero network requests, tiny bundle
-// size, and no external image licensing to track. A real photo (or AI-
-// generated art in the style of a "Cozy Cafe"/"Anime Night"/"Cyber City")
-// would need either an image-generation tool this environment doesn't have,
-// or real asset files supplied by whoever maintains this app — this is the
-// best "looks like a picture, not a color swatch" option actually available,
-// and deliberately scoped to scenes this generator's primitives (sky +
-// horizon silhouette + stars/sun/soft bands) can render convincingly —
-// interior scenes (cafe, library), cityscapes (neon streets), and figure
-// silhouettes (anime character) were considered and dropped rather than
-// forcing a weak version of them; see each theme's `category` below.
+// size, and no external image licensing to track. A real photo would need
+// either fetching a URL nobody supplied (not something to guess at) or an
+// image-generation tool this environment doesn't have, so this is the best
+// "looks like a picture, not a color swatch" option actually available —
+// deliberately built as a recognizable landscape (mountains/waves/dunes
+// against a gradient sky) rather than the earlier soft blurred color blobs,
+// which read as an abstract gradient rather than a picture of anything.
 // ids are prefixed 'wp-' so they can share the same chatThemes[chatKey]
 // storage slot as CHAT_THEMES ids above without colliding — the rendering
 // code just checks which list an id resolves in.
@@ -79,15 +74,12 @@ function encodeSvg(svg) {
 
 // Builds one landscape scene: a vertical sky gradient, optional stars/dots
 // scattered in the upper sky, an optional sun/moon disc (with a soft glow
-// halo), optional soft atmospheric bands (aurora ribbons / nebula wisps),
-// optional flat-color "planet" discs (no glow halo, for space scenes), and
-// zero or more horizon-silhouette layers drawn back-to-front as flat-color
-// polygons (mountains, dunes, hills, tree canopy, or a stack of waves
-// depending on the points given) — the same handful of primitives composed
-// differently is enough to make a good variety of visually distinct,
-// genuinely scene-like wallpapers. `layers` may be an empty array (e.g. a
-// pure-space scene with no horizon at all).
-function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, planets, layers }) {
+// halo), optional soft atmospheric bands (aurora ribbons), and one or more
+// horizon-silhouette layers drawn back-to-front as flat-color polygons
+// (mountains, dunes, hills, or a stack of waves depending on the points
+// given) — the same handful of primitives composed differently is enough
+// to make six visually distinct, genuinely scene-like wallpapers.
+function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, layers }) {
   const W = 400, H = 400;
   let defs = `<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${skyTop}"/><stop offset="100%" stop-color="${skyBottom}"/></linearGradient>`;
   defs += `<filter id="soft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="18"/></filter>`;
@@ -103,21 +95,14 @@ function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, planets, layers }
     body += `<circle cx="${sun.cx}" cy="${sun.cy}" r="${sun.r}" fill="${sun.color}"/>`;
     if (sun.crescent) body += `<circle cx="${sun.cx + sun.r * 0.42}" cy="${sun.cy - sun.r * 0.28}" r="${sun.r * 0.92}" fill="${skyTop}"/>`;
   }
-  if (planets) {
-    body += planets.map(p => {
-      let s = `<circle cx="${p.cx}" cy="${p.cy}" r="${p.r}" fill="${p.color}"/>`;
-      if (p.ring) s += `<ellipse cx="${p.cx}" cy="${p.cy}" rx="${p.r * 1.8}" ry="${p.r * 0.42}" fill="none" stroke="${p.ringColor || p.color}" stroke-width="2" opacity="0.65"/>`;
-      return s;
-    }).join('');
-  }
-  (layers || []).forEach(l => { body += `<polygon points="${l.points}" fill="${l.color}"/>`; });
+  layers.forEach(l => { body += `<polygon points="${l.points}" fill="${l.color}"/>`; });
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${defs}</defs>${body}</svg>`;
   return encodeSvg(svg);
 }
 
 export const CHAT_WALLPAPERS = [
   {
-    id: 'wp-aurora', name: 'Aurora Lights', category: 'night', description: 'Green aurora over still water',
+    id: 'wp-aurora', name: 'Aurora',
     image: sceneWallpaper({
       skyTop: '#03110e', skyBottom: '#0a2b26',
       dots: [{ cx: 50, cy: 35, r: 1.3 }, { cx: 340, cy: 25, r: 1.1 }, { cx: 200, cy: 50, r: 1.5 }, { cx: 110, cy: 75, r: 1 }, { cx: 300, cy: 85, r: 1.2 }, { cx: 250, cy: 40, r: 1 }],
@@ -133,7 +118,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-sunset-blaze', name: 'Sunset Blaze', category: 'nature', description: 'Fiery mountain sunset',
+    id: 'wp-sunset-blaze', name: 'Sunset Blaze',
     image: sceneWallpaper({
       skyTop: '#2a0a3d', skyBottom: '#f97316',
       sun: { cx: 200, cy: 250, r: 55, color: '#fde68a' },
@@ -144,7 +129,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-deep-ocean', name: 'Ocean Calm', category: 'night', description: 'Moonlit waves at night',
+    id: 'wp-deep-ocean', name: 'Deep Ocean',
     image: sceneWallpaper({
       skyTop: '#020a17', skyBottom: '#0a3a5c',
       dots: [{ cx: 90, cy: 40, r: 1.2 }, { cx: 320, cy: 55, r: 1 }, { cx: 250, cy: 30, r: 1.4 }],
@@ -157,7 +142,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-lavender-dusk', name: 'Lavender Dusk', category: 'fantasy', description: 'Soft violet twilight',
+    id: 'wp-lavender-dusk', name: 'Lavender Dusk',
     image: sceneWallpaper({
       skyTop: '#160a2e', skyBottom: '#5b2a8c',
       dots: [{ cx: 60, cy: 50, r: 1.4 }, { cx: 330, cy: 40, r: 1.2 }, { cx: 150, cy: 30, r: 1 }, { cx: 260, cy: 70, r: 1.3 }, { cx: 100, cy: 90, r: 1 }],
@@ -169,7 +154,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-golden-hour', name: 'Golden Hour', category: 'nature', description: 'Warm afternoon glow',
+    id: 'wp-golden-hour', name: 'Golden Hour',
     image: sceneWallpaper({
       skyTop: '#7c2d12', skyBottom: '#fbbf24',
       sun: { cx: 200, cy: 240, r: 60, color: '#fff7d6' },
@@ -180,7 +165,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-rose-quartz', name: 'Rose Quartz', category: 'fantasy', description: 'Dreamy pink horizon',
+    id: 'wp-rose-quartz', name: 'Rose Quartz',
     image: sceneWallpaper({
       skyTop: '#4a1030', skyBottom: '#fb7185',
       dots: [{ cx: 70, cy: 60, r: 3, color: '#fecdd3', o: 0.7 }, { cx: 320, cy: 45, r: 2.4, color: '#fecdd3', o: 0.6 }, { cx: 260, cy: 90, r: 2, color: '#ffe4e6', o: 0.55 }, { cx: 130, cy: 100, r: 2.6, color: '#fecdd3', o: 0.6 }],
@@ -190,74 +175,7 @@ export const CHAT_WALLPAPERS = [
       ],
     }),
   },
-  {
-    id: 'wp-enchanted-forest', name: 'Enchanted Forest', category: 'nature', description: 'Misty pines at dusk',
-    image: sceneWallpaper({
-      skyTop: '#04150f', skyBottom: '#1b4d3e',
-      dots: [{ cx: 80, cy: 200, r: 2, color: '#d9f99d', o: 0.8 }, { cx: 250, cy: 230, r: 1.6, color: '#bef264', o: 0.7 }, { cx: 320, cy: 180, r: 1.8, color: '#d9f99d', o: 0.6 }, { cx: 150, cy: 260, r: 1.4, color: '#bef264', o: 0.65 }],
-      layers: [
-        { color: '#123524', points: '0,260 20,230 40,255 60,225 80,250 100,220 120,248 140,222 160,252 180,224 200,250 220,226 240,254 260,222 280,248 300,224 320,252 340,226 360,250 380,224 400,248 400,400 0,400' },
-        { color: '#0d2a1c', points: '0,300 25,270 50,296 75,266 100,294 125,264 150,292 175,262 200,290 225,260 250,288 275,258 300,286 325,256 350,284 375,254 400,282 400,400 0,400' },
-        { color: '#081c12', points: '0,340 30,315 60,338 90,312 120,336 150,310 180,334 210,308 240,332 270,306 300,330 330,304 360,328 390,302 400,320 400,400 0,400' },
-      ],
-    }),
-  },
-  {
-    id: 'wp-mountain-peaks', name: 'Mountain Peaks', category: 'nature', description: 'Sunrise over the ridgeline',
-    image: sceneWallpaper({
-      skyTop: '#16213e', skyBottom: '#f4b8c4',
-      sun: { cx: 200, cy: 250, r: 34, color: '#fff3d0' },
-      layers: [
-        { color: '#4a5a78', points: '0,270 70,175 140,235 210,150 280,225 350,170 400,215 400,400 0,400' },
-        { color: '#212b45', points: '0,320 90,255 180,300 260,245 340,290 400,260 400,400 0,400' },
-      ],
-    }),
-  },
-  {
-    id: 'wp-starry-night', name: 'Starry Night', category: 'night', description: 'A clear sky full of stars',
-    image: sceneWallpaper({
-      skyTop: '#010208', skyBottom: '#0b1730',
-      dots: [
-        { cx: 40, cy: 40, r: 1.2 }, { cx: 90, cy: 90, r: 1 }, { cx: 140, cy: 35, r: 1.4 }, { cx: 190, cy: 70, r: 1 },
-        { cx: 230, cy: 110, r: 1.2 }, { cx: 20, cy: 150, r: 1 }, { cx: 270, cy: 50, r: 1.3 }, { cx: 340, cy: 100, r: 1 },
-        { cx: 380, cy: 150, r: 1.2 }, { cx: 60, cy: 200, r: 1 }, { cx: 120, cy: 180, r: 1.1 }, { cx: 250, cy: 190, r: 1 },
-        { cx: 310, cy: 210, r: 1.2 }, { cx: 160, cy: 130, r: 0.9 },
-      ],
-      sun: { cx: 300, cy: 70, r: 26, color: '#f8fafc' },
-      bands: [{ cx: 180, cy: 130, rx: 220, ry: 50, color: '#c7d2fe', rot: -15 }],
-      layers: [
-        { color: '#050b18', points: '0,350 100,335 220,348 320,330 400,340 400,400 0,400' },
-      ],
-    }),
-  },
-  {
-    id: 'wp-nebula', name: 'Space', category: 'fantasy', description: 'Nebula and distant planets',
-    image: sceneWallpaper({
-      skyTop: '#050014', skyBottom: '#1a0b2e',
-      dots: [
-        { cx: 30, cy: 60, r: 1 }, { cx: 80, cy: 30, r: 0.9 }, { cx: 130, cy: 80, r: 1.1 }, { cx: 170, cy: 40, r: 0.8 },
-        { cx: 220, cy: 90, r: 1 }, { cx: 260, cy: 50, r: 1.2 }, { cx: 310, cy: 100, r: 0.9 }, { cx: 350, cy: 60, r: 1 },
-        { cx: 60, cy: 140, r: 0.9 }, { cx: 190, cy: 150, r: 1 }, { cx: 370, cy: 170, r: 0.8 },
-      ],
-      bands: [
-        { cx: 140, cy: 150, rx: 160, ry: 60, color: '#a855f7', rot: 20 },
-        { cx: 260, cy: 110, rx: 140, ry: 50, color: '#ec4899', rot: -15 },
-        { cx: 200, cy: 200, rx: 180, ry: 55, color: '#22d3ee', rot: 10 },
-      ],
-      planets: [
-        { cx: 320, cy: 280, r: 22, color: '#fca5a5' },
-        { cx: 70, cy: 300, r: 12, color: '#93c5fd', ring: true, ringColor: '#c7d2fe' },
-      ],
-      layers: [],
-    }),
-  },
 ];
-
-// Simple category tabs for the redesigned picker (ChatThemeSheet.jsx) — only
-// categories that actually have wallpapers in them, so the tab bar never
-// shows an empty section. 'colors' isn't a CHAT_WALLPAPERS category — it's
-// how the picker labels the CHAT_THEMES gradient list above.
-export const CHAT_WALLPAPER_CATEGORIES = ['nature', 'night', 'fantasy'];
 
 export function findWallpaper(id) {
   return CHAT_WALLPAPERS.find(w => w.id === id) || null;
@@ -308,75 +226,4 @@ export function getWallpaperDominantColor(wallpaper) {
     img.onerror = () => resolve('#6366f1');
     img.src = wallpaper.image;
   });
-}
-
-// React hook wrapper around getWallpaperDominantColor — every chat surface
-// that renders a wallpaper (GlobalChatWidget.jsx, RoomChatPanel.jsx x2) needs
-// this exact "resolve async, store in local state, re-run when the wallpaper
-// changes" effect; centralizing it means a future fix (e.g. a loading-state
-// tweak) lands once instead of being hand-copied per call site.
-export function useWallpaperColor(wallpaper) {
-  const [color, setColor] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!wallpaper) { setColor(null); return; }
-    getWallpaperDominantColor(wallpaper).then(c => { if (!cancelled) setColor(c); });
-    return () => { cancelled = true; };
-  }, [wallpaper]);
-  return color;
-}
-
-// ── Shared chatKey / active-theme derivation ──────────────────────────────────
-// Both GlobalChatWidget.jsx (private chat) and Room.jsx/RoomChatPanel.jsx
-// (group chat + DM-within-room) derive a chat's theme the exact same way:
-// resolve a `target` (or a raw chatKey) into whichever CHAT_THEMES gradient
-// or CHAT_WALLPAPERS scene is currently selected for it. Centralizing this
-// is what previously had to be hand-copied at each of the ~4 render sites
-// across those files (the sheet's own selected-swatch check, plus each
-// chat surface's active-background/bubble derivation).
-export function deriveChatKeyFromTarget(target) {
-  if (!target) return null;
-  const raw = target.type === 'room' ? (target.partner || target.id) : target.partner;
-  return raw ? String(raw).toLowerCase() : null;
-}
-
-export function resolveChatVisual(chatThemes, chatKey) {
-  const themeId = chatKey ? ((chatThemes && chatThemes[chatKey]) || 'default') : 'default';
-  const wallpaper = findWallpaper(themeId);
-  const theme = wallpaper ? null : (CHAT_THEMES.find(th => th.id === themeId) || CHAT_THEMES[0]);
-  const isCustomTheme = themeId !== 'default';
-  return { themeId, wallpaper, theme, isCustomTheme };
-}
-
-// Shared persistence step: updates the local chatThemes map (+ localStorage)
-// and POSTs to /api/chat-theme-prefs. Deliberately does NOT send the
-// "Changed the chat theme" E2EE notice message itself — GlobalChatWidget.jsx
-// and Room.jsx each already have their own encrypt-and-send machinery
-// (different local refs/helpers, e.g. Room.jsx's `myKeyPair`/`dbPublicKeys`/
-// `encryptDM` vs GlobalChatWidget's own `sendThemeNoticeMessage`), so that
-// half stays call-site-specific and is passed in as `sendThemeNotice`,
-// invoked only for target.type === 'private' exactly like both call sites
-// already do individually.
-export function applyChatThemeShared({ target, themeId, setChatThemes, storageKey, apiBase, sendThemeNotice }) {
-  if (!target) return null;
-  const chatKey = deriveChatKeyFromTarget(target);
-  if (!chatKey) return null;
-  setChatThemes(prev => {
-    const next = { ...prev };
-    if (themeId && themeId !== 'default') next[chatKey] = themeId;
-    else delete next[chatKey];
-    try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch {}
-    return next;
-  });
-  if (target.type === 'private' && typeof sendThemeNotice === 'function') {
-    sendThemeNotice(chatKey, themeId);
-  }
-  const tkn = localStorage.getItem('watch_token');
-  if (!tkn || tkn === 'null' || tkn === 'undefined') return chatKey;
-  fetch(`${apiBase}/api/chat-theme-prefs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-    body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
-  }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
-  return chatKey;
 }

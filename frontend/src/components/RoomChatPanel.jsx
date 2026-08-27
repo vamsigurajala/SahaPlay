@@ -11,7 +11,7 @@ import {
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette
 } from 'lucide-react';
-import { CHAT_THEME_BUBBLE_STRIDE, resolveChatVisual, useWallpaperColor } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
@@ -2279,16 +2279,6 @@ export default function RoomChatPanel({ p }) {
   };
 
   const [isLight, setIsLight] = React.useState(document.documentElement.getAttribute('data-theme') === 'light');
-  // Full-chat wallpaper support (group tab + the DM-within-room tab) — hoisted
-  // to component top level rather than computed inline where each tab's
-  // message list is rendered, since useWallpaperColor is a hook and can't be
-  // called from inside the render-time IIFEs those lists build their data in.
-  const groupChatKey = (p.roomId || '').toLowerCase();
-  const { wallpaper: groupWallpaper, theme: groupTheme, isCustomTheme: isGroupCustomTheme } = resolveChatVisual(p.chatThemes, groupChatKey);
-  const groupWallpaperColor = useWallpaperColor(groupWallpaper);
-  const dmChatKey = (p.dmTarget || '').toLowerCase();
-  const { wallpaper: dmWallpaper, theme: dmTheme, isCustomTheme: isDMCustomTheme } = resolveChatVisual(p.chatThemes, dmChatKey);
-  const dmWallpaperColor = useWallpaperColor(dmWallpaper);
   React.useEffect(() => {
     const observer = new MutationObserver(() => {
       setIsLight(document.documentElement.getAttribute('data-theme') === 'light');
@@ -2728,15 +2718,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:12,display:'flex',flexDirection:'column',gap:10,
-              ...(groupWallpaper ? {
-                // Dark scrim under the wallpaper keeps received-bubble text
-                // legible regardless of the image's own brightness — same
-                // treatment as GlobalChatWidget.jsx's private-chat wallpaper.
-                backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
-                backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-              } : (isGroupCustomTheme ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {}))
-            }}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -2779,6 +2761,9 @@ export default function RoomChatPanel({ p }) {
               const lastGroupMsg = p.groupMessages[lastGroupRenderIdx];
               const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
               const renderGroupReceiptIndex = isLastGroupSentByMe ? lastGroupRenderIdx : -1;
+              const groupThemeId = (p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()]) || 'default';
+              const groupTheme = CHAT_THEMES.find(th => th.id === groupThemeId) || CHAT_THEMES[0];
+              const isGroupCustomTheme = groupThemeId !== 'default';
               return p.groupMessages.map((msg,i)=>{
               const rowKey = msg.tempId || msg.id || i;
               if (groupMediaRunsInfo.memberKeys.has(rowKey)) return null;
@@ -2917,20 +2902,18 @@ export default function RoomChatPanel({ p }) {
                         }}>
                           <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                         </div>
-                        <div className={isMe ? 'msg-sent stay-white' : (groupWallpaper ? 'msg-received stay-white' : 'msg-received')} style={{
+                        <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                           position: 'relative',
                           zIndex: 2,
-                          background: isMediaOnly ? 'transparent' : (isMe
-                            ? (groupWallpaper ? (groupWallpaperColor || 'rgba(255,255,255,0.25)') : (isGroupCustomTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
-                            : (groupWallpaper ? 'rgba(255,255,255,0.14)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)'))),
-                          ...(isMe && isGroupCustomTheme && !isMediaOnly && !groupWallpaper ? {
+                          background: isMediaOnly ? 'transparent' : (isMe ? (isGroupCustomTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                          ...(isMe && isGroupCustomTheme && !isMediaOnly ? {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                           } : {}),
                           padding: isMediaOnly ? '0' : '8px 12px',
                           borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                           fontSize:14,
-                          color: groupWallpaper ? '#fff' : (isMe ? '#fff' : (isLight ? '#111827' : '#fff')),
+                          color: isMe ? '#fff' : (isLight ? '#111827' : '#fff'),
                           maxWidth:'100%',
                           wordBreak:'break-word',
                           transform: `translateX(${rowDragX}px)`,
@@ -3423,12 +3406,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:10,display:'flex',flexDirection:'column',gap:8,
-                    ...(dmWallpaper ? {
-                      backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
-                      backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-                    } : (isDMCustomTheme ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {}))
-                  }}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -3474,6 +3452,9 @@ export default function RoomChatPanel({ p }) {
                     const lastDMMsg = dmMessages[lastDMRenderIdx];
                     const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
                     const renderDMReceiptIndex = isLastDMSentByMe ? lastDMRenderIdx : -1;
+                    const dmThemeId = (p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()]) || 'default';
+                    const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
+                    const isDMCustomTheme = dmThemeId !== 'default';
                     const dmNoticeRuns = groupNoticeRuns(dmMessages);
                     return dmMessages.map((msg,i)=>{
                     if (msg.isNotice) {
@@ -3636,20 +3617,18 @@ export default function RoomChatPanel({ p }) {
                               }}>
                                 <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                               </div>
-                              <div className={isMe ? 'msg-sent stay-white' : (dmWallpaper ? 'msg-received stay-white' : 'msg-received')} style={{
+                              <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (isMe
-                                  ? (dmWallpaper ? (dmWallpaperColor || 'rgba(255,255,255,0.25)') : (isDMCustomTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
-                                  : (dmWallpaper ? 'rgba(255,255,255,0.14)' : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)'))),
-                                ...(isMe && isDMCustomTheme && !isMediaOnly && !dmWallpaper ? {
+                                background: isMediaOnly ? 'transparent' : (isMe ? (isDMCustomTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')),
+                                ...(isMe && isDMCustomTheme && !isMediaOnly ? {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                                 } : {}),
                                 padding: isMediaOnly ? '0' : '8px 12px',
                                 borderRadius:isMe?'14px 14px 4px 14px':'14px 14px 14px 4px',
                                 fontSize:14,
-                                color: dmWallpaper ? '#fff' : (isMe ? '#fff' : (isLight ? '#111827' : '#ddd')),
+                                color: isMe ? '#fff' : (isLight ? '#111827' : '#ddd'),
                                 maxWidth:'100%',
                                 wordBreak:'break-word',
                                 transform: `translateX(${rowDragX}px)`,
