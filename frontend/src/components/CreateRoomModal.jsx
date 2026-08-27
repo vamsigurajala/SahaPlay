@@ -95,12 +95,23 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           background: rgba(0, 0, 0, 0.72);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          z-index: 99999;
+          /* Above BottomNav's own z-index (100001) — this overlay used to
+             sit BELOW it, so the bottom nav bar visually painted over the
+             lower part of this modal on mobile instead of the modal
+             covering it like any other foreground overlay should. */
+          z-index: 100010;
           overflow-y: auto;
           padding: 24px 16px;
           overscroll-behavior: contain;
           display: flex;
-          align-items: flex-start;
+          /* center (not flex-start, which pinned this to the top of the
+             screen) so the modal sits in the middle of the viewport;
+             "safe center" is the same centering but falls back toward the
+             top instead of clipping the top of the modal off-screen if its
+             content is ever taller than the viewport — plain center above
+             stays as the fallback for engines that don't parse safe. */
+          align-items: center;
+          align-items: safe center;
           justify-content: center;
           animation: crOverlayIn ${CLOSE_DURATION}ms ease forwards;
         }

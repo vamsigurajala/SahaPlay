@@ -308,7 +308,11 @@ const SupportModal = ({ isOpen, onClose }) => {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 11000;
+          /* Above BottomNav's own z-index (100001) — this overlay used to
+             sit below it, so the bottom nav bar visually painted over the
+             lower part of this modal on mobile instead of the modal
+             covering it like any other foreground overlay should. */
+          z-index: 100010;
           padding: 16px;
           animation: fadeIn 0.2s ease-out;
         }
@@ -377,8 +381,13 @@ const SupportModal = ({ isOpen, onClose }) => {
             width: 100% !important;
           }
           .support-modal-overlay {
-            align-items: flex-start !important;
-            padding-top: max(var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)), 32px) !important;
+            /* Was flex-start (pinned to the top, under the status bar
+               inset) — centered instead, same reasoning as
+               CreateRoomModal's own overlay: safe center keeps it in the
+               middle of the screen without clipping the top off if the
+               card is ever taller than the viewport. */
+            align-items: center !important;
+            align-items: safe center !important;
           }
           .support-modal-card {
             max-height: 78vh !important;
