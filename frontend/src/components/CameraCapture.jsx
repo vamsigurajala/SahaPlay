@@ -27,7 +27,57 @@ import { useBackIntercept } from '../hooks/useBackIntercept';
 // across page loads or permission re-grants), just kept for this mount.
 const resolvedDeviceId = { environment: null, user: null };
 
-const TEXT_COLORS = ['#ffffff', '#000000', '#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'];
+// A continuous vertical spectrum (white → red → orange → yellow → green →
+// cyan → blue → purple → pink → near-black), matching iOS's own text-color
+// slider rather than a row of discrete swatches — the CSS gradient below and
+// colorAtFraction() are generated from this SAME array so what's drawn on
+// screen and what a given drag position resolves to can never drift apart.
+const GRADIENT_STOPS = [
+  { pos: 0.00, rgb: [255, 255, 255] },
+  { pos: 0.10, rgb: [239, 68, 68] },
+  { pos: 0.22, rgb: [249, 115, 22] },
+  { pos: 0.34, rgb: [250, 204, 21] },
+  { pos: 0.46, rgb: [34, 197, 94] },
+  { pos: 0.58, rgb: [6, 182, 212] },
+  { pos: 0.70, rgb: [59, 130, 246] },
+  { pos: 0.82, rgb: [168, 85, 247] },
+  { pos: 0.92, rgb: [236, 72, 153] },
+  { pos: 1.00, rgb: [10, 10, 10] },
+];
+const GRADIENT_CSS = `linear-gradient(180deg, ${GRADIENT_STOPS.map(s => `rgb(${s.rgb.join(',')}) ${Math.round(s.pos * 100)}%`).join(', ')})`;
+
+function colorAtFraction(f) {
+  const frac = Math.min(1, Math.max(0, f));
+  for (let i = 0; i < GRADIENT_STOPS.length - 1; i++) {
+    const a = GRADIENT_STOPS[i], b = GRADIENT_STOPS[i + 1];
+    if (frac >= a.pos && frac <= b.pos) {
+      const t = (frac - a.pos) / (b.pos - a.pos || 1);
+      const r = Math.round(a.rgb[0] + (b.rgb[0] - a.rgb[0]) * t);
+      const g = Math.round(a.rgb[1] + (b.rgb[1] - a.rgb[1]) * t);
+      const bl = Math.round(a.rgb[2] + (b.rgb[2] - a.rgb[2]) * t);
+      return `rgb(${r}, ${g}, ${bl})`;
+    }
+  }
+  return 'rgb(255,255,255)';
+}
+
+// The gradient slider hands back 'rgb(r, g, b)' strings (and the default is
+// '#ffffff') — this needs to handle both to decide whether the text's own
+// outline/shadow should flip to a light tone for a near-black pick instead
+// of the default dark one.
+function isColorDark(color) {
+  if (!color) return false;
+  let r, g, b;
+  const rgbMatch = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(color);
+  if (rgbMatch) {
+    r = Number(rgbMatch[1]); g = Number(rgbMatch[2]); b = Number(rgbMatch[3]);
+  } else {
+    const hex = color.replace('#', '');
+    if (hex.length !== 6) return false;
+    r = parseInt(hex.slice(0, 2), 16); g = parseInt(hex.slice(2, 4), 16); b = parseInt(hex.slice(4, 6), 16);
+  }
+  return (0.299 * r + 0.587 * g + 0.114 * b) < 100;
+}
 
 export default function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef(null);
@@ -37,6 +87,11 @@ export default function CameraCapture({ onCapture, onClose }) {
   const galleryInputRef = useRef(null);
   const textDragRef = useRef(null); // { startX, startY, origX, origY, rect }
   const textJustDraggedRef = useRef(false);
+  const colorBarRef = useRef(null);
+  const colorCircleRef = useRef(null);
+  const colorDraggingRef = useRef(false);
+  const pendingColorRef = useRef(null);
+  const colorRafRef = useRef(null);
 
   const [facingMode, setFacingMode] = useState('environment');
   const [ready, setReady] = useState(false);
@@ -123,6 +178,8 @@ export default function CameraCapture({ onCapture, onClose }) {
     const id = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(id);
   }, []);
+
+  useEffect(() => () => { if (colorRafRef.current) cancelAnimationFrame(colorRafRef.current); }, []);
 
   // Discards whatever was captured/picked and returns to the live camera —
   // used by both the back-gesture (level 2 → 1, see above) and the custom
@@ -242,7 +299,7 @@ export default function CameraCapture({ onCapture, onClose }) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
-        ctx.strokeStyle = textOverlay.color === '#000000' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)';
+        ctx.strokeStyle = isColorDark(textOverlay.color) ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)';
         ctx.fillStyle = textOverlay.color || '#ffffff';
         const tx = textOverlay.xPct * w;
         const ty = textOverlay.yPct * h;
@@ -311,6 +368,55 @@ export default function CameraCapture({ onCapture, onClose }) {
     e.stopPropagation();
     if (textJustDraggedRef.current) { textJustDraggedRef.current = false; return; }
     openTextEditor();
+  };
+
+  // Color slider drag: the moving parts (the big preview circle's position/
+  // color) are written straight to the DOM via refs instead of React state,
+  // so dragging stays smooth regardless of how fast pointermove fires — a
+  // React re-render per pixel of movement is exactly the kind of thing that
+  // reads as "laggy" on a mid-range phone. The actually-applied color
+  // (textDraftColor, which the input's text needs) is still real state, but
+  // committed at most once per animation frame via rAF instead of once per
+  // event, which is the other half of keeping this smooth.
+  const scheduleColorCommit = (color) => {
+    pendingColorRef.current = color;
+    if (colorRafRef.current) return;
+    colorRafRef.current = requestAnimationFrame(() => {
+      colorRafRef.current = null;
+      if (pendingColorRef.current) setTextDraftColor(pendingColorRef.current);
+    });
+  };
+  const updateColorFromClientY = (clientY) => {
+    const bar = colorBarRef.current;
+    if (!bar) return;
+    const rect = bar.getBoundingClientRect();
+    const frac = (clientY - rect.top) / rect.height;
+    const color = colorAtFraction(frac);
+    if (colorCircleRef.current) {
+      colorCircleRef.current.style.background = color;
+      // The editingText overlay is position:fixed inset:0 (spans the full
+      // viewport), so viewport-relative clientY already IS this circle's
+      // correct `top` (also position:absolute within that same overlay) —
+      // just clamped to the bar's own vertical extent.
+      const clampedY = Math.min(rect.bottom, Math.max(rect.top, clientY));
+      colorCircleRef.current.style.top = `${clampedY}px`;
+    }
+    scheduleColorCommit(color);
+  };
+  const onColorPointerDown = (e) => {
+    e.stopPropagation();
+    colorDraggingRef.current = true;
+    if (colorCircleRef.current) colorCircleRef.current.style.opacity = '1';
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    updateColorFromClientY(e.clientY);
+  };
+  const onColorPointerMove = (e) => {
+    if (!colorDraggingRef.current) return;
+    updateColorFromClientY(e.clientY);
+  };
+  const onColorPointerUp = () => {
+    colorDraggingRef.current = false;
+    if (colorCircleRef.current) colorCircleRef.current.style.opacity = '0';
   };
 
   const send = async () => {
@@ -412,7 +518,7 @@ export default function CameraCapture({ onCapture, onClose }) {
               style={{
                 position: 'absolute', left: `${textOverlay.xPct * 100}%`, top: `${textOverlay.yPct * 100}%`,
                 transform: 'translate(-50%, -50%)', color: textOverlay.color || '#fff', fontWeight: 700, fontSize: 22,
-                textShadow: textOverlay.color === '#000000' ? '0 1px 4px rgba(255,255,255,0.5)' : '0 2px 6px rgba(0,0,0,0.7)',
+                textShadow: isColorDark(textOverlay.color) ? '0 1px 4px rgba(255,255,255,0.5)' : '0 2px 6px rgba(0,0,0,0.7)',
                 cursor: 'grab', padding: 6, touchAction: 'none',
                 userSelect: 'none', whiteSpace: 'nowrap',
               }}
@@ -547,26 +653,31 @@ export default function CameraCapture({ onCapture, onClose }) {
               borderRadius: 12, padding: '14px 16px', color: textDraftColor, fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
             }}
           />
-          {/* Vertical color strip on the right edge, matching Instagram/
-              WhatsApp's own text-color picker placement. */}
+          {/* Continuous vertical color spectrum on the right edge, matching
+              iOS's own text-color slider, instead of a row of fixed swatches —
+              dragging shows a magnified preview circle to its left (below)
+              rather than jumping between discrete dots. */}
           <div
+            ref={colorBarRef}
             onClick={e => e.stopPropagation()}
-            style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(255,255,255,0.08)', padding: '10px 6px', borderRadius: 999 }}
-          >
-            {TEXT_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setTextDraftColor(c)}
-                aria-label={`Text color ${c}`}
-                style={{
-                  width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer',
-                  border: textDraftColor === c ? '2px solid #fff' : '2px solid rgba(255,255,255,0.3)',
-                  boxShadow: textDraftColor === c ? '0 0 0 2px rgba(255,255,255,0.4)' : 'none',
-                  padding: 0,
-                }}
-              />
-            ))}
-          </div>
+            onPointerDown={onColorPointerDown}
+            onPointerMove={onColorPointerMove}
+            onPointerUp={onColorPointerUp}
+            onPointerCancel={onColorPointerUp}
+            style={{
+              position: 'absolute', right: 18, top: 70, bottom: 70, width: 26,
+              borderRadius: 13, background: GRADIENT_CSS, touchAction: 'none', cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.25)',
+            }}
+          />
+          <div
+            ref={colorCircleRef}
+            style={{
+              position: 'absolute', right: 54, top: '50%', width: 56, height: 56, borderRadius: '50%',
+              background: textDraftColor, border: '3px solid #fff', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+              transform: 'translateY(-50%)', opacity: 0, transition: 'opacity 0.12s ease', pointerEvents: 'none',
+            }}
+          />
         </div>
       )}
 

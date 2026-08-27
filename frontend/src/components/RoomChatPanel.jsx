@@ -3249,7 +3249,9 @@ export default function RoomChatPanel({ p }) {
                           overflowY:'auto',
                           lineHeight:1.4,
                           fontFamily:'inherit',
-                          background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
+                          // Solid opaque fill in dark mode, not a faint tint —
+                          // light mode's #f1f5f9 was already opaque.
+                          background: isLight ? '#f1f5f9' : '#1c1c1e',
                           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
                           borderRadius:10,
                           padding:'8px 12px',
@@ -4065,7 +4067,9 @@ export default function RoomChatPanel({ p }) {
                               overflowY:'auto',
                               lineHeight:1.4,
                               fontFamily:'inherit',
-                              background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.04)',
+                              // Solid opaque fill in dark mode, not a faint tint —
+                              // light mode's #f1f5f9 was already opaque.
+                              background: isLight ? '#f1f5f9' : '#1c1c1e',
                               border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
                               borderRadius:10,
                               padding:'8px 12px',

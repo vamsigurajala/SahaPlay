@@ -7875,7 +7875,12 @@ const GlobalChatWidget = forwardRef(({
                             overflowY: 'auto',
                             lineHeight: 1.4,
                             fontFamily: 'inherit',
-                            background: 'rgba(255,255,255,0.04)',
+                            // A solid opaque fill, not a faint tint on top of
+                            // whatever's behind the composer (page background
+                            // or, with a wallpaper theme, the picture) — this
+                            // box needs to read as a clearly defined input at
+                            // a glance, regardless of what's behind the bar.
+                            background: '#1c1c1e',
                             border: '1px solid rgba(255,255,255,0.08)',
                             borderRadius: 14,
                             padding: '12px 18px',
@@ -7886,8 +7891,8 @@ const GlobalChatWidget = forwardRef(({
                             outline: 'none',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = 'rgba(255,255,255,0.07)'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
-                          onBlur={e => { e.target.style.background = 'rgba(255,255,255,0.04)'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
+                          onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                         />
 
                         {!inputValue && !isUploading && (
