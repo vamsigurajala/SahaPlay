@@ -906,8 +906,20 @@ const typingCss = `
       left: 0 !important;
       right: 0 !important;
       bottom: 0 !important;
-      width: 100% !important;
-      height: 100dvh !important;
+      /* width/height forced to auto (not 100% / 100dvh, what this used to
+         be) so nothing overrides the top/left/right/bottom pinning above —
+         a fixed-position box with all four offsets at 0 and an auto size
+         always fills exactly the real current viewport, which is the one
+         thing that's reliably correct through an Android on-screen-
+         keyboard resize. 100dvh (and 100%, which for a fixed element with
+         explicit offsets on all sides would otherwise win over them and
+         reintroduce the same issue) was seen to reflect a transient,
+         narrower viewport while the keyboard was still animating open —
+         which is what read as "the chat theme shrinks on both sides when
+         the keyboard opens". This sidesteps that rather than chasing which
+         specific viewport unit is unreliable on which device. */
+      width: auto !important;
+      height: auto !important;
       max-width: 100% !important;
       border-radius: 0 !important;
     }

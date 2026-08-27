@@ -550,11 +550,18 @@ export default function CameraCapture({ onCapture, onClose }) {
         </div>
       )}
 
-      {/* Top bar */}
+      {/* Top bar — this screen is a plain fixed overlay with no header of
+          its own above it, so its top padding has to clear the real status
+          bar itself. env(safe-area-inset-top) alone isn't reliable inside
+          this app's Capacitor WebView (the rest of the app's own headers
+          add --sp-status-bar-inset, a value the native shell computes
+          directly, specifically because of that — see nativeShell.js's
+          initNativeStatusBarInset()); without it these icons sat right
+          against the very top edge, touching the system status bar. */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0,
         background: 'linear-gradient(rgba(0,0,0,0.45), transparent)',
-        padding: 'max(14px, env(safe-area-inset-top)) 16px 28px',
+        padding: 'calc(20px + var(--sp-status-bar-inset, 0px) + env(safe-area-inset-top)) 16px 28px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <button onClick={requestClose} aria-label="Close camera" style={iconBtnStyle}>
