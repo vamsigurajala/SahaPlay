@@ -1430,7 +1430,10 @@ export default function RoomChatPanel({ p }) {
   // Shared across the whole panel (both group + DM tabs) — only one message
   // can be mid-swipe or long-pressed at a time, so a single instance is enough.
   const swipe = useSwipeToReply();
-  const longPress = useLongPress();
+  // Faster than the 500ms default — the reaction/unsend menu felt sluggish
+  // to open on both sent and received messages; 300ms is still comfortably
+  // past a normal tap/scroll-start so it doesn't false-trigger.
+  const longPress = useLongPress(300);
   // 'up' = menu opens above the touched row (row is near the bottom of the
   // screen, close to the composer); 'down' = opens below (row is near the
   // top, close to the header). Computed from raw touch Y at press-start so

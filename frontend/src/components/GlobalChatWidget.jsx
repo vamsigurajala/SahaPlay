@@ -1857,7 +1857,10 @@ const GlobalChatWidget = forwardRef(({
   // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
   // these aren't called per-message inside the .map() below.
   const swipe = useSwipeToReply();
-  const longPress = useLongPress();
+  // Faster than the 500ms default — the reaction/unsend menu felt sluggish
+  // to open on both sent and received messages; 300ms is still comfortably
+  // past a normal tap/scroll-start so it doesn't false-trigger.
+  const longPress = useLongPress(300);
   // Mobile/iPad: long-press a chat-list row to open the same "..." menu the
   // desktop dropdown arrow opens (hide/pin/mute/etc), instead of requiring a
   // second tap on the tiny arrow. Separate instance from the message-row
