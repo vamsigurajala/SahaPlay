@@ -15,19 +15,24 @@ html.pwa-standalone * {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Native app / installed PWA on mobile & tablet: the page (Home's long
-   scroll, in practice — most other routes use a fixed-height internal
-   layout instead) stays scrollable, but a visible track/thumb reads as a
-   stray desktop-browser artifact inside what's meant to feel like a native
-   app. Hidden in both light and dark theme; regular mobile/desktop web
-   keeps the normal scrollbar untouched. */
+/* Native app / installed PWA on mobile & tablet: every page stays
+   scrollable, but a visible track/thumb reads as a stray desktop-browser
+   artifact inside what's meant to feel like a native app. !important (and
+   targeting every element, not just html/body) matches the exact pattern
+   this file already uses for .no-scrollbar/.sp-hidden-scroll below —
+   without it, a plain declaration here can lose a cascade tie to whatever
+   scrollbar rule a specific page/component's own <style> tag happens to
+   inject later in document order. Hidden in both light and dark theme;
+   regular mobile/desktop web keeps the normal scrollbar untouched. */
 html.pwa-standalone,
-html.pwa-standalone body {
-  scrollbar-width: none;
+html.pwa-standalone * {
+  scrollbar-width: none !important;
 }
 html.pwa-standalone::-webkit-scrollbar,
-html.pwa-standalone body::-webkit-scrollbar {
-  display: none;
+html.pwa-standalone *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Room cards with no host-set thumbnail (RoomThumbnail.jsx) — plain "no
