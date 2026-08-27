@@ -26,7 +26,8 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor } from '../lib/chatThemes';
+import { CHAT_THEME_BUBBLE_STRIDE, deriveChatKeyFromTarget, resolveChatVisual, applyChatThemeShared, useWallpaperColor } from '../lib/chatThemes';
+import ChatThemeSheet from './ChatThemeSheet';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -1687,10 +1688,8 @@ const GlobalChatWidget = forwardRef(({
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
   // Dominant color extracted from the active conversation's Background
-  // wallpaper (if any) — resolved asynchronously (canvas pixel sampling, see
-  // getWallpaperDominantColor) since it's not known until the image decodes,
-  // unlike CHAT_THEMES' hand-picked gradients which are available instantly.
-  const [wallpaperColor, setWallpaperColor] = useState(null);
+  // wallpaper, if any — see useWallpaperColor(activeWallpaper) further down,
+  // resolved once activeWallpaper itself is known.
   // Which collapsed "Theme changed N times" runs (keyed by the run's head
   // message key — see groupNoticeRuns) the user has manually expanded.
   const [expandedNoticeRuns, setExpandedNoticeRuns] = useState(() => new Set());
@@ -1751,26 +1750,11 @@ const GlobalChatWidget = forwardRef(({
     } catch (err) { console.error('[CHAT THEME] Notice send failure:', err); }
   }, [keyPair]);
   const applyChatTheme = useCallback((target, themeId) => {
-    if (!target) return;
-    const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
-    if (!chatKey) return;
-    setChatThemes(prev => {
-      const next = { ...prev };
-      if (themeId && themeId !== 'default') next[chatKey] = themeId;
-      else delete next[chatKey];
-      localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next));
-      return next;
+    applyChatThemeShared({
+      target, themeId, setChatThemes,
+      storageKey: `chat_themes_${myUsername}`, apiBase: API,
+      sendThemeNotice: (partner) => sendThemeNoticeMessage(partner, themeId),
     });
-    if (target.type === 'private') {
-      sendThemeNoticeMessage(target.partner, themeId);
-    }
-    const tkn = localStorage.getItem('watch_token');
-    if (!tkn || tkn === 'null' || tkn === 'undefined') return;
-    fetch(`${API}/api/chat-theme-prefs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-      body: JSON.stringify({ chatKey, themeId, chatType: target.type }),
-    }).catch((err) => console.error('[CHAT THEME] Save failure:', err.message));
   }, [myUsername, sendThemeNoticeMessage]);
 
   // The widget is a fixed, very-high-zIndex overlay — a page-level react-hot-toast
@@ -5505,27 +5489,17 @@ const GlobalChatWidget = forwardRef(({
   // from within a room) computes the same private-chat chatKey as
   // dmTarget.toLowerCase(), so a theme set from either surface has to land on
   // the identical map key for the other to see it too.
-  const activeChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
-  const activeThemeId = activeChatKey ? (chatThemes[activeChatKey] || 'default') : 'default';
+  const activeChatKey = deriveChatKeyFromTarget(activeChat);
   // wp- ids (see chatThemes.js) share this same storage slot as the plain
   // gradient CHAT_THEMES ids above — a full-chat background image instead of
   // just a sent-bubble gradient, so it's resolved from a separate list.
-  const activeWallpaper = findWallpaper(activeThemeId);
-  const activeTheme = activeWallpaper ? null : (CHAT_THEMES.find(th => th.id === activeThemeId) || CHAT_THEMES[0]);
-  const isCustomTheme = activeThemeId !== 'default';
-
-  useEffect(() => {
-    if (!activeWallpaper) { setWallpaperColor(null); return; }
-    let cancelled = false;
-    getWallpaperDominantColor(activeWallpaper).then(c => { if (!cancelled) setWallpaperColor(c); });
-    return () => { cancelled = true; };
-  }, [activeWallpaper]);
+  const { wallpaper: activeWallpaper, theme: activeTheme, isCustomTheme } = resolveChatVisual(chatThemes, activeChatKey);
+  const wallpaperColor = useWallpaperColor(activeWallpaper);
   // Separate from the above: the sheet can be open for a conversation that
   // isn't the one currently on screen (opened from a list row's "..." menu),
   // so its "currently selected" swatch is computed from themeSheetTarget, not
   // activeChat.
-  const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase() : null;
-  const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
+  const sheetChatKey = deriveChatKeyFromTarget(themeSheetTarget);
 
   if (!isOpen) return null;
 
@@ -7893,77 +7867,20 @@ const GlobalChatWidget = forwardRef(({
         )}
         {/* Chat bubble "Customize" theme sheet — opened via the "Chat theme"
             item in either the open-chat header menu or a conversation row's
-            "..." menu (see themeSheetTarget). Tapping a swatch applies +
+            "..." menu (see themeSheetTarget). Tapping a card applies +
             persists it immediately (server + local cache) and closes the
-            sheet; no separate "Apply" step. */}
-        {showThemeSheet && themeSheetTarget && createPortal(
-          <div
-            onMouseDown={() => setShowThemeSheet(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-          >
-            <div
-              onMouseDown={e => e.stopPropagation()}
-              style={{
-                width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
-                background: isLight ? '#ffffff' : '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
-                boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-              className="no-scrollbar"
-            >
-              <div style={{ width: 36, height: 4, borderRadius: 2, background: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
-              <div style={{ textAlign: 'center', color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
-                {t('customizeChat', 'Customize')}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {CHAT_THEMES.map(th => {
-                  const selected = th.id === sheetThemeId;
-                  return (
-                    <button
-                      key={th.id}
-                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
-                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                    >
-                      <div style={{
-                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
-                        border: selected ? '3px solid #fff' : '3px solid transparent',
-                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
-                      }} />
-                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Backgrounds — full-chat wallpaper images with a bubble color
-                  derived from the image itself (see chatThemes.js), rather
-                  than a hand-picked flat gradient like the swatches above. */}
-              <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 14px' }}>
-                {t('chatBackgrounds', 'Backgrounds')}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {CHAT_WALLPAPERS.map(w => {
-                  const selected = w.id === sheetThemeId;
-                  const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
-                  return (
-                    <button
-                      key={w.id}
-                      onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
-                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                    >
-                      <div style={{
-                        width: '100%', aspectRatio: '3/4', borderRadius: 16,
-                        backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
-                        border: selected ? '3px solid #fff' : '3px solid transparent',
-                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
-                      }} />
-                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(bgKey, w.name)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
+            sheet; no separate "Apply" step. Shared with Room.jsx's group/DM-
+            in-room picker via ChatThemeSheet.jsx — see lib/chatThemes.js for
+            the theme/wallpaper lists themselves. */}
+        <ChatThemeSheet
+          open={showThemeSheet && !!themeSheetTarget}
+          onClose={() => setShowThemeSheet(false)}
+          isLight={isLight}
+          t={t}
+          chatThemes={chatThemes}
+          activeChatKey={sheetChatKey}
+          onSelect={(themeId) => applyChatTheme(themeSheetTarget, themeId)}
+        />
         {/* Block User Confirmation Modal */}
          {blockUserPending && createPortal(
           <div onMouseDown={e => e.stopPropagation()} className="chat-modal-overlay" style={{ position: 'fixed', inset: 0, zIndex: 999999, background: isLight ? 'rgba(15, 23, 42, 0.25)' : 'rgba(0, 0, 0, 0.65)', backdropFilter: 'blur(12px) saturate(180%)', WebkitBackdropFilter: 'blur(12px) saturate(180%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
