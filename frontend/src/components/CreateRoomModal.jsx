@@ -97,7 +97,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           -webkit-backdrop-filter: blur(10px);
           z-index: 99999;
           overflow-y: auto;
-          padding: 40px 16px;
+          padding: 24px 16px;
           overscroll-behavior: contain;
           display: flex;
           align-items: flex-start;
@@ -114,9 +114,9 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           background: #13131f;
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 24px;
-          padding: 32px;
+          padding: 22px;
           width: 100%;
-          max-width: 480px;
+          max-width: 440px;
           box-shadow: 0 40px 100px rgba(0, 0, 0, 0.85);
           position: relative;
           animation: crModalIn ${CLOSE_DURATION}ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
@@ -146,7 +146,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         .cr-close-btn:hover { background: rgba(255,255,255,0.18); }
 
         .cr-modal-header {
-          margin-bottom: 28px;
+          margin-bottom: 16px;
         }
 
         .cr-id-box {
@@ -156,11 +156,11 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           background: rgba(var(--brand-1-rgb),0.08);
           border: 1px solid rgba(var(--brand-1-rgb),0.25);
           border-radius: 12px;
-          padding: 12px 16px;
+          padding: 10px 14px;
         }
 
         .cr-input {
-          width: 100%; padding: 12px 16px;
+          width: 100%; padding: 10px 14px;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 12px; color: #fff;
@@ -171,9 +171,9 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         .cr-input:focus { border-color: rgba(var(--brand-1-rgb),0.7); background: rgba(255,255,255,0.08); }
         .cr-input option { background: #1a1a2e; }
 
-        .cr-cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 8px; }
+        .cr-cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 8px; }
         .cr-cat-btn {
-          padding: 10px 6px; border-radius: 12px;
+          padding: 8px 6px; border-radius: 12px;
           border: 1.5px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.04); color: #aaa;
           font-size: 13px; font-weight: 600;
@@ -184,7 +184,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
 
         .cr-toggle-row {
           display: flex; align-items: center; gap: 12px;
-          padding: 14px 16px; border-radius: 14px;
+          padding: 10px 14px; border-radius: 14px;
           border: 1.5px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.03);
           cursor: pointer; transition: border-color 0.2s, background 0.2s;
@@ -201,7 +201,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         }
 
         .cr-launch-btn {
-          width: 100%; padding: 14px; border-radius: 14px; border: none;
+          width: 100%; padding: 12px; border-radius: 14px; border: none;
           background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); color: #fff;
           font-size: 16px; font-weight: 700; cursor: pointer;
           transition: transform 0.2s, box-shadow 0.2s; letter-spacing: 0.3px;
@@ -312,7 +312,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         </div>
 
         {/* Room ID */}
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: isLight ? '#334155' : '#6b7280', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
             {t('roomIdLabel', 'Room ID (auto-generated)')}
           </label>
@@ -334,7 +334,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         </div>
 
         {/* Room Name */}
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: isLight ? '#334155' : '#6b7280', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
             {t('roomNameLabel', 'Room Name')}
           </label>
@@ -350,7 +350,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         </div>
 
         {/* Category */}
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 14 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: isLight ? '#334155' : '#6b7280', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
             {t('categoryLabel', 'Category')}
           </label>
@@ -375,7 +375,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
         </div>
 
         {/* Visibility Toggle */}
-        <div style={{ marginBottom: 28 }}>
+        <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 800, color: isLight ? '#334155' : '#6b7280', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>
             {t('visibilityLabel', 'Visibility')}
           </label>

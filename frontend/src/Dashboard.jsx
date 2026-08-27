@@ -79,7 +79,13 @@ const Dashboard = () => {
     : loggedInUsername;
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    // Dashboard only ever renders inside the Tauri desktop app (see App.jsx's
+    // routing) -- a fixed-size native window, not a scrollable webpage -- so
+    // it's locked to exactly the viewport height instead of the usual
+    // minHeight:100vh + page-scroll pattern. Without this, content taller
+    // than the window scrolled the whole page including the sticky Navbar,
+    // which reads wrong for what's meant to be a single static app screen.
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Toaster position="top-center" />
       <style>{`
         @keyframes dashOrbFloat1 {
@@ -169,7 +175,7 @@ const Dashboard = () => {
       <div className="dash-orb dash-orb-1" />
       <div className="dash-orb dash-orb-2" />
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative', zIndex: 1 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 24px', position: 'relative', zIndex: 1 }}>
         <div style={{ width: '100%', maxWidth: 1040, display: 'flex', alignItems: 'center', gap: 64, justifyContent: 'center' }}>
           <div style={{ flex: '1 1 0', maxWidth: 480 }}>
             <p className="dash-greeting">{getGreeting(t)}{displayName ? `, ${displayName}` : ''}</p>
