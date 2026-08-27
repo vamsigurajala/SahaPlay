@@ -175,6 +175,10 @@ export const CHAT_WALLPAPERS = [
       ],
     }),
   },
+  {
+    id: 'wp-cozy-cafe', name: 'Cozy Café',
+    image: '/wallpapers/cozy-cafe.jpg',
+  },
 ];
 
 export function findWallpaper(id) {
