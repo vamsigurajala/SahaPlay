@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Hash, Play } from 'lucide-react';
+import { Hash, Play, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
@@ -139,12 +139,11 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
           background: rgba(255,255,255,0.08);
           border: 1px solid rgba(255,255,255,0.15);
           border-radius: 50%; width: 44px; height: 44px;
-          cursor: pointer; color: #fff;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px; line-height: 1;
-          transition: background 0.2s, transform 0.2s;
+          padding: 0; cursor: pointer; color: #fff;
+          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+          transition: background 0.2s;
         }
-        .cr-close-btn:hover { background: rgba(255,255,255,0.18); transform: scale(1.1) rotate(90deg); }
+        .cr-close-btn:hover { background: rgba(255,255,255,0.18); }
 
         .cr-modal-header {
           margin-bottom: 28px;
@@ -261,7 +260,10 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
             right: 14px !important;
             width: 32px !important;
             height: 32px !important;
-            font-size: 18px !important;
+          }
+          .cr-close-btn svg {
+            width: 18px !important;
+            height: 18px !important;
           }
           .cr-modal-header {
             padding-right: 36px !important;
@@ -297,7 +299,7 @@ const CreateRoomModal = ({ isOpen, onClose, loggedInUsername }) => {
 
       <div className="cr-modal" onClick={e => e.stopPropagation()}>
         {/* ✕ Close button */}
-        <button className="cr-close-btn" onClick={handleClose} aria-label={t('close', 'Close')}>×</button>
+        <button className="cr-close-btn" onClick={handleClose} aria-label={t('close', 'Close')}><X size={22} strokeWidth={2.25} /></button>
 
         {/* Header */}
         <div className="cr-modal-header">
