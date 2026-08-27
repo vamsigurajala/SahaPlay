@@ -41,11 +41,12 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "SahaplayMedia",
     permissions = {
         @Permission(strings = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, alias = "media"),
-        // Both strings under one alias — READ_EXTERNAL_STORAGE is a no-op on
-        // Android 13+ (READ_MEDIA_IMAGES applies there instead; see the
-        // matching maxSdkVersion="32" on it in AndroidManifest.xml), so this
-        // covers the full OS range with a single requestPermissionForAlias
-        // call rather than branching on Build.VERSION.SDK_INT here.
+        // Declared here so Capacitor still knows about both manifest
+        // strings, but ensurePhotoPermissions/hasPhotoPermission below no
+        // longer request or check this alias as a whole (see their own
+        // comments) — READ_EXTERNAL_STORAGE is a no-op on Android 13+
+        // anyway (READ_MEDIA_IMAGES applies there instead; see the matching
+        // maxSdkVersion="32" on it in AndroidManifest.xml).
         @Permission(strings = { Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_EXTERNAL_STORAGE }, alias = "photos")
     }
 )
@@ -58,9 +59,27 @@ public class SahaplayMediaPlugin extends Plugin {
     // ever one Bridge/WebView alive per app process.
     private static SahaplayMediaPlugin activeInstance;
 
+    // Holds the PluginCall from ensurePhotoPermissions below while
+    // MainActivity's photoPermissionLauncher shows the real system dialog —
+    // resolved by onPhotoPermissionResult once the user answers it. Same
+    // "static hook back onto whichever instance is live" shape as
+    // activeInstance/emitScreenFrame above, needed for the same reason: the
+    // result arrives via MainActivity's own ActivityResultCallback, not
+    // through anything this Plugin instance is directly invoked by.
+    private PluginCall pendingPhotoPermissionCall;
+
     @Override
     public void load() {
         activeInstance = this;
+    }
+
+    public static void onPhotoPermissionResult(boolean granted) {
+        if (activeInstance == null || activeInstance.pendingPhotoPermissionCall == null) return;
+        PluginCall call = activeInstance.pendingPhotoPermissionCall;
+        activeInstance.pendingPhotoPermissionCall = null;
+        JSObject ret = new JSObject();
+        ret.put("granted", granted);
+        call.resolve(ret);
     }
 
     public static void emitScreenFrame(String base64Jpeg, int width, int height) {
@@ -388,22 +407,31 @@ public class SahaplayMediaPlugin extends Plugin {
     // requested anyway per explicit product request rather than relying on
     // that silent, scoped access.
     //
-    // Deliberately does NOT use Capacitor's own getPermissionState("photos")
-    // to decide granted/denied (unlike ensureMediaPermissions above, which
-    // safely can — CAMERA/RECORD_AUDIO have no SDK-version split). The
-    // "photos" alias covers TWO manifest strings — READ_MEDIA_IMAGES (33+)
-    // and READ_EXTERNAL_STORAGE (maxSdkVersion="32", a no-op above API 32) —
-    // and Capacitor's alias-level GRANTED check requires EVERY string under
-    // an alias to individually read PERMISSION_GRANTED. On a real Android
-    // 13+ device, READ_EXTERNAL_STORAGE can never actually be granted (the
-    // OS silently ignores requesting it past its maxSdkVersion), so that
-    // combined check would stay stuck on "not granted" forever even
-    // immediately after the user taps "Allow" on the real READ_MEDIA_IMAGES
-    // dialog — which is what made the app's own fallback modal appear
-    // instead of (or right after) Android's real permission prompt.
-    // hasPhotoPermission() below checks only whichever single permission
-    // actually applies on this device's SDK version, sidestepping that
-    // AND-of-both-strings trap entirely.
+    // Goes through MainActivity's own photoPermissionLauncher (a plain
+    // ActivityResultContracts.RequestPermission()) instead of this class's
+    // own requestPermissionForAlias("photos", ...) — a previous version of
+    // this method used that, and on a real device it never showed Android's
+    // system dialog at all, going straight to this app's own fallback modal
+    // instead. That's the exact same class of failure already documented
+    // (and worked around, via getUserMedia() instead) for camera/mic in
+    // nativeMedia.js's ensureNativeMediaPermissions — Capacitor's own
+    // permission-alias wrapper silently resolving "not granted" without the
+    // dialog ever appearing. There's no getUserMedia-equivalent browser API
+    // for storage/photos to fall back on, so this calls the underlying
+    // AndroidX API directly instead, bypassing whichever step of
+    // Capacitor's own wrapper was dropping the request. hasPhotoPermission()
+    // checks only whichever single permission string actually applies on
+    // this device's SDK version (not Capacitor's own getPermissionState,
+    // which ANDs every string under an alias — READ_EXTERNAL_STORAGE can
+    // never register granted on 13+ thanks to its maxSdkVersion="32", which
+    // would keep that combined check stuck on "not granted" forever).
+    //
+    // setKeepAlive(true) mirrors what Capacitor's own requestPermissionForAlias
+    // does internally — the system permission dialog can outlive this
+    // Activity (recreated on a config change, or killed under memory
+    // pressure while it's showing), and without this the pending call would
+    // be lost rather than resolved by onPhotoPermissionResult once the user
+    // answers it.
     @PluginMethod
     public void ensurePhotoPermissions(PluginCall call) {
         if (hasPhotoPermission()) {
@@ -412,14 +440,17 @@ public class SahaplayMediaPlugin extends Plugin {
             call.resolve(ret);
             return;
         }
-        requestPermissionForAlias("photos", call, "photoPermissionCallback");
-    }
-
-    @PermissionCallback
-    private void photoPermissionCallback(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("granted", hasPhotoPermission());
-        call.resolve(ret);
+        if (!(getActivity() instanceof MainActivity)) {
+            call.reject("Photo permission unavailable");
+            return;
+        }
+        call.setKeepAlive(true);
+        pendingPhotoPermissionCall = call;
+        String perm = Build.VERSION.SDK_INT >= 33
+            ? Manifest.permission.READ_MEDIA_IMAGES
+            : Manifest.permission.READ_EXTERNAL_STORAGE;
+        getActivity().runOnUiThread(() ->
+            ((MainActivity) getActivity()).getPhotoPermissionLauncher().launch(perm));
     }
 
     private boolean hasPhotoPermission() {

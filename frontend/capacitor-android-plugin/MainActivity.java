@@ -3,6 +3,8 @@ package com.sahaplay.app;
 import android.os.Bundle;
 import android.webkit.WebSettings;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
@@ -16,11 +18,50 @@ import com.getcapacitor.BridgeActivity;
 // SahaplayMediaPlugin.java) before super.onCreate(), as Capacitor's plugin
 // registration requires.
 public class MainActivity extends BridgeActivity {
+    // Hosts the real Android permission request for photos/videos (see
+    // SahaplayMediaPlugin.ensurePhotoPermissions, which calls
+    // getPhotoPermissionLauncher().launch(...) instead of Capacitor's own
+    // requestPermissionForAlias/@PermissionCallback machinery). That
+    // Capacitor-provided mechanism is the same one already confirmed (see
+    // nativeMedia.js's ensureNativeMediaPermissions comment) to sometimes
+    // silently resolve "not granted" WITHOUT ever showing Android's system
+    // dialog on a fresh install — camera/mic worked around it by going
+    // through getUserMedia() instead (a browser API with its own,
+    // independently-reliable permission bridge), but there's no such
+    // browser-API equivalent for storage/photos, so this calls
+    // ActivityResultContracts.RequestPermission() directly instead, the
+    // same AndroidX API Capacitor's own wrapper uses internally, but without
+    // going through whatever step in that wrapper was dropping the request.
+    // Registration MUST happen before this Activity reaches STARTED —
+    // doing it here in onCreate (before super.onCreate() returns control
+    // past it) satisfies that.
+    private ActivityResultLauncher<String> photoPermissionLauncher;
+
+    public ActivityResultLauncher<String> getPhotoPermissionLauncher() {
+        return photoPermissionLauncher;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SahaplayMediaPlugin.class);
         registerPlugin(SahaplayCallPlugin.class);
+        photoPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            granted -> SahaplayMediaPlugin.onPhotoPermissionResult(granted)
+        );
         super.onCreate(savedInstanceState);
+
+        // The WebView's OWN native scrollbar overlay (a plain Android View
+        // property, entirely separate from anything the page's CSS draws)
+        // was showing as a persistent thin scrollbar on the far right edge
+        // of every scrollable page — no amount of ::-webkit-scrollbar CSS
+        // can touch this, since it isn't part of the page at all. The page
+        // itself already hides its own CSS scrollbar in this same build
+        // (see index.css's html.pwa-standalone rule); this removes the
+        // WebView's separate native one so no scrollbar shows at all,
+        // while normal scrolling (touch drag, fling) is untouched.
+        getBridge().getWebView().setVerticalScrollBarEnabled(false);
+        getBridge().getWebView().setHorizontalScrollBarEnabled(false);
 
         // Several OEM Android skins (Samsung/Xiaomi's own system-wide
         // "Dark mode for all apps" force-dark setting especially) apply
