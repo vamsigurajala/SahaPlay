@@ -5766,6 +5766,21 @@ const GlobalChatWidget = forwardRef(({
         transition: 'border-radius 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         fontFamily: "'Inter', sans-serif"
       }}>
+        {/* Shared wallpaper backdrop — spans the messages area AND the
+            composer bar below it as ONE continuous image (negative z-index
+            keeps it behind all normal-flow content in this panel without
+            needing to restructure the message-list/composer DOM). Both of
+            those containers go background:transparent when a wallpaper is
+            active (see below) so this single layer shows through both,
+            instead of the composer painting its own opaque bar on top of
+            the picture like a separate panel glued on. */}
+        {activeWallpaper && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+            backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
+            backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+          }} />
+        )}
         {/* Lightbox portal — fixed overlay above everything */}
         {lightbox && createPortal(
           <MediaLightbox
@@ -7018,16 +7033,11 @@ const GlobalChatWidget = forwardRef(({
               onClick={() => { setActiveReactionMsg(null); setShowAllEmojis(false); setShowEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }}
               style={{
                 padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain',
-                ...(activeWallpaper ? {
-                  // A flat dark scrim under the wallpaper keeps received-bubble
-                  // text (and the wallpaper's own busiest areas) legible
-                  // regardless of how bright the image itself is — same
-                  // treatment WhatsApp applies under its own chat wallpapers.
-                  backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                } : { background: isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent' }),
+                // The wallpaper image+scrim itself now lives on the shared
+                // backdrop layer behind the whole panel (see above) so it
+                // shows through here AND behind the composer bar as one
+                // continuous picture — this container just stays transparent.
+                background: activeWallpaper ? 'transparent' : (isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent'),
               }}
             >
               {historyLoading && (
@@ -7633,8 +7643,12 @@ const GlobalChatWidget = forwardRef(({
         {view === 'chat' && (
           <div style={{
             padding: '12px 14px',
-            borderTop: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.05)',
-            background: transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)',
+            // A wallpaper theme sits directly on the shared backdrop layer
+            // instead of this bar painting its own opaque strip on top of
+            // the picture — no border/tint here in that case, same as the
+            // messages area right above it.
+            borderTop: (activeWallpaper || transparentMode) ? 'none' : '1px solid rgba(255,255,255,0.05)',
+            background: activeWallpaper ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)'),
             flexShrink: 0,
             position: 'relative'
           }}>

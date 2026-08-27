@@ -511,7 +511,7 @@ export default function CameraCapture({ onCapture, onClose }) {
             onChange={e => setCaption(e.target.value)}
             placeholder="Add a caption..."
             style={{
-              flex: 1, background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 999,
+              flex: 1, background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999,
               padding: '12px 16px', color: '#fff', fontSize: 14, outline: 'none',
             }}
           />
