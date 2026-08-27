@@ -7857,7 +7857,7 @@ const GlobalChatWidget = forwardRef(({
 
                         {!inputValue && !isUploading && (
                           <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
+                            <button type="button" className="emoji-toggle-btn" onClick={() => setShowEmojiPicker(!showEmojiPicker)} style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}>
                               <SmilePlus size={20} />
                             </button>
                             {/* Attachment button — opens unified file picker */}
@@ -7872,7 +7872,7 @@ const GlobalChatWidget = forwardRef(({
                                 fileInputRef.current?.click();
                               }}
                               title="Attach image, video, document or file"
-                              style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
+                              style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
                             >
                               <Paperclip size={18} />
                             </button>
@@ -7881,7 +7881,7 @@ const GlobalChatWidget = forwardRef(({
                               type="button"
                               onClick={startRecording}
                               title="Record voice note"
-                              style={{ background:'transparent', border:'none', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
+                              style={{ background:'transparent', border:'none', color:'#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4 }}
                             >
                               <Mic size={18} />
                             </button>
