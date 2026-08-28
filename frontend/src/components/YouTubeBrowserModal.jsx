@@ -25,6 +25,7 @@ export default function YouTubeBrowserModal({ onSelect, onClose, isLight }) {
   const debounceRef = useRef(null);
   const isFirstRenderRef = useRef(true);
   const suppressNextEmptyRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const tags = ['Trending', 'Live', 'Music', 'Gaming', 'News', 'Movies'];
 
@@ -41,17 +42,27 @@ export default function YouTubeBrowserModal({ onSelect, onClose, isLight }) {
       return;
     }
 
+    // Tags each request with an ever-increasing id so a slower, superseded
+    // request (e.g. from an earlier keystroke) can never clobber the result
+    // of a newer one that already resolved first — without this, live
+    // search-as-you-type could flash stale results or flip loading back off
+    // out of order on an inconsistent connection.
+    const myId = ++requestIdRef.current;
     setLoading(true); setError('');
     try {
       // For tags, we append the category to search
       const finalQuery = isTag ? `top ${q} videos` : q;
       const r = await fetch(`${SOCKET_SERVER_URL}/api/youtube/search?q=${encodeURIComponent(finalQuery)}`);
       const data = await r.json();
+      if (myId !== requestIdRef.current) return; // superseded
       if (data.error) { setError(data.error); return; }
       setResults(Array.isArray(data) ? data : []);
     } catch {
+      if (myId !== requestIdRef.current) return;
       setError(t('searchServiceError', 'Could not reach search service. Check your connection.'));
-    } finally { setLoading(false); }
+    } finally {
+      if (myId === requestIdRef.current) setLoading(false);
+    }
   }, [onSelect, onClose, activeTag]);
 
   // Initial load

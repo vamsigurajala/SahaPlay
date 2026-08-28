@@ -1973,25 +1973,59 @@ function computeMediaExpiry(mediaType) {
 // â"€â"€ YouTube Search Proxy (via yt-search) â"€â"€
 const ytSearch = require('yt-search');
 
+// yt-search does a real scrape of a YouTube results page per call — a few
+// real seconds of latency on a good day, worse on Render's shared free-tier
+// CPU. This endpoint has no per-user personalization at all, so every
+// identical query string (the 6 fixed tag chips send the exact same text
+// every time, and repeat free-text searches are common too) can safely
+// share one cached result across every caller instead of re-scraping.
+const YT_SEARCH_CACHE = new Map(); // lowercased query -> { data, ts }
+const YT_CACHE_TTL_MS = 15 * 60_000;
+
+async function runYtSearch(rawQuery) {
+  const key = rawQuery.trim().toLowerCase();
+  const cached = YT_SEARCH_CACHE.get(key);
+  if (cached && Date.now() - cached.ts < YT_CACHE_TTL_MS) return cached.data;
+
+  const r = await ytSearch(rawQuery);
+  const results = r.videos.slice(0, 20).map(v => ({
+    videoId: v.videoId,
+    title: v.title,
+    author: v.author.name,
+    lengthSeconds: v.seconds,
+    thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`
+  }));
+  YT_SEARCH_CACHE.set(key, { data: results, ts: Date.now() });
+  return results;
+}
+
 app.get('/api/youtube/search', async (req, res) => {
   const { q } = req.query;
   if (!q || !q.trim()) return res.json([]);
-  
+
   try {
-    const r = await ytSearch(q);
-    const results = r.videos.slice(0, 20).map(v => ({
-      videoId: v.videoId,
-      title: v.title,
-      author: v.author.name,
-      lengthSeconds: v.seconds,
-      thumbnail: v.thumbnail || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`
-    }));
+    const results = await runYtSearch(q);
     return res.json(results);
   } catch (error) {
     console.error('YouTube search error:', error);
     res.status(502).json({ error: 'YouTube search unavailable. Try again shortly.' });
   }
 });
+
+// Pre-warm the exact strings YouTubeBrowserModal.jsx's tag chips send
+// ("top Trending videos", "top Music videos", etc.) so the very first
+// person to open the modal — or click a tag — never eats a live scrape,
+// and refresh them on a timer so the shared cache never fully expires
+// while the server is up. Fire-and-forget: a warm-up failure here should
+// never block server startup or surface to any real request.
+const YT_TAG_WARM_QUERIES = ['Trending', 'Live', 'Music', 'Gaming', 'News', 'Movies']
+  .map(tag => `top ${tag} videos`);
+
+function warmYtTagCache() {
+  YT_TAG_WARM_QUERIES.forEach(q => { runYtSearch(q).catch(() => {}); });
+}
+warmYtTagCache();
+setInterval(warmYtTagCache, 10 * 60_000);
 
 // --- Twitch Discovery (Simulated Mode) ---
 const SIMULATED_TWITCH_CHANNELS = [
