@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE } from '../lib/chatThemes';
 import CameraCapture from './CameraCapture';
+import VoiceRecorderBar from './VoiceRecorderBar';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
@@ -717,11 +718,6 @@ const MenuStyles = () => (
     html[data-theme='light'] .rcp-vn-expiry,
     html[data-theme='light'] .msg-sent .rcp-vn-expiry,
     html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
-    .voice-trash-btn { background: transparent !important; border: none !important; cursor: pointer !important; display: flex !important; align-items: center !important; padding: 4px !important; border-radius: 6px !important; transition: color 0.2s !important; }
-    html:not([data-theme='light']) .voice-trash-btn svg { color: rgba(255,255,255,0.45) !important; }
-    html:not([data-theme='light']) .voice-trash-btn:hover svg { color: #ef4444 !important; }
-    html[data-theme='light'] .voice-trash-btn svg { color: rgba(0,0,0,0.55) !important; }
-    html[data-theme='light'] .voice-trash-btn:hover svg { color: #dc2626 !important; }
     .menu-dropdown {
       animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       transform-origin: top right;
@@ -1955,7 +1951,6 @@ export default function RoomChatPanel({ p }) {
     }
   };
 
-  const formatRecordingTime = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 
   const startRecording = async (chatType) => {
     try {
@@ -3198,30 +3193,20 @@ export default function RoomChatPanel({ p }) {
             
             {/* Group + DM emoji pickers moved to global section below to avoid overflow clipping */}
             
-            {/* Group recording UI */}
-            {isRecording && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
-                <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
-                  {waveHeights.map((h, i) => (
-                    <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, var(--brand-1), var(--brand-2))', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
-                  ))}
-                </div>
-                <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                <button className="stay-white" type="button" onClick={stopRecording} style={{ background: 'var(--brand-1)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                  <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
-                </button>
-              </div>
-            )}
-            {!isRecording && audioBlob && audioUrl && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
-                <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
-                <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
-                <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                  {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
-                </button>
+            {/* Group recording / review UI (WhatsApp-style) */}
+            {((isRecording && recordingFor === 'group') || (audioBlob && audioUrl && recordingFor === 'group')) && (
+              <div style={{ marginBottom: 6 }}>
+                <VoiceRecorderBar
+                  isRecording={isRecording && recordingFor === 'group'}
+                  recordingTime={recordingTime}
+                  waveHeights={waveHeights}
+                  audioUrl={audioUrl}
+                  isLight={isLight}
+                  isUploading={isUploading}
+                  onCancel={cancelRecording}
+                  onStop={stopRecording}
+                  onSend={sendVoiceNote}
+                />
               </div>
             )}
             {(!isRecording || recordingFor !== 'group') && !(audioBlob && recordingFor === 'group') && (() => {
@@ -4025,30 +4010,18 @@ export default function RoomChatPanel({ p }) {
                       );
                     }
 
-                    if (isRecording && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
-                        <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
-                          {waveHeights.map((h, i) => (
-                            <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, var(--brand-1), var(--brand-2))', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
-                          ))}
-                        </div>
-                        <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                        <button className="stay-white" type="button" onClick={stopRecording} style={{ background: 'var(--brand-1)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                          <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
-                        </button>
-                      </div>
-                    );
-                    if (!isRecording && audioBlob && audioUrl && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
-                        <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
-                        <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
-                        <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
-                        <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                          {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
-                        </button>
-                      </div>
+                    if ((isRecording && recordingFor === 'dm') || (audioBlob && audioUrl && recordingFor === 'dm')) return (
+                      <VoiceRecorderBar
+                        isRecording={isRecording && recordingFor === 'dm'}
+                        recordingTime={recordingTime}
+                        waveHeights={waveHeights}
+                        audioUrl={audioUrl}
+                        isLight={isLight}
+                        isUploading={isUploading}
+                        onCancel={cancelRecording}
+                        onStop={stopRecording}
+                        onSend={sendVoiceNote}
+                      />
                     );
 
                     return (

@@ -13,6 +13,7 @@ import PinSetupModal from './PinSetupModal';
 import PollComposer from './PollComposer';
 import PollBubble from './PollBubble';
 import PollVotesModal from './PollVotesModal';
+import VoiceRecorderBar from './VoiceRecorderBar';
 import { castPollVote } from '../lib/pollApi';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
@@ -5262,12 +5263,6 @@ const GlobalChatWidget = forwardRef(({
     }
   };
 
-  function formatRecordingTime(seconds) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
-  }
-
   async function startRecording() {
     try {
       // Explicitly OFF (not just omitted): leaving these unset lets Chromium
@@ -8030,33 +8025,19 @@ const GlobalChatWidget = forwardRef(({
                     </div>
                   )}
 
-                  {/* ── Voice recording UI ── */}
-                  {isRecording && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
-                      <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
-                        {waveHeights.map((h, i) => (
-                          <div key={i} style={{ width: 3, borderRadius: 3, background: 'linear-gradient(to top, var(--brand-1), var(--brand-2))', flexShrink: 0, height: `${h}%`, transition: 'height 0.08s ease', minHeight: 3 }} />
-                        ))}
-                      </div>
-                      <button type="button" onClick={cancelRecording} title="Delete Recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
-                      <button className="stay-white" type="button" onClick={stopRecording} style={{ background: 'var(--brand-1)', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                        <Check size={11} color="#fff" strokeWidth={2.5} /> <span className="stay-white" style={{ color: '#fff' }}>Done</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* ── Voice note preview ── */}
-                  {!isRecording && audioBlob && audioUrl && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
-                      <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
-                      <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
-                      <button type="button" onClick={cancelRecording} title="Delete Recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
-                      <button className="stay-white" type="button" onClick={sendVoiceNote} disabled={isUploading} style={{ background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '4px 10px', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, color: '#fff' }}>
-                        {isUploading ? <Loader2 size={11} color="#fff" style={{ animation: 'spin 1s linear infinite' }} /> : <><Send size={11} color="#fff" /> <span className="stay-white" style={{ color: '#fff' }}>Send</span></>}
-                      </button>
-                    </div>
+                  {/* ── Voice recording / review UI (WhatsApp-style) ── */}
+                  {(isRecording || (audioBlob && audioUrl)) && (
+                    <VoiceRecorderBar
+                      isRecording={isRecording}
+                      recordingTime={recordingTime}
+                      waveHeights={waveHeights}
+                      audioUrl={audioUrl}
+                      isLight={isLight}
+                      isUploading={isUploading}
+                      onCancel={cancelRecording}
+                      onStop={stopRecording}
+                      onSend={sendVoiceNote}
+                    />
                   )}
 
                   {!isRecording && !audioBlob && (
