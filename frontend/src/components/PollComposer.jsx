@@ -1,10 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, GripVertical, X, Send } from 'lucide-react';
 
 const QUESTION_LIMIT = 255;
 const OPTION_LIMIT = 100;
 const MAX_OPTIONS = 12;
 const MIN_OPTIONS = 2;
+
+let nextOptionId = 0;
+const makeOption = (value = '') => ({ id: nextOptionId++, value });
 
 // Full-screen "Create poll" composer — paperclip menu's Poll option opens
 // this instead of the file picker. onSend receives a plain
@@ -14,80 +17,143 @@ const MIN_OPTIONS = 2;
 // the message isPoll:true — this component has no idea messages are
 // encrypted at all, matching how CameraCapture.jsx hands back a plain File
 // and lets the caller do the actual sending.
-export default function PollComposer({ onSend, onClose, isLight }) {
-  const [question, setQuestion] = useState('');
-  const [options, setOptions] = useState(['', '']);
-  const [allowMultiple, setAllowMultiple] = useState(false);
-  const optionRefs = useRef([]);
+//
+// initialPoll (optional): { question, options, allowMultiple } to prefill —
+// used when reopening this to edit an existing poll message (the caller
+// still decides create-vs-edit; onSend's shape is identical either way).
+export default function PollComposer({ onSend, onClose, isLight, initialPoll, title }) {
+  const [question, setQuestion] = useState(initialPoll?.question || '');
+  const [options, setOptions] = useState(() =>
+    (initialPoll?.options && initialPoll.options.length)
+      ? initialPoll.options.map(v => makeOption(v))
+      : [makeOption(), makeOption()]
+  );
+  const [allowMultiple, setAllowMultiple] = useState(!!initialPoll?.allowMultiple);
+  const optionRefs = useRef({});
 
-  // Drag-to-reorder: pointer-events based (not HTML5 drag/drop, which has
-  // no real touch support) so this works the same on a mouse or a phone —
-  // same approach CameraCapture.jsx's color slider already uses. Dragging
-  // the handle on one row swaps it live with whichever row the pointer is
-  // currently over, using each row's own measured position rather than a
-  // fixed row height, so this stays correct even if a row has wrapped to
-  // two lines from a long option.
-  const rowRefs = useRef([]);
-  const dragIndexRef = useRef(null);
-  const [dragIndex, setDragIndex] = useState(null);
+  // Smooth drag-to-reorder: pointer-events based (not HTML5 drag/drop, which
+  // has no real touch support) — same approach CameraCapture.jsx's color
+  // slider already uses. Two things make this feel smooth instead of the
+  // instant re-layout jump a naive swap gives:
+  //  1. Rows are keyed by a stable id (not array index), so reordering moves
+  //     real DOM nodes around instead of React re-rendering each index's
+  //     content in place.
+  //  2. FLIP: whenever the order changes, every row except the one actively
+  //     being dragged is snapped back to its last pixel position via
+  //     transform, then transitioned to its new (0) position — a real slide,
+  //     not a snap. The dragged row itself is written directly to the DOM via
+  //     ref on every pointer move (no React re-render per pixel), so it
+  //     tracks the pointer with zero lag; only crossing a neighbor's midpoint
+  //     triggers an actual state reorder.
+  const rowRefs = useRef({});
+  const lastTopRef = useRef({});
+  const dragIdRef = useRef(null);
+  const dragStartPointerYRef = useRef(0);
+  const dragStartTopRef = useRef(0);
+  const [dragId, setDragId] = useState(null);
 
-  const updateOption = (i, value) => {
+  useLayoutEffect(() => {
+    options.forEach(opt => {
+      const el = rowRefs.current[opt.id];
+      if (!el) return;
+      const newTop = el.offsetTop;
+      const prevTop = lastTopRef.current[opt.id];
+      if (prevTop != null && prevTop !== newTop && opt.id !== dragIdRef.current) {
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${prevTop - newTop}px)`;
+        void el.offsetHeight; // force a reflow so the transition below animates from this position
+        el.style.transition = 'transform 180ms cubic-bezier(0.22,0.9,0.3,1)';
+        el.style.transform = '';
+      }
+      lastTopRef.current[opt.id] = newTop;
+    });
+  }, [options]);
+
+  const updateOption = (id, value) => {
     setOptions(prev => {
-      const next = [...prev];
-      next[i] = value.slice(0, OPTION_LIMIT);
+      const next = prev.map(o => (o.id === id ? { ...o, value: value.slice(0, OPTION_LIMIT) } : o));
+      const idx = next.findIndex(o => o.id === id);
       // Typing into the last (currently empty→non-empty) box grows the
       // list — mirrors WhatsApp's own "type in the last row to add
       // another" behavior instead of a separate persistent "+ Add" button
       // the user has to keep re-tapping.
-      if (i === next.length - 1 && next[i].trim() && next.length < MAX_OPTIONS) {
-        next.push('');
+      if (idx === next.length - 1 && next[idx].value.trim() && next.length < MAX_OPTIONS) {
+        next.push(makeOption());
       }
       return next;
     });
   };
 
-  const removeOption = (i) => {
+  const removeOption = (id) => {
+    setOptions(prev => (prev.length <= MIN_OPTIONS ? prev : prev.filter(o => o.id !== id)));
+  };
+
+  const onHandlePointerDown = (id, e) => {
+    e.preventDefault();
+    const el = rowRefs.current[id];
+    if (!el) return;
+    dragIdRef.current = id;
+    dragStartPointerYRef.current = e.clientY;
+    dragStartTopRef.current = el.offsetTop;
+    setDragId(id);
+    el.style.transition = 'none';
+    el.style.zIndex = 5;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const onHandlePointerMove = (e) => {
+    const id = dragIdRef.current;
+    if (id == null) return;
+    const el = rowRefs.current[id];
+    if (!el) return;
+
+    // Position the dragged row at (its current natural slot) + (however much
+    // the pointer has moved since drag start, minus however much the row's
+    // own natural slot has already shifted from prior reorders) — keeps it
+    // glued to the pointer continuously even as the underlying array (and
+    // therefore the row's own rest position) changes mid-drag.
+    const naturalTop = el.offsetTop;
+    const netDelta = (e.clientY - dragStartPointerYRef.current) - (naturalTop - dragStartTopRef.current);
+    el.style.transform = `translateY(${netDelta}px)`;
+
+    const draggedRect = el.getBoundingClientRect();
+    const draggedMid = draggedRect.top + draggedRect.height / 2;
     setOptions(prev => {
-      if (prev.length <= MIN_OPTIONS) return prev;
-      return prev.filter((_, idx) => idx !== i);
+      const idx = prev.findIndex(o => o.id === id);
+      if (idx === -1) return prev;
+      for (let i = 0; i < prev.length; i++) {
+        if (i === idx) continue;
+        const otherEl = rowRefs.current[prev[i].id];
+        if (!otherEl) continue;
+        const rect = otherEl.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        const crossing = i < idx ? draggedMid < mid : draggedMid > mid;
+        if (crossing) {
+          const next = [...prev];
+          const [moved] = next.splice(idx, 1);
+          next.splice(i, 0, moved);
+          return next;
+        }
+      }
+      return prev;
     });
   };
 
-  const onHandlePointerDown = (i, e) => {
-    e.preventDefault();
-    dragIndexRef.current = i;
-    setDragIndex(i);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-  const onHandlePointerMove = (e) => {
-    if (dragIndexRef.current == null) return;
-    const from = dragIndexRef.current;
-    const clientY = e.clientY;
-    for (let i = 0; i < rowRefs.current.length; i++) {
-      const el = rowRefs.current[i];
-      if (!el || i === from) continue;
-      const rect = el.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      const crossing = i < from ? clientY < mid : clientY > mid;
-      if (crossing) {
-        setOptions(prev => {
-          const next = [...prev];
-          const [moved] = next.splice(from, 1);
-          next.splice(i, 0, moved);
-          return next;
-        });
-        dragIndexRef.current = i;
-        setDragIndex(i);
-        break;
+  const endDrag = () => {
+    const id = dragIdRef.current;
+    if (id != null) {
+      const el = rowRefs.current[id];
+      if (el) {
+        el.style.transition = 'transform 180ms cubic-bezier(0.22,0.9,0.3,1)';
+        el.style.transform = '';
+        el.style.zIndex = '';
       }
     }
-  };
-  const onHandlePointerUp = () => {
-    dragIndexRef.current = null;
-    setDragIndex(null);
+    dragIdRef.current = null;
+    setDragId(null);
   };
 
-  const trimmedOptions = options.map(o => o.trim());
+  const trimmedOptions = options.map(o => o.value.trim());
   const filledCount = trimmedOptions.filter(Boolean).length;
   const canSend = question.trim().length > 0 && filledCount >= MIN_OPTIONS;
 
@@ -116,7 +182,7 @@ export default function PollComposer({ onSend, onClose, isLight }) {
         <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: textColor, cursor: 'pointer', display: 'flex' }}>
           <ArrowLeft size={22} />
         </button>
-        <span style={{ fontWeight: 700, fontSize: 17 }}>Create poll</span>
+        <span style={{ fontWeight: 700, fontSize: 17 }}>{title || 'Create poll'}</span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 18px 100px', overscrollBehavior: 'contain' }} className="no-scrollbar">
@@ -141,33 +207,33 @@ export default function PollComposer({ onSend, onClose, isLight }) {
         <div style={{ fontSize: 12, fontWeight: 700, color: subColor, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
           Options
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
           {options.map((opt, i) => (
             <div
-              key={i}
-              ref={el => (rowRefs.current[i] = el)}
+              key={opt.id}
+              ref={el => (rowRefs.current[opt.id] = el)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                border: `1.5px solid ${dragIndex === i ? 'var(--brand-1)' : inputBorder}`,
+                border: `1.5px solid ${dragId === opt.id ? 'var(--brand-1)' : inputBorder}`,
                 borderRadius: 12, padding: '4px 6px 4px 14px', background: inputBg,
-                opacity: dragIndex === i ? 0.85 : 1,
-                transition: dragIndex === i ? 'none' : 'border-color 0.15s',
+                boxShadow: dragId === opt.id ? '0 8px 20px rgba(0,0,0,0.25)' : 'none',
+                position: 'relative',
               }}
             >
               <div style={{ flex: 1 }}>
                 <input
-                  ref={el => (optionRefs.current[i] = el)}
-                  value={opt}
-                  onChange={e => updateOption(i, e.target.value)}
+                  ref={el => (optionRefs.current[opt.id] = el)}
+                  value={opt.value}
+                  onChange={e => updateOption(opt.id, e.target.value)}
                   placeholder={i < 2 ? `Option ${i + 1}` : 'Add option'}
                   style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: textColor, fontSize: 15, padding: '8px 0' }}
                 />
-                <div style={{ fontSize: 10, color: subColor }}>{opt.length}/{OPTION_LIMIT}</div>
+                <div style={{ fontSize: 10, color: subColor }}>{opt.value.length}/{OPTION_LIMIT}</div>
               </div>
-              {options.length > MIN_OPTIONS && opt === '' && i === options.length - 1 ? null : (
+              {options.length > MIN_OPTIONS && opt.value === '' && i === options.length - 1 ? null : (
                 options.length > MIN_OPTIONS && (
                   <button
-                    onClick={() => removeOption(i)}
+                    onClick={() => removeOption(opt.id)}
                     aria-label="Remove option"
                     style={{ background: 'transparent', border: 'none', color: subColor, cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}
                   >
@@ -176,10 +242,10 @@ export default function PollComposer({ onSend, onClose, isLight }) {
                 )
               )}
               <div
-                onPointerDown={e => onHandlePointerDown(i, e)}
+                onPointerDown={e => onHandlePointerDown(opt.id, e)}
                 onPointerMove={onHandlePointerMove}
-                onPointerUp={onHandlePointerUp}
-                onPointerCancel={onHandlePointerUp}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
                 style={{ cursor: 'grab', color: subColor, display: 'flex', padding: '4px 2px', touchAction: 'none', flexShrink: 0 }}
                 aria-label="Reorder option"
               >

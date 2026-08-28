@@ -29,9 +29,14 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
     }
   };
 
+  // The poll card itself is always a neutral surface (see the isPoll override
+  // in GlobalChatWidget's bubble background) regardless of isMe/wallpaper/
+  // custom theme — these colors just need to read clearly against THAT plain
+  // card, not against the vivid sent-bubble gradient the rest of the app uses.
   const textColor = isLight ? '#0f172a' : '#fff';
-  const subColor = isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)';
-  const trackColor = isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.1)';
+  const subColor = isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)';
+  const trackColor = isLight ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.14)';
+  const optionBg = isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.045)';
 
   return (
     <div style={{ minWidth: 220, maxWidth: 280 }}>
@@ -57,7 +62,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
               onClick={() => toggle(i)}
               style={{
                 display: 'flex', flexDirection: 'column', gap: 6, width: '100%', textAlign: 'left',
-                background: selected ? (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.16)') : 'transparent',
+                background: selected ? (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.18)') : optionBg,
                 border: `1.5px solid ${selected ? 'var(--brand-1)' : trackColor}`,
                 borderRadius: 12, padding: '9px 12px', cursor: 'pointer',
               }}

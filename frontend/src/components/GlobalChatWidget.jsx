@@ -1879,6 +1879,10 @@ const GlobalChatWidget = forwardRef(({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
   const [editingMsg, setEditingMsg] = useState(null);
+  // Poll messages get their own edit path (reopen PollComposer prefilled)
+  // instead of the plain-text edit bar above — editing a poll's raw JSON as
+  // text was confusing/broken, see commitEditedText/submitPollEdit below.
+  const [editingPollMsg, setEditingPollMsg] = useState(null);
   const [reportMsgTarget, setReportMsgTarget] = useState(null);
   // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
   // these aren't called per-message inside the .map() below.
@@ -4958,10 +4962,11 @@ const GlobalChatWidget = forwardRef(({
   // Both DM and group edits re-run full encryption, mirroring handleSend above:
   // DM re-encrypts against the already-known partner's key; group re-encrypts as
   // a brand new payload (fresh secretbox key, re-wrapped for current recipients).
-  const handleEditMessage = async () => {
-    if (!inputValue.trim() || !editingMsg || !activeChat) return;
-    const newText = inputValue.trim();
-    const target = editingMsg;
+  // Shared by the plain-text edit bar (handleEditMessage) and poll edits
+  // (submitPollEdit, which passes JSON.stringify(pollDef) as newText) — the
+  // encryption/PUT mechanics don't care what the text represents.
+  const commitEditedText = async (target, newText) => {
+    if (!newText.trim() || !target || !activeChat) return;
     const idStr = String(target.id);
 
     let messagePayload = newText;
@@ -5035,6 +5040,24 @@ const GlobalChatWidget = forwardRef(({
       console.error('[GlobalChatWidget] edit error', e);
       toast.error('Could not edit message.');
     }
+  };
+
+  const handleEditMessage = async () => {
+    if (!inputValue.trim() || !editingMsg) return;
+    const newText = inputValue.trim();
+    const target = editingMsg;
+    setEditingMsg(null);
+    setInputValue('');
+    await commitEditedText(target, newText);
+  };
+
+  // Poll edit: PollComposer (opened prefilled via editingPollMsg, see the
+  // Edit menu-item handlers below) hands back a fresh { question, options,
+  // allowMultiple } object — re-stringify and run it through the exact same
+  // encrypt+PUT path as any other edit. Vote counts stay on the message as-is
+  // (editing the question/options doesn't touch poll_votes server-side).
+  const submitPollEdit = async (target, pollDef) => {
+    await commitEditedText(target, JSON.stringify(pollDef));
   };
 
   const handleMediaUpload = async (file, mediaDuration = null, mediaGroupId = null) => {
@@ -7476,17 +7499,23 @@ const GlobalChatWidget = forwardRef(({
                             </div>
                             <div
                               className={`msg-bubble ${isMe
-                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
-                                : (activeWallpaper ? `msg-received${wallpaperIsDark ? ' stay-white' : ''}` : 'msg-received')}`}
+                                ? `msg-sent${(!msg.isPoll && (!activeWallpaper || wallpaperIsDark)) ? ' stay-white' : ''}`
+                                : (activeWallpaper ? `msg-received${(!msg.isPoll && wallpaperIsDark) ? ' stay-white' : ''}` : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
+                                // Polls get their own neutral card background regardless of isMe/
+                                // wallpaper/custom theme — the vivid sent-bubble gradient (fine for
+                                // a line of text) made option rows/vote bars unreadable once a poll's
+                                // whole card was painted in it.
+                                background: isMediaOnly ? 'transparent' : (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
                                   ? (activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
-                                  : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))),
-                                ...(activeWallpaper && !isMe && !isMediaOnly ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
+                                  : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))))),
+                                border: msg.isPoll ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
+                                boxShadow: msg.isPoll ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
+                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
@@ -7496,15 +7525,15 @@ const GlobalChatWidget = forwardRef(({
                                 // Not applied for a Background/wallpaper theme — its sent-bubble
                                 // color is one flat color extracted from the image (see
                                 // wallpaperColor), not a multi-stop gradient to slice.
-                                ...(isMe && isCustomTheme && !isMediaOnly && !activeWallpaper ? {
+                                ...(isMe && isCustomTheme && !isMediaOnly && !activeWallpaper && !msg.isPoll ? {
                                   backgroundSize: `100% ${Math.max(messages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                                 } : {}),
                                 padding: isMediaOnly ? '0' : '10px 16px',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                                 fontSize: 14,
-                                color: transparentMode ? '#fff' : (activeWallpaper ? wallpaperTextColor : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff'))),
-                                textShadow: transparentMode ? '0 1px 4px rgba(0,0,0,0.8)' : 'none',
+                                color: msg.isPoll ? (isLight ? '#0f172a' : '#ffffff') : (transparentMode ? '#fff' : (activeWallpaper ? wallpaperTextColor : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')))),
+                                textShadow: (msg.isPoll || !transparentMode) ? 'none' : '0 1px 4px rgba(0,0,0,0.8)',
                                 maxWidth: '100%',
                                 wordBreak: 'break-word',
                                 transform: `translateX(${rowDragX}px)`,
@@ -7645,7 +7674,7 @@ const GlobalChatWidget = forwardRef(({
                                       {isMe ? (
                                         <>
                                           {isMessageEditable(msg) && (
-                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (msg.isPoll) { setEditingPollMsg(msg); setShowPollComposer(true); } else { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); } setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
                                               <Edit2 size={12}/> {t('edit', 'Edit')}
                                             </button>
                                           )}
@@ -7715,7 +7744,7 @@ const GlobalChatWidget = forwardRef(({
                                 {isMe ? (
                                   <>
                                     {isMessageEditable(msg) && (
-                                      <button onClick={() => { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
+                                      <button onClick={() => { if (msg.isPoll) { setEditingPollMsg(msg); setShowPollComposer(true); } else { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); } longPress.close(); }} style={{background:'none',border:'none',color: 'var(--menu-item-text)',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:8,fontSize:13}}>
                                         <Edit2 size={14}/> {t('edit', 'Edit')}
                                       </button>
                                     )}
@@ -8140,7 +8169,7 @@ const GlobalChatWidget = forwardRef(({
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => { setShowAttachMenu(false); setShowPollComposer(true); }}
+                                        onClick={() => { setShowAttachMenu(false); setEditingPollMsg(null); setShowPollComposer(true); }}
                                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
                                       >
                                         <BarChart2 size={17} color="#f59e0b" /> Poll
@@ -8195,8 +8224,14 @@ const GlobalChatWidget = forwardRef(({
                         {showPollComposer && (
                           <PollComposer
                             isLight={isLight}
-                            onClose={() => setShowPollComposer(false)}
-                            onSend={(pollDef) => { setShowPollComposer(false); sendPollMessage(pollDef); }}
+                            title={editingPollMsg ? 'Edit poll' : 'Create poll'}
+                            initialPoll={editingPollMsg ? (() => { try { return JSON.parse(editingPollMsg.decryptedText); } catch { return null; } })() : null}
+                            onClose={() => { setShowPollComposer(false); setEditingPollMsg(null); }}
+                            onSend={(pollDef) => {
+                              setShowPollComposer(false);
+                              if (editingPollMsg) { submitPollEdit(editingPollMsg, pollDef); setEditingPollMsg(null); }
+                              else sendPollMessage(pollDef);
+                            }}
                           />
                         )}
 
