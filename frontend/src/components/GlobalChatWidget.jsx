@@ -637,6 +637,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
 
 import { formatDistanceToNow } from 'date-fns';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
+import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia } from '../lib/crypto';
@@ -1764,6 +1765,16 @@ const GlobalChatWidget = forwardRef(({
       })
       .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
   }, []);
+  // Same-tab resync when a theme is changed from a DIFFERENT mounted chat
+  // surface (Room.jsx's own RoomChatPanel picker, or another GlobalChatWidget
+  // instance — Room.jsx mounts a second one of these alongside RoomChatPanel).
+  // See the matching dispatch in applyChatTheme below for why a plain
+  // localStorage write alone doesn't reach an already-mounted sibling.
+  useEffect(() => {
+    const onThemesUpdated = (e) => { if (e.detail) setChatThemes(e.detail); };
+    window.addEventListener('chat_themes_updated', onThemesUpdated);
+    return () => window.removeEventListener('chat_themes_updated', onThemesUpdated);
+  }, []);
   // Sends the "so-and-so changed the chat theme" notice as a REAL, persisted,
   // E2EE-encrypted private message (isNotice:true, noticeThemeId) so it
   // survives a refresh and reaches the other person's account on every
@@ -1812,6 +1823,15 @@ const GlobalChatWidget = forwardRef(({
       if (themeId && themeId !== 'default') next[chatKey] = themeId;
       else delete next[chatKey];
       localStorage.setItem(`chat_themes_${myUsername}`, JSON.stringify(next));
+      // Room.jsx keeps its own separate copy of this same map (RoomChatPanel's
+      // group/DM chat uses its own theme picker, independent of this widget) —
+      // it only ever fetched it once on mount, so a theme picked HERE never
+      // reached an already-open room without a full page reload. This same-tab
+      // custom event (localStorage's own 'storage' event deliberately does NOT
+      // fire in the document that made the write, only in other tabs) lets
+      // Room.jsx — and any other mounted GlobalChatWidget instance — resync
+      // instantly regardless of which surface changed it.
+      window.dispatchEvent(new CustomEvent('chat_themes_updated', { detail: next }));
       return next;
     });
     if (target.type === 'private') {
@@ -2259,6 +2279,14 @@ const GlobalChatWidget = forwardRef(({
   }, [messages]);
 
   const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(messagesEndRef);
+  // Tracks whether the composer is the thing the user is actually typing
+  // into right now, so a visual-viewport resize caused by something else
+  // entirely (device rotation while just reading, an OS UI element toggling)
+  // doesn't yank the scroll position around when there's no keyboard in play.
+  const composerFocusedRef = useRef(false);
+  useVisualViewportResize(() => {
+    if (composerFocusedRef.current) scrollToBottom();
+  });
   const conversationsRef = useRef([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   // Persist every conversations state change to localStorage so that:
@@ -8143,8 +8171,8 @@ const GlobalChatWidget = forwardRef(({
                             outline: 'none',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
-                          onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                          onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; composerFocusedRef.current = false; }}
                         />
 
                         {!inputValue && !isUploading && (

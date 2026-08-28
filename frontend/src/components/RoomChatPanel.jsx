@@ -18,6 +18,7 @@ import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
+import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
@@ -1269,7 +1270,16 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
 
 export default function RoomChatPanel({ p }) {
   const { showScrollArrow, handleScroll, scrollToBottom } = useScrollToBottom(p.messagesEndRef);
-  
+  // Tracks whether one of the composers below is what the user is actually
+  // typing into right now, so a visual-viewport resize from something else
+  // (rotation while just reading, etc.) doesn't yank scroll position around
+  // with no keyboard actually involved. Shared between group/DM the same
+  // way p.messagesEndRef already is — only one tab is ever mounted at once.
+  const composerFocusedRef = React.useRef(false);
+  useVisualViewportResize(() => {
+    if (composerFocusedRef.current) scrollToBottom();
+  });
+
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
   // Which collapsed "Theme changed N times" runs (keyed by the run's head
@@ -3307,7 +3317,8 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        onFocus={() => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                        onBlur={() => { composerFocusedRef.current = false; }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
                         style={{
@@ -4153,7 +4164,8 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                            onFocus={() => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                            onBlur={() => { composerFocusedRef.current = false; }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,

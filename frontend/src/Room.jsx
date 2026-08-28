@@ -2337,6 +2337,14 @@ const Room = () => {
       })
       .catch((err) => console.error('[CHAT THEME] Fetch failure:', err.message));
   }, []);
+  // Same-tab resync when a theme is changed from a different mounted chat
+  // surface (Room's own embedded GlobalChatWidget instance, or BottomNav's) —
+  // see the matching dispatch in applyChatTheme above.
+  useEffect(() => {
+    const onThemesUpdated = (e) => { if (e.detail) setChatThemes(e.detail); };
+    window.addEventListener('chat_themes_updated', onThemesUpdated);
+    return () => window.removeEventListener('chat_themes_updated', onThemesUpdated);
+  }, []);
   const applyChatTheme = useCallback((target, themeId) => {
     if (!target) return;
     const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
@@ -2346,6 +2354,11 @@ const Room = () => {
       if (themeId && themeId !== 'default') next[chatKey] = themeId;
       else delete next[chatKey];
       try { localStorage.setItem(`chat_themes_${username}`, JSON.stringify(next)); } catch {}
+      // Room's own embedded GlobalChatWidget instance (and BottomNav's, if
+      // that's also mounted) keeps a completely separate copy of this same
+      // map — see the matching listener effect below for why a plain
+      // localStorage write alone never reached it live.
+      window.dispatchEvent(new CustomEvent('chat_themes_updated', { detail: next }));
       return next;
     });
     if (target.type === 'private') {
