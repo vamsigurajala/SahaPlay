@@ -10760,7 +10760,7 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -13656,7 +13656,7 @@ const Room = () => {
             </div>
           ) : shouldUseManagedCameraLayout ? (
             <div style={{
-              display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden',
+              display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden',
               background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
               borderRadius: 16, border: '1px solid var(--room-border)',
               boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none',
@@ -13701,9 +13701,9 @@ const Room = () => {
               </div>
 
               {/* Tab Content */}
-              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {/* Chat tab — RoomChatPanel rendered but hidden when not active (preserves scroll/state) */}
-                <div style={{ flex: 1, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ flex: 1, minHeight: 0, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
                   <RoomChatPanel p={{
                     chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                     chatVisible: rightPanelTab === 'chat',

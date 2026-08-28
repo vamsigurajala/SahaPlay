@@ -2733,7 +2733,7 @@ export default function RoomChatPanel({ p }) {
                 p.loadMoreGroupHistory(el);
               }
             }} 
-            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
+            onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,minHeight:0,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:12,display:'flex',flexDirection:'column',gap:10, ...((p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()] && p.chatThemes[(p.roomId||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                 <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -3220,8 +3220,15 @@ export default function RoomChatPanel({ p }) {
                     if (chatLocked) { e.preventDefault(); toast.error('Only the host can send messages'); return; }
                     if (hasLink && p.allowLinks === false) { e.preventDefault(); toast.error('Links are not allowed in this room'); return; }
                     if (hasImage && p.allowMedia === false) { e.preventDefault(); toast.error('Media (images/videos) are not allowed in this room'); return; }
-                    p.sendGroupChat(e); 
-                    p.setShowGroupEmojiPicker(false); 
+                    p.sendGroupChat(e);
+                    p.setShowGroupEmojiPicker(false);
+                    // Tapping the send button (not a physical Enter key) moves focus onto
+                    // it first — once the input clears and the button goes disabled again
+                    // right after, nothing holds focus and the on-screen keyboard closes on
+                    // its own between every single message. Reclaiming focus on the textarea
+                    // keeps the keyboard open across sends, matching a normal chat app;
+                    // closing it is left entirely to the user's own back gesture/tap-away.
+                    requestAnimationFrame(() => p.groupInputRef.current?.focus());
                   }} style={{display:'flex',gap:8, alignItems:'flex-end'}}>
                     <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                       <input type="file" multiple ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
@@ -3232,7 +3239,7 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        onFocus={(e) => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
                         style={{
@@ -3444,7 +3451,7 @@ export default function RoomChatPanel({ p }) {
                       p.loadMoreDmHistory(el);
                     }
                   }} 
-                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
+                  onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{flex:1,minHeight:0,overflowY:'auto',overflowX:'hidden',overscrollBehavior:'contain',padding:10,display:'flex',flexDirection:'column',gap:8, ...((p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()] && p.chatThemes[(p.dmTarget||'').toLowerCase()] !== 'default') ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {})}}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
                       <Loader2 size={20} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} />
@@ -4029,6 +4036,10 @@ export default function RoomChatPanel({ p }) {
                         <form ref={dmFormRef} onSubmit={(e) => {
                           p.sendDmChat(e);
                           p.setShowDmEmojiPicker(false);
+                          // See the matching comment on the group form's onSubmit — keeps
+                          // the on-screen keyboard open across sends instead of it closing
+                          // itself the instant the send button goes disabled.
+                          requestAnimationFrame(() => p.dmInputRef.current?.focus());
                         }} style={{display:'flex',gap:8,alignItems:'flex-end'}}>
                         <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
                           <input type="file" multiple ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
@@ -4039,7 +4050,7 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                            onFocus={(e) => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
+                            onFocus={() => { p.setShowDmEmojiPicker(false); setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,

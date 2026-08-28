@@ -4696,6 +4696,12 @@ const GlobalChatWidget = forwardRef(({
     setMessages(prev => [...prev, optimisticMsg]);
     setInputValue('');
     setReplyToMsg(null);
+    // Tapping the send button (not a physical Enter key) moves focus onto it
+    // first — once the input clears and the button goes disabled again right
+    // after, nothing holds focus and the on-screen keyboard closes itself
+    // between every single message. Reclaiming focus keeps it open across
+    // sends; closing it is left entirely to the user's own back gesture/tap-away.
+    requestAnimationFrame(() => inputRef.current?.focus());
 
     // Register this as the most-recently-sent message for this partner.
     // handleNewMsg uses this to ignore stale server echoes (message 1's echo arriving after
@@ -8110,7 +8116,7 @@ const GlobalChatWidget = forwardRef(({
                             outline: 'none',
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch {} }, 300); }}
+                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
                           onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
                         />
 
