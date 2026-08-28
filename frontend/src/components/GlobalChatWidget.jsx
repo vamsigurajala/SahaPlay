@@ -8327,34 +8327,10 @@ const GlobalChatWidget = forwardRef(({
               className="no-scrollbar"
             >
               <div style={{ width: 36, height: 4, borderRadius: 2, background: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
-              <div style={{ textAlign: 'center', color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+              <div style={{ textAlign: 'center', color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17, marginBottom: 16 }}>
                 {t('customizeChat', 'Customize')}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {CHAT_THEMES.map(th => {
-                  const selected = th.id === sheetThemeId;
-                  return (
-                    <button
-                      key={th.id}
-                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
-                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                    >
-                      <div style={{
-                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
-                        border: selected ? '3px solid #fff' : '3px solid transparent',
-                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
-                      }} />
-                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Backgrounds — full-chat wallpaper images with a bubble color
-                  derived from the image itself (see chatThemes.js), rather
-                  than a hand-picked flat gradient like the swatches above. */}
-              <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 10px' }}>
-                {t('chatBackgrounds', 'Backgrounds')}
-              </div>
+
               {/* Category Filter Pills */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16 }} className="no-scrollbar">
                 {CHAT_CATEGORIES.map(cat => {
@@ -8376,27 +8352,69 @@ const GlobalChatWidget = forwardRef(({
                   );
                 })}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {CHAT_WALLPAPERS.filter(w => themeCategoryFilter === 'all' || w.category === themeCategoryFilter).map(w => {
-                  const selected = w.id === sheetThemeId;
-                  const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
-                  return (
-                    <button
-                      key={w.id}
-                      onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
-                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                    >
-                      <div style={{
-                        width: '100%', aspectRatio: '3/4', borderRadius: 16,
-                        backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
-                        border: selected ? '3px solid #fff' : '3px solid transparent',
-                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
-                      }} />
-                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
-                    </button>
-                  );
-                })}
-              </div>
+
+              {(() => {
+                const wallpapersToShow = CHAT_WALLPAPERS.filter(w => themeCategoryFilter === 'all' || w.category === themeCategoryFilter);
+                const showColors = themeCategoryFilter === 'all' || themeCategoryFilter === 'colors';
+                const showWallpapers = themeCategoryFilter !== 'colors';
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {showWallpapers && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                        {wallpapersToShow.map(w => {
+                          const selected = w.id === sheetThemeId;
+                          const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
+                          return (
+                            <button
+                              key={w.id}
+                              onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
+                              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            >
+                              <div style={{
+                                width: '100%', aspectRatio: '3/4', borderRadius: 16,
+                                backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
+                                border: selected ? '3px solid #fff' : '3px solid transparent',
+                                boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                              }} />
+                              <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {showColors && (
+                      <>
+                        {themeCategoryFilter === 'all' && (
+                          <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
+                            {t('solidAndGradients', 'Solid & Gradients')}
+                          </div>
+                        )}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                          {CHAT_THEMES.map(th => {
+                            const selected = th.id === sheetThemeId;
+                            return (
+                              <button
+                                key={th.id}
+                                onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
+                                style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                              >
+                                <div style={{
+                                  width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
+                                  border: selected ? '3px solid #fff' : '3px solid transparent',
+                                  boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                                }} />
+                                <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>,
           document.body

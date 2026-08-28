@@ -8,7 +8,7 @@ import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
-import { CHAT_THEMES } from './lib/chatThemes';
+import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_WALLPAPERS } from './lib/chatThemes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -2313,6 +2313,7 @@ const Room = () => {
   });
   const [themeSheetTarget, setThemeSheetTarget] = useState(null);
   const [showThemeSheet, setShowThemeSheet] = useState(false);
+  const [themeCategoryFilter, setThemeCategoryFilter] = useState('all');
   const openChatThemeSheet = useCallback((target) => {
     setThemeSheetTarget(target);
     setShowThemeSheet(true);
@@ -10704,32 +10705,97 @@ const Room = () => {
             className="no-scrollbar"
           >
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
-            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 18 }}>
+            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 16 }}>
               {t('customizeChat', 'Customize')}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              {(() => {
-                const sheetChatKey = (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase();
-                const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
-                return CHAT_THEMES.map(th => {
-                  const selected = th.id === sheetThemeId;
-                  return (
-                    <button
-                      key={th.id}
-                      onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
-                      style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                    >
-                      <div style={{
-                        width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
-                        border: selected ? '3px solid #fff' : '3px solid transparent',
-                        boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
-                      }} />
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
-                    </button>
-                  );
-                });
-              })()}
+
+            {/* Category Filter Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16 }} className="no-scrollbar">
+              {CHAT_CATEGORIES.map(cat => {
+                const active = themeCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setThemeCategoryFilter(cat.id)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 20, border: 'none',
+                      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
+                      background: active ? '#a855f7' : 'rgba(255,255,255,0.1)',
+                      color: active ? '#ffffff' : '#cbd5e1',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
             </div>
+
+            {(() => {
+              const sheetChatKey = (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase();
+              const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
+
+              const wallpapersToShow = CHAT_WALLPAPERS.filter(w => themeCategoryFilter === 'all' || w.category === themeCategoryFilter);
+              const showColors = themeCategoryFilter === 'all' || themeCategoryFilter === 'colors';
+              const showWallpapers = themeCategoryFilter !== 'colors';
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  {showWallpapers && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                      {wallpapersToShow.map(w => {
+                        const selected = w.id === sheetThemeId;
+                        const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
+                        return (
+                          <button
+                            key={w.id}
+                            onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
+                            style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                          >
+                            <div style={{
+                              width: '100%', aspectRatio: '3/4', borderRadius: 16,
+                              backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
+                              border: selected ? '3px solid #fff' : '3px solid transparent',
+                              boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.6)' : '0 4px 14px rgba(0,0,0,0.4)',
+                            }} />
+                            <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {showColors && (
+                    <>
+                      {themeCategoryFilter === 'all' && (
+                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
+                          {t('solidAndGradients', 'Solid & Gradients')}
+                        </div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                        {CHAT_THEMES.map(th => {
+                          const selected = th.id === sheetThemeId;
+                          return (
+                            <button
+                              key={th.id}
+                              onClick={() => { applyChatTheme(themeSheetTarget, th.id); setShowThemeSheet(false); }}
+                              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            >
+                              <div style={{
+                                width: '100%', aspectRatio: '3/4', borderRadius: 16, backgroundImage: th.gradient,
+                                border: selected ? '3px solid #fff' : '3px solid transparent',
+                                boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
+                              }} />
+                              <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>,
         document.body

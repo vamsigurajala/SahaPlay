@@ -284,11 +284,12 @@ function _autumnCabinScene() {
 
 export const CHAT_CATEGORIES = [
   { id: 'all', name: 'All' },
-  { id: 'plain', name: 'Plain' },
   { id: 'scenaries', name: 'Scenaries' },
   { id: 'space', name: 'Space' },
   { id: 'cartoon-couple', name: 'Cartoon Couple' },
   { id: 'anime-couple', name: 'Anime Couple' },
+  { id: 'plain', name: 'Plain' },
+  { id: 'colors', name: 'Colors' },
 ];
 
 export const CHAT_WALLPAPERS = [
