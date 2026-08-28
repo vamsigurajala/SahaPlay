@@ -1959,7 +1959,15 @@ export default function RoomChatPanel({ p }) {
 
   const startRecording = async (chatType) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Explicitly OFF (not just omitted) — see the matching comment in
+      // GlobalChatWidget.jsx's startRecording: leaving these unset lets
+      // Chromium pick Android's "communications" audio source, which puts
+      // the OS in MODE_IN_COMMUNICATION (hardware volume rocker hits the
+      // call stream, real call-style route chrome shows up) for what's just
+      // a voice note, not a call.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
       const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
       audioChunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
@@ -3192,7 +3200,7 @@ export default function RoomChatPanel({ p }) {
             
             {/* Group recording UI */}
             {isRecording && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
                 <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
                 <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
@@ -3207,7 +3215,7 @@ export default function RoomChatPanel({ p }) {
               </div>
             )}
             {!isRecording && audioBlob && audioUrl && recordingFor === 'group' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px', marginBottom: 6 }}>
                 <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
                 <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
                 <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>
@@ -4018,7 +4026,7 @@ export default function RoomChatPanel({ p }) {
                     }
 
                     if (isRecording && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
                         <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
                         <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
@@ -4033,7 +4041,7 @@ export default function RoomChatPanel({ p }) {
                       </div>
                     );
                     if (!isRecording && audioBlob && audioUrl && recordingFor === 'dm') return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
                         <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
                         <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
                         <button type="button" className="voice-trash-btn" onClick={cancelRecording} title="Delete Recording"><Trash2 size={14} /></button>

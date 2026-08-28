@@ -5270,7 +5270,17 @@ const GlobalChatWidget = forwardRef(({
 
   async function startRecording() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Explicitly OFF (not just omitted): leaving these unset lets Chromium
+      // pick its default WebRTC-oriented "communications" audio source on
+      // Android, which puts the OS in MODE_IN_COMMUNICATION for as long as
+      // the mic is open — the hardware volume rocker then controls the
+      // in-call volume stream instead of media volume, and Android shows its
+      // real ongoing-call chrome (route/speaker icons) over the page. A
+      // plain voice-note recording isn't a call; asking for these off keeps
+      // Android on the normal mic/media audio path.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      });
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
@@ -8022,7 +8032,7 @@ const GlobalChatWidget = forwardRef(({
 
                   {/* ── Voice recording UI ── */}
                   {isRecording && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse-red 1s infinite', flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, minWidth: 28, letterSpacing: '0.5px' }}>{formatRecordingTime(recordingTime)}</span>
                       <div style={{ flex: 1, display: 'flex', gap: 2, alignItems: 'flex-end', height: 22, overflow: 'hidden' }}>
@@ -8039,7 +8049,7 @@ const GlobalChatWidget = forwardRef(({
 
                   {/* ── Voice note preview ── */}
                   {!isRecording && audioBlob && audioUrl && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(var(--brand-1-rgb),0.1)', border: '1px solid rgba(var(--brand-1-rgb),0.25)', borderRadius: 10, padding: '8px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: isLight ? '#ffffff' : '#1c1c24', border: `1px solid ${isLight ? '#e2e8f0' : 'rgba(255,255,255,0.08)'}`, boxShadow: isLight ? '0 1px 4px rgba(15,23,42,0.08)' : '0 3px 12px rgba(0,0,0,0.35)', borderRadius: 10, padding: '8px 12px' }}>
                       <Music size={14} color="var(--brand-2)" style={{ flexShrink: 0 }} />
                       <audio src={audioUrl} controls style={{ height: 24, flex: 1 }} />
                       <button type="button" onClick={cancelRecording} title="Delete Recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}><Trash2 size={14} /></button>
