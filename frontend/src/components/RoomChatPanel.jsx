@@ -1278,7 +1278,7 @@ export default function RoomChatPanel({ p }) {
   // way p.messagesEndRef already is — only one tab is ever mounted at once.
   const composerFocusedRef = React.useRef(false);
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current) scrollToBottom();
+    if (composerFocusedRef.current) scrollToBottom(true);
   });
   // The group/DM wrapper's own measured height, clamped to the largest value
   // ever seen (see the hook) — used to give the wallpaper backdrop below a
@@ -1289,6 +1289,36 @@ export default function RoomChatPanel({ p }) {
   const dmWrapperRef = React.useRef(null);
   const groupStableHeight = useStableHeight(groupWrapperRef);
   const dmStableHeight = useStableHeight(dmWrapperRef);
+
+  // Which message keys have already had their slideIn "msg-enter" entrance
+  // animation play at least once — an optimistically-sent message goes
+  // through several in-place updates as it's confirmed (server echo, then
+  // chat:message_persisted swapping the tempId for a real id, then read
+  // receipts), and while its DOM node stays the same (same React key
+  // throughout — see rowKey below), each of those updates was replaying the
+  // 0.2s fade+slide-up animation right along with it, which read as the
+  // freshly-sent message visibly flickering. State (not a ref) specifically
+  // because this needs to be read during render to decide the className;
+  // marked AFTER the render that used it, in an effect, so the very first
+  // paint still gets the animation but every update after that doesn't.
+  const [seenGroupMsgKeys, setSeenGroupMsgKeys] = React.useState(() => new Set());
+  const [seenDmMsgKeys, setSeenDmMsgKeys] = React.useState(() => new Set());
+  React.useEffect(() => {
+    const newKeys = (p.groupMessages || []).map(m => m?.tempId || m?.id).filter(k => k != null && !seenGroupMsgKeys.has(k));
+    if (newKeys.length === 0) return;
+    setSeenGroupMsgKeys(prev => { const next = new Set(prev); newKeys.forEach(k => next.add(k)); return next; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.groupMessages]);
+  React.useEffect(() => {
+    // dmMessages itself is derived further below (p.dmThreads keyed by the
+    // current partner) — re-deriving the same lookup here rather than
+    // reordering that declaration just for this effect.
+    const currentDmMessages = p.dmTarget ? (p.dmThreads?.[p.dmTarget.toLowerCase()] || []) : [];
+    const newKeys = currentDmMessages.map(m => m?.tempId || m?.id).filter(k => k != null && !seenDmMsgKeys.has(k));
+    if (newKeys.length === 0) return;
+    setSeenDmMsgKeys(prev => { const next = new Set(prev); newKeys.forEach(k => next.add(k)); return next; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.dmThreads, p.dmTarget]);
 
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
@@ -2912,7 +2942,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenGroupMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
                      onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                      onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                      onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -3333,7 +3363,7 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(true); } catch {} }, 300); }}
                         onBlur={() => { composerFocusedRef.current = false; }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
@@ -3735,7 +3765,7 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className="msg-row msg-enter" style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenDmMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)', transform: `translateX(${timestampPeek.dragX}px)`}}
                            onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                            onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                            onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -4188,7 +4218,7 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(true); } catch {} }, 300); }}
                             onBlur={() => { composerFocusedRef.current = false; }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{

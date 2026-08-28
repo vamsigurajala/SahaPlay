@@ -30,9 +30,14 @@ export function useScrollToBottom(messagesEndRef) {
     }
   }, []);
 
-  const scrollToBottom = useCallback(() => {
+  // instant=true skips the smooth-scroll animation — used when the keyboard
+  // opening/closing is what's pushing the list, where a visible "message
+  // scrolling up" animation reads as an unwanted extra motion on top of the
+  // keyboard's own resize; everything should just already be in place the
+  // moment the resize finishes, not visibly slide there afterward.
+  const scrollToBottom = useCallback((instant = false) => {
     if (messagesEndRef && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
     }
   }, [messagesEndRef]);
 
