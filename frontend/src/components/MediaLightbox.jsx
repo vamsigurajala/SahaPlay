@@ -2,6 +2,15 @@ import React from 'react';
 import { X, ChevronLeft, ChevronRight, Download, MoreVertical, Trash2 } from 'lucide-react';
 
 const SWIPE_THRESHOLD = 50;
+const MIN_SCALE = 1;
+const MAX_SCALE = 4;
+const DOUBLE_TAP_SCALE = 2.5;
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_DIST = 24;
+
+function distance(t1, t2) {
+  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+}
 
 // Shared image/video lightbox — used by chat (RoomChatPanel) and Admin (Reports / Support ticket attachments).
 // items: [{ url, type, filename?, expiresAt?, isMe?, id? }]
@@ -22,7 +31,26 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   // arrow visibility — swiping should never bring the arrows back.
   const swipedRef = React.useRef(false);
 
-  React.useEffect(() => { setShowItemMenu(false); }, [index]);
+  // ── Zoom/pan state ──────────────────────────────────────────────────────
+  // Pinch (two-finger touch), trackpad pinch (wheel + ctrlKey — that's how
+  // Chrome/Firefox/Safari all report a trackpad pinch gesture), mouse wheel,
+  // and double-tap/double-click all drive the same scale/pan state. While
+  // zoomed in, a single-finger drag pans instead of triggering the
+  // swipe-to-next/prev-image navigation below.
+  const [scale, setScale] = React.useState(1);
+  const [pan, setPan] = React.useState({ x: 0, y: 0 });
+  const [isGesturing, setIsGesturing] = React.useState(false);
+  const containerRef = React.useRef(null);
+  const pinchRef = React.useRef(null); // { startDist, startScale }
+  const panDragRef = React.useRef(null); // { startX, startY, startPanX, startPanY }
+  const lastTapRef = React.useRef({ time: 0, x: 0, y: 0 });
+  const isZoomed = scale > 1.01;
+
+  React.useEffect(() => {
+    setShowItemMenu(false);
+    setScale(1);
+    setPan({ x: 0, y: 0 });
+  }, [index]);
 
   // Shown briefly on open (or whenever a tap reveals them again), then
   // auto-hide — teaches the swipe affordance without permanently
@@ -42,12 +70,12 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   React.useEffect(() => {
     const handleKey = (e) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft' && hasMultiple && index > 0) onPrev?.();
-      if (e.key === 'ArrowRight' && hasMultiple && index < items.length - 1) onNext?.();
+      if (e.key === 'ArrowLeft' && hasMultiple && index > 0 && !isZoomed) onPrev?.();
+      if (e.key === 'ArrowRight' && hasMultiple && index < items.length - 1 && !isZoomed) onNext?.();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, onPrev, onNext, hasMultiple, index, items?.length]);
+  }, [onClose, onPrev, onNext, hasMultiple, index, items?.length, isZoomed]);
 
   const handleDownload = async (e) => {
     e.stopPropagation();
@@ -62,26 +90,102 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     } catch {}
   };
 
+  // Keeps a zoomed image from being panned entirely off-screen — a rough
+  // heuristic (not pixel-perfect against the media's actual rendered size)
+  // that's plenty for "don't lose the picture," not a precision clamp.
+  const clampPan = (nextPan, atScale) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || atScale <= 1) return { x: 0, y: 0 };
+    const maxX = (rect.width * (atScale - 1)) / 2;
+    const maxY = (rect.height * (atScale - 1)) / 2;
+    return {
+      x: Math.min(maxX, Math.max(-maxX, nextPan.x)),
+      y: Math.min(maxY, Math.max(-maxY, nextPan.y)),
+    };
+  };
+
+  const toggleDoubleTapZoom = (clientX, clientY) => {
+    if (isZoomed) {
+      setScale(1);
+      setPan({ x: 0, y: 0 });
+    } else {
+      const rect = containerRef.current?.getBoundingClientRect();
+      // Zoom in centered roughly toward where the user tapped/clicked,
+      // rather than always snapping to dead-center.
+      const offsetX = rect ? (rect.width / 2 - (clientX - rect.left)) : 0;
+      const offsetY = rect ? (rect.height / 2 - (clientY - rect.top)) : 0;
+      setScale(DOUBLE_TAP_SCALE);
+      setPan(clampPan({ x: offsetX * (DOUBLE_TAP_SCALE - 1), y: offsetY * (DOUBLE_TAP_SCALE - 1) }, DOUBLE_TAP_SCALE));
+    }
+  };
+
   const handleTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      setIsGesturing(true);
+      pinchRef.current = { startDist: distance(e.touches[0], e.touches[1]), startScale: scale };
+      panDragRef.current = null;
+      return;
+    }
     const touch = e.touches[0];
     if (!touch) return;
     touchRef.current = { x: touch.clientX, y: touch.clientY, active: true };
+    if (isZoomed) {
+      setIsGesturing(true);
+      panDragRef.current = { startX: touch.clientX, startY: touch.clientY, startPanX: pan.x, startPanY: pan.y };
+    }
   };
+
   const handleTouchMove = (e) => {
-    // No-op — direction/threshold is all resolved on touchend from the start point,
-    // matching the simple swipe-to-reply pattern used elsewhere in chat.
+    if (e.touches.length === 2 && pinchRef.current) {
+      e.preventDefault();
+      const dist = distance(e.touches[0], e.touches[1]);
+      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchRef.current.startScale * (dist / pinchRef.current.startDist)));
+      setScale(next);
+      if (next <= 1.01) setPan({ x: 0, y: 0 });
+      else setPan(p => clampPan(p, next));
+      return;
+    }
+    if (panDragRef.current && e.touches.length === 1) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const dx = touch.clientX - panDragRef.current.startX;
+      const dy = touch.clientY - panDragRef.current.startY;
+      setPan(clampPan({ x: panDragRef.current.startPanX + dx, y: panDragRef.current.startPanY + dy }, scale));
+    }
+    // Not zoomed, single touch — direction/threshold for swipe-nav is
+    // resolved entirely on touchend from the start point (unchanged).
   };
+
   const handleTouchEnd = (e) => {
+    if (e.touches.length > 0) return; // still one finger down (pinch → pan transition) — wait for full release
+    const wasPinching = !!pinchRef.current;
+    const pan_ = panDragRef.current;
+    pinchRef.current = null;
+    panDragRef.current = null;
+    setIsGesturing(false);
+
+    const touch = e.changedTouches[0];
+
+    // A pan that barely moved is really a tap that happened to land while
+    // zoomed in (e.g. the tap that started a would-be pan) — still worth
+    // checking for a double-tap so double-tapping while zoomed can zoom
+    // back out. A pinch, or a pan that actually traveled, is a real gesture
+    // and shouldn't also fall through to tap/swipe handling below.
+    const panDistance = pan_ && touch ? Math.hypot(touch.clientX - pan_.startX, touch.clientY - pan_.startY) : Infinity;
+    if (wasPinching || (pan_ && panDistance >= 10)) { swipedRef.current = true; return; }
+
     const s = touchRef.current;
     if (!s.active) return;
     s.active = false;
-    const touch = e.changedTouches[0];
     if (!touch) return;
     const deltaX = touch.clientX - s.x;
     const deltaY = touch.clientY - s.y;
-    if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical drag — ignore
-    if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) { swipedRef.current = true; onPrev?.(); return; }
-    if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) { swipedRef.current = true; onNext?.(); return; }
+
+    if (!isZoomed) {
+      if (Math.abs(deltaY) > Math.abs(deltaX)) return; // vertical drag — ignore
+      if (deltaX > SWIPE_THRESHOLD && hasMultiple && index > 0) { swipedRef.current = true; onPrev?.(); return; }
+      if (deltaX < -SWIPE_THRESHOLD && hasMultiple && index < items.length - 1) { swipedRef.current = true; onNext?.(); return; }
+    }
     // A real tap (not a swipe, not on a button — those handle their own
     // taps) — toggle directly here rather than depending solely on the
     // synthetic click event fired after touchend, which some embedded
@@ -89,21 +193,80 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     // swipedRef suppresses that synthetic click if it does still fire, so
     // it can't immediately toggle a second time.
     if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && !e.target.closest('button')) {
-      // Cancels the synthetic click some WebViews still fire after touchend
-      // outright, rather than relying on swipedRef to make it a no-op — on
-      // Android WebView builds that fire a duplicate/"ghost" click, letting
-      // it through even as a no-op left a second toggle able to slip in and
-      // immediately undo this one.
       e.preventDefault();
       swipedRef.current = true;
-      setShowArrows(v => !v);
+      const now = Date.now();
+      const last = lastTapRef.current;
+      const isDoubleTap = (now - last.time) < DOUBLE_TAP_MS && Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < DOUBLE_TAP_DIST;
+      lastTapRef.current = { time: isDoubleTap ? 0 : now, x: touch.clientX, y: touch.clientY };
+      if (isDoubleTap) {
+        toggleDoubleTapZoom(touch.clientX, touch.clientY);
+      } else if (!isZoomed) {
+        setShowArrows(v => !v);
+      }
     }
+  };
+
+  // Desktop: mouse wheel zooms; a trackpad pinch is reported by the browser
+  // as a wheel event with ctrlKey set (Chrome/Firefox/Safari convention) —
+  // handling both here means "zoom with two fingers" also covers laptop
+  // trackpads, not just touchscreens.
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const rect = containerRef.current?.getBoundingClientRect();
+    // Trackpad pinch arrives as wheel+ctrlKey with small per-event deltas;
+    // plain mouse-wheel notches are much larger — scale each so either one
+    // zooms at a comfortable, similar-feeling rate.
+    const step = e.deltaY * (e.ctrlKey ? -0.02 : -0.0015);
+    const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + step));
+    if (next <= 1.01) {
+      setScale(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    if (rect) {
+      const offsetX = rect.width / 2 - (e.clientX - rect.left);
+      const offsetY = rect.height / 2 - (e.clientY - rect.top);
+      const ratio = next / scale;
+      setPan(p => clampPan({ x: (p.x + offsetX) * ratio - offsetX, y: (p.y + offsetY) * ratio - offsetY }, next));
+    }
+    setScale(next);
+  };
+
+  // Desktop: click-drag to pan while zoomed (mirrors the touch pan above).
+  const handleMouseDown = (e) => {
+    if (!isZoomed || e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const startPan = pan;
+    setIsGesturing(true);
+    const onMove = (ev) => {
+      setPan(clampPan({ x: startPan.x + (ev.clientX - startX), y: startPan.y + (ev.clientY - startY) }, scale));
+    };
+    const onUp = () => {
+      setIsGesturing(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    toggleDoubleTapZoom(e.clientX, e.clientY);
   };
 
   const expiryDaysLeft = item?.expiresAt ? Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
   const showExpiry = expiryDaysLeft !== null && expiryDaysLeft > 0;
 
   if (!item) return null;
+
+  const mediaTransformStyle = {
+    transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+    transformOrigin: 'center center',
+    transition: isGesturing ? 'none' : 'transform 0.2s ease',
+  };
 
   return (
     <div
@@ -166,14 +329,29 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
 
         {/* Media area */}
         <div
+          ref={containerRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onClick={handleMediaClick}
-          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: '#000', minHeight: 200 }}
+          onWheel={isImg ? handleWheel : undefined}
+          onDoubleClick={isImg ? handleDoubleClick : undefined}
+          onMouseDown={isImg ? handleMouseDown : undefined}
+          style={{
+            position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', background: '#000', minHeight: 200,
+            touchAction: isImg ? 'none' : 'auto', // let the browser's own native pinch/zoom stay out of the way of ours (images only — video keeps native touch for its own controls)
+            cursor: isImg ? (isZoomed ? 'grab' : 'zoom-in') : 'default',
+          }}
         >
           {isImg ? (
-            <img src={url} alt="Media" draggable={false} onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }} />
+            <img
+              src={url}
+              alt="Media"
+              draggable={false}
+              onContextMenu={e => e.preventDefault()}
+              style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', ...mediaTransformStyle }}
+            />
           ) : isVid ? (
             <video src={url} controls autoPlay onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
           ) : null}
@@ -184,17 +362,23 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
             </div>
           )}
 
-          {hasMultiple && index > 0 && (
+          {hasMultiple && index > 0 && !isZoomed && (
             <button onClick={e => { e.stopPropagation(); onPrev?.(); }}
               style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, opacity: showArrows ? 1 : 0, pointerEvents: showArrows ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronLeft size={20} /></span>
             </button>
           )}
-          {hasMultiple && index < items.length - 1 && (
+          {hasMultiple && index < items.length - 1 && !isZoomed && (
             <button onClick={e => { e.stopPropagation(); onNext?.(); }}
               style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.7)', border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: '50%', width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, opacity: showArrows ? 1 : 0, pointerEvents: showArrows ? 'auto' : 'none', transition: 'opacity 0.25s ease' }}>
               <span style={{ color: '#fff', display: 'flex' }}><ChevronRight size={20} /></span>
             </button>
+          )}
+
+          {isImg && isZoomed && (
+            <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '4px 8px', backdropFilter: 'blur(4px)' }}>
+              {Math.round(scale * 100)}%
+            </div>
           )}
         </div>
       </div>

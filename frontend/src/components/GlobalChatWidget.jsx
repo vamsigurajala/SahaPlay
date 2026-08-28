@@ -2026,11 +2026,22 @@ const GlobalChatWidget = forwardRef(({
   // past it to level 1's "close the whole chat widget" handling instead of
   // just clearing the filter.
   const anyFolderOpen = showHiddenChats || showLockedChats;
-  const gcwLevel = !isOpen ? 0
+  const gcwBaseLevel = !isOpen ? 0
     : view === 'chat' ? (anyChatOverlayOpen ? 4 : 3)
     : anyFolderOpen ? 2
     : 1;
+  // The theme sheet (chat-theme-sheet-overlay) can be opened from either the
+  // chat view or the plain conversations list (its 3-dot menu), so it isn't
+  // one of the view==='chat'-only overlays folded into anyChatOverlayOpen
+  // above — it's a level layered on top of whatever gcwBaseLevel already is,
+  // closeable back down to exactly that base level regardless of which one
+  // it was.
+  const gcwLevel = showThemeSheet ? gcwBaseLevel + 1 : gcwBaseLevel;
   const gcwBack = useBackIntercept(gcwLevel, (newLevel) => {
+    if (showThemeSheet && newLevel === gcwBaseLevel) {
+      setShowThemeSheet(false);
+      return;
+    }
     if (newLevel === 0) {
       onClose && onClose();
     } else if (newLevel === 1) {
@@ -5750,6 +5761,21 @@ const GlobalChatWidget = forwardRef(({
   const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase() : null;
   const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
 
+  // The category filter pills' active-state color used to be a fixed
+  // orange, unrelated to anything — now it reflects whichever theme is
+  // actually applied to the chat this sheet is customizing, the same way
+  // the message bubbles themselves pick up that chat's theme. A flat
+  // CHAT_THEMES swatch already carries a ready-made CSS gradient; an image
+  // wallpaper's dark/light colors give one via getWallpaperGradient (no
+  // async image-decode round trip needed, unlike the main view's own
+  // bubble-color derivation). Falls back to the app's own brand gradient
+  // for the default (no custom theme picked) case.
+  const sheetThemeEntry = CHAT_THEMES.find(th => th.id === sheetThemeId);
+  const sheetWallpaperEntry = !sheetThemeEntry ? findWallpaper(sheetThemeId) : null;
+  const sheetFilterAccent = sheetThemeEntry
+    ? sheetThemeEntry.gradient
+    : (getWallpaperGradient(sheetWallpaperEntry) || 'linear-gradient(135deg,var(--brand-1),var(--brand-2))');
+
   if (!isOpen) return null;
 
   return (
@@ -8344,7 +8370,7 @@ const GlobalChatWidget = forwardRef(({
                       style={{
                         padding: '6px 14px', borderRadius: 20, border: 'none',
                         fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
-                        background: active ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'),
+                        background: active ? sheetFilterAccent : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'),
                         color: active ? '#ffffff' : (isLight ? '#475569' : '#cbd5e1'),
                         transition: 'all 0.2s ease',
                       }}
