@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
 import { useBackIntercept } from '../hooks/useBackIntercept';
-import { requestPhotoAccess } from '../lib/mediaPermissionGate';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -592,10 +591,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <button
-            onClick={async () => {
-              const granted = await requestPhotoAccess();
-              if (granted) galleryInputRef.current?.click();
-            }}
+            onClick={() => galleryInputRef.current?.click()}
             aria-label="Choose from gallery"
             style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >

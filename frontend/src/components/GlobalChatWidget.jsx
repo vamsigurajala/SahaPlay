@@ -9,7 +9,6 @@ import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import CameraCapture from './CameraCapture';
-import { requestCameraAccess, requestPhotoAccess } from '../lib/mediaPermissionGate';
 import PinSetupModal from './PinSetupModal';
 import PollComposer from './PollComposer';
 import PollBubble from './PollBubble';
@@ -8229,10 +8228,9 @@ const GlobalChatWidget = forwardRef(({
                                     >
                                       <button
                                         type="button"
-                                        onClick={async () => {
+                                        onClick={() => {
                                           setShowAttachMenu(false);
-                                          const granted = await requestPhotoAccess();
-                                          if (granted) fileInputRef.current?.click();
+                                          fileInputRef.current?.click();
                                         }}
                                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
                                       >
@@ -8264,13 +8262,12 @@ const GlobalChatWidget = forwardRef(({
                                 <button
                                   type="button"
                                   disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
-                                  onClick={async () => {
+                                  onClick={() => {
                                     if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
                                       toast.error('📷 Media sharing is not allowed in this room.');
                                       return;
                                     }
-                                    const granted = await requestCameraAccess();
-                                    if (granted) setShowCamera(true);
+                                    setShowCamera(true);
                                   }}
                                   title="Open camera"
                                   style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
