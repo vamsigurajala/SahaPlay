@@ -2730,8 +2730,22 @@ export default function RoomChatPanel({ p }) {
           </div>
         </>
       ) : p.chatTab === 'group' ? (
-        /* ===== GROUP CHAT THREAD ===== */
-        <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+        /* ===== GROUP CHAT THREAD =====
+           zIndex:0 below is load-bearing, not decorative: position:relative
+           alone does NOT create a new stacking context (only an explicit
+           z-index does), so without it the backdrop's z-index:-1 doesn't
+           just sink behind its own siblings here — it escapes this wrapper
+           entirely and sinks behind #room-chat-panel's own opaque
+           background several levels up, which is exactly why the wallpaper
+           was invisible despite every one of its own styles (background-
+           image, size, position) being completely correct. Confirmed via a
+           live DOM inspection (elementFromPoint at the chat area's center
+           resolved straight to #room-chat-panel's own rgb(17,17,17) fill,
+           with the correctly-styled backdrop nowhere in that hit chain even
+           though it's a genuine descendant). GlobalChatWidget's own
+           equivalent backdrop never hit this because that panel already has
+           an explicit zIndex (10000) for unrelated reasons. */
+        <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
           {/* Shared wallpaper backdrop — one continuous image behind the
               header, message list AND composer, same "single layer, both
               scrollable content and composer go transparent" pattern
@@ -3465,8 +3479,10 @@ export default function RoomChatPanel({ p }) {
           </div>
         </div>
       ) : (
-        /* ===== DM Thread ===== */
-        <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+        /* ===== DM Thread =====
+           zIndex:0 load-bearing — see the identical comment on the group
+           chat wrapper above; same fix, same reason. */
+        <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
             {/* Shared wallpaper backdrop — see the identical comment on the
                 group chat thread above; same fix, same reason. */}
             {dmWallpaper && (
