@@ -20,6 +20,7 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
+import { useStableHeight } from '../hooks/useStableHeight';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
@@ -1280,6 +1281,15 @@ export default function RoomChatPanel({ p }) {
   useVisualViewportResize(() => {
     if (composerFocusedRef.current) scrollToBottom();
   });
+  // The group/DM wrapper's own measured height, clamped to the largest value
+  // ever seen (see the hook) — used to give the wallpaper backdrop below a
+  // fixed pixel height instead of one that shrinks with the wrapper whenever
+  // the on-screen keyboard opens, which is what was making the wallpaper
+  // image visibly jump.
+  const groupWrapperRef = React.useRef(null);
+  const dmWrapperRef = React.useRef(null);
+  const groupStableHeight = useStableHeight(groupWrapperRef);
+  const dmStableHeight = useStableHeight(dmWrapperRef);
 
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
@@ -2692,7 +2702,7 @@ export default function RoomChatPanel({ p }) {
         </>
       ) : p.chatTab === 'group' ? (
         /* ===== GROUP CHAT THREAD ===== */
-        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+        <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
           {/* Shared wallpaper backdrop — one continuous image behind the
               header, message list AND composer, same "single layer, both
               scrollable content and composer go transparent" pattern
@@ -2701,11 +2711,17 @@ export default function RoomChatPanel({ p }) {
               which meant every resize of that element (composer height
               changing, on-screen keyboard opening) recomputed the
               background-size:cover crop against a new box — reading as the
-              wallpaper visibly shifting. This layer's box is the outer,
-              more stable wrapper instead. */}
+              wallpaper visibly shifting. Pinning an explicit pixel height
+              (the wrapper's own largest-ever measured height, see
+              useStableHeight) instead of the live inset:0 auto-height means
+              this box's own size stops changing at all once the keyboard
+              opens — whatever falls outside the wrapper's current (shrunk)
+              bounds is simply clipped by its overflow:hidden, same as a
+              real wallpaper behind a window. */}
           {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
-              position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+              ...(groupStableHeight ? { height: groupStableHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -3340,7 +3356,14 @@ export default function RoomChatPanel({ p }) {
                           color: isLight ? '#1e293b' : '#fff',
                           fontSize:13,
                           outline:'none',
-                          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                          // NOT `transition: all` — this also animated the
+                          // textarea's own auto-resize height and, worse, got
+                          // dragged through on every on-screen-keyboard
+                          // resize, which is what read as the composer/page
+                          // visibly glitching whenever the keyboard opened or
+                          // closed quickly. Only the cosmetic focus/blur
+                          // color change needs to animate.
+                          transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                         }}
                       />
 
@@ -3420,12 +3443,13 @@ export default function RoomChatPanel({ p }) {
         </div>
       ) : (
         /* ===== DM Thread ===== */
-        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+        <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
             {/* Shared wallpaper backdrop — see the identical comment on the
                 group chat thread above; same fix, same reason. */}
             {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
-                position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+                ...(dmStableHeight ? { height: dmStableHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />
@@ -4192,7 +4216,9 @@ export default function RoomChatPanel({ p }) {
                               color: isLight ? '#1e293b' : '#fff',
                               fontSize:13,
                               outline:'none',
-                              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                              // See the identical comment on the group composer's
+                              // textarea above — same fix, same reason.
+                              transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}
                           />
 
