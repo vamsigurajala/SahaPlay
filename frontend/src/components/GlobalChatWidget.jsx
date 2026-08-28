@@ -28,7 +28,7 @@ import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersist
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
 import { requestPhotoAccess } from '../lib/mediaPermissionGate';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getWallpaperGradient, isRgbColorDark } from '../lib/chatThemes';
+import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getWallpaperGradient, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -1699,6 +1699,7 @@ const GlobalChatWidget = forwardRef(({
     } catch { return {}; }
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
+  const [themeCategoryFilter, setThemeCategoryFilter] = useState('all');
   // Dominant color extracted from the active conversation's Background
   // wallpaper (if any) — resolved asynchronously (canvas pixel sampling, see
   // getWallpaperDominantColor) since it's not known until the image decodes,
@@ -8067,11 +8068,32 @@ const GlobalChatWidget = forwardRef(({
               {/* Backgrounds — full-chat wallpaper images with a bubble color
                   derived from the image itself (see chatThemes.js), rather
                   than a hand-picked flat gradient like the swatches above. */}
-              <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 14px' }}>
+              <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', margin: '22px 0 10px' }}>
                 {t('chatBackgrounds', 'Backgrounds')}
               </div>
+              {/* Category Filter Pills */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 16 }} className="no-scrollbar">
+                {CHAT_CATEGORIES.map(cat => {
+                  const active = themeCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setThemeCategoryFilter(cat.id)}
+                      style={{
+                        padding: '6px 14px', borderRadius: 20, border: 'none',
+                        fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
+                        background: active ? '#f59e0b' : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'),
+                        color: active ? '#ffffff' : (isLight ? '#475569' : '#cbd5e1'),
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                {CHAT_WALLPAPERS.map(w => {
+                {CHAT_WALLPAPERS.filter(w => themeCategoryFilter === 'all' || w.category === themeCategoryFilter).map(w => {
                   const selected = w.id === sheetThemeId;
                   const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
                   return (
@@ -8086,7 +8108,7 @@ const GlobalChatWidget = forwardRef(({
                         border: selected ? '3px solid #fff' : '3px solid transparent',
                         boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                       }} />
-                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(bgKey, w.name)}</span>
+                      <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
                     </button>
                   );
                 })}

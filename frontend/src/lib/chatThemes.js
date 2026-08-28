@@ -85,46 +85,146 @@ function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, layers }) {
   return encodeSvg(svg);
 }
 
-export const CHAT_WALLPAPERS = [
+export const CHAT_CATEGORIES = [
+  { id: 'all', name: 'All' },
+  { id: 'anime-couple', name: 'Anime Couple' },
+  { id: 'cartoon-couple', name: 'Cartoon Couple' },
+  { id: 'scenery', name: 'Scenery & Nature' },
+];
 
-  // ── 7 Scenic Landscape & Interior Themes ──────────────────────
+export const CHAT_WALLPAPERS = [
+  // ── 5 User-Provided High Quality Anime Couple Wallpapers ──────────
   {
-    id: 'wp-rainy-window', name: 'Rainy Window',
+    id: 'wp-rainy-window-anime', name: 'Rainy Window (Anime)', category: 'anime-couple',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window-anime.jpg',
+  },
+  {
+    id: 'wp-umbrella-together-anime', name: 'Umbrella Together (Anime)', category: 'anime-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/umbrella-together-anime.jpg',
+  },
+  {
+    id: 'wp-falling-asleep-anime', name: 'Falling Asleep (Anime)', category: 'anime-couple',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/falling-asleep-shoulder-anime.jpg',
+  },
+  {
+    id: 'wp-waiting-flowers-anime', name: 'Waiting With Flowers (Anime)', category: 'anime-couple',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: '/wallpapers/waiting-with-flowers-anime.jpg',
+  },
+  {
+    id: 'wp-comfort-hard-day-anime', name: 'Comfort After Hard Day (Anime)', category: 'anime-couple',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/comfort-after-hard-day-anime.jpg',
+  },
+
+  // ── Anime Couple Wallpapers ─────────────────────────────
+  {
+    id: 'wp-falling-asleep-shoulder', name: 'Train Sleep (Anime)', category: 'anime-couple',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/falling-asleep-shoulder.jpg',
+  },
+  {
+    id: 'wp-comfort-after-hard-day', name: 'Bedroom Comfort (Anime)', category: 'anime-couple',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/comfort-after-hard-day.jpg',
+  },
+  {
+    id: 'wp-sunset-bicycle-ride', name: 'Sunset Bicycle Ride (Anime)', category: 'anime-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/sunset-bicycle-ride.jpg',
+  },
+  {
+    id: 'wp-blanket-on-rooftop', name: 'Rooftop Stargazing (Anime)', category: 'anime-couple',
+    brightColor: '#818cf8', darkColor: '#1e1b4b', lightColor: '#a5b4fc',
+    image: '/wallpapers/blanket-on-rooftop.jpg',
+  },
+  {
+    id: 'wp-walking-home-together', name: 'Walking Home (Anime)', category: 'anime-couple',
+    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
+    image: '/wallpapers/walking-home-together.jpg',
+  },
+  {
+    id: 'wp-rainy-window-quiet-love', name: 'Rainy Window Love (Anime)', category: 'anime-couple',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window-quiet-love.jpg',
+  },
+
+  // ── Cartoon Couple Wallpapers ───────────────────────────
+  {
+    id: 'wp-umbrella-together', name: 'Umbrella Walk (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/umbrella-together.jpg',
+  },
+  {
+    id: 'wp-waiting-with-flowers', name: 'Station Reunion (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: '/wallpapers/waiting-with-flowers.jpg',
+  },
+  {
+    id: 'wp-holding-hands-under-table', name: 'Holding Hands Under Table (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#d97706', darkColor: '#451a03', lightColor: '#fbbf24',
+    image: holdingHandsUnderTableScene(),
+  },
+  {
+    id: 'wp-small-act-of-care', name: 'Tying Scarf Morning (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/small-act-of-care.jpg',
+  },
+  {
+    id: 'wp-anime-rainy-blanket', name: 'Cozy Blanket Room (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: animeRainyBlanketScene(),
+  },
+  {
+    id: 'wp-anime-rainy-embrace', name: 'Rainy Evening Window (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#ec4899', darkColor: '#831843', lightColor: '#f472b6',
+    image: animeRainyEmbraceScene(),
+  },
+  {
+    id: 'wp-anime-morning-kitchen', name: 'Morning Kitchen Coffee (Cartoon)', category: 'cartoon-couple',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: animeMorningKitchenScene(),
+  },
+
+  // ── Scenery & Nature Wallpapers ────────────────────────
+  {
+    id: 'wp-rainy-window', name: 'Rainy Window View', category: 'scenery',
     brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
     image: '/wallpapers/rainy-window.jpg',
   },
   {
-    id: 'wp-sky-islands', name: 'Sky Islands',
+    id: 'wp-sky-islands', name: 'Sky Islands', category: 'scenery',
     brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
     image: '/wallpapers/sky-islands.jpg',
   },
   {
-    id: 'wp-secret-garden', name: 'Secret Garden',
+    id: 'wp-secret-garden', name: 'Secret Garden', category: 'scenery',
     brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
     image: '/wallpapers/secret-garden.jpg',
   },
   {
-    id: 'wp-deep-space', name: 'Deep Space',
+    id: 'wp-deep-space', name: 'Deep Space', category: 'scenery',
     brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
     image: '/wallpapers/deep-space.jpg',
   },
   {
-    id: 'wp-winter-village', name: 'Winter Village',
+    id: 'wp-winter-village', name: 'Winter Village', category: 'scenery',
     brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
     image: '/wallpapers/winter-village.jpg',
   },
   {
-    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall',
+    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall', category: 'scenery',
     brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
     image: '/wallpapers/tropical-waterfall.jpg',
   },
   {
-    id: 'wp-zen-interior', name: 'Zen Interior',
+    id: 'wp-zen-interior', name: 'Zen Interior', category: 'scenery',
     brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
     image: '/wallpapers/zen-interior.jpg',
   },
-
-  // ── Vector SVG Landscapes ────────────────────────────────
   {
     id: 'wp-aurora', name: 'Aurora',
     brightColor: '#22d3ee', darkColor: '#032426', lightColor: '#34d399',
