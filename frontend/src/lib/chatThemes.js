@@ -470,15 +470,55 @@ export const CHAT_WALLPAPERS = [
     brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
     image: '/wallpapers/zen-interior.jpg',
   },
+  {
+    id: 'wp-mountain-lake-twilight', name: 'Mountain Lake at Twilight', category: 'scenaries',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/mountain-lake-twilight.jpg',
+  },
+  {
+    id: 'wp-mountain-valley-cows', name: 'Mountain Valley & Cows', category: 'scenaries',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/mountain-valley-cows.jpg',
+  },
 
-  // ── Space (Space Theme) ──────────────────────────────────────────
+  // ── Space (Space Themes) ──────────────────────────────────────────
   {
     id: 'wp-deep-space', name: 'Deep Space', category: 'space',
     brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
     image: '/wallpapers/deep-space.jpg',
   },
+  {
+    id: 'wp-cosmic-nebula', name: 'Cosmic Nebula', category: 'space',
+    brightColor: '#a855f7', darkColor: '#3b0764', lightColor: '#c084fc',
+    image: '/wallpapers/cosmic-nebula.jpg',
+  },
+  {
+    id: 'wp-planet-rings', name: 'Planet Rings', category: 'space',
+    brightColor: '#6366f1', darkColor: '#1e1b4b', lightColor: '#818cf8',
+    image: '/wallpapers/planet-rings.jpg',
+  },
+  {
+    id: 'wp-meteor-shower', name: 'Meteor Shower', category: 'space',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/meteor-shower.jpg',
+  },
+  {
+    id: 'wp-moon-alien-world', name: 'Moon Over Another World', category: 'space',
+    brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
+    image: '/wallpapers/moon-alien-world.jpg',
+  },
+  {
+    id: 'wp-galaxy-window', name: 'Galaxy Through a Window', category: 'space',
+    brightColor: '#c084fc', darkColor: '#3b0764', lightColor: '#e9d5ff',
+    image: '/wallpapers/galaxy-window.jpg',
+  },
 
-  // ── Cartoon Couple (9 Cartoon Themes) ───────────────────────────
+  // ── Cartoon Couple (10 Cartoon Themes) ───────────────────────────
+  {
+    id: 'wp-holding-hands-under-table', name: 'Holding Hands Under Table', category: 'cartoon-couple',
+    brightColor: '#d97706', darkColor: '#451a03', lightColor: '#fbbf24',
+    image: '/wallpapers/holding-hands-under-table.jpg',
+  },
   {
     id: 'wp-falling-asleep-shoulder', name: 'Train Sleep', category: 'cartoon-couple',
     brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
