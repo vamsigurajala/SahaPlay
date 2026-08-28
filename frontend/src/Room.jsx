@@ -10741,35 +10741,11 @@ const Room = () => {
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  {showWallpapers && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                      {wallpapersToShow.map(w => {
-                        const selected = w.id === sheetThemeId;
-                        const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
-                        return (
-                          <button
-                            key={w.id}
-                            onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
-                            style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                          >
-                            <div style={{
-                              width: '100%', aspectRatio: '3/4', borderRadius: 16,
-                              backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
-                              border: selected ? '3px solid #fff' : '3px solid transparent',
-                              boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.6)' : '0 4px 14px rgba(0,0,0,0.4)',
-                            }} />
-                            <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
                   {showColors && (
                     <>
                       {themeCategoryFilter === 'all' && (
-                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
-                          {t('solidAndGradients', 'Solid & Gradients')}
+                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+                          {t('colors', 'Colors')}
                         </div>
                       )}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
@@ -10787,6 +10763,37 @@ const Room = () => {
                                 boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                               }} />
                               <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {showWallpapers && (
+                    <>
+                      {themeCategoryFilter === 'all' && (
+                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
+                          {t('chatBackgrounds', 'Backgrounds')}
+                        </div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                        {wallpapersToShow.map(w => {
+                          const selected = w.id === sheetThemeId;
+                          const bgKey = `chatBg${w.id.replace(/^wp-/, '').split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`;
+                          return (
+                            <button
+                              key={w.id}
+                              onClick={() => { applyChatTheme(themeSheetTarget, w.id); setShowThemeSheet(false); }}
+                              style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            >
+                              <div style={{
+                                width: '100%', aspectRatio: '3/4', borderRadius: 16,
+                                backgroundImage: `url("${w.image}")`, backgroundSize: 'cover', backgroundPosition: 'center',
+                                border: selected ? '3px solid #fff' : '3px solid transparent',
+                                boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.6)' : '0 4px 14px rgba(0,0,0,0.4)',
+                              }} />
+                              <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
                             </button>
                           );
                         })}
