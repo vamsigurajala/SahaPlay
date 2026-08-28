@@ -2,40 +2,24 @@ import { isCapacitorApp } from './platform';
 import {
   ensureNativeMediaPermissions,
   ensureNativeCameraPermissions,
-  ensureNativePhotoPermissions,
-  openNativeAppSettings
+  ensureNativePhotoPermissions
 } from './nativeMedia';
 
 // Camera/mic permissions for calls & video rooms — invokes native Android
-// system dialogs. If denied or blocked, directly opens native Android App Settings.
+// system dialogs.
 export async function requestMediaAccess() {
   if (!isCapacitorApp()) return true;
-  const granted = await ensureNativeMediaPermissions();
-  if (!granted) {
-    await openNativeAppSettings();
-    return false;
-  }
-  return true;
+  return await ensureNativeMediaPermissions();
 }
 
 // Camera permission for in-app camera capture in chat — invokes native Android
-// system prompt (Screenshot 2: "Allow SahaPlay to take pictures and record video?").
+// system prompt (Screenshot: "Allow SahaPlay to take pictures and record video?").
 export async function requestCameraAccess() {
-  const granted = await ensureNativeCameraPermissions();
-  if (!granted && isCapacitorApp()) {
-    await openNativeAppSettings();
-    return false;
-  }
-  return granted;
+  return await ensureNativeCameraPermissions();
 }
 
 // Photo & video permissions for gallery & file attachment pickers — invokes
-// native Android system prompt (Screenshot 1: "Allow SahaPlay to access photos and videos on this device?").
+// native Android system prompt (Screenshot: "Allow SahaPlay to access photos and videos on this device?").
 export async function requestPhotoAccess() {
-  const granted = await ensureNativePhotoPermissions();
-  if (!granted && isCapacitorApp()) {
-    await openNativeAppSettings();
-    return false;
-  }
-  return granted;
+  return await ensureNativePhotoPermissions();
 }
