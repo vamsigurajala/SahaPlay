@@ -5673,12 +5673,19 @@ const Room = () => {
 
   // E2EE: Pre-fetch ALL room member public keys from DB/API so encryption includes every recipient
   // regardless of whether their socket-based chat:publicKey has been received yet.
+  // No longer skipped for guests (no watch_token) — the backend route now
+  // accepts an unauthenticated caller (authenticateTokenOptional) precisely
+  // so a guest sender can also pull this authoritative snapshot instead of
+  // relying solely on best-effort live 'user_list' broadcasts, which a guest
+  // previously had to depend on exclusively. Also re-runs whenever the room's
+  // membership count changes (not just once on mount) — a long-running
+  // session shouldn't keep encrypting against a snapshot taken before later
+  // joiners ever arrived.
   useEffect(() => {
     if (!roomId || !keyPair) return;
     const token = localStorage.getItem('watch_token');
-    if (!token) return;
     fetch(`${SOCKET_SERVER_URL}/api/rooms/${roomId.toLowerCase()}/public-keys`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
     })
       .then(r => r.json())
       .then(data => {
@@ -5691,7 +5698,7 @@ const Room = () => {
         }
       })
       .catch(() => {});
-  }, [roomId, keyPair]);
+  }, [roomId, keyPair, userList.length]);
 
   // E2EE: Re-decrypt history if keys arrived LATE (e.g. after refresh)
   useEffect(() => {

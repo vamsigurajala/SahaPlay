@@ -19,7 +19,14 @@ const CACHE_RULES = [
   [/\/api\/users\/[^/?]+$/, 5 * 60_000],
   [/\/api\/auth\/public-key\//, 15 * 60_000],
   [/\/api\/rooms\/info/, 5 * 60_000],
-  [/\/api\/rooms\/[^/?]+\/public-keys/, 10 * 60_000],
+  // NOTE: room public-keys is intentionally NOT cached (was 10 min). It's the
+  // live list of who's currently in a room and their encryption keys — a
+  // stale snapshot meant a sender could keep wrapping messages for whoever
+  // was present up to 10 minutes ago, silently excluding anyone who joined
+  // since, who'd then see every message from that sender as undecryptable
+  // ciphertext for the rest of that window. This endpoint is cheap (reads an
+  // in-memory map first) and is now called by guests too — correctness here
+  // matters far more than saving one GET per room join.
   [/\/api\/rooms\/public$/, 5_000],
 ];
 

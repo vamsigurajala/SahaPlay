@@ -3393,7 +3393,16 @@ app.get('/api/users/:username/public-key', (req, res) => {
 
 // ─── Fetch Active Room Participant Public Keys ───
 // Falls back to DB when room is not in-memory (e.g. sent from GlobalChatWidget without Room.jsx open)
-app.get('/api/rooms/:roomId/public-keys', authenticateToken, async (req, res) => {
+// authenticateTokenOptional (not authenticateToken) — a guest who joined a
+// room by just typing a name has no JWT at all, but still needs to read this
+// endpoint's live in-memory room.publicKeys map (keyed by socketId, entirely
+// independent of req.user) to encrypt group messages for everyone actually
+// present. Without this, a guest's client silently skipped this fetch
+// (see the matching `if (!token) return` removed on the frontend), relying
+// solely on best-effort live 'user_list' broadcasts — any member whose key
+// hadn't propagated that way yet was permanently excluded from that guest's
+// message encryption, showing up as an undecryptable message for them.
+app.get('/api/rooms/:roomId/public-keys', authenticateTokenOptional, async (req, res) => {
   const { roomId } = req.params;
   const normalizedId = (roomId || '').toLowerCase();
   const room = rooms.get(normalizedId);
@@ -3452,7 +3461,9 @@ app.get('/api/rooms/:roomId/public-keys', authenticateToken, async (req, res) =>
 });
 
 // ─── Fetch Active Room Participant Public Keys (Legacy/Direct Fallback) ───
-app.get('/api/:roomId/public-keys', authenticateToken, async (req, res) => {
+// See the matching comment on the /api/rooms/:roomId/public-keys route above
+// — same reasoning for allowing an unauthenticated guest caller here too.
+app.get('/api/:roomId/public-keys', authenticateTokenOptional, async (req, res) => {
   const { roomId } = req.params;
   const normalizedId = (roomId || '').toLowerCase();
   const room = rooms.get(normalizedId);
