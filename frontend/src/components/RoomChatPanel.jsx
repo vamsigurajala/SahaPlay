@@ -2681,7 +2681,24 @@ export default function RoomChatPanel({ p }) {
         </>
       ) : p.chatTab === 'group' ? (
         /* ===== GROUP CHAT THREAD ===== */
-        <>
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+          {/* Shared wallpaper backdrop — one continuous image behind the
+              header, message list AND composer, same "single layer, both
+              scrollable content and composer go transparent" pattern
+              GlobalChatWidget.jsx uses for its DM chat. Previously the image
+              was painted directly on the scrollable message list itself,
+              which meant every resize of that element (composer height
+              changing, on-screen keyboard opening) recomputed the
+              background-size:cover crop against a new box — reading as the
+              wallpaper visibly shifting. This layer's box is the outer,
+              more stable wrapper instead. */}
+          {groupWallpaper && (
+            <div className="room-chat-wallpaper-backdrop" style={{
+              position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+              backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
+              backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+            }} />
+          )}
           <div style={{
             padding:'8px 14px',
             background: 'var(--room-sidebar-bg)',
@@ -2769,12 +2786,11 @@ export default function RoomChatPanel({ p }) {
             }} 
             onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{
               flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', padding: 12, display: 'flex', flexDirection: 'column', gap: 10,
-              ...(groupWallpaper ? {
-                backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-              } : (isGroupCustomTheme ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {}))
+              // The shared .room-chat-wallpaper-backdrop layer above now paints the
+              // image (see why in its comment) — this only needs to go
+              // transparent so that layer shows through instead of painting
+              // its own separate copy that shifts independently on resize.
+              background: groupWallpaper ? 'transparent' : (isGroupCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : undefined),
             }}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -3366,17 +3382,36 @@ export default function RoomChatPanel({ p }) {
                         </div>
                       )}
                     </div>
-                    <button type="submit" disabled={isDisabled||!p.groupChatInput.trim()} style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1, flexShrink: 0}}>
+                    <button
+                      type="submit"
+                      disabled={isDisabled||!p.groupChatInput.trim()}
+                      // Prevents the tap from ever blurring the composer first —
+                      // without this, focus moves to the button then back to the
+                      // input a frame later (the requestAnimationFrame refocus
+                      // below), which is what made the keyboard visibly flicker
+                      // closed-then-open on every send.
+                      onMouseDown={e => e.preventDefault()}
+                      onTouchStart={e => e.preventDefault()}
+                      style={{width:38,height:38,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:isDisabled||!p.groupChatInput.trim()?0.5:1, flexShrink: 0}}>
                       <Send size={15} color="#fff"/>
                     </button>
                   </form>
               );
             })()}
           </div>
-        </>
+        </div>
       ) : (
         /* ===== DM Thread ===== */
-        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0}}>
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',overflow:'hidden'}}>
+            {/* Shared wallpaper backdrop — see the identical comment on the
+                group chat thread above; same fix, same reason. */}
+            {dmWallpaper && (
+              <div className="room-chat-wallpaper-backdrop" style={{
+                position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
+                backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+              }} />
+            )}
             {p.dmTarget ? (() => {
               const uObj = p.userList.find(u=>u.username===p.dmTarget);
               const isOnline = !!uObj;
@@ -3505,12 +3540,10 @@ export default function RoomChatPanel({ p }) {
                   }} 
                   onClick={() => { p.setActiveReactionMsg(null); p.setShowAllEmojis(false); p.setShowGroupEmojiPicker(false); p.setShowDmEmojiPicker(false); setActiveMessageMenu(null); longPress.close(); }} style={{
                     flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain', padding: 10, display: 'flex', flexDirection: 'column', gap: 8,
-                    ...(dmWallpaper ? {
-                      backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundRepeat: 'no-repeat',
-                    } : (isDMCustomTheme ? { background: isLight ? '#ffffff' : '#0a0a0a' } : {}))
+                    // The shared .room-chat-wallpaper-backdrop layer (see above)
+                    // paints the image now — this just needs to be transparent
+                    // so that layer shows through instead of resizing its own.
+                    background: dmWallpaper ? 'transparent' : (isDMCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : undefined),
                   }}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -4194,7 +4227,12 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           )}
                         </div>
-                        <button type="submit" disabled={!p.dmChatInput.trim() || isUploading} style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isUploading)?0.5:1, flexShrink: 0}}>
+                        <button
+                          type="submit"
+                          disabled={!p.dmChatInput.trim() || isUploading}
+                          onMouseDown={e => e.preventDefault()}
+                          onTouchStart={e => e.preventDefault()}
+                          style={{width:36,height:36,borderRadius:10,background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',opacity:(!p.dmChatInput.trim()||isUploading)?0.5:1, flexShrink: 0}}>
                           <Send size={14} color="#fff"/>
                         </button>
                       </form>

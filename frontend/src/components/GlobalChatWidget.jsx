@@ -929,6 +929,33 @@ const typingCss = `
     }
   }
 
+  /* Same problem, different element: the panel above is now correctly
+     pinned to the real current viewport at every instant — but once the
+     keyboard is fully open, that's a genuinely SHORTER box (it has to be,
+     to leave room for the composer above the keyboard), and this backdrop
+     is position:absolute + inset:0 inside it, so its own box shrinks to
+     match. A background-size:cover + background-position:center image
+     recalculates its crop against that new, shorter box — which is what
+     read as "the wallpaper jumps upward when the keyboard opens" (the top
+     edge is pinned, so a shorter box's vertical center, measured from that
+     fixed top, moves up). Detaching it as its own position:fixed layer
+     sized to the LARGE viewport (100lvh — unlike 100dvh, defined to stay
+     constant regardless of the on-screen keyboard) means its crop is
+     computed against a constant box no matter what the keyboard does; any
+     part temporarily covered by the keyboard/composer just isn't visible,
+     same as how a real wallpaper behind a window works. */
+  @media (max-width: 1024px) {
+    .chat-wallpaper-backdrop {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: auto !important;
+      height: 100vh !important;
+      height: 100lvh !important;
+    }
+  }
+
   .chat-menu-item {
     transition: background 0.18s ease-in-out !important;
   }
@@ -5989,7 +6016,7 @@ const GlobalChatWidget = forwardRef(({
             instead of the composer painting its own opaque bar on top of
             the picture like a separate panel glued on. */}
         {activeWallpaper && (
-          <div style={{
+          <div className="chat-wallpaper-backdrop" style={{
             position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
@@ -8256,7 +8283,21 @@ const GlobalChatWidget = forwardRef(({
                         )}
                       </div>
 
-                      <button type="submit" disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && chatLocked && !isHost)} style={{
+                      <button
+                        type="submit"
+                        disabled={(!inputValue.trim() && !isUploading) || !!(activeChat?.type === 'room' && chatLocked && !isHost)}
+                        // Tapping a button naturally blurs whatever was
+                        // focused first, THEN the click fires — on mobile
+                        // that's the on-screen keyboard visibly closing and
+                        // reopening (the requestAnimationFrame refocus below
+                        // in handleSend brings it back a frame later), which
+                        // read as a flicker. preventDefault on the pointer-
+                        // down itself stops the browser from ever moving
+                        // focus off the input in the first place, so the
+                        // keyboard never even starts to animate closed.
+                        onMouseDown={e => e.preventDefault()}
+                        onTouchStart={e => e.preventDefault()}
+                        style={{
                         width:44, height:44, borderRadius:10, background:'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border:'none', cursor: (activeChat?.type === 'room' && chatLocked && !isHost) ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', opacity:((!inputValue.trim() && !isUploading) || (activeChat?.type === 'room' && chatLocked && !isHost))?0.5:1, flexShrink: 0
                       }}>
                         <Send size={18} color="#fff" />
