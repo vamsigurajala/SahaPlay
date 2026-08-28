@@ -243,148 +243,57 @@ function animeMorningKitchenScene() {
   return encodeSvg(svg);
 }
 
+function northernLightsScene() {
+  return sceneWallpaper({
+    skyTop: '#020b14', skyBottom: '#0c2e3a',
+    dots: [{ cx: 60, cy: 30, r: 1.2 }, { cx: 200, cy: 45, r: 1.5 }, { cx: 330, cy: 25, r: 1 }],
+    bands: [
+      { cx: 140, cy: 110, rx: 160, ry: 35, color: '#34d399', rot: -15 },
+      { cx: 270, cy: 95, rx: 140, ry: 30, color: '#22d3ee', rot: 10 },
+    ],
+    layers: [
+      { color: '#09252c', points: '0,300 80,250 160,285 240,240 320,275 400,245 400,400 0,400' },
+      { color: '#04161a', points: '0,350 100,315 220,340 340,305 400,330 400,400 0,400' }
+    ]
+  });
+}
+
+function sakuraTwilightScene() {
+  return sceneWallpaper({
+    skyTop: '#2d0a29', skyBottom: '#f472b6',
+    dots: [{ cx: 80, cy: 40, r: 1.5 }, { cx: 310, cy: 60, r: 1.2 }],
+    sun: { cx: 200, cy: 170, r: 35, color: '#fef08a' },
+    layers: [
+      { color: '#701a3f', points: '0,270 70,220 150,250 240,205 320,240 400,210 400,400 0,400' },
+      { color: '#4a0e27', points: '0,330 110,290 220,315 330,280 400,305 400,400 0,400' }
+    ]
+  });
+}
+
+function autumnCabinScene() {
+  return sceneWallpaper({
+    skyTop: '#451a03', skyBottom: '#d97706',
+    dots: [{ cx: 100, cy: 40, r: 1.3 }, { cx: 280, cy: 50, r: 1.1 }],
+    sun: { cx: 200, cy: 160, r: 38, color: '#fef08a' },
+    layers: [
+      { color: '#78350f', points: '0,280 80,230 160,260 250,215 340,250 400,220 400,400 0,400' },
+      { color: '#451a03', points: '0,340 100,300 210,325 320,290 400,315 400,400 0,400' }
+    ]
+  });
+}
+
 export const CHAT_CATEGORIES = [
   { id: 'all', name: 'All' },
-  { id: 'anime-couple', name: 'Anime Couple' },
+  { id: 'plain', name: 'Plain' },
+  { id: 'scenaries', name: 'Scenaries' },
   { id: 'cartoon-couple', name: 'Cartoon Couple' },
-  { id: 'scenery', name: 'Scenery & Nature' },
+  { id: 'anime-couple', name: 'Anime Couple' },
 ];
 
 export const CHAT_WALLPAPERS = [
-  // ── 5 User-Provided High Quality Anime Couple Wallpapers ──────────
+  // ── Plain (6 Abstract SVG Themes) ──────────────────────────────
   {
-    id: 'wp-rainy-window-anime', name: 'Rainy Window (Anime)', category: 'anime-couple',
-    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
-    image: '/wallpapers/rainy-window-anime.jpg',
-  },
-  {
-    id: 'wp-umbrella-together-anime', name: 'Umbrella Together (Anime)', category: 'anime-couple',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/umbrella-together-anime.jpg',
-  },
-  {
-    id: 'wp-falling-asleep-anime', name: 'Falling Asleep (Anime)', category: 'anime-couple',
-    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
-    image: '/wallpapers/falling-asleep-shoulder-anime.jpg',
-  },
-  {
-    id: 'wp-waiting-flowers-anime', name: 'Waiting With Flowers (Anime)', category: 'anime-couple',
-    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
-    image: '/wallpapers/waiting-with-flowers-anime.jpg',
-  },
-  {
-    id: 'wp-comfort-hard-day-anime', name: 'Comfort After Hard Day (Anime)', category: 'anime-couple',
-    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
-    image: '/wallpapers/comfort-after-hard-day-anime.jpg',
-  },
-
-  // ── Anime Couple Wallpapers ─────────────────────────────
-  {
-    id: 'wp-falling-asleep-shoulder', name: 'Train Sleep (Anime)', category: 'anime-couple',
-    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
-    image: '/wallpapers/falling-asleep-shoulder.jpg',
-  },
-  {
-    id: 'wp-comfort-after-hard-day', name: 'Bedroom Comfort (Anime)', category: 'anime-couple',
-    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
-    image: '/wallpapers/comfort-after-hard-day.jpg',
-  },
-  {
-    id: 'wp-sunset-bicycle-ride', name: 'Sunset Bicycle Ride (Anime)', category: 'anime-couple',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/sunset-bicycle-ride.jpg',
-  },
-  {
-    id: 'wp-blanket-on-rooftop', name: 'Rooftop Stargazing (Anime)', category: 'anime-couple',
-    brightColor: '#818cf8', darkColor: '#1e1b4b', lightColor: '#a5b4fc',
-    image: '/wallpapers/blanket-on-rooftop.jpg',
-  },
-  {
-    id: 'wp-walking-home-together', name: 'Walking Home (Anime)', category: 'anime-couple',
-    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
-    image: '/wallpapers/walking-home-together.jpg',
-  },
-  {
-    id: 'wp-rainy-window-quiet-love', name: 'Rainy Window Love (Anime)', category: 'anime-couple',
-    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
-    image: '/wallpapers/rainy-window-quiet-love.jpg',
-  },
-
-  // ── Cartoon Couple Wallpapers ───────────────────────────
-  {
-    id: 'wp-umbrella-together', name: 'Umbrella Walk (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/umbrella-together.jpg',
-  },
-  {
-    id: 'wp-waiting-with-flowers', name: 'Station Reunion (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
-    image: '/wallpapers/waiting-with-flowers.jpg',
-  },
-  {
-    id: 'wp-holding-hands-under-table', name: 'Holding Hands Under Table (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#d97706', darkColor: '#451a03', lightColor: '#fbbf24',
-    image: holdingHandsUnderTableScene(),
-  },
-  {
-    id: 'wp-small-act-of-care', name: 'Tying Scarf Morning (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
-    image: '/wallpapers/small-act-of-care.jpg',
-  },
-  {
-    id: 'wp-anime-rainy-blanket', name: 'Cozy Blanket Room (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
-    image: animeRainyBlanketScene(),
-  },
-  {
-    id: 'wp-anime-rainy-embrace', name: 'Rainy Evening Window (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#ec4899', darkColor: '#831843', lightColor: '#f472b6',
-    image: animeRainyEmbraceScene(),
-  },
-  {
-    id: 'wp-anime-morning-kitchen', name: 'Morning Kitchen Coffee (Cartoon)', category: 'cartoon-couple',
-    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
-    image: animeMorningKitchenScene(),
-  },
-
-  // ── Scenery & Nature Wallpapers ────────────────────────
-  {
-    id: 'wp-rainy-window', name: 'Rainy Window View', category: 'scenery',
-    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
-    image: '/wallpapers/rainy-window.jpg',
-  },
-  {
-    id: 'wp-sky-islands', name: 'Sky Islands', category: 'scenery',
-    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/sky-islands.jpg',
-  },
-  {
-    id: 'wp-secret-garden', name: 'Secret Garden', category: 'scenery',
-    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
-    image: '/wallpapers/secret-garden.jpg',
-  },
-  {
-    id: 'wp-deep-space', name: 'Deep Space', category: 'scenery',
-    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
-    image: '/wallpapers/deep-space.jpg',
-  },
-  {
-    id: 'wp-winter-village', name: 'Winter Village', category: 'scenery',
-    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
-    image: '/wallpapers/winter-village.jpg',
-  },
-  {
-    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall', category: 'scenery',
-    brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
-    image: '/wallpapers/tropical-waterfall.jpg',
-  },
-  {
-    id: 'wp-zen-interior', name: 'Zen Interior', category: 'scenery',
-    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
-    image: '/wallpapers/zen-interior.jpg',
-  },
-  {
-    id: 'wp-aurora', name: 'Aurora',
+    id: 'wp-aurora', name: 'Aurora', category: 'plain',
     brightColor: '#22d3ee', darkColor: '#032426', lightColor: '#34d399',
     image: sceneWallpaper({
       skyTop: '#03110e', skyBottom: '#0a2b26',
@@ -401,7 +310,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-sunset-blaze', name: 'Sunset Blaze',
+    id: 'wp-sunset-blaze', name: 'Sunset Blaze', category: 'plain',
     brightColor: '#f97316', darkColor: '#4c1d5b', lightColor: '#fde68a',
     image: sceneWallpaper({
       skyTop: '#2a0a3d', skyBottom: '#f97316',
@@ -413,7 +322,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-deep-ocean', name: 'Deep Ocean',
+    id: 'wp-deep-ocean', name: 'Deep Ocean', category: 'plain',
     brightColor: '#38bdf8', darkColor: '#062038', lightColor: '#60a5fa',
     image: sceneWallpaper({
       skyTop: '#020a17', skyBottom: '#0a3a5c',
@@ -427,7 +336,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-lavender-dusk', name: 'Lavender Dusk',
+    id: 'wp-lavender-dusk', name: 'Lavender Dusk', category: 'plain',
     brightColor: '#c084fc', darkColor: '#3b0764', lightColor: '#e9d5ff',
     image: sceneWallpaper({
       skyTop: '#160a2e', skyBottom: '#5b2a8c',
@@ -440,7 +349,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-golden-hour', name: 'Golden Hour',
+    id: 'wp-golden-hour', name: 'Golden Hour', category: 'plain',
     brightColor: '#fbbf24', darkColor: '#78350f', lightColor: '#fde047',
     image: sceneWallpaper({
       skyTop: '#7c2d12', skyBottom: '#fbbf24',
@@ -452,7 +361,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
   {
-    id: 'wp-rose-quartz', name: 'Rose Quartz',
+    id: 'wp-rose-quartz', name: 'Rose Quartz', category: 'plain',
     brightColor: '#fb7185', darkColor: '#701a3f', lightColor: '#fecdd3',
     image: sceneWallpaper({
       skyTop: '#4a1030', skyBottom: '#fb7185',
@@ -464,71 +373,170 @@ export const CHAT_WALLPAPERS = [
     }),
   },
 
-  // ── Additional Wallpaper Collections ───────────────────────
+  // ── Scenaries (13 Landscape & Scenery Themes) ───────────────────
   {
-    id: 'wp-cozy-cafe', name: 'Cozy Café',
+    id: 'wp-cozy-cafe', name: 'Cozy Café', category: 'scenaries',
     brightColor: '#d97706', darkColor: '#451a03', lightColor: '#f59e0b',
     image: '/wallpapers/cozy-cafe.jpg',
   },
   {
-    id: 'wp-cyberpunk-city', name: 'Cyberpunk City',
+    id: 'wp-cyberpunk-city', name: 'Cyberpunk City', category: 'scenaries',
     brightColor: '#ec4899', darkColor: '#4c1d95', lightColor: '#f472b6',
     image: '/wallpapers/cyberpunk-city.jpg',
   },
   {
-    id: 'wp-rooftop-moonlight', name: 'Rooftop Moonlight',
+    id: 'wp-rooftop-moonlight', name: 'Rooftop Moonlight', category: 'scenaries',
     brightColor: '#818cf8', darkColor: '#1e1b4b', lightColor: '#a5b4fc',
     image: '/wallpapers/rooftop-moonlight.jpg',
   },
   {
-    id: 'wp-enchanted-forest', name: 'Enchanted Forest',
+    id: 'wp-enchanted-forest', name: 'Enchanted Forest', category: 'scenaries',
     brightColor: '#2dd4bf', darkColor: '#134e4a', lightColor: '#5eead4',
     image: '/wallpapers/enchanted-forest.jpg',
   },
   {
-    id: 'wp-northern-lights', name: 'Northern Lights',
+    id: 'wp-northern-lights', name: 'Northern Lights', category: 'scenaries',
     brightColor: '#34d399', darkColor: '#064e3b', lightColor: '#6ee7b7',
-    image: '/wallpapers/northern-lights.jpg',
+    image: northernLightsScene(),
   },
   {
-    id: 'wp-sakura-twilight', name: 'Sakura Twilight',
+    id: 'wp-sakura-twilight', name: 'Sakura Twilight', category: 'scenaries',
     brightColor: '#f472b6', darkColor: '#831843', lightColor: '#fbcfe8',
-    image: '/wallpapers/sakura-twilight.jpg',
+    image: sakuraTwilightScene(),
   },
   {
-    id: 'wp-tropical-sunset', name: 'Tropical Sunset',
+    id: 'wp-tropical-sunset', name: 'Tropical Sunset', category: 'scenaries',
     brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/tropical-sunset.jpg',
+    image: '/wallpapers/tropical-waterfall.jpg',
   },
   {
-    id: 'wp-midnight-library', name: 'Midnight Library',
+    id: 'wp-midnight-library', name: 'Midnight Library', category: 'scenaries',
     brightColor: '#b45309', darkColor: '#451a03', lightColor: '#f59e0b',
-    image: '/wallpapers/midnight-library.jpg',
+    image: '/wallpapers/zen-interior.jpg',
   },
   {
-    id: 'wp-autumn-cabin', name: 'Autumn Cabin',
+    id: 'wp-autumn-cabin', name: 'Autumn Cabin', category: 'scenaries',
     brightColor: '#ea580c', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/autumn-cabin.jpg',
+    image: autumnCabinScene(),
   },
   {
-    id: 'wp-starry-valley', name: 'Starry Valley',
+    id: 'wp-starry-valley', name: 'Starry Valley', category: 'scenaries',
     brightColor: '#6366f1', darkColor: '#1e1b4b', lightColor: '#818cf8',
-    image: '/wallpapers/starry-valley.jpg',
+    image: '/wallpapers/deep-space.jpg',
   },
   {
-    id: 'wp-neo-tokyo-rain', name: 'Neo Tokyo Rain',
+    id: 'wp-neo-tokyo-rain', name: 'Neo Tokyo Rain', category: 'scenaries',
     brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
-    image: '/wallpapers/neo-tokyo-rain.jpg',
+    image: '/wallpapers/rainy-window.jpg',
   },
   {
-    id: 'wp-floating-islands', name: 'Floating Islands',
+    id: 'wp-floating-islands', name: 'Floating Islands', category: 'scenaries',
     brightColor: '#3b82f6', darkColor: '#1e3a8a', lightColor: '#60a5fa',
-    image: '/wallpapers/floating-islands.jpg',
+    image: '/wallpapers/sky-islands.jpg',
   },
   {
-    id: 'wp-lavender-night', name: 'Lavender Night',
+    id: 'wp-lavender-night', name: 'Lavender Night', category: 'scenaries',
     brightColor: '#a855f7', darkColor: '#581c87', lightColor: '#c084fc',
-    image: '/wallpapers/lavender-night.jpg',
+    image: '/wallpapers/secret-garden.jpg',
+  },
+
+  // ── Cartoon Couple (9 Cartoon Themes) ───────────────────────────
+  {
+    id: 'wp-falling-asleep-shoulder', name: 'Train Sleep', category: 'cartoon-couple',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/falling-asleep-shoulder.jpg',
+  },
+  {
+    id: 'wp-comfort-after-hard-day', name: 'Bedroom Comfort', category: 'cartoon-couple',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/comfort-after-hard-day.jpg',
+  },
+  {
+    id: 'wp-sunset-bicycle-ride', name: 'Sunset Bicycle Ride', category: 'cartoon-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/sunset-bicycle-ride.jpg',
+  },
+  {
+    id: 'wp-blanket-on-rooftop', name: 'Rooftop Stargazing', category: 'cartoon-couple',
+    brightColor: '#818cf8', darkColor: '#1e1b4b', lightColor: '#a5b4fc',
+    image: '/wallpapers/blanket-on-rooftop.jpg',
+  },
+  {
+    id: 'wp-walking-home-together', name: 'Walking Home', category: 'cartoon-couple',
+    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
+    image: '/wallpapers/walking-home-together.jpg',
+  },
+  {
+    id: 'wp-rainy-window-quiet-love', name: 'Rainy Window Love', category: 'cartoon-couple',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window-quiet-love.jpg',
+  },
+  {
+    id: 'wp-umbrella-together', name: 'Umbrella Walk', category: 'cartoon-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/umbrella-together.jpg',
+  },
+  {
+    id: 'wp-waiting-with-flowers', name: 'Station Reunion', category: 'cartoon-couple',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: '/wallpapers/waiting-with-flowers.jpg',
+  },
+  {
+    id: 'wp-small-act-of-care', name: 'Tying Scarf Morning', category: 'cartoon-couple',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/small-act-of-care.jpg',
+  },
+
+  // ── Anime Couple (10 High Quality Anime Themes) ──────────────────
+  {
+    id: 'wp-rainy-window-anime', name: 'Rainy Window', category: 'anime-couple',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window-anime.jpg',
+  },
+  {
+    id: 'wp-umbrella-together-anime', name: 'Umbrella Together', category: 'anime-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/umbrella-together-anime.jpg',
+  },
+  {
+    id: 'wp-falling-asleep-anime', name: 'Falling Asleep', category: 'anime-couple',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/falling-asleep-shoulder-anime.jpg',
+  },
+  {
+    id: 'wp-waiting-flowers-anime', name: 'Waiting With Flowers', category: 'anime-couple',
+    brightColor: '#eab308', darkColor: '#713f12', lightColor: '#fde047',
+    image: '/wallpapers/waiting-with-flowers-anime.jpg',
+  },
+  {
+    id: 'wp-comfort-hard-day-anime', name: 'Comfort After Hard Day', category: 'anime-couple',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/comfort-after-hard-day-anime.jpg',
+  },
+  {
+    id: 'wp-sunset-bicycle-anime', name: 'Sunset Bicycle Ride', category: 'anime-couple',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/sunset-bicycle-anime.jpg',
+  },
+  {
+    id: 'wp-holding-hands-cafe-anime', name: 'Coffee Table Romance', category: 'anime-couple',
+    brightColor: '#d97706', darkColor: '#451a03', lightColor: '#fbbf24',
+    image: '/wallpapers/holding-hands-cafe-anime.jpg',
+  },
+  {
+    id: 'wp-walking-home-anime', name: 'Walking Home', category: 'anime-couple',
+    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
+    image: '/wallpapers/walking-home-anime.jpg',
+  },
+  {
+    id: 'wp-tying-scarf-anime', name: 'Tying Scarf Morning', category: 'anime-couple',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/tying-scarf-anime.jpg',
+  },
+  {
+    id: 'wp-rooftop-stargazing-anime', name: 'Rooftop Stargazing', category: 'anime-couple',
+    brightColor: '#818cf8', darkColor: '#1e1b4b', lightColor: '#a5b4fc',
+    image: '/wallpapers/rooftop-stargazing-anime.jpg',
   },
 ];
 
