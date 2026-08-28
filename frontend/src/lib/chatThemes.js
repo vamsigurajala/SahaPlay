@@ -286,6 +286,7 @@ export const CHAT_CATEGORIES = [
   { id: 'all', name: 'All' },
   { id: 'plain', name: 'Plain' },
   { id: 'scenaries', name: 'Scenaries' },
+  { id: 'space', name: 'Space' },
   { id: 'cartoon-couple', name: 'Cartoon Couple' },
   { id: 'anime-couple', name: 'Anime Couple' },
 ];
@@ -373,7 +374,7 @@ export const CHAT_WALLPAPERS = [
     }),
   },
 
-  // ── Scenaries (13 Landscape & Scenery Themes) ───────────────────
+  // ── Scenaries (19 Landscape & Scenery Themes) ───────────────────
   {
     id: 'wp-cozy-cafe', name: 'Cozy Café', category: 'scenaries',
     brightColor: '#d97706', darkColor: '#451a03', lightColor: '#f59e0b',
@@ -438,6 +439,43 @@ export const CHAT_WALLPAPERS = [
     id: 'wp-lavender-night', name: 'Lavender Night', category: 'scenaries',
     brightColor: '#a855f7', darkColor: '#581c87', lightColor: '#c084fc',
     image: '/wallpapers/lavender-night.jpg',
+  },
+  {
+    id: 'wp-rainy-window', name: 'Rainy Window', category: 'scenaries',
+    brightColor: '#f59e0b', darkColor: '#78350f', lightColor: '#fbbf24',
+    image: '/wallpapers/rainy-window.jpg',
+  },
+  {
+    id: 'wp-secret-garden', name: 'Secret Garden', category: 'scenaries',
+    brightColor: '#10b981', darkColor: '#064e3b', lightColor: '#34d399',
+    image: '/wallpapers/secret-garden.jpg',
+  },
+  {
+    id: 'wp-sky-islands', name: 'Sky Islands', category: 'scenaries',
+    brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
+    image: '/wallpapers/sky-islands.jpg',
+  },
+  {
+    id: 'wp-tropical-waterfall', name: 'Tropical Waterfall', category: 'scenaries',
+    brightColor: '#14b8a6', darkColor: '#0f766e', lightColor: '#2dd4bf',
+    image: '/wallpapers/tropical-waterfall.jpg',
+  },
+  {
+    id: 'wp-winter-village', name: 'Winter Village', category: 'scenaries',
+    brightColor: '#38bdf8', darkColor: '#0e7490', lightColor: '#60a5fa',
+    image: '/wallpapers/winter-village.jpg',
+  },
+  {
+    id: 'wp-zen-interior', name: 'Zen Interior', category: 'scenaries',
+    brightColor: '#d97706', darkColor: '#78350f', lightColor: '#f59e0b',
+    image: '/wallpapers/zen-interior.jpg',
+  },
+
+  // ── Space (Space Theme) ──────────────────────────────────────────
+  {
+    id: 'wp-deep-space', name: 'Deep Space', category: 'space',
+    brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
+    image: '/wallpapers/deep-space.jpg',
   },
 
   // ── Cartoon Couple (9 Cartoon Themes) ───────────────────────────
