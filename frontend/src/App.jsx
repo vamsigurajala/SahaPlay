@@ -13,7 +13,6 @@ import { syncStatusBarTheme } from './lib/nativeShell';
 import { setNativeThemePreference } from './lib/nativeMedia';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
-import MediaPermissionModal from './components/MediaPermissionModal';
 import AnimatedSplash from './components/AnimatedSplash';
 import KeyRecoveryModal from './components/KeyRecoveryModal';
 const Home = lazy(() => import('./Home'));
@@ -1257,7 +1256,6 @@ function App() {
           </Routes>
           </Suspense>
           <BottomNav />
-          <MediaPermissionModal />
           </CallProvider>
         </Router>
       </GoogleOAuthProvider>

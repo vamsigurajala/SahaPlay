@@ -128,6 +128,28 @@ export async function ensureNativeMediaPermissions() {
   }
 }
 
+export async function ensureNativeCameraPermissions() {
+  if (!isCapacitorApp()) {
+    try {
+      if (navigator.permissions?.query) {
+        const cam = await navigator.permissions.query({ name: 'camera' }).catch(() => null);
+        if (cam?.state === 'granted') return true;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      stream.getTracks().forEach((t) => t.stop());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  try {
+    const result = await plugin()?.ensureCameraPermissions();
+    return !!result?.granted;
+  } catch {
+    return false;
+  }
+}
+
 // Explicit photos/files permission, requested before the gallery button
 // (inside the in-app camera screen) or the composer's paperclip button opens
 // the actual file chooser — see requestPhotoAccess() in mediaPermissionGate.js.

@@ -15,6 +15,7 @@ import android.view.WindowManager;
 
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.ContextCompat;
+import java.util.Map;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -41,13 +42,12 @@ import com.getcapacitor.annotation.PermissionCallback;
     name = "SahaplayMedia",
     permissions = {
         @Permission(strings = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO }, alias = "media"),
-        // Declared here so Capacitor still knows about both manifest
-        // strings, but ensurePhotoPermissions/hasPhotoPermission below no
-        // longer request or check this alias as a whole (see their own
-        // comments) — READ_EXTERNAL_STORAGE is a no-op on Android 13+
-        // anyway (READ_MEDIA_IMAGES applies there instead; see the matching
-        // maxSdkVersion="32" on it in AndroidManifest.xml).
-        @Permission(strings = { Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_EXTERNAL_STORAGE }, alias = "photos")
+        @Permission(strings = {
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }, alias = "photos")
     }
 )
 public class SahaplayMediaPlugin extends Plugin {
@@ -59,26 +59,39 @@ public class SahaplayMediaPlugin extends Plugin {
     // ever one Bridge/WebView alive per app process.
     private static SahaplayMediaPlugin activeInstance;
 
-    // Holds the PluginCall from ensurePhotoPermissions below while
-    // MainActivity's photoPermissionLauncher shows the real system dialog —
-    // resolved by onPhotoPermissionResult once the user answers it. Same
-    // "static hook back onto whichever instance is live" shape as
-    // activeInstance/emitScreenFrame above, needed for the same reason: the
-    // result arrives via MainActivity's own ActivityResultCallback, not
-    // through anything this Plugin instance is directly invoked by.
     private PluginCall pendingPhotoPermissionCall;
+    private PluginCall pendingCameraPermissionCall;
 
     @Override
     public void load() {
         activeInstance = this;
     }
 
-    public static void onPhotoPermissionResult(boolean granted) {
+    public static void onPhotoPermissionResult(Map<String, Boolean> result) {
         if (activeInstance == null || activeInstance.pendingPhotoPermissionCall == null) return;
         PluginCall call = activeInstance.pendingPhotoPermissionCall;
         activeInstance.pendingPhotoPermissionCall = null;
+        boolean granted = false;
+        if (result != null) {
+            for (Map.Entry<String, Boolean> entry : result.entrySet()) {
+                if (Boolean.TRUE.equals(entry.getValue())) {
+                    granted = true;
+                    break;
+                }
+            }
+        }
         JSObject ret = new JSObject();
         ret.put("granted", granted);
+        call.resolve(ret);
+    }
+
+    public static void onCameraPermissionResult(Map<String, Boolean> result) {
+        if (activeInstance == null || activeInstance.pendingCameraPermissionCall == null) return;
+        PluginCall call = activeInstance.pendingCameraPermissionCall;
+        activeInstance.pendingCameraPermissionCall = null;
+        boolean cameraGranted = result != null && Boolean.TRUE.equals(result.get(Manifest.permission.CAMERA));
+        JSObject ret = new JSObject();
+        ret.put("granted", cameraGranted);
         call.resolve(ret);
     }
 
@@ -433,6 +446,26 @@ public class SahaplayMediaPlugin extends Plugin {
     // be lost rather than resolved by onPhotoPermissionResult once the user
     // answers it.
     @PluginMethod
+    public void ensureCameraPermissions(PluginCall call) {
+        boolean hasCamera = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+        if (hasCamera) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+            return;
+        }
+        if (!(getActivity() instanceof MainActivity)) {
+            call.reject("Camera permission unavailable");
+            return;
+        }
+        call.setKeepAlive(true);
+        pendingCameraPermissionCall = call;
+        String[] perms = new String[] { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO };
+        getActivity().runOnUiThread(() ->
+            ((MainActivity) getActivity()).getCameraPermissionLauncher().launch(perms));
+    }
+
+    @PluginMethod
     public void ensurePhotoPermissions(PluginCall call) {
         if (hasPhotoPermission()) {
             JSObject ret = new JSObject();
@@ -446,18 +479,38 @@ public class SahaplayMediaPlugin extends Plugin {
         }
         call.setKeepAlive(true);
         pendingPhotoPermissionCall = call;
-        String perm = Build.VERSION.SDK_INT >= 33
-            ? Manifest.permission.READ_MEDIA_IMAGES
-            : Manifest.permission.READ_EXTERNAL_STORAGE;
+        String[] perms;
+        if (Build.VERSION.SDK_INT >= 34) {
+            perms = new String[] {
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+            };
+        } else if (Build.VERSION.SDK_INT >= 33) {
+            perms = new String[] {
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_MEDIA_VIDEO
+            };
+        } else {
+            perms = new String[] {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            };
+        }
         getActivity().runOnUiThread(() ->
-            ((MainActivity) getActivity()).getPhotoPermissionLauncher().launch(perm));
+            ((MainActivity) getActivity()).getPhotoPermissionLauncher().launch(perms));
     }
 
     private boolean hasPhotoPermission() {
-        String perm = Build.VERSION.SDK_INT >= 33
-            ? Manifest.permission.READ_MEDIA_IMAGES
-            : Manifest.permission.READ_EXTERNAL_STORAGE;
-        return ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED;
+        if (Build.VERSION.SDK_INT >= 34) {
+            return ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED;
+        } else if (Build.VERSION.SDK_INT >= 33) {
+            return ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+                || ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ContextCompat.checkSelfPermission(getContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
     }
 
     // Deep-links into this app's own page in the system Settings app (the

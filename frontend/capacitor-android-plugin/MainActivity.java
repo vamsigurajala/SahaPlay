@@ -35,10 +35,15 @@ public class MainActivity extends BridgeActivity {
     // Registration MUST happen before this Activity reaches STARTED —
     // doing it here in onCreate (before super.onCreate() returns control
     // past it) satisfies that.
-    private ActivityResultLauncher<String> photoPermissionLauncher;
+    private ActivityResultLauncher<String[]> photoPermissionLauncher;
+    private ActivityResultLauncher<String[]> cameraPermissionLauncher;
 
-    public ActivityResultLauncher<String> getPhotoPermissionLauncher() {
+    public ActivityResultLauncher<String[]> getPhotoPermissionLauncher() {
         return photoPermissionLauncher;
+    }
+
+    public ActivityResultLauncher<String[]> getCameraPermissionLauncher() {
+        return cameraPermissionLauncher;
     }
 
     @Override
@@ -46,8 +51,12 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SahaplayMediaPlugin.class);
         registerPlugin(SahaplayCallPlugin.class);
         photoPermissionLauncher = registerForActivityResult(
-            new ActivityResultContracts.RequestPermission(),
-            granted -> SahaplayMediaPlugin.onPhotoPermissionResult(granted)
+            new ActivityResultContracts.RequestMultiplePermissions(),
+            result -> SahaplayMediaPlugin.onPhotoPermissionResult(result)
+        );
+        cameraPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestMultiplePermissions(),
+            result -> SahaplayMediaPlugin.onCameraPermissionResult(result)
         );
         super.onCreate(savedInstanceState);
 

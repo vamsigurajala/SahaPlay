@@ -31,10 +31,8 @@ const COPY = {
 };
 
 export default function MediaPermissionModal() {
-  const [resolve, setResolveFn] = useState(null);
-  const [kind, setKind] = useState('media');
-  const [deniedOnce, setDeniedOnce] = useState(false);
-  const [busy, setBusy] = useState(false);
+  return null;
+}
 
   useEffect(() => {
     const handler = (e) => {
