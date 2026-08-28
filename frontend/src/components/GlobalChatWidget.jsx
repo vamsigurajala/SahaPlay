@@ -32,7 +32,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
-import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getWallpaperGradient, isRgbColorDark } from '../lib/chatThemes';
+import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 
@@ -5761,20 +5761,10 @@ const GlobalChatWidget = forwardRef(({
   const sheetChatKey = themeSheetTarget ? (themeSheetTarget.type === 'room' ? (themeSheetTarget.partner || themeSheetTarget.id) : themeSheetTarget.partner)?.toLowerCase() : null;
   const sheetThemeId = sheetChatKey ? (chatThemes[sheetChatKey] || 'default') : 'default';
 
-  // The category filter pills' active-state color used to be a fixed
-  // orange, unrelated to anything — now it reflects whichever theme is
-  // actually applied to the chat this sheet is customizing, the same way
-  // the message bubbles themselves pick up that chat's theme. A flat
-  // CHAT_THEMES swatch already carries a ready-made CSS gradient; an image
-  // wallpaper's dark/light colors give one via getWallpaperGradient (no
-  // async image-decode round trip needed, unlike the main view's own
-  // bubble-color derivation). Falls back to the app's own brand gradient
-  // for the default (no custom theme picked) case.
-  const sheetThemeEntry = CHAT_THEMES.find(th => th.id === sheetThemeId);
-  const sheetWallpaperEntry = !sheetThemeEntry ? findWallpaper(sheetThemeId) : null;
-  const sheetFilterAccent = sheetThemeEntry
-    ? sheetThemeEntry.gradient
-    : (getWallpaperGradient(sheetWallpaperEntry) || 'linear-gradient(135deg,var(--brand-1),var(--brand-2))');
+  // The category filter pills' active-state color is a flat purple,
+  // independent of whichever chat theme is applied — keeps the sheet's
+  // own filter UI visually consistent regardless of theme selection.
+  const sheetFilterAccent = '#a855f7';
 
   if (!isOpen) return null;
 

@@ -130,7 +130,8 @@
       "PowerShell(Stop-Process -Force)",
       "PowerShell(Start-Process -NoNewWindow -FilePath \"node\" -ArgumentList \"server.js\" -WorkingDirectory \"c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend\" -RedirectStandardOutput \"..\\\\backend_out.txt\" -RedirectStandardError \"..\\\\backend_err.txt\")",
       "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"Set-Location 'c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\backend'; node server.js 2>&1 | Tee-Object -FilePath '..\\\\backend_out.txt'\" -WindowStyle Normal; Write-Output \"Backend started\")",
-      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"Set-Location 'c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend'; npm run dev 2>&1 | Tee-Object -FilePath '..\\\\frontend_out.txt'\" -WindowStyle Normal; Write-Output \"Frontend started\")"
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"Set-Location 'c:\\\\Users\\\\KrishnavamsiGurajala\\\\.gemini\\\\antigravity\\\\scratch\\\\watch-together\\\\frontend'; npm run dev 2>&1 | Tee-Object -FilePath '..\\\\frontend_out.txt'\" -WindowStyle Normal; Write-Output \"Frontend started\")",
+      "Bash(pkill -f \"vite --port 51\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\KrishnavamsiGurajala\\.gemini\\antigravity\\scratch\\watch-together\\frontend\\src\\public\\platforms"
