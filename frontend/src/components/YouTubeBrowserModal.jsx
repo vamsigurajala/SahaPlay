@@ -22,6 +22,9 @@ export default function YouTubeBrowserModal({ onSelect, onClose, isLight }) {
   const [activeTag, setActiveTag] = useState('Trending');
   const [isCloseHovered, setIsCloseHovered] = useState(false);
   const inputRef = useRef(null);
+  const debounceRef = useRef(null);
+  const isFirstRenderRef = useRef(true);
+  const suppressNextEmptyRef = useRef(false);
 
   const tags = ['Trending', 'Live', 'Music', 'Gaming', 'News', 'Movies'];
 
@@ -56,8 +59,38 @@ export default function YouTubeBrowserModal({ onSelect, onClose, isLight }) {
     search(activeTag, true);
   }, []);
 
+  // Live search as you type — no need to press Enter or click Search.
+  // Debounced so a fast typist doesn't fire a request per keystroke; a
+  // pasted/completed YouTube link still resolves immediately (see below)
+  // since there's nothing to wait for there.
+  useEffect(() => {
+    if (isFirstRenderRef.current) { isFirstRenderRef.current = false; return; }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const q = query.trim();
+    const ytMatch = q.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/))([a-zA-Z0-9_-]{11})/i);
+    if (ytMatch) {
+      search(q);
+      return;
+    }
+
+    if (!q) {
+      // Cleared back to empty — handleTagClick already re-runs the active
+      // tag's search itself, so skip the redundant duplicate here.
+      if (suppressNextEmptyRef.current) { suppressNextEmptyRef.current = false; return; }
+      debounceRef.current = setTimeout(() => search(activeTag, true), 300);
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => search(q), 450);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query]);
+
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
   const handleTagClick = (tag) => {
     setActiveTag(tag);
+    suppressNextEmptyRef.current = true;
     setQuery('');
     search(tag, true);
   };
