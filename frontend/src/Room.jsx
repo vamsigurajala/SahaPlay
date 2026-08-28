@@ -6460,6 +6460,43 @@ const Room = () => {
     return recipients;
   };
 
+  // ─── E2EE: guarantee the recipient list is actually complete right before
+  // encrypting, instead of trusting whatever buildGroupRecipients' local
+  // caches happen to hold at that exact instant. The passive pre-fetch effect
+  // (and live 'user_list'/'chat:publicKey' broadcasts) usually populate those
+  // caches in time, but on a slower device/network — exactly the gap between
+  // "works on my laptop" and "fails on mobile" reported in practice — a
+  // message can get typed and sent before that round trip has finished, so
+  // the sender silently under-includes whoever's key hadn't arrived yet. If
+  // buildGroupRecipients() comes back missing anyone currently in userList,
+  // this does one direct, uncached fetch of the authoritative room key list
+  // and merges it in before returning — so a slow race delays a send by at
+  // most one network round trip instead of silently producing an
+  // undecryptable message for someone.
+  const ensureFreshGroupRecipients = async () => {
+    let recipients = buildGroupRecipients();
+    const otherLiveUsernames = userList
+      .map(u => u.username.toLowerCase())
+      .filter(u => u !== username.toLowerCase());
+    const haveAll = otherLiveUsernames.every(u => recipients.some(r => r.username === u));
+    if (haveAll || !roomId) return recipients;
+    try {
+      const token = localStorage.getItem('watch_token');
+      const res = await fetch(`${SOCKET_SERVER_URL}/api/rooms/${roomId.toLowerCase()}/public-keys`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      const data = await res.json();
+      if (data && Array.isArray(data.keys)) {
+        data.keys.forEach(({ username: uname, publicKey: pk }) => {
+          if (uname && pk) {
+            try { dbPublicKeys.current[uname.toLowerCase()] = decodeBase64(pk); } catch {}
+          }
+        });
+      }
+    } catch (e) { console.warn('[E2EE] Fresh recipient re-fetch failed:', e); }
+    return buildGroupRecipients();
+  };
+
   // ─── E2EE: shown instead of raw content for group messages sent before this
   // upgrade (server-side-only encryption, since retired — no dual-format decrypt
   // support). Media wasn't part of that old scheme (files were always stored
@@ -6477,7 +6514,7 @@ const Room = () => {
   // Ref holding the latest raw-send logic so the event listener always has fresh state.
   const sendRawGroupChatRef = useRef(null);
   const sendGroupMediaRef = useRef(null);
-  sendRawGroupChatRef.current = (msgText, replyTo) => {
+  sendRawGroupChatRef.current = async (msgText, replyTo) => {
     if (!msgText || !socket) return;
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
@@ -6496,7 +6533,7 @@ const Room = () => {
     });
     let encryptedPayload = null;
     try {
-      const recipients = buildGroupRecipients();
+      const recipients = await ensureFreshGroupRecipients();
       encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
     } catch (err) {
       console.warn('[E2EE] Group encrypt failed:', err);
@@ -6618,7 +6655,7 @@ const Room = () => {
 
 
   // Send message
-  const sendGroupChat = (e) => {
+  const sendGroupChat = async (e) => {
     e.preventDefault();
     if (groupEditingMessage) { editGroupMessage(); return; }
     if (!groupChatInput.trim() || !socket) return;
@@ -6652,7 +6689,7 @@ const Room = () => {
     // ─── E2EE: Encrypt group message for all current room members ────────────
     let encryptedPayload = null;
     try {
-      const recipients = buildGroupRecipients();
+      const recipients = await ensureFreshGroupRecipients();
       encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
     } catch (err) {
       console.warn('[E2EE] Group encrypt failed:', err);
@@ -6698,7 +6735,7 @@ const Room = () => {
   // nonce/keys atomically. Never resend plaintext — a plaintext edit would pair
   // new content with the old nonce/keys server-side and permanently corrupt the
   // row (decryptGroupMessage would then always fail on it).
-  const editGroupMessage = () => {
+  const editGroupMessage = async () => {
     if (!groupChatInput.trim() || !socket || !groupEditingMessage) return;
     const newText = groupChatInput.trim();
     const target = groupEditingMessage;
@@ -6711,7 +6748,7 @@ const Room = () => {
 
     let encryptedPayload = null;
     try {
-      const recipients = buildGroupRecipients();
+      const recipients = await ensureFreshGroupRecipients();
       encryptedPayload = encryptGroupMessage(newText, recipients, myKeyPair.current, username);
     } catch (err) {
       console.warn('[E2EE] Group edit encrypt failed:', err);
@@ -6788,7 +6825,7 @@ const Room = () => {
       try {
         const { encryptedBlob, mediaKeyBytes } = await encryptMedia(rawFile);
         const mediaKeyB64 = encodeBase64(mediaKeyBytes);
-        const recipients = buildGroupRecipients();
+        const recipients = await ensureFreshGroupRecipients();
         encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
 
         const fd = new FormData();

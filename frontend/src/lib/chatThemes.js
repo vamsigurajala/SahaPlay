@@ -515,9 +515,9 @@ export const CHAT_WALLPAPERS = [
 
   // ── Cartoon Couple (10 Cartoon Themes) ───────────────────────────
   {
-    id: 'wp-holding-hands-under-table', name: 'Holding Hands Under Table', category: 'cartoon-couple',
+    id: 'wp-cafe-romance', name: 'Café Romance', category: 'cartoon-couple',
     brightColor: '#d97706', darkColor: '#451a03', lightColor: '#fbbf24',
-    image: '/wallpapers/holding-hands-under-table.jpg',
+    image: '/wallpapers/cafe-romance.jpg',
   },
   {
     id: 'wp-falling-asleep-shoulder', name: 'Train Sleep', category: 'cartoon-couple',
