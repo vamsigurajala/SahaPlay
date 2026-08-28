@@ -12,6 +12,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only intervene for same-origin requests. Re-issuing a request with
+  // fetch() from inside this worker's own script makes the browser check it
+  // against CSP's connect-src — regardless of what the original resource
+  // actually was (script/img/media/etc). A YouTube/Twitch/Vimeo player
+  // script or a thumbnail CDN image is already correctly allowed by
+  // script-src/img-src for a normal page-level load, but proxying it through
+  // here re-checks it under connect-src's much narrower allowlist and
+  // silently fails it instead — breaking video playback and thumbnails with
+  // no visible error except a CSP violation in the console. Cross-origin
+  // requests are left completely untouched so the browser handles them the
+  // normal way; this handler's only job is to exist (Chrome's PWA
+  // installability check), not to proxy anything.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(fetch(event.request));
 });
 
