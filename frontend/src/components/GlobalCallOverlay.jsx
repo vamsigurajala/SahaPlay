@@ -5,7 +5,7 @@
 // specifically for 1:1 DM calls, separate from CallingActivity.jsx which
 // the room's own multi-participant camera calls still use).
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Video } from 'lucide-react';
+import { Phone, PhoneOff, Video, WifiOff } from 'lucide-react';
 import { useCall } from '../contexts/CallContext';
 import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
@@ -96,7 +96,7 @@ function fmtDuration(secs) {
 // it — a small always-on-top bar (call keeps running underneath regardless;
 // CallContext owns the RTCPeerConnections independently of this component's
 // own visibility) so there's always a way back into the full call UI.
-function MinimizedCallBar({ callState, onRestore, onEndCall }) {
+function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
   const [durationSecs, setDurationSecs] = useState(0);
   useEffect(() => {
     if (!callState.answeredAt) return;
@@ -118,13 +118,14 @@ function MinimizedCallBar({ callState, onRestore, onEndCall }) {
         fontFamily: "'Outfit', 'Inter', sans-serif",
       }}
     >
-      <div className="gco-avatar-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+      <div className="gco-avatar-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: networkStatus === 'poor' ? '#f59e0b' : '#22c55e', flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {callState.peerDisplayName || callState.peerUsername}
         </div>
-        <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>
-          {callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…'} — tap to return
+        <div style={{ color: networkStatus === 'poor' ? '#f59e0b' : 'rgba(255,255,255,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {networkStatus === 'poor' && <WifiOff size={11} color="#f59e0b" />}
+          {networkStatus === 'poor' ? 'Poor connection' : (callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…')} — tap to return
         </div>
       </div>
       <button
@@ -242,6 +243,7 @@ export default function GlobalCallOverlay() {
     return (
       <MinimizedCallBar
         callState={callState}
+        networkStatus={call.networkStatus}
         onRestore={() => setMinimized(false)}
         onEndCall={call.endCall}
       />
@@ -261,6 +263,7 @@ export default function GlobalCallOverlay() {
           callState={callState}
           remoteStreams={call.remoteStreams}
           participantMeta={call.participantMeta}
+          networkStatus={call.networkStatus}
           toggleCamera={call.toggleCamera}
           toggleMic={call.toggleMic}
           flipCamera={call.flipCamera}

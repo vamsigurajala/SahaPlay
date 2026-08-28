@@ -152,6 +152,34 @@ export function CallProvider({ children }) {
   const screenShareCleanupRef = useRef(null); // tears down native MediaProjection capture, if used
   const cameraTrackDuringShareRef = useRef(null);
   const remoteStreamsRef = useRef(new Map());
+  // ─── Network quality (per-peer ICE state → one overall "poor connection?"
+  // signal the UI can show) ───
+  // 'good' | 'poor', keyed by peer username — recomputeNetworkStatus below
+  // reduces this map down to the single worst-case networkStatus value
+  // exposed in the context, so a mesh group call still shows one simple
+  // banner rather than per-tile detail.
+  const peerNetworkRef = useRef(new Map());
+  // Debounce timers for a peer that just went 'disconnected' — ICE reports
+  // this for ordinary brief network blips too (a few dropped packets, a
+  // momentary Wi-Fi/cell handoff) that usually self-heal within a couple of
+  // seconds without the user ever needing to know. Only promoted to a
+  // user-visible "poor connection" if it's STILL disconnected once this
+  // timer fires; cleared immediately if it recovers first.
+  const disconnectTimersRef = useRef(new Map());
+  const [networkStatus, setNetworkStatus] = useState(null); // null (good) | 'poor'
+  function recomputeNetworkStatus() {
+    let poor = false;
+    for (const status of peerNetworkRef.current.values()) {
+      if (status === 'poor') { poor = true; break; }
+    }
+    setNetworkStatus(poor ? 'poor' : null);
+  }
+  function clearPeerNetworkTracking(username) {
+    const timer = disconnectTimersRef.current.get(username);
+    if (timer) clearTimeout(timer);
+    disconnectTimersRef.current.delete(username);
+    peerNetworkRef.current.delete(username);
+  }
   const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
   const peerPublicKeysRef = useRef(new Map());
   const connectPromisesRef = useRef(new Map()); // per-peer connect caching — see connectToPeer
@@ -622,6 +650,39 @@ export function CallProvider({ children }) {
       if (e.candidate) sendSignal('call:ice', callId, targetUsername, e.candidate.toJSON());
     };
 
+    // Surfaces real WebRTC connection health as the "poor connection"
+    // banner the call UI shows — see peerNetworkRef above for the
+    // debounce/first-connect reasoning.
+    let hasConnectedOnce = false;
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      const existingTimer = disconnectTimersRef.current.get(targetUsername);
+      if (state === 'connected' || state === 'completed') {
+        hasConnectedOnce = true;
+        if (existingTimer) { clearTimeout(existingTimer); disconnectTimersRef.current.delete(targetUsername); }
+        peerNetworkRef.current.set(targetUsername, 'good');
+        recomputeNetworkStatus();
+      } else if (state === 'disconnected') {
+        if (hasConnectedOnce && !existingTimer) {
+          const timer = setTimeout(() => {
+            disconnectTimersRef.current.delete(targetUsername);
+            peerNetworkRef.current.set(targetUsername, 'poor');
+            recomputeNetworkStatus();
+          }, 3000);
+          disconnectTimersRef.current.set(targetUsername, timer);
+        }
+      } else if (state === 'failed') {
+        if (existingTimer) { clearTimeout(existingTimer); disconnectTimersRef.current.delete(targetUsername); }
+        peerNetworkRef.current.set(targetUsername, 'poor');
+        recomputeNetworkStatus();
+        // Best-effort automatic recovery — renegotiates fresh ICE candidates
+        // without tearing down the whole call. Only meaningful once already
+        // connected; a 'failed' during initial setup means it never
+        // connected at all (bad TURN/firewall), which a restart can't fix.
+        if (hasConnectedOnce) { try { pc.restartIce(); } catch {} }
+      }
+    };
+
     const stream = await ensureLocalStream(type);
     if (stream) {
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
@@ -648,6 +709,8 @@ export function CallProvider({ children }) {
     iceBuffersRef.current.delete(username);
     connectPromisesRef.current.delete(username);
     peerPublicKeysRef.current.delete(username);
+    clearPeerNetworkTracking(username);
+    recomputeNetworkStatus();
     setParticipantMeta(prev => { const next = { ...prev }; delete next[username]; return next; });
     setRemoteStreamVersion(v => v + 1);
   }
@@ -733,6 +796,10 @@ export function CallProvider({ children }) {
     connectPromisesRef.current.clear();
     peerPublicKeysRef.current.clear();
     myInviteesRef.current.clear();
+    for (const timer of disconnectTimersRef.current.values()) clearTimeout(timer);
+    disconnectTimersRef.current.clear();
+    peerNetworkRef.current.clear();
+    setNetworkStatus(null);
     try { localStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
     localStreamRef.current = null;
     setParticipantMeta({});
@@ -1196,6 +1263,7 @@ export function CallProvider({ children }) {
     participantMeta,
     remoteStreams: Object.fromEntries(remoteStreamsRef.current),
     remoteStreamVersion,
+    networkStatus,
     localStream: localStreamRef.current,
     myUsername,
     myAvatarUrl,

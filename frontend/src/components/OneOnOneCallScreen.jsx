@@ -16,7 +16,7 @@
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 
@@ -113,6 +113,7 @@ export default function OneOnOneCallScreen({
   callState,
   remoteStreams,
   participantMeta,
+  networkStatus,
   toggleMic,
   toggleCamera,
   flipCamera,
@@ -246,6 +247,7 @@ export default function OneOnOneCallScreen({
     ? (mutedOthers.length === 1 ? `${mutedOthers[0]} is muted` : `${mutedOthers.length} people muted`)
     : null;
   const statusLine = mutedNote ? `${durationOrConnecting} · ${mutedNote}` : durationOrConnecting;
+  const isPoorConnection = networkStatus === 'poor';
 
   return (
     <div className="ooc-root" onClick={handleStageTap}>
@@ -459,6 +461,17 @@ export default function OneOnOneCallScreen({
           <div style={{ fontSize: 12.5, fontWeight: 600, color: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)', WebkitTextFillColor: mutedOthers.length > 0 ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.7)' }}>
             {statusLine}
           </div>
+          {/* Real WebRTC connection health (see CallContext.jsx's
+              oniceconnectionstatechange wiring), not a guess — only appears
+              once a peer that was actually connected has stayed disconnected
+              or failed past the debounce, so a brief network blip that
+              self-heals never flickers this on. */}
+          {isPoorConnection && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center', marginTop: 3 }}>
+              <WifiOff size={11} color="#f59e0b" />
+              <span className="stay-white" style={{ fontSize: 11.5, fontWeight: 700, color: '#f59e0b', WebkitTextFillColor: '#f59e0b' }}>Poor connection</span>
+            </div>
+          )}
         </div>
         <button
           title="Add to call"
