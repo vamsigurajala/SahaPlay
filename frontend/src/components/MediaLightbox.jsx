@@ -44,7 +44,17 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   const pinchRef = React.useRef(null); // { startDist, startScale }
   const panDragRef = React.useRef(null); // { startX, startY, startPanX, startPanY }
   const lastTapRef = React.useRef({ time: 0, x: 0, y: 0 });
+  // Set while a desktop click-drag pan actually moved the image, so the
+  // "click" that follows the mouseup right after isn't also read as a
+  // click-to-zoom toggle (mirrors the touch side's swipedRef/panDistance
+  // check below) — without this, finishing a pan-drag would immediately
+  // zoom back out.
+  const mouseDragMovedRef = React.useRef(false);
   const isZoomed = scale > 1.01;
+  // Both images and videos zoom/pan the same way — this covers desktop
+  // apps (Tauri .exe) with no trackpad/touchscreen to pinch with, where a
+  // hand cursor + click is the only available zoom gesture.
+  const isZoomable = isImg || isVid;
 
   React.useEffect(() => {
     setShowItemMenu(false);
@@ -62,9 +72,24 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     return () => clearTimeout(t);
   }, [showArrows]);
 
-  const handleMediaClick = () => {
+  const handleMediaClick = (e) => {
     if (swipedRef.current) { swipedRef.current = false; return; }
+    if (mouseDragMovedRef.current) { mouseDragMovedRef.current = false; return; }
+    // Desktop has no pinch gesture, so a plain click does what double-tap
+    // does on touch: zoom in centered on the click, or zoom back out.
+    if (isZoomable) {
+      toggleDoubleTapZoom(e.clientX, e.clientY);
+      setShowArrows(true);
+      return;
+    }
     setShowArrows(v => !v);
+  };
+
+  // Reveals the prev/next arrows on mouse movement (a plain click is now
+  // spent on zoom, so hover is the only way left for a desktop user to
+  // bring them back once they've auto-hidden).
+  const handleMediaMouseMove = () => {
+    setShowArrows(v => (v ? v : true));
   };
 
   React.useEffect(() => {
@@ -239,8 +264,10 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     e.preventDefault();
     const startX = e.clientX, startY = e.clientY;
     const startPan = pan;
+    mouseDragMovedRef.current = false;
     setIsGesturing(true);
     const onMove = (ev) => {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4) mouseDragMovedRef.current = true;
       setPan(clampPan({ x: startPan.x + (ev.clientX - startX), y: startPan.y + (ev.clientY - startY) }, scale));
     };
     const onUp = () => {
@@ -250,11 +277,6 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-  };
-
-  const handleDoubleClick = (e) => {
-    e.stopPropagation();
-    toggleDoubleTapZoom(e.clientX, e.clientY);
   };
 
   const expiryDaysLeft = item?.expiresAt ? Math.ceil((new Date(item.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
@@ -334,14 +356,14 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onClick={handleMediaClick}
-          onWheel={isImg ? handleWheel : undefined}
-          onDoubleClick={isImg ? handleDoubleClick : undefined}
-          onMouseDown={isImg ? handleMouseDown : undefined}
+          onMouseMove={isZoomable ? handleMediaMouseMove : undefined}
+          onWheel={isZoomable ? handleWheel : undefined}
+          onMouseDown={isZoomable ? handleMouseDown : undefined}
           style={{
             position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden', background: '#000', minHeight: 200,
-            touchAction: isImg ? 'none' : 'auto', // let the browser's own native pinch/zoom stay out of the way of ours (images only — video keeps native touch for its own controls)
-            cursor: isImg ? (isZoomed ? 'grab' : 'zoom-in') : 'default',
+            touchAction: isZoomable ? 'none' : 'auto', // let the browser's own native pinch/zoom stay out of the way of ours
+            cursor: isZoomable ? (isGesturing ? 'grabbing' : 'grab') : 'default',
           }}
         >
           {isImg ? (
@@ -353,7 +375,7 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
               style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', objectFit: 'contain', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none', ...mediaTransformStyle }}
             />
           ) : isVid ? (
-            <video src={url} controls autoPlay onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block' }} />
+            <video src={url} controls autoPlay onContextMenu={e => e.preventDefault()} style={{ maxWidth: '100%', maxHeight: '100%', display: 'block', ...mediaTransformStyle }} />
           ) : null}
 
           {showExpiry && (
@@ -375,7 +397,7 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
             </button>
           )}
 
-          {isImg && isZoomed && (
+          {isZoomable && isZoomed && (
             <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, fontWeight: 600, color: '#fff', background: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: '4px 8px', backdropFilter: 'blur(4px)' }}>
               {Math.round(scale * 100)}%
             </div>
