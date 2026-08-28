@@ -85,7 +85,7 @@ function sceneWallpaper({ skyTop, skyBottom, dots, sun, bands, layers }) {
   return encodeSvg(svg);
 }
 
-function holdingHandsUnderTableScene() {
+function _holdingHandsUnderTableScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
@@ -134,7 +134,7 @@ function holdingHandsUnderTableScene() {
   return encodeSvg(svg);
 }
 
-function animeRainyBlanketScene() {
+function _animeRainyBlanketScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
@@ -175,7 +175,7 @@ function animeRainyBlanketScene() {
   return encodeSvg(svg);
 }
 
-function animeRainyEmbraceScene() {
+function _animeRainyEmbraceScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
@@ -209,7 +209,7 @@ function animeRainyEmbraceScene() {
   return encodeSvg(svg);
 }
 
-function animeMorningKitchenScene() {
+function _animeMorningKitchenScene() {
   const W = 400, H = 400;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <defs>
@@ -243,7 +243,7 @@ function animeMorningKitchenScene() {
   return encodeSvg(svg);
 }
 
-function northernLightsScene() {
+function _northernLightsScene() {
   return sceneWallpaper({
     skyTop: '#020b14', skyBottom: '#0c2e3a',
     dots: [{ cx: 60, cy: 30, r: 1.2 }, { cx: 200, cy: 45, r: 1.5 }, { cx: 330, cy: 25, r: 1 }],
@@ -258,7 +258,7 @@ function northernLightsScene() {
   });
 }
 
-function sakuraTwilightScene() {
+function _sakuraTwilightScene() {
   return sceneWallpaper({
     skyTop: '#2d0a29', skyBottom: '#f472b6',
     dots: [{ cx: 80, cy: 40, r: 1.5 }, { cx: 310, cy: 60, r: 1.2 }],
@@ -270,7 +270,7 @@ function sakuraTwilightScene() {
   });
 }
 
-function autumnCabinScene() {
+function _autumnCabinScene() {
   return sceneWallpaper({
     skyTop: '#451a03', skyBottom: '#d97706',
     dots: [{ cx: 100, cy: 40, r: 1.3 }, { cx: 280, cy: 50, r: 1.1 }],
