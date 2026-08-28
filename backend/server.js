@@ -1602,6 +1602,19 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS notice_theme_id TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] notice_theme_id:', e.message);
   });
+  // is_poll: same shape/reasoning as is_notice right above — a plain column
+  // the server can read to know this row needs special (poll) rendering,
+  // without needing to decrypt the actual question/options text, which
+  // still lives in the normal `message` ciphertext column like any other
+  // message. poll_votes: plain JSON map of { username: [optionIndex, ...] },
+  // same trust level as `reactions` (server aggregates/broadcasts it, never
+  // encrypted) — see /api/chats/vote.
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_poll BOOLEAN DEFAULT FALSE`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] is_poll:', e.message);
+  });
+  await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS poll_votes TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] poll_votes:', e.message);
+  });
   // country_code: ISO 3166-1 alpha-2 code (e.g. "IN") for emoji flag display
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code TEXT`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] country_code:', e.message);
@@ -4539,7 +4552,9 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           forwarded: !!r.forwarded,
           mediaGroupId: r.media_group_id || null,
           isNotice: !!r.is_notice,
-          noticeThemeId: r.notice_theme_id || null
+          noticeThemeId: r.notice_theme_id || null,
+          isPoll: !!r.is_poll,
+          pollVotes: r.poll_votes ? JSON.parse(r.poll_votes) : {}
         }));
       const messageIds = filtered.map(r => Number(r.id)).filter(Boolean);
       const seenMap = {};
@@ -4631,7 +4646,9 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           edited: !!r.edited,
           editedAt: r.edited_at ? Number(r.edited_at) : null,
           forwarded: !!r.forwarded,
-          mediaGroupId: r.media_group_id || null
+          mediaGroupId: r.media_group_id || null,
+          isPoll: !!r.is_poll,
+          pollVotes: r.poll_votes ? JSON.parse(r.poll_votes) : {}
         };
       });
       const msgIds = mapped.map(r => Number(r.id)).filter(Boolean);
@@ -4755,6 +4772,88 @@ app.post('/api/chats/react', authenticateToken, async (req, res) => {
   }
 });
 
+// ─── POST Cast/change a poll vote ───
+// Mirrors /api/chats/react immediately above almost exactly — same
+// id-or-timestamp row lookup, same SELECT ... FOR UPDATE serialization,
+// same private-vs-group broadcast split. poll_votes is a plain
+// (unencrypted) JSON column, same reasoning as `reactions`: the server
+// can aggregate/broadcast vote counts without ever needing to read the
+// poll's actual question/option text, which stays inside the message's
+// own end-to-end-encrypted `message` ciphertext exactly like a normal
+// text message — this endpoint never touches that column at all. Because
+// of that, this endpoint also can't enforce "single answer only" for a
+// non-multiple-answer poll (allowMultiple lives inside that same
+// ciphertext) — that's enforced client-side, same trust boundary this
+// app already accepts for message content generally.
+app.post('/api/chats/vote', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  const { messageId, optionIndices } = req.body;
+  if (!messageId || !Array.isArray(optionIndices)) return res.status(400).json({ error: 'invalid payload' });
+
+  const matchId = String(messageId);
+  let tsFromId = null;
+  const tsMatch = matchId.match(/\b(\d{13})\b/);
+  if (tsMatch) tsFromId = tsMatch[1];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const qWhere = tsFromId
+      ? `id::text = $1 OR timestamp::text = $1 OR timestamp::text = $2`
+      : `id::text = $1 OR timestamp::text = $1`;
+    const qParams = tsFromId ? [matchId, tsFromId] : [matchId];
+    const { rows } = await client.query(
+      `SELECT id, type, "senderName", "targetName", "roomId", poll_votes, timestamp, is_poll FROM messages WHERE ${qWhere} LIMIT 1 FOR UPDATE`,
+      qParams
+    );
+    const row = rows[0];
+    if (!row || !row.is_poll) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+
+    let votes = {};
+    try { votes = row.poll_votes ? JSON.parse(row.poll_votes) : {}; } catch {}
+
+    // Clearing selection entirely (empty array) removes this voter rather
+    // than storing a dangling empty entry — same "delete if empty" tidy-up
+    // reactions does for each emoji bucket.
+    const cleaned = [...new Set(optionIndices)].filter(i => Number.isInteger(i) && i >= 0);
+    if (cleaned.length > 0) votes[username] = cleaned;
+    else delete votes[username];
+
+    await client.query('UPDATE messages SET poll_votes = $1 WHERE id = $2', [JSON.stringify(votes), row.id]);
+    await client.query('COMMIT');
+
+    if (row.type === 'private') {
+      const otherUser = (row.senderName || '').toLowerCase() === username.toLowerCase() ? row.targetName : row.senderName;
+      const payload = { messageId: String(row.id), timestampId: String(row.timestamp), pollVotes: votes, voterUsername: username };
+      emitToUser(username, 'chat:poll_vote', payload);
+      emitToUser(otherUser, 'chat:poll_vote', payload);
+      invalidateCacheForUser(username);
+      invalidateCacheForUser(otherUser);
+    } else if (row.type === 'group') {
+      const normalizedRoomId = (row.roomId || '').toLowerCase();
+      const ioRoom = rooms.get(normalizedRoomId);
+      if (ioRoom) {
+        const msg = ioRoom.groupMessages.find(m => String(m.id) === String(row.id) || String(m.timestamp) === String(row.timestamp));
+        if (msg) msg.pollVotes = votes;
+      }
+      const payload = { messageId: String(row.id), timestampId: String(row.timestamp), pollVotes: votes, voterUsername: username, roomId: normalizedRoomId };
+      io.in(normalizedRoomId).emit('chat:poll_vote', payload);
+    }
+
+    res.json({ success: true, pollVotes: votes });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('[/api/chats/vote] error:', err);
+    res.status(500).json({ error: 'Database error' });
+  } finally {
+    client.release();
+  }
+});
+
 // Registered once per device after login (see lib/nativePush.js) — token is
 // the UNIQUE key rather than (username, token) so a device that later logs
 // into a different account cleanly reassigns instead of leaving the old
@@ -4854,8 +4953,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
           mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId,
-          isNotice, noticeThemeId } = req.body;
+          isNotice, noticeThemeId, isPoll } = req.body;
   const isNoticeMsg = !!isNotice;
+  const isPollMsg = !!isPoll;
   const isForwarded = !!forwarded;
   const partner = rawPartner ? rawPartner.toLowerCase() : '';
   // message can be empty if there's a media attachment
@@ -4907,8 +5007,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_notice, notice_theme_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_notice, notice_theme_id, is_poll)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -4918,7 +5018,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
          deliveredAt, isForwarded, mediaGroupId || null,
-         isNoticeMsg, isNoticeMsg ? (noticeThemeId || 'default') : null]
+         isNoticeMsg, isNoticeMsg ? (noticeThemeId || 'default') : null, isPollMsg]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -4953,7 +5053,9 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         forwarded: isForwarded,
         mediaGroupId: mediaGroupId || null,
         isNotice: isNoticeMsg,
-        noticeThemeId: isNoticeMsg ? (noticeThemeId || 'default') : null
+        noticeThemeId: isNoticeMsg ? (noticeThemeId || 'default') : null,
+        isPoll: isPollMsg,
+        pollVotes: isPollMsg ? {} : null
       };
 
       emitToUser(partner, 'private_message', payload);
@@ -5022,8 +5124,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId: partner, senderUsername: username });
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_poll)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          replyTo ? JSON.stringify(replyTo) : null,
@@ -5032,7 +5134,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt, isForwarded, mediaGroupId || null]
+         deliveredAt, isForwarded, mediaGroupId || null, isPollMsg]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
@@ -5068,6 +5170,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         deliveredAt,
         forwarded: isForwarded,
         mediaGroupId: mediaGroupId || null,
+        isPoll: isPollMsg,
+        pollVotes: isPollMsg ? {} : null,
       };
 
       const ioRoom = rooms.get(partner);

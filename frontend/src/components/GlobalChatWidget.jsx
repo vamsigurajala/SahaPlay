@@ -3,13 +3,17 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2 } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import CameraCapture from './CameraCapture';
 import PinSetupModal from './PinSetupModal';
+import PollComposer from './PollComposer';
+import PollBubble from './PollBubble';
+import PollVotesModal from './PollVotesModal';
+import { castPollVote } from '../lib/pollApi';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
 import toast from 'react-hot-toast';
@@ -1699,6 +1703,14 @@ const GlobalChatWidget = forwardRef(({
     } catch { return {}; }
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showPollComposer, setShowPollComposer] = useState(false);
+  // Key only (not the message object itself) — the live message is looked
+  // up from `messages` on every render below, so this screen keeps
+  // reflecting new votes as chat:poll_vote updates arrive instead of
+  // freezing on whatever pollVotes looked like the moment "View votes"
+  // was tapped.
+  const [pollVotesTargetKey, setPollVotesTargetKey] = useState(null);
   const [themeCategoryFilter, setThemeCategoryFilter] = useState('all');
   // Dominant color extracted from the active conversation's Background
   // wallpaper (if any) — resolved asynchronously (canvas pixel sampling, see
@@ -2742,6 +2754,16 @@ const GlobalChatWidget = forwardRef(({
       if (!reactions) return;
       setMessages(prev => prev.map(m =>
         (flexibleMatch(messageId, m) || (timestampId && flexibleMatch(timestampId, m))) ? { ...m, reactions } : m
+      ));
+    });
+
+    // Poll vote cast/changed by anyone (self included, so every open tab
+    // stays in sync) — one shared event for both private and group polls,
+    // see POST /api/chats/vote's dual emitToUser/io.in(roomId) broadcast.
+    sock.on('chat:poll_vote', ({ messageId, timestampId, pollVotes }) => {
+      if (!pollVotes) return;
+      setMessages(prev => prev.map(m =>
+        (flexibleMatch(messageId, m) || (timestampId && flexibleMatch(timestampId, m))) ? { ...m, pollVotes } : m
       ));
     });
 
@@ -4815,6 +4837,121 @@ const GlobalChatWidget = forwardRef(({
       toast.error('Failed to send message. Please try again.');
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setConversations(previousConversations);
+    }
+  };
+
+  // Sends a poll — mirrors handleSend's E2EE block almost exactly, just
+  // encrypting JSON.stringify({question, options, allowMultiple}) instead
+  // of inputValue, and marking the message isPoll:true so both the
+  // optimistic bubble and the real server row render via PollBubble
+  // instead of plain text. The poll definition itself goes through the
+  // SAME per-recipient encryption every other message uses (no new crypto
+  // code at all) — only votes (cast via castPollVote/POST /api/chats/vote)
+  // are unencrypted metadata, same trust level as message reactions.
+  const sendPollMessage = async (pollDef) => {
+    if (!activeChat) return;
+    const pollText = JSON.stringify(pollDef);
+    const ts = Date.now();
+    const tempId = `opt-poll-${ts}`;
+    const optimisticMsg = {
+      id: tempId,
+      isMe: true,
+      senderName: myUsername,
+      message: pollText,
+      decryptedText: pollText,
+      isPoll: true,
+      pollVotes: {},
+      timestamp: ts,
+      replyTo: null,
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+
+    let messagePayload = null, senderMessagePayload = null, isEncrypted = false;
+    let nonceValue = null, ephemeralKey = null, e2eeKeysGroup = null;
+
+    try {
+      let targetPubKey = null;
+      if (activeChat.type === 'private' && keyPair) {
+        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          if (pkData.publicKey) targetPubKey = pkData.publicKey;
+        }
+        if (targetPubKey) {
+          const enc = encryptDM(pollText, targetPubKey, encodeBase64(keyPair.publicKey));
+          messagePayload = enc.ciphertext;
+          nonceValue = enc.nonce;
+          ephemeralKey = enc.ephemeralPublicKey;
+          senderMessagePayload = enc.senderCiphertext;
+          isEncrypted = true;
+        }
+      } else if (activeChat.type === 'room' && keyPair) {
+        const roomIdStr = (activeChat.partner || activeChat.id).toLowerCase();
+        const pkRes = await fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
+          const enc = encryptGroupMessage(pollText, recipients, keyPair, myUsername);
+          messagePayload = enc.ciphertext;
+          nonceValue = enc.nonce;
+          e2eeKeysGroup = enc.keys;
+          ephemeralKey = encodeBase64(keyPair.publicKey);
+          isEncrypted = true;
+        }
+      }
+
+      if (!isEncrypted) throw new Error('Poll not sent — encryption failed.');
+
+      const postBody = {
+        type: activeChat.type,
+        partner: activeChat.type === 'room' ? (activeChat.partner || activeChat.id).toLowerCase() : activeChat.partner,
+        targetId: activeChat.type === 'private' ? activeChat.targetId : null,
+        roomId: activeChat.type === 'room' ? (activeChat.partner || activeChat.id).toLowerCase() : null,
+        message: messagePayload,
+        senderMessage: senderMessagePayload,
+        nonce: nonceValue,
+        ephemeralPublicKey: ephemeralKey,
+        e2eeKeys: e2eeKeysGroup,
+        encrypted: isEncrypted,
+        replyTo: null,
+        tempId,
+        isPoll: true,
+      };
+      const resp = await fetch(`${API}/api/chats/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(postBody),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        toast.error(err.error || 'Poll could not be sent.');
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to send poll. Please try again.');
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+    }
+  };
+
+  // Casts/changes/withdraws this user's own vote — optimistic update first
+  // (so it feels instant), then the real POST; the socket's chat:poll_vote
+  // listener (registered above) is what reconciles this across this user's
+  // OTHER open tabs/devices and pushes it live to everyone else.
+  const handlePollVote = async (msg, optionIndices) => {
+    const myKey = myUsername.toLowerCase();
+    setMessages(prev => prev.map(m => {
+      if (String(m.id) !== String(msg.id) && String(m.timestamp) !== String(msg.timestamp)) return m;
+      const nextVotes = { ...(m.pollVotes || {}) };
+      if (optionIndices.length > 0) nextVotes[myKey] = optionIndices;
+      else delete nextVotes[myKey];
+      return { ...m, pollVotes: nextVotes };
+    }));
+    try {
+      await castPollVote(msg.id || msg.timestamp, optionIndices, token);
+    } catch (e) {
+      console.error('[poll] vote failed', e);
+      toast.error('Vote failed. Please try again.');
     }
   };
 
@@ -7386,6 +7523,29 @@ const GlobalChatWidget = forwardRef(({
                                 )}
                                 {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                   <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                ) : msg.isPoll ? (
+                                  (() => {
+                                    let pollDef = null;
+                                    try { pollDef = JSON.parse(msg.decryptedText); } catch {}
+                                    if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} isLight={isLight} />;
+                                    const resolveAvatar = (u) => {
+                                      const uname = (u || '').toLowerCase();
+                                      if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                      if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
+                                      return null;
+                                    };
+                                    return (
+                                      <PollBubble
+                                        poll={pollDef}
+                                        pollVotes={msg.pollVotes}
+                                        myUsername={myUsername}
+                                        onVote={(indices) => handlePollVote(msg, indices)}
+                                        onViewVotes={() => setPollVotesTargetKey(String(msg.id || msg.timestamp))}
+                                        isLight={isLight}
+                                        resolveAvatar={resolveAvatar}
+                                      />
+                                    );
+                                  })()
                                 ) : (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) ? (
                                   (() => {
                                     let callData = null;
@@ -7933,23 +8093,62 @@ const GlobalChatWidget = forwardRef(({
                                   <SmilePlus size={20} />
                                 </button>
                               )}
-                              {/* Attachment button — opens unified file picker */}
-                              <button
-                                type="button"
-                                disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
-                                onClick={async () => {
-                                  if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
-                                    toast.error('📷 Media sharing is not allowed in this room.');
-                                    return;
-                                  }
-                                  if (!(await requestPhotoAccess())) return;
-                                  fileInputRef.current?.click();
-                                }}
-                                title="Attach image, video, document or file"
-                                style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
-                              >
-                                <Paperclip size={18} />
-                              </button>
+                              {/* Attachment button — opens a small "Browse / Poll" menu instead
+                                  of the file picker directly, so a poll has somewhere to live
+                                  alongside the existing file-attach flow. */}
+                              <div style={{ position: 'relative' }}>
+                                <button
+                                  type="button"
+                                  disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
+                                  onClick={() => {
+                                    if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
+                                      toast.error('📷 Media sharing is not allowed in this room.');
+                                      return;
+                                    }
+                                    setShowAttachMenu(v => !v);
+                                  }}
+                                  title="Attach"
+                                  style={{ background:'transparent', border:'none', color: isUploading ? 'var(--brand-1)' : '#ffffff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', padding:4, opacity: (activeChat?.type === 'room' && mediaBlocked && !isHost) ? 0.4 : 1 }}
+                                >
+                                  <Paperclip size={18} />
+                                </button>
+                                {showAttachMenu && (
+                                  <div
+                                    className="chat-attach-menu-overlay"
+                                    onMouseDown={() => setShowAttachMenu(false)}
+                                    style={{ position: 'fixed', inset: 0, zIndex: 100020 }}
+                                  >
+                                    <div
+                                      onMouseDown={e => e.stopPropagation()}
+                                      style={{
+                                        position: 'absolute', bottom: 46, right: 0, minWidth: 180,
+                                        background: isLight ? '#fff' : '#1c1c22', borderRadius: 14,
+                                        border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                        boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6,
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          setShowAttachMenu(false);
+                                          if (!(await requestPhotoAccess())) return;
+                                          fileInputRef.current?.click();
+                                        }}
+                                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
+                                      >
+                                        <ImageIcon size={17} color="#3b82f6" /> Browse
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setShowAttachMenu(false); setShowPollComposer(true); }}
+                                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
+                                      >
+                                        <BarChart2 size={17} color="#f59e0b" /> Poll
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                               {/* Mic button — inside input box, hidden while typing */}
                               <button
                                 type="button"
@@ -7993,6 +8192,13 @@ const GlobalChatWidget = forwardRef(({
                             onClose={() => setShowCamera(false)}
                           />
                         )}
+                        {showPollComposer && (
+                          <PollComposer
+                            isLight={isLight}
+                            onClose={() => setShowPollComposer(false)}
+                            onSend={(pollDef) => { setShowPollComposer(false); sendPollMessage(pollDef); }}
+                          />
+                        )}
 
                         {isUploading && (
                           <div style={{ position: 'absolute', right: 12 }}>
@@ -8014,6 +8220,35 @@ const GlobalChatWidget = forwardRef(({
             )}
           </div>
         )}
+        {pollVotesTargetKey && (() => {
+          const pollVotesTarget = messages.find(m => String(m.id || m.timestamp) === pollVotesTargetKey);
+          if (!pollVotesTarget) return null;
+          let poll = null;
+          try { poll = JSON.parse(pollVotesTarget.decryptedText); } catch {}
+          if (!poll) return null;
+          const resolveAvatar = (u) => {
+            const uname = (u || '').toLowerCase();
+            if (uname === (pollVotesTarget.senderName || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar);
+            if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
+            return null;
+          };
+          const resolveDisplayName = (u) => {
+            const uname = (u || '').toLowerCase();
+            if (uname === myUsername.toLowerCase()) return 'You';
+            if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return activeChat.displayName || activeChat.partner;
+            return u;
+          };
+          return (
+            <PollVotesModal
+              poll={poll}
+              pollVotes={pollVotesTarget.pollVotes}
+              onClose={() => setPollVotesTargetKey(null)}
+              isLight={isLight}
+              resolveAvatar={resolveAvatar}
+              resolveDisplayName={resolveDisplayName}
+            />
+          );
+        })()}
         {/* Chat bubble "Customize" theme sheet — opened via the "Chat theme"
             item in either the open-chat header menu or a conversation row's
             "..." menu (see themeSheetTarget). Tapping a swatch applies +
