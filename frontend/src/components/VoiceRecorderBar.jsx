@@ -62,6 +62,7 @@ export default function VoiceRecorderBar({
       // simpler way to guarantee a clean play/pause/scrub state per take.
       key={audioUrl}
       audioUrl={audioUrl}
+      knownDuration={recordingTime}
       isLight={isLight}
       isUploading={isUploading}
       onCancel={onCancel}
@@ -73,7 +74,7 @@ export default function VoiceRecorderBar({
   );
 }
 
-function VoicePreviewBar({ audioUrl, isLight, isUploading, onCancel, onSend, cardBg, cardBorder, cardShadow }) {
+function VoicePreviewBar({ audioUrl, knownDuration, isLight, isUploading, onCancel, onSend, cardBg, cardBorder, cardShadow }) {
   const trackColor = isLight ? 'rgba(15,23,42,0.1)' : 'rgba(255,255,255,0.14)';
   const subColor = isLight ? '#64748b' : 'rgba(255,255,255,0.5)';
 
@@ -82,7 +83,16 @@ function VoicePreviewBar({ audioUrl, isLight, isUploading, onCancel, onSend, car
   const draggingRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  // Seeded from the elapsed recording time we already tracked while
+  // recording (always a real, finite number of seconds) rather than
+  // starting at 0 and waiting on the <audio> element's own duration —
+  // MediaRecorder-produced blobs are notorious for reporting Infinity/NaN
+  // duration in Chrome-family browsers until the file is fully scanned,
+  // which otherwise leaves the scrubber's position permanently stuck at 0%
+  // (currentTime / Infinity = 0) even while audio is actively playing. The
+  // real <audio> duration is still used below to refine this once the
+  // browser reports something actually finite.
+  const [duration, setDuration] = useState(knownDuration || 0);
 
   const togglePlay = () => {
     const el = audioRef.current;
@@ -113,7 +123,7 @@ function VoicePreviewBar({ audioUrl, isLight, isUploading, onCancel, onSend, car
   };
   const endDrag = () => { draggingRef.current = false; };
 
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const pct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const timeLabel = fmt(isPlaying || currentTime > 0 ? currentTime : duration);
 
   return (
@@ -122,8 +132,8 @@ function VoicePreviewBar({ audioUrl, isLight, isUploading, onCancel, onSend, car
         ref={audioRef}
         src={audioUrl}
         preload="metadata"
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-        onDurationChange={(e) => { if (isFinite(e.currentTarget.duration)) setDuration(e.currentTarget.duration); }}
+        onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (isFinite(d) && d > 0) setDuration(d); }}
+        onDurationChange={(e) => { const d = e.currentTarget.duration; if (isFinite(d) && d > 0) setDuration(d); }}
         onTimeUpdate={(e) => { if (!draggingRef.current) setCurrentTime(e.currentTarget.currentTime); }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
