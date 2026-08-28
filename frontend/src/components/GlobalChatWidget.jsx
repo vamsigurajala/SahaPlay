@@ -31,7 +31,6 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
-import { requestPhotoAccess } from '../lib/mediaPermissionGate';
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getWallpaperGradient, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
@@ -2014,7 +2013,7 @@ const GlobalChatWidget = forwardRef(({
   // modals) open on top of the chat view gets its own back-intercept level,
   // so a swipe-back/hardware-back closes just that overlay instead of
   // falling through and closing the entire chat.
-  const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearChatModalOpen || clearGroupChatModalOpen || renameModalOpen || showMasterKeyModal || showChangePinModal);
+  const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearChatModalOpen || clearGroupChatModalOpen || renameModalOpen || showMasterKeyModal || showChangePinModal || showPollComposer || pollVotesTargetKey);
 
   // Mobile/iPad swipe-back (and hardware back) should step back one level
   // instead of leaving the page: closed -> list -> folder (hidden/locked
@@ -2046,6 +2045,9 @@ const GlobalChatWidget = forwardRef(({
       setRenameModalOpen(false);
       setShowMasterKeyModal(false);
       setShowChangePinModal(false);
+      setShowPollComposer(false);
+      setEditingPollMsg(null);
+      setPollVotesTargetKey(null);
     }
   });
 
@@ -8158,9 +8160,8 @@ const GlobalChatWidget = forwardRef(({
                                     >
                                       <button
                                         type="button"
-                                        onClick={async () => {
+                                        onClick={() => {
                                           setShowAttachMenu(false);
-                                          if (!(await requestPhotoAccess())) return;
                                           fileInputRef.current?.click();
                                         }}
                                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}

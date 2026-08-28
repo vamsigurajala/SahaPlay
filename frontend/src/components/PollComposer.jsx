@@ -116,8 +116,14 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
     const netDelta = (e.clientY - dragStartPointerYRef.current) - (naturalTop - dragStartTopRef.current);
     el.style.transform = `translateY(${netDelta}px)`;
 
-    const draggedRect = el.getBoundingClientRect();
-    const draggedMid = draggedRect.top + draggedRect.height / 2;
+    // Crossing detection uses each row's plain layout position (offsetTop),
+    // NOT getBoundingClientRect — a neighbor mid-FLIP-animation has a live
+    // rect that's still moving toward its rest position, and comparing
+    // against that moving target is exactly what made this feel glitchy
+    // (the swap trigger point itself was jittering frame to frame). offsetTop
+    // is the row's stable rest position regardless of any in-flight
+    // transition, so the crossing point stays fixed.
+    const draggedMid = naturalTop + netDelta + el.offsetHeight / 2;
     setOptions(prev => {
       const idx = prev.findIndex(o => o.id === id);
       if (idx === -1) return prev;
@@ -125,8 +131,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
         if (i === idx) continue;
         const otherEl = rowRefs.current[prev[i].id];
         if (!otherEl) continue;
-        const rect = otherEl.getBoundingClientRect();
-        const mid = rect.top + rect.height / 2;
+        const mid = otherEl.offsetTop + otherEl.offsetHeight / 2;
         const crossing = i < idx ? draggedMid < mid : draggedMid > mid;
         if (crossing) {
           const next = [...prev];
@@ -152,6 +157,21 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
     dragIdRef.current = null;
     setDragId(null);
   };
+
+  // Safety net: if the handle never receives its own pointerup/pointercancel
+  // (pointer capture can be dropped by the browser without firing either —
+  // e.g. certain WebView/touch edge cases), a drag could otherwise get stuck
+  // mid-air with its transform never reset. A window-level listener while a
+  // drag is active guarantees endDrag always runs.
+  useLayoutEffect(() => {
+    if (dragId == null) return undefined;
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    return () => {
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+    };
+  }, [dragId]);
 
   const trimmedOptions = options.map(o => o.value.trim());
   const filledCount = trimmedOptions.filter(Boolean).length;
@@ -246,6 +266,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
                 onPointerMove={onHandlePointerMove}
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
+                onLostPointerCapture={endDrag}
                 style={{ cursor: 'grab', color: subColor, display: 'flex', padding: '4px 2px', touchAction: 'none', flexShrink: 0 }}
                 aria-label="Reorder option"
               >

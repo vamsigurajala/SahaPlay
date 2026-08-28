@@ -1,5 +1,5 @@
 import React from 'react'
-import { Image, Video, Mic, FileText, Paperclip, File, Phone, PhoneMissed } from 'lucide-react'
+import { Image, Video, Mic, FileText, Paperclip, File, Phone, PhoneMissed, BarChart2 } from 'lucide-react'
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial'
 import { CALL_LOG_PREFIX } from '../contexts/CallContext'
 
@@ -13,6 +13,22 @@ function PreviewIcon({ Icon, color }) {
       style={{ display: 'inline', verticalAlign: 'middle', flexShrink: 0, marginRight: 2 }}
     />
   )
+}
+
+// A poll message's decryptedText IS the poll definition itself (see
+// sendPollMessage/submitPollEdit in GlobalChatWidget.jsx — it's
+// JSON.stringify({question, options, allowMultiple})), with no distinguishing
+// prefix the way call-log rows have CALL_LOG_PREFIX. Detected by shape
+// (parses to an object with a question string + options array) rather than
+// threading an isPoll flag through every conversation-summary code path.
+function isPollJSON(text) {
+  if (!text || typeof text !== 'string' || text[0] !== '{') return false
+  try {
+    const obj = JSON.parse(text)
+    return !!(obj && typeof obj.question === 'string' && Array.isArray(obj.options))
+  } catch {
+    return false
+  }
 }
 
 function looksLikeCiphertext(str) {
@@ -98,6 +114,8 @@ export function getMessagePreview(chat, myUsername) {
     const text = chat.decryptedText || chat.message || ''
     if (text && text.startsWith(CALL_LOG_PREFIX)) {
       content = callLogContent(text, isMe, myUsername) || 'Call'
+    } else if (isPollJSON(text)) {
+      content = <><PreviewIcon Icon={BarChart2} color="#f59e0b" />Poll</>
     } else if (!text || looksLikeCiphertext(text)) {
       content = isMe ? 'Message sent' : 'Message'
     } else {
