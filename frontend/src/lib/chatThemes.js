@@ -397,47 +397,47 @@ export const CHAT_WALLPAPERS = [
   {
     id: 'wp-northern-lights', name: 'Northern Lights', category: 'scenaries',
     brightColor: '#34d399', darkColor: '#064e3b', lightColor: '#6ee7b7',
-    image: northernLightsScene(),
+    image: '/wallpapers/northern-lights.jpg',
   },
   {
     id: 'wp-sakura-twilight', name: 'Sakura Twilight', category: 'scenaries',
     brightColor: '#f472b6', darkColor: '#831843', lightColor: '#fbcfe8',
-    image: sakuraTwilightScene(),
+    image: '/wallpapers/sakura-twilight.jpg',
   },
   {
     id: 'wp-tropical-sunset', name: 'Tropical Sunset', category: 'scenaries',
     brightColor: '#f97316', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: '/wallpapers/tropical-waterfall.jpg',
+    image: '/wallpapers/tropical-sunset.jpg',
   },
   {
     id: 'wp-midnight-library', name: 'Midnight Library', category: 'scenaries',
     brightColor: '#b45309', darkColor: '#451a03', lightColor: '#f59e0b',
-    image: '/wallpapers/zen-interior.jpg',
+    image: '/wallpapers/midnight-library.jpg',
   },
   {
     id: 'wp-autumn-cabin', name: 'Autumn Cabin', category: 'scenaries',
     brightColor: '#ea580c', darkColor: '#7c2d12', lightColor: '#fb923c',
-    image: autumnCabinScene(),
+    image: '/wallpapers/autumn-cabin.jpg',
   },
   {
     id: 'wp-starry-valley', name: 'Starry Valley', category: 'scenaries',
     brightColor: '#6366f1', darkColor: '#1e1b4b', lightColor: '#818cf8',
-    image: '/wallpapers/deep-space.jpg',
+    image: '/wallpapers/starry-valley.jpg',
   },
   {
     id: 'wp-neo-tokyo-rain', name: 'Neo Tokyo Rain', category: 'scenaries',
     brightColor: '#06b6d4', darkColor: '#164e63', lightColor: '#22d3ee',
-    image: '/wallpapers/rainy-window.jpg',
+    image: '/wallpapers/neo-tokyo-rain.jpg',
   },
   {
     id: 'wp-floating-islands', name: 'Floating Islands', category: 'scenaries',
     brightColor: '#3b82f6', darkColor: '#1e3a8a', lightColor: '#60a5fa',
-    image: '/wallpapers/sky-islands.jpg',
+    image: '/wallpapers/floating-islands.jpg',
   },
   {
     id: 'wp-lavender-night', name: 'Lavender Night', category: 'scenaries',
     brightColor: '#a855f7', darkColor: '#581c87', lightColor: '#c084fc',
-    image: '/wallpapers/secret-garden.jpg',
+    image: '/wallpapers/lavender-night.jpg',
   },
 
   // ── Cartoon Couple (9 Cartoon Themes) ───────────────────────────
