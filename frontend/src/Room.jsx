@@ -11137,18 +11137,24 @@ const Room = () => {
                   top: 58,
                   right: 58,
                   zIndex: 250,
-                  width: 280,
+                  // Fixed 280px overflowed off-screen on narrow phones, since
+                  // this box is anchored 58px in from the right edge — cap it
+                  // relative to the viewport (leaving the same ~12px breathing
+                  // room on the left) so it always fits instead of clipping.
+                  width: 'auto',
+                  maxWidth: 'min(280px, calc(100vw - 70px))',
+                  boxSizing: 'border-box',
                   background: 'rgba(15, 15, 25, 0.98)',
                   backdropFilter: 'blur(16px)',
                   border: '1px solid rgba(var(--brand-1-rgb), 0.65)',
                   borderRadius: 12,
-                  padding: 16,
+                  padding: '14px 16px',
                   color: '#fff',
                   boxShadow: '0 12px 36px rgba(0,0,0,0.6)',
                   pointerEvents: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 12
+                  gap: 10
                 }}
               >
                 {/* Pointer Triangle pointing upwards to the Globe button */}
@@ -11162,12 +11168,15 @@ const Room = () => {
                   borderRight: '6px solid transparent',
                   borderBottom: '6px solid rgba(var(--brand-1-rgb), 0.65)',
                 }} />
-                
+
                 <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#e0e7ff', fontWeight: 600 }}>
                   Game not loading properly or showing a blank screen?
                 </p>
                 <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>
-                  Click this **Globe icon** to launch it in a Virtual Browser!
+                  Click this <strong style={{ color: '#fff' }}>Globe icon</strong> to launch it in a Virtual Browser!
+                </p>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.4, color: 'rgba(255,255,255,0.7)', fontWeight: 400 }}>
+                  Want to play together? Click this so both of you can control it live.
                 </p>
                 <button
                   onClick={dismissGlobeInstruction}
