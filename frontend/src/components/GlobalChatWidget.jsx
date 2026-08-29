@@ -4269,9 +4269,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
         const extrasMap = clearedPartnersRef.current || {};
         const extras = Object.values(extrasMap).filter(c => !fetchedPartners.has((c.partner || '').toLowerCase()) && !preserved.find(p => (p.partner || '').toLowerCase() === (c.partner || '').toLowerCase()));
 
-        // Bug 4 fix: If we already have lastSeen for a partner, trust local read state
-        // and zero out any server unread count so going back from chat view doesn't re-show badge
-        
         // Load cleared rooms directly from localStorage (bypass ref timing issues)
         const clearedRoomsMap = (() => {
           try {
@@ -4365,15 +4362,32 @@ const GlobalChatWidget = React.memo(forwardRef(({
             || (existingTs === serverTs ? existing?.message : null)
             || '';
 
-          const seenTs = lastSeen[chatKey] || lastSeen[chatKey.toLowerCase()] || 0;
-          const keepUnreadZero = seenTs && existing && existing.unread === 0;
-
           // Preserve clearedAt from local state so getSortTime keeps a cleared chat at the
           // correct sort position even after a server fetch overwrites lastTimestamp.
           // Only carry it forward when no genuinely newer message arrived after the clear.
           const localClearedAt = Number(existing?.clearedAt) || 0;
           const keepClearedAt = localClearedAt > 0 && serverTs <= localClearedAt;
 
+          // finalC.unread (the server's own count) is left as-is here, deliberately —
+          // there used to be a "keepUnreadZero" override that forced unread back to 0
+          // whenever *any* lastSeen timestamp existed for this chat and the LOCAL
+          // (cached/in-memory) conversation already showed unread:0. That was meant to
+          // stop a stale server response from re-flashing a badge right after the user
+          // marked a chat read (see openChat/markChatAsRead, which already writes a
+          // fresh lastSeen via onMarkRead before any refetch would run — so the server
+          // is already correct by the time this merge sees it, making the override
+          // redundant for that case). It actively broke the opposite, far more common
+          // case: cold-starting the app after a push notification arrived while it was
+          // closed. The cached list from before still shows unread:0 for that chat
+          // (correct, for what it was then) and lastSeen for that chat is some old,
+          // perfectly ordinary timestamp from whenever it was last actually read —
+          // both conditions the override was checking for, even though nothing about
+          // THIS message had been seen at all. finalC.unread already correctly reflects
+          // "messages after lastSeen" (the server computes it from the very same
+          // lastSeen this request just sent), so it's the authoritative value; there is
+          // no case where second-guessing it here helps rather than hides a real unread
+          // count. This was the reason a notification's badge showed up top (driven by
+          // a separate, unaffected poll) but every row in the opened list showed none.
           return {
             ...finalC,
             decryptedText: betterDecryptedText,
@@ -4382,7 +4396,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
             lastMediaDuration: betterMediaDuration,
             message: betterMessage,
             ...(keepClearedAt ? { clearedAt: localClearedAt } : {}),
-            ...(keepUnreadZero ? { unread: 0 } : {})
           };
         });
 
