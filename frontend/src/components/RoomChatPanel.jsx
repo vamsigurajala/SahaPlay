@@ -1539,9 +1539,23 @@ export default function RoomChatPanel({ p }) {
   const goToProfile = React.useCallback((username) => {
     if (navigatingToProfileRef.current) return;
     navigatingToProfileRef.current = true;
+    // Belt-and-suspenders write, redundant with the useEffect further down
+    // that persists chatTab/dmTarget on every change: that effect only
+    // flushes to sessionStorage after React's next commit, so a fast tap
+    // (open chat, immediately tap an avatar) could in principle race it.
+    // Writing synchronously here, right before the navigation that's about
+    // to unmount this whole panel, guarantees Room.jsx's remount on the way
+    // back reads the correct still-open chat instead of falling back to the
+    // conversation list.
+    try {
+      if (p.roomId) {
+        sessionStorage.setItem(`room_chat_tab_${p.roomId}`, p.chatTab);
+        if (p.dmTarget) sessionStorage.setItem(`room_dm_target_${p.roomId}`, p.dmTarget);
+      }
+    } catch {}
     suppressNextPop();
     navigate(`/profile/${username}`);
-  }, [navigate]);
+  }, [navigate, p.roomId, p.chatTab, p.dmTarget]);
 
   // Profile is a route-level lazy chunk (see App.jsx's lazy(() =>
   // import('./Profile'))) — with avatars all over this panel, an actual
@@ -3121,7 +3135,7 @@ export default function RoomChatPanel({ p }) {
                       const uIsHost = userObj?.isHost || (p.room?.hostUsername && partnerName.toLowerCase() === p.room.hostUsername.toLowerCase());
                       const uIsAdmin = !!(p.room?.settings?.newMembersAdmins && partnerName && partnerName !== 'Anonymous' && !partnerName.toLowerCase().startsWith('guest_') && !uIsHost);
                       
-                      return <span onClick={() => !amIBlockedBySender && goToProfile(partnerName)} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
+                      return <span onClick={(e) => { e.stopPropagation(); if (!amIBlockedBySender) goToProfile(partnerName); }} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
                     })()}
                     <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                       {!isMe && (
@@ -3701,10 +3715,16 @@ export default function RoomChatPanel({ p }) {
 
                     return (
                       <>
-                        <Avatar name={displayUname} size={32} src={displayAvatarSrc}/>
+                        <span
+                          onClick={(e) => { e.stopPropagation(); if (!isBlocked) goToProfile(p.dmTarget); }}
+                          title={isBlocked ? 'Blocked User' : `View ${p.dmTarget}'s profile`}
+                          style={{cursor:isBlocked?'default':'pointer'}}
+                        >
+                          <Avatar name={displayUname} size={32} src={displayAvatarSrc}/>
+                        </span>
                         <div>
                           <div
-                            onClick={() => !isBlocked && goToProfile(p.dmTarget)}
+                            onClick={(e) => { e.stopPropagation(); if (!isBlocked) goToProfile(p.dmTarget); }}
                             title={isBlocked ? 'Blocked User' : `View ${p.dmTarget}'s profile`}
                             style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff',display:'flex',alignItems:'center',gap:5,cursor:isBlocked?'default':'pointer'}}
                           >
@@ -4005,7 +4025,7 @@ export default function RoomChatPanel({ p }) {
                             const uObj = p.userList.find(u => u.username === rName);
                             const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
                             const avatarSrc = isSenderBlocked ? null : getAvatarUrl(fallbackMsgAvatar);
-                            return <span onClick={() => !isSenderBlocked && goToProfile(rName)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
+                            return <span onClick={(e) => { e.stopPropagation(); if (!isSenderBlocked) goToProfile(rName); }} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}

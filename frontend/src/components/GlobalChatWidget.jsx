@@ -2147,6 +2147,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (navigatingToProfileRef.current) return;
     navigatingToProfileRef.current = true;
     cameFromOpenChatRef.current = true;
+    // Belt-and-suspenders write, redundant with the useEffects above that
+    // persist view/activeChat on every change — see the identical comment
+    // on RoomChatPanel.jsx's goToProfile; same fix, same reason. Matters
+    // even though this widget instance itself normally stays mounted
+    // through a profile visit: when it's the copy Room.jsx mounts alongside
+    // RoomChatPanel (rather than a persistent app-shell instance), Room.jsx
+    // unmounting out from under it takes this instance down too, and only
+    // sessionStorage survives that remount.
+    try {
+      sessionStorage.setItem('gcw_view', view);
+      if (activeChat) sessionStorage.setItem('gcw_active_chat', JSON.stringify(activeChat));
+      sessionStorage.setItem('gcw_is_open', 'true');
+    } catch {}
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
   };
