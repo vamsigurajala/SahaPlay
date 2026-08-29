@@ -2346,8 +2346,15 @@ const Profile = () => {
           </div>
         </div>
       )}
-      {/* Global Chat Widget */}
-      <GlobalChatWidget ref={chatWidgetRef} isOpen={showRecentChats} onClose={() => setShowRecentChats(false)} unreadCounts={unreadCounts} onMarkRead={handleMarkRead} onNewMessage={handleNewMessage} />
+      {/* Global Chat Widget already rendered once above (right after </nav>) —
+          this used to be a second, unconditional copy of the exact same
+          element sitting here too. Both instances ran their own independent
+          useBackIntercept level tracking off the same isOpen/view state, so
+          restoring an already-open chat (e.g. arriving here via an avatar
+          click from another chat) pushed a full extra set of history entries
+          for the duplicate nobody could see — the real cause of needing 2-3
+          swipes to get back to the chat you came from instead of one. See
+          the same duplicate's removal note for the fuller trace. */}
 
     </div>
     {/* Report User Modal — outside blurring div so it stays sharp */}
