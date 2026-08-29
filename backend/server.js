@@ -4540,7 +4540,9 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
   if (!type || !partner) return res.status(400).json({ error: 'type and partner required' });
 
   const before = req.query.before ? parseInt(req.query.before, 10) : null;
-  const limit = parseInt(req.query.limit, 10) || (before ? 200 : 100);
+  // Initial open loads a small, fast-painting batch; each subsequent
+  // "load more" (scroll-up, before set) pulls a bigger page at once.
+  const limit = parseInt(req.query.limit, 10) || (before ? 100 : 60);
 
   try {
     if (type === 'private') {
@@ -7465,8 +7467,11 @@ io.on('connection', (socket) => {
       queryStr += ` AND m.timestamp >= $2 `;
       queryParams.push(joinTs);
     }
+    // Initial room-join load: keep this small (not the old 100) so a long-
+    // running room's chat paints fast on open — chat:request_history above
+    // fetches the rest lazily as the user scrolls up.
     queryStr += `
-        ORDER BY m.timestamp DESC LIMIT 100
+        ORDER BY m.timestamp DESC LIMIT 60
       ) sub
       ORDER BY sub.timestamp ASC
     `;

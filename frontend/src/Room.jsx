@@ -2676,7 +2676,7 @@ const Room = () => {
     const prevScrollHeight = scrollEl.scrollHeight;
     const prevScrollTop = scrollEl.scrollTop;
 
-    const limit = 200;
+    const limit = 100;
     const token = localStorage.getItem('watch_token');
 
     if (token) {
@@ -2752,7 +2752,7 @@ const Room = () => {
     dmScrollElRef.current = scrollEl;
     dmScrollPosRef.current = { prevScrollHeight, prevScrollTop };
 
-    const limit = 200;
+    const limit = 100;
     socket.emit('chat:request_history', { type: 'private', partner: dmTarget, before: cursor, limit });
   };
 
@@ -6613,7 +6613,7 @@ const Room = () => {
       state.isLoading = true;
       setGroupHistoryLoading(true);
 
-      if (socket) socket.emit('chat:request_history', { roomId, before: cursor, limit: 200 });
+      if (socket) socket.emit('chat:request_history', { roomId, before: cursor, limit: 100 });
     };
     window.addEventListener('guest_request_more_history', handler);
     return () => window.removeEventListener('guest_request_more_history', handler);

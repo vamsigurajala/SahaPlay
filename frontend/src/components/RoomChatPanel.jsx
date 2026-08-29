@@ -1280,7 +1280,19 @@ export default function RoomChatPanel({ p }) {
   // way p.messagesEndRef already is — only one tab is ever mounted at once.
   const composerFocusedRef = React.useRef(false);
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
+    // Belt-and-suspenders on top of composerFocusedRef: Android doesn't
+    // always fire a real blur event when the keyboard is dismissed by a
+    // gesture rather than a tap-away (documented on the textarea's onFocus
+    // below) — if that ref is left stuck true from an earlier focus,
+    // tapping something else entirely (e.g. a message's avatar, to view a
+    // profile) could still land here and yank the view back to the bottom
+    // instead of leaving the scrolled-up position alone for the navigation
+    // that was actually intended. document.activeElement is a live DOM
+    // read, not dependent on blur firing at all, so it's checked directly
+    // as the authoritative "is a composer actually still focused" signal.
+    const active = document.activeElement;
+    const composerActuallyFocused = active === p.groupInputRef?.current || active === p.dmInputRef?.current;
+    if (composerActuallyFocused && composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
   });
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
@@ -1516,7 +1528,17 @@ export default function RoomChatPanel({ p }) {
   // to this panel's own already-unmounted useBackIntercept level (chat-view-
   // open) instead of being left alone, which is what read as swiping back
   // from a profile closing/exiting the chat instead of just returning to it.
+  // Guards against a fast double/triple-tap (a natural reaction when a first
+  // tap doesn't *look* like it did anything while the route/profile chunk is
+  // still loading) firing this more than once — each extra call would push
+  // its own suppressNextPop() + history entry that doesn't correspond to any
+  // additional real navigation, leaving suppressCount permanently ahead of
+  // actual back gestures and making a later swipe-back need to be repeated
+  // before it does anything.
+  const navigatingToProfileRef = React.useRef(false);
   const goToProfile = React.useCallback((username) => {
+    if (navigatingToProfileRef.current) return;
+    navigatingToProfileRef.current = true;
     suppressNextPop();
     navigate(`/profile/${username}`);
   }, [navigate]);

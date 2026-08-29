@@ -2137,7 +2137,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // — without it, that pop gets misattributed to whichever level is on top
   // of the shared stack and incorrectly collapses the chat view instead of
   // just revealing it.
+  // Guards against a fast double/triple-tap firing this more than once —
+  // see the identical comment on RoomChatPanel.jsx's own copy of this guard;
+  // same fix, same reason. Reset below once the profile route is left
+  // (this widget stays mounted, unlike RoomChatPanel, so unmount never does
+  // it for us here).
+  const navigatingToProfileRef = useRef(false);
   const leaveChatToViewProfile = (targetUsername) => {
+    if (navigatingToProfileRef.current) return;
+    navigatingToProfileRef.current = true;
     cameFromOpenChatRef.current = true;
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
@@ -2157,6 +2165,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // display:none forever — this widget instance never became visible because
   // the route-based hide fired unconditionally for every /profile/* route.
   const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
+  // Once the profile route is actually left, this widget is reachable again
+  // for a fresh leaveChatToViewProfile() call — release the double-tap guard.
+  useEffect(() => {
+    if (!location.pathname.startsWith('/profile')) navigatingToProfileRef.current = false;
+  }, [location.pathname]);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -2326,7 +2339,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // runs, not visibly slide there afterward — a smooth scroll here read as
   // "messages scrolling upward" on top of the keyboard's own motion.
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
+    // Belt-and-suspenders on top of composerFocusedRef — see the identical
+    // comment on RoomChatPanel.jsx's own copy of this hook call; same fix,
+    // same reason (Android not always firing blur on a gesture-dismissed
+    // keyboard, which without this could yank scroll to the bottom on an
+    // unrelated tap — e.g. an avatar, mid profile-navigation).
+    const composerActuallyFocused = document.activeElement === inputRef.current;
+    if (composerActuallyFocused && composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
   });
   const conversationsRef = useRef([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -4508,7 +4527,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     const prevScrollTop = scrollEl.scrollTop;
     scrollAnchorRef.current = { prevScrollHeight, prevScrollTop };
 
-    const limit = 200;
+    const limit = 100;
 
     const isGuest = localStorage.getItem('watch_is_guest') === 'true';
 
