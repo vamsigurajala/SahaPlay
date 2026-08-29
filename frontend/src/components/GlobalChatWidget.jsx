@@ -8082,9 +8082,14 @@ const GlobalChatWidget = forwardRef(({
             // messages area right above it. A color-only theme (isCustomTheme
             // with no image) gets the same transparent treatment — it's only
             // meant to recolor bubble text, not paint a background strip
-            // under the composer.
+            // under the composer. That transparent treatment is overridden
+            // the moment a reply/edit preview is showing though — its own
+            // opaque fill (below) needs this wrapper solid too, or there's a
+            // gap of wallpaper between the preview and the input row.
+            // Matches Instagram: once you're replying, the whole composer
+            // area reads as one solid surface.
             borderTop: (activeWallpaper || isCustomTheme || transparentMode) ? 'none' : '1px solid rgba(255,255,255,0.05)',
-            background: (activeWallpaper || isCustomTheme) ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)'),
+            background: (replyToMsg || editingMsg) ? '#1c1c1e' : ((activeWallpaper || isCustomTheme) ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)')),
             flexShrink: 0,
             position: 'relative'
           }}>

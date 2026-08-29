@@ -3367,7 +3367,14 @@ export default function RoomChatPanel({ p }) {
               <button onClick={()=>{ p.setGroupEditingMessage(null); p.setGroupChatInput(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
             </div>
           )}
-          <div style={{padding:'10px 12px',flexShrink:0,position:'relative'}}>
+          {/* Solid fill while a reply/edit preview is showing above — merges
+              with that preview's own opaque background into one continuous
+              block down to the input row, instead of a gap of wallpaper
+              showing between them. Matches Instagram: once you're replying,
+              the whole composer area reads as one solid surface. Left
+              transparent the rest of the time so the wallpaper still shows
+              through during normal typing, unchanged from before. */}
+          <div style={{padding:'10px 12px',flexShrink:0,position:'relative', background: (p.groupReplyTo || p.groupEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
             {/* Restriction badges */}
             {(() => {
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
@@ -4167,7 +4174,9 @@ export default function RoomChatPanel({ p }) {
                   })()}
                   <div ref={p.messagesEndRef}/>
                 </div>
-                <div style={{padding:'10px 12px',flexShrink:0,position:'relative'}}>
+                {/* Solid fill while a reply/edit preview is showing above —
+                    see the identical comment on the group composer wrapper. */}
+                <div style={{padding:'10px 12px',flexShrink:0,position:'relative', background: (p.dmReplyTo || p.dmEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
                   {p.dmReplyTo && (
                     // Solid fill — see the identical comment on the group
                     // reply preview above.
