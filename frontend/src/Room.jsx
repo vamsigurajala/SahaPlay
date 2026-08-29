@@ -40,7 +40,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus, PartyPopper } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -3597,12 +3597,12 @@ const Room = () => {
         sessionStorage.setItem(guestNotifKey, 'true');
         toast((toastItem) => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>Welcome, Guest! 👋</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>Welcome, Guest!</div>
             <div style={{ fontSize: 12, opacity: 0.9, lineHeight: 1.4 }}>
               Enjoy watching together with friends!
             </div>
           </div>
-        ), { duration: 6000, icon: '👋' });
+        ), { duration: 6000, icon: <PartyPopper size={20} /> });
       }
     }
   }, [room, isWaitingApproval, roomNotFound, kickedReason, roomId]);

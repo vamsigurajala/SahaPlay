@@ -35,9 +35,23 @@ export function useScrollToBottom(messagesEndRef) {
   // scrolling up" animation reads as an unwanted extra motion on top of the
   // keyboard's own resize; everything should just already be in place the
   // moment the resize finishes, not visibly slide there afterward.
+  //
+  // block: 'nearest' (not the default 'start'/'end' alignment) matters here:
+  // scrollIntoView walks every scrollable ancestor of the target, not just
+  // its immediate scroll container, adjusting each one enough to bring the
+  // target into view. In a layout with several nested scroll contexts above
+  // the chat panel (room chat sits inside a few more of them than the
+  // simpler, portaled global chat widget), that could nudge an outer
+  // ancestor's scroll position by a stray pixel too — which, since that
+  // ancestor also contains normal-flow chrome like the room's own top nav
+  // bar, read as that bar visibly shifting every time the composer was
+  // focused. 'nearest' only scrolls an ancestor the minimum required (often
+  // zero, if the target is already at least partially in view there)
+  // instead of aligning it to an edge, which removes the room for that
+  // stray movement without changing the intended within-panel scroll.
   const scrollToBottom = useCallback((instant = false) => {
     if (messagesEndRef && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: instant ? 'auto' : 'smooth' });
+      messagesEndRef.current.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'nearest' });
     }
   }, [messagesEndRef]);
 
