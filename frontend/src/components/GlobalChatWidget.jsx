@@ -6041,7 +6041,11 @@ const GlobalChatWidget = forwardRef(({
         row instead of the pill itself re-toggling the reaction. See
         RoomChatPanel's identical sheet for the full reasoning. */}
     {reactorsSheet && createPortal(
-      <div onClick={() => setReactorsSheet(null)} style={{position:'fixed',inset:0,zIndex:1000000,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
+      // reactors-sheet-overlay: registered in App.jsx's light-mode fixed-
+      // overlay override list (see that rule's own comment) — without it,
+      // this translucent scrim got forced to a solid pale background in
+      // light mode instead of dimming the chat behind it.
+      <div onClick={() => setReactorsSheet(null)} className="reactors-sheet-overlay" style={{position:'fixed',inset:0,zIndex:1000000,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
         <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,maxHeight:'65vh',display:'flex',flexDirection:'column',background: isLight ? '#fff' : '#1c1c1e',borderTopLeftRadius:20,borderTopRightRadius:20,boxShadow: '0 -8px 30px rgba(0,0,0,0.4)',animation:'reactorsSlideUp 0.2s cubic-bezier(0.22,1,0.36,1)'}}>
           <div style={{display:'flex',justifyContent:'center',padding:'10px 0 6px'}}>
             <div style={{width:36,height:4,borderRadius:2,background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)'}} />

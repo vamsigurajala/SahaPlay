@@ -4675,7 +4675,10 @@ export default function RoomChatPanel({ p }) {
           taller than the sheet, which is the only thing that changes
           between a DM (at most one other reactor) and a group. */}
       {reactorsSheet && (
-        <div onClick={() => setReactorsSheet(null)} style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'reactorsFade 0.15s ease'}}>
+        // reactors-sheet-overlay: registered in App.jsx's light-mode fixed-
+        // overlay override list — see the identical comment on this same
+        // sheet in GlobalChatWidget.jsx.
+        <div onClick={() => setReactorsSheet(null)} className="reactors-sheet-overlay" style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'reactorsFade 0.15s ease'}}>
           <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,maxHeight:'65vh',display:'flex',flexDirection:'column',background: isLight ? '#fff' : '#1c1c1e',borderTopLeftRadius:20,borderTopRightRadius:20,boxShadow: '0 -8px 30px rgba(0,0,0,0.4)',animation:'reactorsSlideUp 0.2s cubic-bezier(0.22,1,0.36,1)'}}>
             <div style={{display:'flex',justifyContent:'center',padding:'10px 0 6px'}}>
               <div style={{width:36,height:4,borderRadius:2,background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)'}} />
