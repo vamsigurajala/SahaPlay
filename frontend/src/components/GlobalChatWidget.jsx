@@ -2282,8 +2282,13 @@ const GlobalChatWidget = forwardRef(({
   // entirely (device rotation while just reading, an OS UI element toggling)
   // doesn't yank the scroll position around when there's no keyboard in play.
   const composerFocusedRef = useRef(false);
+  // instant (no smooth-scroll animation): this fires once the keyboard's
+  // resize has actually settled (see useVisualViewportResize's own debounce),
+  // so the list should already just BE in its final position the moment this
+  // runs, not visibly slide there afterward — a smooth scroll here read as
+  // "messages scrolling upward" on top of the keyboard's own motion.
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current) scrollToBottom();
+    if (composerFocusedRef.current) scrollToBottom(true);
   });
   const conversationsRef = useRef([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -7977,9 +7982,12 @@ const GlobalChatWidget = forwardRef(({
             // A wallpaper theme sits directly on the shared backdrop layer
             // instead of this bar painting its own opaque strip on top of
             // the picture — no border/tint here in that case, same as the
-            // messages area right above it.
-            borderTop: (activeWallpaper || transparentMode) ? 'none' : '1px solid rgba(255,255,255,0.05)',
-            background: activeWallpaper ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)'),
+            // messages area right above it. A color-only theme (isCustomTheme
+            // with no image) gets the same transparent treatment — it's only
+            // meant to recolor bubble text, not paint a background strip
+            // under the composer.
+            borderTop: (activeWallpaper || isCustomTheme || transparentMode) ? 'none' : '1px solid rgba(255,255,255,0.05)',
+            background: (activeWallpaper || isCustomTheme) ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)'),
             flexShrink: 0,
             position: 'relative'
           }}>
@@ -8215,7 +8223,21 @@ const GlobalChatWidget = forwardRef(({
                             // focus/blur properties need to animate.
                             transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
-                          onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
+                          onFocus={e => {
+                            e.target.style.background = '#242426';
+                            e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)';
+                            composerFocusedRef.current = true;
+                            // Instant, and fired right away (not a 300ms-later
+                            // guess) — this is only the fallback for a WebView
+                            // with no VisualViewport API at all; wherever that
+                            // API does exist, useVisualViewportResize's own
+                            // debounced handler above is what actually reacts
+                            // once the keyboard's resize has settled. The old
+                            // 300ms delay plus a smooth-scroll here is what
+                            // read as the composer sitting under the keyboard
+                            // for a beat before slowly sliding into place.
+                            try { scrollToBottom(true); } catch {}
+                          }}
                           onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; composerFocusedRef.current = false; }}
                         />
 
