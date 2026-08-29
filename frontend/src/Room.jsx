@@ -3933,9 +3933,30 @@ const Room = () => {
       }
 
       setTimeout(() => {
+        // Only actually reseek if the player has genuinely drifted from the
+        // server's position — same >2s threshold action_play/action_seek/
+        // action_pause already use below, for the same reason. room_state
+        // arrives here far more often than just on join: request_sync (see
+        // the visibilitychange listener) fires it on every single "tab/app
+        // became visible again" — which on mobile isn't just switching apps,
+        // it's also the OS handing focus back after ANY native picker
+        // (a wallpaper/photo picker, a color picker, etc. — each its own
+        // Activity on Android) that something as ordinary as changing a chat
+        // theme can open. Before this check, every one of those re-seeked the
+        // player unconditionally, even when it was already sitting exactly
+        // where it should be — and seeking a network-streamed video, however
+        // small the jump, makes the browser start a fresh buffered range from
+        // scratch. That's what read as "playback buffers again for no reason,
+        // I didn't even touch the video" purely from switching back from an
+        // unrelated picker.
+        const drift = (ref, current) => Math.abs((current ?? 0) - state.currentTime) > 2;
         lastExternalUpdate.current = Date.now() + 3000;
-        if (playerRef.current && state.currentTime > 0) playerRef.current.seekTo(state.currentTime, 'seconds');
-        if (localVideoRef.current && state.currentTime > 0) localVideoRef.current.currentTime = state.currentTime;
+        if (playerRef.current && state.currentTime > 0 && drift(playerRef.current, playerRef.current.getCurrentTime?.())) {
+          playerRef.current.seekTo(state.currentTime, 'seconds');
+        }
+        if (localVideoRef.current && state.currentTime > 0 && drift(localVideoRef.current, localVideoRef.current.currentTime)) {
+          localVideoRef.current.currentTime = state.currentTime;
+        }
         setIsPlaying(state.isPlaying);
       }, 500);
     });
