@@ -3921,14 +3921,23 @@ const GlobalChatWidget = forwardRef(({
       isFirstRenderGlobalChat.current = true;
     }
 
-    if (shouldScroll && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-      }, 50);
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-      }, 150);
+    // Direct scrollTop assignment on the message container itself, not
+    // messagesEndRef.current.scrollIntoView() — scrollIntoView with no
+    // `block` override defaults to 'start', which (per spec) walks and
+    // realigns EVERY scrollable ancestor of the target, not just this one
+    // container. For a sentinel at the very end of a long list that
+    // typically clamps to the same visual result as scrolling this
+    // container to its bottom, but it can also nudge an outer ancestor's
+    // scroll position along the way — which on first opening a chat is
+    // what read as the message landing stranded near the top instead of
+    // sitting right above the composer. RoomChatPanel's identical initial-
+    // scroll effect already uses this same direct-scrollTop approach for
+    // the same reason; this brings GlobalChatWidget in line with it.
+    if (shouldScroll && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+      setTimeout(() => { if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight; }, 50);
+      setTimeout(() => { if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight; }, 150);
     }
     prevMsgCountRef.current = messages.length;
   }, [messages, view, activeChat]);
