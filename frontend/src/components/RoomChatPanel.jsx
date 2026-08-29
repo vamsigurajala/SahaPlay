@@ -9,9 +9,9 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Camera
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera
 } from 'lucide-react';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import CameraCapture from './CameraCapture';
 import VoiceRecorderBar from './VoiceRecorderBar';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
@@ -1332,22 +1332,15 @@ export default function RoomChatPanel({ p }) {
   const myUser = (localStorage.getItem('watch_username') || p.username || '').toLowerCase();
   const call = useCall();
 
-  // Chat theme (wallpaper + bubble color) is a global-chat-window-only
-  // feature now — room chat always renders with the plain default look,
-  // regardless of what theme is set for this same chatKey elsewhere. Themes
-  // (especially wallpaper) went through several rounds of positioning bugs
-  // specific to this panel's nested-header, keyboard-resizing mobile layout
-  // that never had a clean fix; room chat no longer reads p.chatThemes at
-  // all rather than keep chasing that.
-  const groupThemeId = 'default';
-  const groupWallpaper = null;
-  const groupTheme = CHAT_THEMES.find(th => th.id === groupThemeId) || CHAT_THEMES[0];
-  const isGroupCustomTheme = false;
+  const groupThemeId = (p.chatThemes && p.chatThemes[(p.roomId || '').toLowerCase()]) || 'default';
+  const groupWallpaper = findWallpaper(groupThemeId);
+  const groupTheme = groupWallpaper ? null : (CHAT_THEMES.find(th => th.id === groupThemeId) || CHAT_THEMES[0]);
+  const isGroupCustomTheme = groupThemeId !== 'default';
 
-  const dmThemeId = 'default';
-  const dmWallpaper = null;
-  const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
-  const isDMCustomTheme = false;
+  const dmThemeId = (p.chatThemes && p.chatThemes[(p.dmTarget || '').toLowerCase()]) || 'default';
+  const dmWallpaper = findWallpaper(dmThemeId);
+  const dmTheme = dmWallpaper ? null : (CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0]);
+  const isDMCustomTheme = dmThemeId !== 'default';
 
   const [groupWallpaperColor, setGroupWallpaperColor] = React.useState(null);
   React.useEffect(() => {
@@ -2437,7 +2430,23 @@ export default function RoomChatPanel({ p }) {
           }}
         />
       )}
-      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      {/* contain:'paint' + a forced compositing layer (transform) below are
+          the fix for a specific report: rapidly refocusing the composer and
+          swiping back (repeated on-screen-keyboard open/close in quick
+          succession) could, for a single frame, show this panel's own
+          content (messages, the wallpaper) painted OUTSIDE its rounded-
+          corner bounds, on top of the room's own top nav bar above it —
+          plain overflow:hidden clips correctly in the steady state (already
+          verified live) but isn't always enough to stop a mobile WebView's
+          compositor from briefly showing a stale/misaligned layer while
+          several native resize events land back-to-back. contain:'paint'
+          gives the browser an explicit guarantee that this subtree's
+          painting never affects anything outside its box, and the
+          transform promotes it to its own hardware-accelerated compositing
+          layer instead of leaving it to software-rasterized clipping —
+          together the standard mitigation for exactly this class of
+          rapid-resize clipping glitch. */}
+      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', contain:'paint', transform:'translateZ(0)', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{
@@ -2838,7 +2847,9 @@ export default function RoomChatPanel({ p }) {
                   <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); toggleMuteChat(p.roomId);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                     {mutedChats.includes((p.roomId||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.roomId||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                   </div>
-                  {/* Chat theme removed from room chat — see the groupThemeId comment above. */}
+                  <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); p.openChatThemeSheet({ type: 'room', id: p.roomId });}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                    <Palette size={16}/> {t('chatTheme', 'Chat theme')}
+                  </div>
                   <div onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(false); setClearGroupChatModalOpen(true);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                     <Trash2 size={16}/> {t('clearChat', 'Clear Chat')}
                   </div>
@@ -2923,7 +2934,9 @@ export default function RoomChatPanel({ p }) {
               const lastGroupMsg = p.groupMessages[lastGroupRenderIdx];
               const isLastGroupSentByMe = lastGroupMsg && (lastGroupMsg.isMe || (lastGroupMsg.username && lastGroupMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastGroupMsg.senderName && lastGroupMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
               const renderGroupReceiptIndex = isLastGroupSentByMe ? lastGroupRenderIdx : -1;
-              // Room chat theme removed — see the top-level groupThemeId comment.
+              const groupThemeId = (p.chatThemes && p.chatThemes[(p.roomId||'').toLowerCase()]) || 'default';
+              const groupTheme = CHAT_THEMES.find(th => th.id === groupThemeId) || CHAT_THEMES[0];
+              const isGroupCustomTheme = groupThemeId !== 'default';
               return p.groupMessages.map((msg,i)=>{
               const rowKey = msg.tempId || msg.id || i;
               if (groupMediaRunsInfo.memberKeys.has(rowKey)) return null;
@@ -3590,7 +3603,9 @@ export default function RoomChatPanel({ p }) {
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                           {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
                         </div>
-                        {/* Chat theme removed from room chat — see the groupThemeId comment above. */}
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.openChatThemeSheet({ type: 'private', partner: p.dmTarget });}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          <Palette size={16}/> {t('chatTheme', 'Chat theme')}
+                        </div>
                         <div style={{ height: '1px', background: 'var(--menu-divider)', margin: '6px 8px' }} />
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); setBlockUserConfirm({username: p.dmTarget}); }} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: '#ef4444',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn menu-btn-danger">
                           <Ban size={16}/> {blockedChats.some(u => u.toLowerCase() === (p.dmTarget||'').toLowerCase()) ? t('unblock', 'Unblock') : t('block', 'Block')}
@@ -3686,7 +3701,9 @@ export default function RoomChatPanel({ p }) {
                     const lastDMMsg = dmMessages[lastDMRenderIdx];
                     const isLastDMSentByMe = lastDMMsg && (lastDMMsg.isMe || (lastDMMsg.username && lastDMMsg.username.toLowerCase() === p.username?.toLowerCase()) || (lastDMMsg.senderName && lastDMMsg.senderName.toLowerCase() === p.username?.toLowerCase()));
                     const renderDMReceiptIndex = isLastDMSentByMe ? lastDMRenderIdx : -1;
-                    // Room chat theme removed — see the top-level dmThemeId comment.
+                    const dmThemeId = (p.chatThemes && p.chatThemes[(p.dmTarget||'').toLowerCase()]) || 'default';
+                    const dmTheme = CHAT_THEMES.find(th => th.id === dmThemeId) || CHAT_THEMES[0];
+                    const isDMCustomTheme = dmThemeId !== 'default';
                     const dmNoticeRuns = groupNoticeRuns(dmMessages);
                     return dmMessages.map((msg,i)=>{
                     if (msg.isNotice) {
@@ -3701,11 +3718,13 @@ export default function RoomChatPanel({ p }) {
                             color: isLight ? '#475569' : '#9ca3af', fontSize: 12, fontWeight: 500,
                             padding: '6px 14px', borderRadius: 14, maxWidth: '85%', textAlign: 'center',
                           }}>
-                            {/* Chat theme is a global-chat-window-only feature now — this
-                                notice can still arrive here (it's the same synced DM
-                                history), so it's kept, just without the "Change theme"
-                                link room chat can no longer act on. */}
                             <span>{isMeChange ? t('youChangedTheme', 'You changed the chat theme') : t('userChangedTheme', '{{username}} changed the chat theme', { username: msg.senderName })}</span>
+                            <button
+                              onClick={() => p.openChatThemeSheet({ type: 'private', partner: p.dmTarget })}
+                              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-1-light)', fontWeight: 700, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                              {t('changeTheme', 'Change theme')}
+                            </button>
                           </div>
                         </div>
                       );
