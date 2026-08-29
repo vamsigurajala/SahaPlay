@@ -6031,23 +6031,24 @@ const GlobalChatWidget = forwardRef(({
             the picture like a separate panel glued on. */}
         {activeWallpaper && (
           <div className="chat-wallpaper-backdrop" style={{
-            // On mobile/tablet the panel above is full-viewport, so this
-            // goes position:fixed sized from the actual viewport's own
-            // largest-ever height (useStableViewportHeight) instead of
-            // inset:0 inside the panel — that inset box shrinks the instant
-            // the on-screen keyboard opens, which recomputed the
-            // background-size:cover crop against a shorter box and read as
-            // the wallpaper sliding upward. window.innerHeight is known
-            // synchronously on first paint, so there's no ResizeObserver lag
-            // for this to visibly catch up through even on a fast
-            // open/close (e.g. a swipe-back gesture while the composer is
-            // focused). Desktop keeps position:absolute + inset:0, matching
-            // the panel's own small floating box as before.
-            position: isMobileOrTablet ? 'fixed' : 'absolute',
-            top: 0, left: 0, right: 0, zIndex: -1, pointerEvents: 'none',
-            ...(isMobileOrTablet
-              ? { bottom: 'auto', height: stableViewportHeight || '100vh' }
-              : { bottom: 0 }),
+            // Stays position:absolute + inset:0 inside the panel, clipped by
+            // its own overflow:hidden (a position:fixed version was tried —
+            // it escapes overflow:hidden entirely, since fixed positioning
+            // is computed against the viewport rather than the ancestor, and
+            // on the room-chat equivalent of this same backdrop that let the
+            // wallpaper paint straight through the surrounding chrome —
+            // reverted here too before the same bug could surface here).
+            // The panel's own inset:0 box shrinking when the keyboard opened
+            // used to recompute the background-size:cover crop against a
+            // shorter box, reading as the wallpaper sliding upward — fixed
+            // by giving this an explicit height from useStableViewportHeight
+            // (window.innerHeight, clamped to the largest value ever seen,
+            // known synchronously on first paint) instead of tracking the
+            // panel's live height, so there's nothing to catch up on even on
+            // a fast keyboard open/close (e.g. a swipe-back gesture while
+            // the composer is focused).
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+            ...(isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
           }} />
