@@ -2875,7 +2875,16 @@ export default function RoomChatPanel({ p }) {
               // image (see why in its comment) — this only needs to go
               // transparent so that layer shows through instead of painting
               // its own separate copy that shifts independently on resize.
-              background: groupWallpaper ? 'transparent' : (isGroupCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : undefined),
+              // A color-only theme (isGroupCustomTheme with no wallpaper) used
+              // to paint its own opaque #0a0a0a/#ffffff fill here — meant only
+              // to recolor bubble text, it instead created a visible seam
+              // against the composer below (which was never painted and just
+              // showed the panel's own slightly different var(--room-sidebar-bg)
+              // shade), reading as a stray dark strip right at the message box.
+              // Going transparent here too, same as a wallpaper theme, removes
+              // the mismatch entirely — both areas fall back to the one
+              // consistent panel background.
+              background: (groupWallpaper || isGroupCustomTheme) ? 'transparent' : undefined,
             }}>
             {p.groupHistoryLoading && (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
@@ -3639,7 +3648,11 @@ export default function RoomChatPanel({ p }) {
                     // The shared .room-chat-wallpaper-backdrop layer (see above)
                     // paints the image now — this just needs to be transparent
                     // so that layer shows through instead of resizing its own.
-                    background: dmWallpaper ? 'transparent' : (isDMCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : undefined),
+                    // Same reasoning as the group tab: a color-only theme's own
+                    // opaque fill here mismatched the untouched composer below
+                    // it, reading as a dark strip under the message box — going
+                    // transparent removes the seam.
+                    background: (dmWallpaper || isDMCustomTheme) ? 'transparent' : undefined,
                   }}>
                   {p.dmHistoryLoading && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', flexShrink: 0 }}>
