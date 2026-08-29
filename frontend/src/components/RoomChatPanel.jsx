@@ -3328,7 +3328,7 @@ export default function RoomChatPanel({ p }) {
               <button onClick={()=>{ p.setGroupEditingMessage(null); p.setGroupChatInput(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
             </div>
           )}
-          <div style={{padding:'10px 12px',borderTop:'1px solid rgba(255,255,255,0.07)',flexShrink:0,position:'relative'}}>
+          <div style={{padding:'10px 12px',flexShrink:0,position:'relative'}}>
             {/* Restriction badges */}
             {(() => {
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
@@ -4104,7 +4104,7 @@ export default function RoomChatPanel({ p }) {
                   })()}
                   <div ref={p.messagesEndRef}/>
                 </div>
-                <div style={{padding:'10px 12px',borderTop:'1px solid var(--room-border)',flexShrink:0,position:'relative'}}>
+                <div style={{padding:'10px 12px',flexShrink:0,position:'relative'}}>
                   {p.dmReplyTo && (
                     <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(var(--brand-1-rgb),0.04)' : 'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <span><span style={{color:'var(--brand-1)',fontWeight:600}}>

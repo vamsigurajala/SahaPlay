@@ -6015,18 +6015,21 @@ const GlobalChatWidget = forwardRef(({
         // top/left/right/bottom:0 + auto-sizing override below — that rule
         // is scoped to :not(.gcw-force-dark), the class transparentMode adds
         // for its own unrelated dark-color-forcing reasons, so this panel
-        // fell back to its own inline height instead. Plain '100vh' is the
-        // one static-viewport unit this codebase otherwise avoids
-        // everywhere else specifically because it doesn't reliably track an
-        // on-screen keyboard's resize — here it left the panel's real
-        // height stuck at its pre-keyboard size while composer, positioned
-        // by flex at the bottom of THAT stale box, ended up nowhere near the
-        // actual (now much shorter) visible area above the keyboard,
-        // appearing to float partway up the screen. '100dvh' is the dynamic
-        // viewport unit built for exactly this — it tracks the current,
-        // keyboard-adjusted viewport the same way the mobile override
-        // relies on window resize for the non-transparent case.
-        height: transparentMode ? '100dvh' : 'calc(100vh - 100px)',
+        // fell back to its own inline sizing instead. Both plain '100vh' AND
+        // '100dvh' were tried here and neither tracked the keyboard
+        // correctly in practice — this codebase's own hard-won lesson from
+        // several other components is that no vh-family unit is reliable
+        // enough for this on every WebView; the ONE technique that has
+        // actually held up everywhere is bottom:0 + height:'auto' (exactly
+        // what the mobile override below already does for the non-
+        // transparent case, and what Room.jsx's own mobile root uses) — the
+        // browser recomputes an inset-bounded box's height from the real
+        // current layout viewport on every resize, with no unit-specific
+        // behavior to get wrong. Composer, flex-anchored to the bottom of
+        // THIS box, now actually sits at the bottom of the real visible
+        // area above the keyboard instead of a stale pre-keyboard size.
+        bottom: transparentMode ? 0 : undefined,
+        height: transparentMode ? 'auto' : 'calc(100vh - 100px)',
         background: transparentMode ? 'transparent' : '#0a0a0a',
         backdropFilter: 'none',
         WebkitBackdropFilter: 'none',
