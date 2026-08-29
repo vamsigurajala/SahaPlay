@@ -6081,31 +6081,28 @@ const GlobalChatWidget = forwardRef(({
         position: 'fixed',
         top: transparentMode ? 0 : 80,
         right: transparentMode ? 0 : 20,
-        // A fixed 380/400px width anchored `right` pushed this off the LEFT
+        // transparentMode used to pin only top/right/bottom and size itself
+        // with an explicit width — three sides pinned, one derived. Every
+        // OTHER keyboard-tracking fixed panel in this codebase (the mobile
+        // media query just below, Room.jsx's own mobile root) uses the same
+        // proven shape instead: all FOUR sides pinned to 0 with BOTH width
+        // and height left to 'auto', so the browser has nothing to derive —
+        // it just fills whatever the real current viewport is on every
+        // resize. transparentMode was the one place still doing it the
+        // partial way, and that's what was leaving it not actually tracking
+        // the keyboard: the message box sitting stranded above a gap instead
+        // of right on top of it. left:0 + width:'auto' here matches that
+        // proven shape exactly (the 400px cap wasn't buying anything extra
+        // on the phone screens this mode is actually used on — 100vw was
+        // already narrower than 400px there).
+        left: transparentMode ? 0 : undefined,
+        // A fixed 380px width anchored `right` pushed this off the LEFT
         // edge of the screen on any device narrower than ~400-420px — most
         // phones. min()/calc() cap the width to whatever actually fits
-        // (leaving a matching 20px gap on the left in the non-transparent
-        // case, same as the existing right gap) instead of a fixed size
-        // that only ever worked on wide desktop viewports.
-        width: transparentMode ? 'min(400px, 100vw)' : 'min(380px, calc(100vw - 40px))',
-        // transparentMode (opened over Room's fullscreen/mobile touch
-        // player) is the one path that never gets the mobile media query's
-        // top/left/right/bottom:0 + auto-sizing override below — that rule
-        // is scoped to :not(.gcw-force-dark), the class transparentMode adds
-        // for its own unrelated dark-color-forcing reasons, so this panel
-        // fell back to its own inline sizing instead. Both plain '100vh' AND
-        // '100dvh' were tried here and neither tracked the keyboard
-        // correctly in practice — this codebase's own hard-won lesson from
-        // several other components is that no vh-family unit is reliable
-        // enough for this on every WebView; the ONE technique that has
-        // actually held up everywhere is bottom:0 + height:'auto' (exactly
-        // what the mobile override below already does for the non-
-        // transparent case, and what Room.jsx's own mobile root uses) — the
-        // browser recomputes an inset-bounded box's height from the real
-        // current layout viewport on every resize, with no unit-specific
-        // behavior to get wrong. Composer, flex-anchored to the bottom of
-        // THIS box, now actually sits at the bottom of the real visible
-        // area above the keyboard instead of a stale pre-keyboard size.
+        // (leaving a matching 20px gap on the left, same as the existing
+        // right gap) instead of a fixed size that only ever worked on wide
+        // desktop viewports.
+        width: transparentMode ? 'auto' : 'min(380px, calc(100vw - 40px))',
         bottom: transparentMode ? 0 : undefined,
         height: transparentMode ? 'auto' : 'calc(100vh - 100px)',
         background: transparentMode ? 'transparent' : '#0a0a0a',
