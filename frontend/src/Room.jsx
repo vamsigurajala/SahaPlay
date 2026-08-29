@@ -12389,6 +12389,45 @@ const Room = () => {
                   </>
                 )}
               </>
+            ) : streamPending ? (
+              // Someone else in the room (almost always the host — they're already
+              // watching their own local blob URL by this point, so this branch is
+              // never theirs) just started uploading a file. stream_started/
+              // stream_progress were always wired into streamPending state, but
+              // nothing ever actually rendered it — everyone else saw this exact
+              // "No Media Selected" empty state the whole time the upload was
+              // in flight, indistinguishable from no media having been chosen at
+              // all, until stream_ready (usually within the first ~8% of the
+              // upload, but that's still real time on a big file/slow connection)
+              // finally handed them a playable URL. This replaces that blank wait
+              // with a visible, live-updating "it's coming" state instead.
+              <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+                <div style={{
+                  width: 86, height: 86, borderRadius: 28,
+                  background: isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(255,255,255,0.05)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 24,
+                  boxShadow: isLight ? '0 12px 36px rgba(var(--brand-1-rgb),0.12)' : '0 10px 40px rgba(0,0,0,0.4)',
+                  border: isLight ? '1px solid rgba(var(--brand-1-rgb),0.1)' : '1px solid rgba(255,255,255,0.08)'
+                }}>
+                  <span style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    border: `3px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.2)' : 'rgba(255,255,255,0.15)'}`,
+                    borderTopColor: isLight ? 'var(--brand-1)' : '#fff',
+                    animation: 'room-media-pending-spin 0.8s linear infinite',
+                  }} />
+                  <style>{`@keyframes room-media-pending-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                </div>
+                <h3 className={`no-media-title${(isFullscreen || isTvMode) ? ' stay-white' : ''}`} style={{ margin: '0 0 10px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 22, letterSpacing: '-0.5px' }}>
+                  {t('mediaUploading', 'Getting the video ready…')}
+                </h3>
+                <p className={(isFullscreen || isTvMode) ? 'stay-white' : undefined} style={{ margin: '0 0 4px', color: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.75)' : (isLight ? '#64748b' : 'rgba(255,255,255,0.6)'), fontSize: 14, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {streamPending.filename || t('videoFile', 'Video file')}
+                </p>
+                <p className={(isFullscreen || isTvMode) ? 'stay-white' : undefined} style={{ margin: 0, color: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.55)' : (isLight ? '#94a3b8' : 'rgba(255,255,255,0.4)'), fontSize: 13 }}>
+                  {Math.round(streamPending.progress || 0)}%
+                </p>
+              </div>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
                 <div style={{
