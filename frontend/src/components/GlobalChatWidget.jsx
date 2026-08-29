@@ -6010,7 +6010,23 @@ const GlobalChatWidget = forwardRef(({
         // case, same as the existing right gap) instead of a fixed size
         // that only ever worked on wide desktop viewports.
         width: transparentMode ? 'min(400px, 100vw)' : 'min(380px, calc(100vw - 40px))',
-        height: transparentMode ? '100vh' : 'calc(100vh - 100px)',
+        // transparentMode (opened over Room's fullscreen/mobile touch
+        // player) is the one path that never gets the mobile media query's
+        // top/left/right/bottom:0 + auto-sizing override below — that rule
+        // is scoped to :not(.gcw-force-dark), the class transparentMode adds
+        // for its own unrelated dark-color-forcing reasons, so this panel
+        // fell back to its own inline height instead. Plain '100vh' is the
+        // one static-viewport unit this codebase otherwise avoids
+        // everywhere else specifically because it doesn't reliably track an
+        // on-screen keyboard's resize — here it left the panel's real
+        // height stuck at its pre-keyboard size while composer, positioned
+        // by flex at the bottom of THAT stale box, ended up nowhere near the
+        // actual (now much shorter) visible area above the keyboard,
+        // appearing to float partway up the screen. '100dvh' is the dynamic
+        // viewport unit built for exactly this — it tracks the current,
+        // keyboard-adjusted viewport the same way the mobile override
+        // relies on window resize for the non-transparent case.
+        height: transparentMode ? '100dvh' : 'calc(100vh - 100px)',
         background: transparentMode ? 'transparent' : '#0a0a0a',
         backdropFilter: 'none',
         WebkitBackdropFilter: 'none',
