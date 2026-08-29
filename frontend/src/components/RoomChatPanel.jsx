@@ -3351,7 +3351,7 @@ export default function RoomChatPanel({ p }) {
             <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                 <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? t('yourself', 'yourself') : (isRepBlocked ? 'User' : n); })()}</span>
-                <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={12}/></button>
+                <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={18}/></button>
               </div>
               <span style={{opacity:0.85}}>{(() => {
                 const r = p.groupReplyTo;
@@ -3367,7 +3367,7 @@ export default function RoomChatPanel({ p }) {
             // Same solid-fill treatment as the reply preview above.
             <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
               <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
-              <button onClick={()=>{ p.setGroupEditingMessage(null); p.setGroupChatInput(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
+              <button onClick={()=>{ p.setGroupEditingMessage(null); p.setGroupChatInput(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={18}/></button>
             </div>
           )}
           {/* Solid fill while a reply/edit preview is showing above — merges
@@ -4196,7 +4196,7 @@ export default function RoomChatPanel({ p }) {
                     <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                         <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? t('yourself', 'yourself') : (isRepBlocked ? 'User' : n); })()}</span>
-                        <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
+                        <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:22,display:'flex',alignItems:'center'}}>&times;</button>
                       </div>
                       <span style={{opacity:0.85}}>{(() => {
                         const r = p.dmReplyTo;
@@ -4211,7 +4211,7 @@ export default function RoomChatPanel({ p }) {
                     // reply preview above.
                     <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
-                      <button onClick={()=>{ p.setDmEditingMessage(null); p.setDmChatInput(''); }} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
+                      <button onClick={()=>{ p.setDmEditingMessage(null); p.setDmChatInput(''); }} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:22,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>
                   )}
 

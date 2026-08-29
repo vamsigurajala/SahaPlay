@@ -6163,7 +6163,10 @@ const GlobalChatWidget = forwardRef(({
             // a fast keyboard open/close (e.g. a swipe-back gesture while
             // the composer is focused).
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
-            ...(isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
+            // Unconditional (not gated on isMobileOrTablet) — matches the
+            // room-chat equivalent of this same backdrop exactly, which
+            // applies its explicit height regardless of viewport width.
+            ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
           }} />
