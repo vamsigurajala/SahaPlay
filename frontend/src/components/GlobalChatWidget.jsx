@@ -685,6 +685,7 @@ const typingCss = `
   @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
   @keyframes wave-bar { from { height: 20%; } to { height: 80%; } }
+  @keyframes reactorsSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
   /* ── Mobile/tablet: replace visible Reply/timestamp/Report with swipe + long-press gestures ── */
   @media (max-width: 1023.98px) {
@@ -1917,6 +1918,11 @@ const GlobalChatWidget = forwardRef(({
   const [loading, setLoading] = useState(false);
   const [activeReactionMsg, setActiveReactionMsg] = useState(null);
   const [showAllEmojis, setShowAllEmojis] = useState(false);
+  // Who-reacted-with-this-emoji sheet (tapping an existing reaction pill) —
+  // { msgId, emoji, users }. See RoomChatPanel's identical sheet for the
+  // full reasoning; kept as its own copy here rather than a shared component
+  // since the two files don't currently share any UI component, only hooks.
+  const [reactorsSheet, setReactorsSheet] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyToMsg, setReplyToMsg] = useState(null);
   const [editingMsg, setEditingMsg] = useState(null);
@@ -6004,6 +6010,56 @@ const GlobalChatWidget = forwardRef(({
       </div>,
       document.body
     )}
+    {/* Reactors sheet — tapping an existing reaction pill shows who reacted
+        with that emoji (Instagram-style), self first with a tap-to-remove
+        row instead of the pill itself re-toggling the reaction. See
+        RoomChatPanel's identical sheet for the full reasoning. */}
+    {reactorsSheet && createPortal(
+      <div onClick={() => setReactorsSheet(null)} style={{position:'fixed',inset:0,zIndex:1000000,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'fadeIn 0.15s ease'}}>
+        <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,maxHeight:'65vh',display:'flex',flexDirection:'column',background: isLight ? '#fff' : '#1c1c1e',borderTopLeftRadius:20,borderTopRightRadius:20,boxShadow: '0 -8px 30px rgba(0,0,0,0.4)',animation:'reactorsSlideUp 0.2s cubic-bezier(0.22,1,0.36,1)'}}>
+          <div style={{display:'flex',justifyContent:'center',padding:'10px 0 6px'}}>
+            <div style={{width:36,height:4,borderRadius:2,background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)'}} />
+          </div>
+          <div style={{padding:'4px 20px 14px',fontWeight:800,fontSize:16,color: isLight ? '#0f172a' : '#fff',textAlign:'center',borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.08)'}}>
+            Reactions
+          </div>
+          <div className="no-scrollbar" style={{overflowY:'auto',padding:'6px 8px'}}>
+            {(() => {
+              const selfUid = reactorsSheet.users.find(u => (u||'').toLowerCase() === myUsername.toLowerCase());
+              const orderedUids = selfUid ? [selfUid, ...reactorsSheet.users.filter(u => u !== selfUid)] : reactorsSheet.users;
+              return orderedUids.map(uid => {
+                const uLower = (uid || '').toLowerCase();
+                const isSelf = uLower === myUsername.toLowerCase();
+                const isBlocked = !isSelf && (blockingMe.some(u => String(u||'').toLowerCase() === uLower) || blockedChats.some(u => String(u||'').toLowerCase() === uLower));
+                const fromMsg = messages.find(m => (isSelf ? m.isMe : ((m.senderName||m.username||'').toLowerCase() === uLower)) && m.senderAvatar);
+                let displayName = isSelf ? 'You' : (isBlocked ? 'User' : (fromMsg?.senderName || fromMsg?.username || (activeChat?.type === 'private' && (activeChat.partner||'').toLowerCase() === uLower ? activeChat.partner : uid)));
+                let avatarPath = isBlocked ? null : (fromMsg?.senderAvatar || (activeChat?.type === 'private' && (activeChat.partner||'').toLowerCase() === uLower ? activeChat.partnerAvatar : null));
+                const avatarSrc = getAvatarUrl(avatarPath);
+                return (
+                  <div
+                    key={uid}
+                    onClick={() => { if (isSelf) { handleReact(reactorsSheet.msgId, reactorsSheet.emoji); setReactorsSheet(null); } }}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',borderRadius:12,cursor: isSelf ? 'pointer' : 'default'}}
+                    onMouseEnter={isSelf ? (e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)') : undefined}
+                    onMouseLeave={isSelf ? (e => e.currentTarget.style.background = 'transparent') : undefined}
+                  >
+                    <div style={{ flexShrink:0, width:40, height:40, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:getAvatarColor(displayName) }}>
+                      {avatarSrc ? (<img src={avatarSrc} alt={displayName} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}}/>) : (<span className="stay-white" style={{color:'#fff',fontSize:13,fontWeight:700}}>{getInitials(displayName)}</span>)}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,color: isLight ? '#0f172a' : '#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{displayName}</div>
+                      {isSelf && <div style={{fontSize:12,color: isLight ? '#64748b' : '#9ca3af'}}>Tap to remove</div>}
+                    </div>
+                    <span style={{fontSize:20,flexShrink:0}}>{reactorsSheet.emoji}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
     <div ref={containerRef} className={`chat-widget-main-panel${transparentMode ? ' gcw-force-dark' : ''}`} style={{
         position: 'fixed',
         top: transparentMode ? 0 : 80,
@@ -7626,6 +7682,7 @@ const GlobalChatWidget = forwardRef(({
                                 : (activeWallpaper ? `msg-received${(!msg.isPoll && wallpaperIsDark) ? ' stay-white' : ''}` : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
+                              onDoubleClick={(e) => { e.stopPropagation(); handleReact(msg.id, '❤️'); }}
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
@@ -7902,7 +7959,7 @@ const GlobalChatWidget = forwardRef(({
                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div style={{display:'flex',gap:4,marginTop:2,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start'}}>
                               {Object.entries(msg.reactions).map(([em, users]) => users.length > 0 && (
-                                <span key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: isLight ? '#1e293b' : '#ddd'}}>
+                                <span key={em} onClick={(e)=>{e.stopPropagation(); setReactorsSheet({ msgId: msg.id, emoji: em, users });}} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: isLight ? '#1e293b' : '#ddd'}}>
                                   {em} {users.length>1?users.length:''}
                                 </span>
                               ))}

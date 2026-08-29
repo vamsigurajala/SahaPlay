@@ -703,6 +703,8 @@ const MenuStyles = () => (
     @keyframes pulse-red { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes wave-bar { from { height: 3px; } to { height: 100%; } }
+    @keyframes reactorsFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes reactorsSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     /* ── Document card text: override msg-sent/stay-white !important rules in light mode ── */
     html[data-theme='light'] .fc-name,
     html[data-theme='light'] .msg-sent .fc-name,
@@ -1766,6 +1768,13 @@ export default function RoomChatPanel({ p }) {
   });
   const [deleteChatConfirm, setDeleteChatConfirm] = React.useState(null); // { key, type, name }
   const [blockUserConfirm, setBlockUserConfirm] = React.useState(null); // { username }
+  // Who-reacted-with-this-emoji sheet (tapping an existing reaction pill) —
+  // { msgId, emoji, uids, chatType: 'group'|'dm' }. Reads the reactor list
+  // it was opened with rather than staying live-bound to the message, so
+  // tapping "remove" can just close it — the pill's own count/highlight
+  // already updates from the real (unchanged) reaction sync the moment the
+  // removal round-trips.
+  const [reactorsSheet, setReactorsSheet] = React.useState(null);
 
   React.useEffect(() => {
     const handleStorage = (e) => {
@@ -3101,7 +3110,8 @@ export default function RoomChatPanel({ p }) {
                           columnGap: 6
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
-                        onMouseLeave={() => setHoveredMsgId(null)}>
+                        onMouseLeave={() => setHoveredMsgId(null)}
+                        onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); }}>
                           <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                             {!msg.mediaType && msg.forwarded && (
                               <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -3284,7 +3294,7 @@ export default function RoomChatPanel({ p }) {
                   </div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                     {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                      <button key={emoji} onClick={()=>p.handleGroupReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
+                      <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'group' }); }} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
                         {emoji} {uids.length}
                       </button>
                     ))}
@@ -3907,7 +3917,8 @@ export default function RoomChatPanel({ p }) {
                                 columnGap: 6
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
-                              onMouseLeave={() => setHoveredMsgId(null)}>
+                              onMouseLeave={() => setHoveredMsgId(null)}
+                              onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); }}>
                                 <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                   {!msg.mediaType && msg.forwarded && (
                                     <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -4094,7 +4105,7 @@ export default function RoomChatPanel({ p }) {
                         </div>
                         <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                            <button key={emoji} onClick={()=>p.handleDmReact(msg.id || msg.timestamp, emoji)} style={{background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.07)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
+                            <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'dm' }); }} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}
                             </button>
                           ))}
@@ -4592,6 +4603,59 @@ export default function RoomChatPanel({ p }) {
                 style={{padding:'12px 24px',background:'linear-gradient(135deg,#ef4444,#dc2626)',border:'none',borderRadius:14,color:'#fff',cursor:'pointer',fontWeight:800,fontSize:14, boxShadow: '0 4px 12px rgba(239,68,68,0.3)', transition: 'all 0.2s'}} onMouseEnter={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseLeave={e=>e.currentTarget.style.transform='translateY(0)'}>
                 <span className="stay-white" style={{color: '#fff'}}>{blockedChats.some(u => u.toLowerCase() === blockUserConfirm.username.toLowerCase()) ? 'Unblock' : 'Block'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reactors sheet — tapping an existing reaction pill shows who reacted
+          with that emoji (Instagram-style), self first with a tap-to-remove
+          row instead of the pill itself re-toggling the reaction. Bottom-
+          anchored to match the reference UI; scrolls once the list is
+          taller than the sheet, which is the only thing that changes
+          between a DM (at most one other reactor) and a group. */}
+      {reactorsSheet && (
+        <div onClick={() => setReactorsSheet(null)} style={{position:'fixed',inset:0,zIndex:99999,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'flex-end',justifyContent:'center',animation:'reactorsFade 0.15s ease'}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,maxHeight:'65vh',display:'flex',flexDirection:'column',background: isLight ? '#fff' : '#1c1c1e',borderTopLeftRadius:20,borderTopRightRadius:20,boxShadow: '0 -8px 30px rgba(0,0,0,0.4)',animation:'reactorsSlideUp 0.2s cubic-bezier(0.22,1,0.36,1)'}}>
+            <div style={{display:'flex',justifyContent:'center',padding:'10px 0 6px'}}>
+              <div style={{width:36,height:4,borderRadius:2,background: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)'}} />
+            </div>
+            <div style={{padding:'4px 20px 14px',fontWeight:800,fontSize:16,color: isLight ? '#0f172a' : '#fff',textAlign:'center',borderBottom: isLight ? '1px solid #f1f5f9' : '1px solid rgba(255,255,255,0.08)'}}>
+              Reactions
+            </div>
+            <div className="no-scrollbar" style={{overflowY:'auto',padding:'6px 8px'}}>
+              {(() => {
+                const selfUid = reactorsSheet.uids.find(u => u === p.username);
+                const orderedUids = selfUid ? [selfUid, ...reactorsSheet.uids.filter(u => u !== p.username)] : reactorsSheet.uids;
+                return orderedUids.map(uid => {
+                  const isSelf = uid === p.username;
+                  const isBlocked = blockedChats.some(u => u.toLowerCase() === uid.toLowerCase()) || blockingMe.some(u => u.toLowerCase() === uid.toLowerCase());
+                  const displayName = isSelf ? 'You' : (isBlocked ? 'User' : formatUsername(uid));
+                  const fallbackAvatar = p.knownAvatars?.[uid] || p.knownAvatars?.[uid.toLowerCase()];
+                  const avatarSrc = isBlocked ? null : getAvatarUrl(fallbackAvatar);
+                  return (
+                    <div
+                      key={uid}
+                      onClick={() => {
+                        if (!isSelf) return;
+                        if (reactorsSheet.chatType === 'group') p.handleGroupReact(reactorsSheet.msgId, reactorsSheet.emoji);
+                        else p.handleDmReact(reactorsSheet.msgId, reactorsSheet.emoji);
+                        setReactorsSheet(null);
+                      }}
+                      style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',borderRadius:12,cursor: isSelf ? 'pointer' : 'default'}}
+                      onMouseEnter={isSelf ? (e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)') : undefined}
+                      onMouseLeave={isSelf ? (e => e.currentTarget.style.background = 'transparent') : undefined}
+                    >
+                      <Avatar name={displayName} size={40} src={avatarSrc} />
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:600,color: isLight ? '#0f172a' : '#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{displayName}</div>
+                        {isSelf && <div style={{fontSize:12,color: isLight ? '#64748b' : '#9ca3af'}}>Tap to remove</div>}
+                      </div>
+                      <span style={{fontSize:20,flexShrink:0}}>{reactorsSheet.emoji}</span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>
