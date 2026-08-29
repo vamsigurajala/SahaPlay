@@ -3042,6 +3042,11 @@ const Room = () => {
     // Note: checkUnread polling (every 5s) will reconcile totalUnread with the server.
   }, [roomId]);
 
+  // Stable reference (not an inline arrow at the JSX callsite) so it doesn't
+  // by itself defeat GlobalChatWidget's React.memo on every render this page
+  // does for unrelated reasons (e.g. typing in RoomChatPanel's composer).
+  const handleCloseRecentChats = useCallback(() => setShowRecentChats(false), []);
+
   // Called by GlobalChatWidget or RoomChatPanel when "Mark all as read" is clicked
   const handleMarkAllRead = useCallback(() => {
     // Atomically clear all unread state
@@ -13481,7 +13486,7 @@ const Room = () => {
               <GlobalChatWidget
                 ref={chatWidgetRef}
                 isOpen={showRecentChats}
-                onClose={() => setShowRecentChats(false)}
+                onClose={handleCloseRecentChats}
                 unreadCounts={unreadCounts}
                 onMarkRead={handleMarkRead}
                 onMarkAllRead={handleMarkAllRead}

@@ -1481,7 +1481,15 @@ function MessageText({ text, isMe, isLight }) {
   );
 }
 
-const GlobalChatWidget = forwardRef(({ 
+// React.memo — this panel is mounted alongside a chat composer elsewhere
+// on the page (e.g. Room.jsx's own RoomChatPanel) whose every keystroke
+// re-renders that parent; without this, this whole ~9k-line widget (its
+// own message list included) was re-rendering in lockstep with typing it
+// has nothing to do with, on every character. Only helps as much as the
+// props passed in are actually stable across those re-renders — see each
+// caller's own props (Room.jsx wraps its inline onClose in useCallback
+// for exactly this reason).
+const GlobalChatWidget = React.memo(forwardRef(({
   isOpen, 
   onClose, 
   unreadCounts, 
@@ -8023,7 +8031,10 @@ const GlobalChatWidget = forwardRef(({
                             )}
 
                                                     <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: metaIsLight ? '#111' : '#aaa',padding:2}}>
+                              {/* Wallpaper active — stay fully white, not the dimmer
+                                  '#aaa' meant for plain dark mode, which still read as
+                                  too dark against a wallpaper backdrop. */}
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: activeWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#111' : '#aaa'),padding:2}}>
                                 <SmilePlus size={16}/>
                               </button>
                             </div>
@@ -9088,7 +9099,7 @@ const GlobalChatWidget = forwardRef(({
     )}
     </div>
   );
-});
+}));
 
 GlobalChatWidget.displayName = 'GlobalChatWidget';
 
