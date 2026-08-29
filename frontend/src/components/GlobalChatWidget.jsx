@@ -4368,26 +4368,32 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const localClearedAt = Number(existing?.clearedAt) || 0;
           const keepClearedAt = localClearedAt > 0 && serverTs <= localClearedAt;
 
-          // finalC.unread (the server's own count) is left as-is here, deliberately —
-          // there used to be a "keepUnreadZero" override that forced unread back to 0
-          // whenever *any* lastSeen timestamp existed for this chat and the LOCAL
-          // (cached/in-memory) conversation already showed unread:0. That was meant to
-          // stop a stale server response from re-flashing a badge right after the user
-          // marked a chat read (see openChat/markChatAsRead, which already writes a
-          // fresh lastSeen via onMarkRead before any refetch would run — so the server
-          // is already correct by the time this merge sees it, making the override
-          // redundant for that case). It actively broke the opposite, far more common
-          // case: cold-starting the app after a push notification arrived while it was
-          // closed. The cached list from before still shows unread:0 for that chat
-          // (correct, for what it was then) and lastSeen for that chat is some old,
-          // perfectly ordinary timestamp from whenever it was last actually read —
-          // both conditions the override was checking for, even though nothing about
-          // THIS message had been seen at all. finalC.unread already correctly reflects
-          // "messages after lastSeen" (the server computes it from the very same
-          // lastSeen this request just sent), so it's the authoritative value; there is
-          // no case where second-guessing it here helps rather than hides a real unread
-          // count. This was the reason a notification's badge showed up top (driven by
-          // a separate, unaffected poll) but every row in the opened list showed none.
+          // finalC.unread (the server's own count) is trusted by default — it already
+          // factors in the very same lastSeen this request just sent. The one exception:
+          // if OUR OWN lastSeen cutoff for this chat is at or after this row's own
+          // lastTimestamp, no message in it can possibly be unread, full stop — that's
+          // true by definition regardless of what finalC.unread says. This matters right
+          // after the user actually reads a chat: markChatAsRead's chat:mark_read socket
+          // emit updates the server's persisted lastSeen asynchronously (a DB write), and
+          // this same widget refetches on every socket reconnect (a network blip, or
+          // several other everyday triggers already elsewhere in this file) — if that
+          // refetch's GET request lands before the mark-read write has committed, the
+          // server would truthfully report its own not-yet-updated count, which used to
+          // flash the badge back on right after reading it.
+          //
+          // A prior version of this check instead asked "does *any* lastSeen exist here,
+          // and does the locally cached copy already read 0" — which is also true, for a
+          // totally different and far more common reason, the very first time this chat's
+          // row is fetched after the app was fully closed and a message arrived while it
+          // was: the cached copy is correctly still 0 from before, and lastSeen is simply
+          // whenever this chat was last read, ordinarily and unrelated to the new message.
+          // That version couldn't tell the two apart and force-zeroed both, which is what
+          // made every row in the list show no badge after a cold start. Comparing actual
+          // timestamps instead of presence/cached-value tells them apart directly: only
+          // the first case has seenTs sitting at or after this row's own lastTimestamp.
+          const seenTs = lastSeen[chatKey] || lastSeen[chatKey.toLowerCase()] || 0;
+          const definitelyRead = seenTs > 0 && serverTs > 0 && seenTs >= serverTs;
+
           return {
             ...finalC,
             decryptedText: betterDecryptedText,
@@ -4396,6 +4402,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             lastMediaDuration: betterMediaDuration,
             message: betterMessage,
             ...(keepClearedAt ? { clearedAt: localClearedAt } : {}),
+            ...(definitelyRead ? { unread: 0 } : {}),
           };
         });
 
