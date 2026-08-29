@@ -1637,6 +1637,18 @@ const GlobalChatWidget = forwardRef(({
       else sessionStorage.removeItem('gcw_active_chat');
     } catch {}
   }, [activeChat]);
+  // Prefetch the Room route's lazy chunk (App.jsx: lazy(() => import('./Room')))
+  // as soon as a room-type conversation is open here, well before the user
+  // might tap the group name to jump there. Room.jsx is a large chunk; if it
+  // isn't already cached, clicking the header used to leave the PREVIOUS page
+  // (behind this widget, which closes itself first — see that onClick) fully
+  // visible for however long the fetch+parse took, since the route's own
+  // Suspense fallback is deliberately delayed 200ms so it doesn't flash for
+  // fast/cached loads — which read as "it shows the home page, then
+  // redirects" instead of a direct, instant jump into the room.
+  useEffect(() => {
+    if (activeChat?.type === 'room') import('../Room').catch(() => {});
+  }, [activeChat?.type, activeChat?.id, activeChat?.partner]);
   useEffect(() => {
     try { sessionStorage.setItem('gcw_is_open', isOpen ? 'true' : 'false'); } catch {}
   }, [isOpen]);
