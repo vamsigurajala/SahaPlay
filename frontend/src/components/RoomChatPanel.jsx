@@ -3426,6 +3426,14 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                        // Re-captured on every physical tap (not just onFocus
+                        // below) — see the matching comment on this ref's
+                        // declaration: dismissing the keyboard via Android's
+                        // back gesture doesn't always fire a real blur event,
+                        // so a second tap after scrolling up can produce no
+                        // fresh focus event at all, leaving this stuck at
+                        // whatever it was from the FIRST tap.
+                        onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
                         onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
                         onBlur={() => { composerFocusedRef.current = false; }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
@@ -4299,6 +4307,9 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                            // See the identical comment on the group composer's
+                            // textarea above — same fix, same reason.
+                            onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
                             onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
                             onBlur={() => { composerFocusedRef.current = false; }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}

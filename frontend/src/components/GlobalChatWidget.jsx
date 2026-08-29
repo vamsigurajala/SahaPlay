@@ -8287,6 +8287,21 @@ const GlobalChatWidget = forwardRef(({
                             }
                           }}
                           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                          // Re-captured on every physical tap, not just
+                          // onFocus below: dismissing the on-screen keyboard
+                          // via Android's back gesture doesn't always fire a
+                          // real blur event, so the textarea can stay
+                          // logically "focused" the whole time — meaning a
+                          // second tap after scrolling up produced no fresh
+                          // focus event at all, and wasNearBottomOnFocusRef
+                          // kept whatever value it had from the FIRST tap
+                          // (often true, from back when the user really was
+                          // at the bottom), snapping the list back down every
+                          // time regardless of where they'd since scrolled.
+                          // pointerdown fires on every tap unconditionally,
+                          // before the click/focus events, so it always
+                          // re-measures the real pre-keyboard scroll position.
+                          onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
                           style={{
                             flex: 1,
                             resize: 'none',
