@@ -19,6 +19,7 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
+import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
@@ -1281,6 +1282,13 @@ export default function RoomChatPanel({ p }) {
   });
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
+  // Gives the wallpaper backdrops below a fixed pixel height instead of one
+  // that shrinks whenever the on-screen keyboard opens (which is what made
+  // the wallpaper image visibly recompute its crop and slide). Read
+  // directly from window.innerHeight and clamped to the largest value ever
+  // seen, so it's known synchronously on first paint — same mechanism
+  // GlobalChatWidget's own wallpaper backdrop already uses successfully.
+  const stableViewportHeight = useStableViewportHeight();
 
   // Which message keys have already had their slideIn "msg-enter" entrance
   // animation play at least once — an optimistically-sent message goes
@@ -2752,30 +2760,26 @@ export default function RoomChatPanel({ p }) {
           {/* Shared wallpaper backdrop — one continuous image behind the
               header, message list AND composer, same "single layer, both
               scrollable content and composer go transparent" pattern
-              GlobalChatWidget.jsx uses for its DM chat.
-              inset:0 — matching this wrapper's OWN live box exactly, not an
-              explicit pixel height larger than it — is deliberate: an
-              earlier version gave this an explicit height clamped to the
-              largest viewport ever seen (useStableViewportHeight), sized
-              bigger than the wrapper so it wouldn't need to recompute its
-              background-size:cover crop as the wrapper shrank for the
-              keyboard. That's a real box taller than its clipping
-              container, relying entirely on overflow:hidden to hide the
-              excess — which was still occasionally visible for a frame on a
-              fast keyboard open/close (a swipe-back gesture while the
-              composer is focused, i.e. several native resize events landing
-              back-to-back), read as this content briefly painting over the
-              room's own top nav bar above the panel. inset:0 makes that
-              structurally impossible: the backdrop can never be larger than
-              its own container, so there is nothing for any clipping lapse
-              to reveal, on any device or WebView, regardless of how the
-              compositor behaves mid-resize. The trade-off is accepting a
-              minor background-position recompute during the keyboard's own
-              animation, same as most apps' wallpaper implementations — a
-              much smaller issue than content escaping the chat entirely. */}
+              GlobalChatWidget.jsx uses for its DM chat — and now the SAME
+              sizing approach too (useStableViewportHeight), after a detour:
+              a plain inset:0 (matching this wrapper's live, keyboard-
+              shrinking box exactly, no possibility of being larger than it)
+              was tried to rule out the wallpaper as the source of a leak
+              report — the actual cause turned out to be a contain:paint +
+              compositing-layer promotion added to #room-chat-panel at the
+              same time (see that div's own comment), not this backdrop's
+              sizing. With that reverted, this goes back to matching
+              GlobalChatWidget's own backdrop exactly: an explicit height
+              from useStableViewportHeight (window.innerHeight, clamped to
+              the largest value ever seen, known synchronously on first
+              paint) instead of tracking this wrapper's live height, so the
+              background-size:cover crop has nothing to recompute as the
+              wrapper shrinks for the keyboard — which is what was reading
+              as the wallpaper visibly sliding under the chat's own header. */}
           {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
-              position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+              ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -3498,7 +3502,8 @@ export default function RoomChatPanel({ p }) {
                 group chat thread above; same fix, same reason. */}
             {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
-                position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+                ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />
