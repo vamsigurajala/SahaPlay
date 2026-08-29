@@ -10706,23 +10706,36 @@ const Room = () => {
 
       {/* Chat bubble "Customize" theme sheet — shared by RoomChatPanel's DM and
           group chat "..." menus (see openChatThemeSheet). Tapping a swatch
-          applies + persists immediately; no separate "Apply" step. */}
+          applies + persists immediately; no separate "Apply" step.
+          Theme-aware (isLight) throughout, matching GlobalChatWidget's own
+          copy of this exact sheet — this one used to be hardcoded dark
+          regardless of the app's light/dark setting. In light mode that
+          happened to LOOK roughly right anyway, purely by coincidence:
+          App.jsx's global "force a light background on any inline-styled
+          fixed-position modal" rule (see its own comment) was clobbering
+          this card's hardcoded #111114 to a near-white #f7f8fc — but every
+          text/pill color below stayed hardcoded for dark mode regardless,
+          reading as low-contrast/washed-out. chat-theme-sheet-overlay is now
+          also registered in that rule's exclusion list, so the backdrop
+          keeps its real translucent scrim (dimming the room behind it)
+          instead of also being forced pale. */}
       {showThemeSheet && themeSheetTarget && createPortal(
         <div
           onMouseDown={() => setShowThemeSheet(false)}
+          className="chat-theme-sheet-overlay"
           style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
         >
           <div
             onMouseDown={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto',
-              background: '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
+              background: isLight ? '#ffffff' : '#111114', borderRadius: '24px 24px 0 0', padding: '10px 20px 28px',
               boxShadow: '0 -20px 60px rgba(0,0,0,0.6)', animation: 'scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
             className="no-scrollbar"
           >
-            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
-            <div style={{ textAlign: 'center', color: '#fff', fontWeight: 800, fontSize: 17, marginBottom: 16 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.25)', margin: '4px auto 16px' }} />
+            <div style={{ textAlign: 'center', color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17, marginBottom: 16 }}>
               {t('customizeChat', 'Customize')}
             </div>
 
@@ -10737,8 +10750,8 @@ const Room = () => {
                     style={{
                       padding: '6px 14px', borderRadius: 20, border: 'none',
                       fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
-                      background: active ? '#a855f7' : 'rgba(255,255,255,0.1)',
-                      color: active ? '#ffffff' : '#cbd5e1',
+                      background: active ? '#a855f7' : (isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)'),
+                      color: active ? '#ffffff' : (isLight ? '#475569' : '#cbd5e1'),
                       transition: 'all 0.2s ease',
                     }}
                   >
@@ -10761,7 +10774,7 @@ const Room = () => {
                   {showColors && (
                     <>
                       {themeCategoryFilter === 'all' && (
-                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+                        <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                           {t('colors', 'Colors')}
                         </div>
                       )}
@@ -10779,7 +10792,7 @@ const Room = () => {
                                 border: selected ? '3px solid #fff' : '3px solid transparent',
                                 boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.5)' : '0 4px 14px rgba(0,0,0,0.4)',
                               }} />
-                              <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
+                              <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85 }}>{t(`chatTheme${th.id.charAt(0).toUpperCase()}${th.id.slice(1)}`, th.name)}</span>
                             </button>
                           );
                         })}
@@ -10790,7 +10803,7 @@ const Room = () => {
                   {showWallpapers && (
                     <>
                       {themeCategoryFilter === 'all' && (
-                        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
+                        <div style={{ textAlign: 'center', color: isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.5)', fontWeight: 700, fontSize: 12, letterSpacing: '0.6px', textTransform: 'uppercase', marginTop: 10 }}>
                           {t('chatBackgrounds', 'Backgrounds')}
                         </div>
                       )}
@@ -10810,7 +10823,7 @@ const Room = () => {
                                 border: selected ? '3px solid #fff' : '3px solid transparent',
                                 boxShadow: selected ? '0 0 0 2px rgba(255,255,255,0.9), 0 6px 20px rgba(0,0,0,0.6)' : '0 4px 14px rgba(0,0,0,0.4)',
                               }} />
-                              <span style={{ color: '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
+                              <span style={{ color: isLight ? '#0f172a' : '#fff', fontSize: 13, fontWeight: selected ? 800 : 500, opacity: selected ? 1 : 0.85, textAlign: 'center', wordBreak: 'break-word' }}>{t(bgKey, w.name)}</span>
                             </button>
                           );
                         })}
