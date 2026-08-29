@@ -19,10 +19,33 @@ export function useSwipeToReply() {
   const [bounceId, setBounceId] = useState(null);
   const bounceTimerRef = useRef(null);
   const stateRef = useRef({ startX: 0, startY: 0, id: null, direction: null, onReply: null, dragging: false, thresholdMet: false });
+  // dragX/isThresholdMet are shared state read by every row's inline style
+  // (translateX, the reply-icon's opacity/scale) — this whole message list
+  // sits inside one big component, so committing a fresh value on every raw
+  // touchmove tick (which can fire well over 60 times/sec on a fast drag)
+  // was forcing a full re-render of that entire component that often, not
+  // just of the one row actually moving. rAF-throttling coalesces a burst of
+  // ticks between two frames into a single commit — visually indistinguishable
+  // from updating on every tick (the browser only ever paints once per frame
+  // anyway) but caps the re-render rate at the browser's own frame budget
+  // instead of the raw touch-event rate, which is what read as sluggish.
+  const rafRef = useRef(null);
+  const pendingRef = useRef(null);
+
+  const flushPending = useCallback(() => {
+    rafRef.current = null;
+    if (!pendingRef.current) return;
+    const { x, thresholdMet } = pendingRef.current;
+    pendingRef.current = null;
+    setDragX(x);
+    setIsThresholdMet(thresholdMet);
+  }, []);
 
   const onTouchStart = useCallback((e, id, direction, onReply) => {
     const touch = e.touches[0];
     if (!touch) return;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    pendingRef.current = null;
     stateRef.current = { startX: touch.clientX, startY: touch.clientY, id, direction, onReply, dragging: true, thresholdMet: false };
     setActiveId(id);
     setIsDragging(true);
@@ -47,14 +70,16 @@ export function useSwipeToReply() {
     const cappedCapped = Math.min(capped, MAX_DRAG);
     const sign = s.direction === 'right' ? 1 : -1;
     s.thresholdMet = absDelta >= THRESHOLD;
-    setDragX(sign * cappedCapped);
-    setIsThresholdMet(s.thresholdMet);
-  }, []);
+    pendingRef.current = { x: sign * cappedCapped, thresholdMet: s.thresholdMet };
+    if (!rafRef.current) rafRef.current = requestAnimationFrame(flushPending);
+  }, [flushPending]);
 
   const onTouchEnd = useCallback(() => {
     const s = stateRef.current;
     if (!s.dragging) return;
     s.dragging = false;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    pendingRef.current = null;
     setIsDragging(false);
     if (s.thresholdMet && s.onReply) {
       s.onReply();

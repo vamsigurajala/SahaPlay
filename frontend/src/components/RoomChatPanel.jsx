@@ -3344,7 +3344,11 @@ export default function RoomChatPanel({ p }) {
             <div ref={p.messagesEndRef}/>
           </div>
           {p.groupReplyTo && (
-            <div style={{padding:'6px 12px',background:'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+            // Solid fill, not a faint tint the wallpaper/theme shows through
+            // — matches Instagram's reply preview (fully opaque, everything
+            // in it clearly readable regardless of what's behind the
+            // composer). Same solid shade the composer's own input uses.
+            <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
               <span><span style={{color:'var(--brand-1)',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
                 const r = p.groupReplyTo;
                 if (r.mediaType) { const rmt3=r.mediaType; return rmt3.startsWith('video')?'Video':rmt3.startsWith('image')?'Photo':rmt3.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
@@ -3357,7 +3361,8 @@ export default function RoomChatPanel({ p }) {
             </div>
           )}
           {p.groupEditingMessage && (
-            <div style={{padding:'6px 12px',background:'rgba(56,189,248,0.08)',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+            // Same solid-fill treatment as the reply preview above.
+            <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
               <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
               <button onClick={()=>{ p.setGroupEditingMessage(null); p.setGroupChatInput(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
             </div>
@@ -4164,7 +4169,9 @@ export default function RoomChatPanel({ p }) {
                 </div>
                 <div style={{padding:'10px 12px',flexShrink:0,position:'relative'}}>
                   {p.dmReplyTo && (
-                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(var(--brand-1-rgb),0.04)' : 'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+                    // Solid fill — see the identical comment on the group
+                    // reply preview above.
+                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <span><span style={{color:'var(--brand-1)',fontWeight:600}}>
                         {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                       </span> {(() => {
@@ -4177,7 +4184,9 @@ export default function RoomChatPanel({ p }) {
                     </div>
                   )}
                   {p.dmEditingMessage && (
-                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? 'rgba(56,189,248,0.05)' : 'rgba(56,189,248,0.08)',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+                    // Solid fill — see the identical comment on the group
+                    // reply preview above.
+                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                       <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
                       <button onClick={()=>{ p.setDmEditingMessage(null); p.setDmChatInput(''); }} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>

@@ -8159,7 +8159,11 @@ const GlobalChatWidget = forwardRef(({
             ) : (
               <>
                 {replyToMsg && (
-                  <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(var(--brand-1-rgb),0.08)',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+                  // Solid fill, not a faint tint the wallpaper/theme shows
+                  // through — matches Instagram's reply preview (fully
+                  // opaque, readable regardless of what's behind the
+                  // composer). Same solid shade the composer's own input uses.
+                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
                     <span><span style={{color:'var(--brand-1)',fontWeight:600}}>{replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}: </span>{(() => {
                       const r = replyToMsg;
                       if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
@@ -8172,7 +8176,8 @@ const GlobalChatWidget = forwardRef(({
                   </div>
                 )}
                 {editingMsg && (
-                  <div style={{padding:'6px 12px',marginBottom:6,background:'rgba(56,189,248,0.08)',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+                  // Same solid-fill treatment as the reply preview above.
+                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
                     <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
                     <button onClick={()=>{ setEditingMsg(null); setInputValue(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
                   </div>
