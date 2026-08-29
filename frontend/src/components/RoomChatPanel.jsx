@@ -2078,7 +2078,7 @@ export default function RoomChatPanel({ p }) {
     inlineNoticeTimerRef.current = setTimeout(() => setInlineNotice(null), 3000);
   }, []);
 
-  const handleFileSelect = async (e, type) => {
+  const handleFileSelect = async (e, type, caption = '') => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
@@ -2111,9 +2111,9 @@ export default function RoomChatPanel({ p }) {
       for (const file of files) {
         const objectUrl = URL.createObjectURL(file);
         if (type === 'group') {
-          await p.sendMediaGroupChat(objectUrl, getMediaType(file), p.groupReplyTo, file, null, mediaGroupId);
+          await p.sendMediaGroupChat(objectUrl, getMediaType(file), p.groupReplyTo, file, null, mediaGroupId, caption);
         } else {
-          await p.sendMediaDmChat(objectUrl, getMediaType(file), p.dmReplyTo, file, null, mediaGroupId);
+          await p.sendMediaDmChat(objectUrl, getMediaType(file), p.dmReplyTo, file, null, mediaGroupId, caption);
         }
       }
       if (type === 'group') p.setGroupReplyTo(null); else p.setDmReplyTo(null);
@@ -3728,11 +3728,10 @@ export default function RoomChatPanel({ p }) {
                       {showGroupCamera && createPortal(
                         <CameraCapture
                           onCapture={async (file, caption) => {
-                            await handleFileSelect({ target: { files: [file], value: null } }, 'group');
-                            if (caption && caption.trim()) {
-                              p.setGroupChatInput(caption.trim());
-                              setTimeout(() => groupFormRef.current?.requestSubmit(), 60);
-                            }
+                            // Caption rides along in the SAME message as the
+                            // image (WhatsApp-style), not as a second,
+                            // separate text message sent right after.
+                            await handleFileSelect({ target: { files: [file], value: null } }, 'group', caption && caption.trim() ? caption.trim() : '');
                           }}
                           onClose={() => setShowGroupCamera(false)}
                         />,
@@ -4667,11 +4666,10 @@ export default function RoomChatPanel({ p }) {
                           {showDmCamera && createPortal(
                             <CameraCapture
                               onCapture={async (file, caption) => {
-                                await handleFileSelect({ target: { files: [file], value: null } }, 'dm');
-                                if (caption && caption.trim()) {
-                                  p.setDmChatInput(caption.trim());
-                                  setTimeout(() => dmFormRef.current?.requestSubmit(), 60);
-                                }
+                                // Caption rides along in the SAME message as
+                                // the image (WhatsApp-style), not as a
+                                // second, separate text message sent right after.
+                                await handleFileSelect({ target: { files: [file], value: null } }, 'dm', caption && caption.trim() ? caption.trim() : '');
                               }}
                               onClose={() => setShowDmCamera(false)}
                             />,

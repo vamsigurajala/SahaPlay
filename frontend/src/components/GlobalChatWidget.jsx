@@ -641,7 +641,7 @@ import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
-import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia } from '../lib/crypto';
+import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia, packMediaKeyAndCaption, unpackMediaKeyAndCaption } from '../lib/crypto';
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -3282,9 +3282,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
               const userKeyWrap = msg.e2ee.keys[myUsername?.toLowerCase()];
               if (userKeyWrap) {
                 if (msg.mediaType && msg.mediaUrl) {
-                  // msg.message holds the ENCRYPTED MEDIA KEY
+                  // msg.message holds the ENCRYPTED MEDIA KEY (and, if this
+                  // media was sent with a caption, that caption too — see
+                  // packMediaKeyAndCaption).
                   decryptedMessage = '';
-                  const mediaKeyB64 = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey);
+                  const decryptedPayload = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey);
+                  const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
+                  decryptedMessage = caption;
                   if (mediaKeyB64) {
                     const msgKey = msg.id || msg.tempId || String(msg.timestamp);
                     const targetMediaUrl = msg.mediaUrl;
@@ -3321,13 +3325,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 const plain = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(activeKey.secretKey));
                 if (plain) {
                   if (msg.mediaType) {
-                    // plain = the base64 media key — schedule async file decrypt
+                    // plain = the base64 media key, plus a caption if one was
+                    // sent alongside — see packMediaKeyAndCaption.
+                    const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                    decryptedMessage = caption;
                     const msgKey = msg.id || msg.tempId || String(msg.timestamp);
                     const targetMediaUrl = msg.mediaUrl;
                     const targetMediaType = msg.mediaType;
                     (async () => {
                       try {
-                        const mediaKeyBytes = robustDecode(plain);
+                        const mediaKeyBytes = robustDecode(mediaKeyB64);
                         const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
                         const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -3349,9 +3356,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
               const senderPK = msg.ephemeralPublicKey || msg.senderPublicKey || null;
               if (senderPK) {
                 if (msg.mediaType && msg.mediaUrl) {
-                  // msg.message holds the ENCRYPTED MEDIA KEY — always clear it from display
+                  // msg.message holds the ENCRYPTED MEDIA KEY (plus a caption,
+                  // if one was sent alongside — see packMediaKeyAndCaption).
                   decryptedMessage = '';
-                  const mediaKeyB64 = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey));
+                  const decryptedPayload = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey));
+                  const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
+                  decryptedMessage = caption;
                   if (mediaKeyB64) {
                     const msgKey = msg.id || String(msg.timestamp);
                     const targetMediaUrl = msg.mediaUrl;
@@ -4495,7 +4505,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
               if (plainText) {
                 if (m.mediaType && m.mediaUrl) {
                   try {
-                    const mediaKeyBytes = robustDecode(plainText);
+                    const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plainText);
+                    const mediaKeyBytes = robustDecode(mediaKeyB64);
                     const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
                     const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -4505,7 +4516,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     // permanent file URL — not the blob: object URL. Rendering reads the
                     // decrypted blob from decryptedMediaUrls above; mediaUrl must stay
                     // forwardable/fetchable by anyone, not just this tab.
-                    decryptedText = '';
+                    decryptedText = caption;
                   } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
                 } else { decryptedText = plainText; }
               }
@@ -4514,7 +4525,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
             if (senderPK) {
               if (m.mediaType && m.mediaUrl) {
-                const mediaKeyB64 = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
+                const decryptedPayload = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
+                const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
                 if (mediaKeyB64) {
                   try {
                     const mediaKeyBytes = robustDecode(mediaKeyB64);
@@ -4524,7 +4536,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
                     // decryptedMediaUrl stays m.mediaUrl — see sender-copy branch above.
-                    decryptedText = '';
+                    decryptedText = caption;
                   } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
                 }
               } else if (m.message && m.message !== '') {
@@ -4539,7 +4551,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const userKeyWrap = e2eeData.keys[myUsername?.toLowerCase()];
             if (userKeyWrap) {
               if (m.mediaType && m.mediaUrl) {
-                const mediaKeyB64 = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
+                const decryptedPayload = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
+                const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
                 if (mediaKeyB64) {
                   try {
                     const mediaKeyBytes = robustDecode(mediaKeyB64);
@@ -4549,7 +4562,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
                     decryptedMediaUrls.current[msgKey] = objectUrl;
                     // decryptedMediaUrl stays m.mediaUrl — see DM branches above.
-                    decryptedText = '';
+                    decryptedText = caption;
                   } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
                 }
               } else if (m.message && m.message !== '') {
@@ -5336,7 +5349,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     await commitEditedText(target, JSON.stringify(pollDef));
   };
 
-  const handleMediaUpload = async (file, mediaDuration = null, mediaGroupId = null) => {
+  const handleMediaUpload = async (file, mediaDuration = null, mediaGroupId = null, caption = '') => {
     const validation = validateFile(file);
     if (!validation.valid) { showInlineNotice(validation.error); return; }
 
@@ -5353,6 +5366,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       isMe: true,
       senderName: myUsername,
       message: '',
+      decryptedText: caption || '',
       mediaUrl: objectUrl,
       mediaType: file.type,
       mediaDuration: mediaDuration || null,
@@ -5430,8 +5444,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
              if (pkResLower.ok) targetPubKey = (await pkResLower.json()).publicKey;
           }
           if (targetPubKey) {
-            // STRATEGY: Encrypt the media key, not the URL.
-            const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(keyPair.publicKey));
+            // STRATEGY: Encrypt the media key, not the URL. A caption (if any)
+            // rides along in the same encrypted payload — see
+            // packMediaKeyAndCaption's own comment for why.
+            const enc = encryptDM(packMediaKeyAndCaption(mediaKeyB64, caption), targetPubKey, encodeBase64(keyPair.publicKey));
             messagePayload = enc.ciphertext; // This now holds the encrypted media key
             mediaNonce = enc.nonce;
             mediaEphemeral = enc.ephemeralPublicKey;
@@ -5447,7 +5463,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const pkData = await pkRes.json();
             const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
             // STRATEGY: same as DM — encrypt the media key (not the URL), wrapped per recipient.
-            const enc = encryptGroupMessage(mediaKeyB64, recipients, keyPair, myUsername);
+            const enc = encryptGroupMessage(packMediaKeyAndCaption(mediaKeyB64, caption), recipients, keyPair, myUsername);
             messagePayload = enc.ciphertext;
             mediaNonce = enc.nonce;
             e2eeKeysGroup = enc.keys;
@@ -8720,11 +8736,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         {showCamera && createPortal(
                           <CameraCapture
                             onCapture={async (file, caption) => {
-                              await handleMediaUpload(file);
-                              if (caption && caption.trim()) {
-                                setInputValue(caption.trim());
-                                setTimeout(() => composerFormRef.current?.requestSubmit(), 60);
-                              }
+                              // Caption rides along in the SAME message as the
+                              // image (WhatsApp-style), not as a second,
+                              // separate text message sent right after.
+                              await handleMediaUpload(file, null, null, caption && caption.trim() ? caption.trim() : '');
                             }}
                             onClose={() => setShowCamera(false)}
                           />,

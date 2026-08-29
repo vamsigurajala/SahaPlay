@@ -22,6 +22,34 @@ const PBKDF2_ITERATIONS = 600_000;
 const SALT_LENGTH = 16;   // bytes
 const IV_LENGTH   = 12;   // bytes for AES-GCM
 
+// ─── Media caption packing ──────────────────────────────────────────────────
+// A media message's "message" field is normally just the encrypted media key
+// (a plain base64 string) — there was nowhere for a WhatsApp-style caption to
+// live, so callers sent it as a second, separate plaintext message instead,
+// which is why an image + caption always showed up as two bubbles. Rather
+// than add a new DB column or a second encrypted field, the SAME field can
+// carry both: when there's a caption, encrypt a tiny JSON envelope instead of
+// the bare key. unpackMediaCaption stays backward-compatible with every
+// already-sent media message (a bare base64 string, no envelope) by only
+// treating the plaintext as an envelope when it actually parses as one with
+// a `k` field — anything else falls through to "this whole string is the
+// key, no caption," exactly the old behavior.
+export function packMediaKeyAndCaption(mediaKeyB64, caption) {
+  if (!caption) return mediaKeyB64;
+  return JSON.stringify({ k: mediaKeyB64, c: caption });
+}
+export function unpackMediaKeyAndCaption(plain) {
+  if (typeof plain === 'string' && plain.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(plain);
+      if (parsed && typeof parsed.k === 'string') {
+        return { mediaKeyB64: parsed.k, caption: typeof parsed.c === 'string' ? parsed.c : '' };
+      }
+    } catch { /* not an envelope — fall through to treating it as a bare key */ }
+  }
+  return { mediaKeyB64: plain, caption: '' };
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 export function robustDecode(str) {
   if (typeof str !== 'string') return new Uint8Array(0);

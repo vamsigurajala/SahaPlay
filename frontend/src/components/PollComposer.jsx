@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ArrowLeft, GripVertical, X, Send } from 'lucide-react';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 
 const QUESTION_LIMIT = 255;
 const OPTION_LIMIT = 100;
@@ -30,6 +31,19 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
   );
   const [allowMultiple, setAllowMultiple] = useState(!!initialPoll?.allowMultiple);
   const optionRefs = useRef({});
+
+  // Without this, this screen had no history entry of its own — a swipe-
+  // back while it's open fell straight through to whatever the chat
+  // underneath does with that gesture (closing the whole chat), instead of
+  // just closing this composer. Single level (1 = open), matching
+  // CameraCapture.jsx's own use of this hook for the same reason.
+  const { skipNextClose } = useBackIntercept(1, (newLevel) => {
+    if (newLevel === 0) onClose && onClose();
+  });
+  const requestClose = () => {
+    skipNextClose();
+    onClose && onClose();
+  };
 
   // Smooth drag-to-reorder: pointer-events based (not HTML5 drag/drop, which
   // has no real touch support) — same approach CameraCapture.jsx's color
@@ -180,6 +194,10 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
   const send = () => {
     if (!canSend) return;
     const finalOptions = trimmedOptions.filter(Boolean);
+    // The caller unmounts this screen right after onSend (setShowXPollComposer(false)) —
+    // skipNextClose() first so useBackIntercept's own history cleanup for
+    // that unmount doesn't race a real back gesture firing right after.
+    skipNextClose();
     onSend({ question: question.trim(), options: finalOptions, allowMultiple });
   };
 
@@ -199,7 +217,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
         paddingTop: 'calc(16px + var(--sp-status-bar-inset, 0px))',
         borderBottom: `1px solid ${inputBorder}`, flexShrink: 0,
       }}>
-        <button onClick={onClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: textColor, cursor: 'pointer', display: 'flex' }}>
+        <button onClick={requestClose} aria-label="Close" style={{ background: 'transparent', border: 'none', color: textColor, cursor: 'pointer', display: 'flex' }}>
           <ArrowLeft size={22} />
         </button>
         <span style={{ fontWeight: 700, fontSize: 17 }}>{title || 'Create poll'}</span>

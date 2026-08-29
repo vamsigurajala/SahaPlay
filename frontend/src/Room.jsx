@@ -37,7 +37,7 @@ const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { useCrypto } from './contexts/CryptoContext';
-import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
+import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode, packMediaKeyAndCaption, unpackMediaKeyAndCaption } from './lib/crypto.js';
 import { castPollVote } from './lib/pollApi';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
@@ -2507,18 +2507,19 @@ const Room = () => {
                if (plain !== null) {
                  if (msg.mediaUrl && msg.mediaUrl.length > 50) {
                    try {
-                     const mediaKeyBytes = robustDecode(plain);
+                     const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                     const mediaKeyBytes = robustDecode(mediaKeyB64);
                      const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
                      const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                      const msgKey = String(msg.id || msg.timestamp);
                      groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-                     
+
                      const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
                      msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
 
-                     decryptedText = '';
+                     decryptedText = caption;
                      // Leave displayMediaUrl as the original permanent file URL (its initial
                      // value from msg.mediaUrl above) — do NOT overwrite it with the blob:
                      // object URL. Rendering reads the decrypted blob from
@@ -2601,13 +2602,15 @@ const Room = () => {
             const plain = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
             if (plain) {
               if (msg.mediaType && msg.mediaUrl) {
-                decryptedText = '';
+                // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                decryptedText = caption;
                 decryptedMediaUrl = null;
                 const msgKey = msg.id || String(msg.timestamp);
                 const targetMediaUrl = msg.mediaUrl;
                 const targetMediaType = msg.mediaType;
                 try {
-                  const mediaKeyBytes = robustDecode(plain);
+                  const mediaKeyBytes = robustDecode(mediaKeyB64);
                   const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                   const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                   const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -2629,13 +2632,15 @@ const Room = () => {
           const plain = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(kp.secretKey));
           if (plain) {
             if (msg.mediaType && msg.mediaUrl) {
-              decryptedText = '';
+              // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+              const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+              decryptedText = caption;
               decryptedMediaUrl = null;
               const msgKey = msg.id || String(msg.timestamp);
               const targetMediaUrl = msg.mediaUrl;
               const targetMediaType = msg.mediaType;
               try {
-                const mediaKeyBytes = robustDecode(plain);
+                const mediaKeyBytes = robustDecode(mediaKeyB64);
                 const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                 const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                 const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -4097,7 +4102,8 @@ const Room = () => {
 
                 if (plain !== null) {
                   if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                    const mediaKeyB64 = plain;
+                    const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                    decryptedText = caption;
                     const fileUrl = msg.mediaUrl;
                     const msgKeys = [
                       String(msg.id || ''),
@@ -4313,8 +4319,10 @@ const Room = () => {
             );
             if (plain !== null) {
               if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                // 'plain' is the AES symmetric key for the media blob.
-                const mediaKeyB64 = plain;
+                // 'plain' is the AES symmetric key for the media blob (and,
+                // if this media was sent with a caption, that caption too —
+                // see packMediaKeyAndCaption).
+                const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
                 const fileUrl = msg.mediaUrl;
                 // Store under ALL possible keys: socket id, tempId, timestamp.
                 // The msg.id changes from socket-assigned ("socketId-ts") to real DB id
@@ -4347,7 +4355,7 @@ const Room = () => {
                   }
                 })();
 
-                decryptedText = ''; // Media key decrypted
+                decryptedText = caption; // Media key decrypted; caption (if any) shows with the image
                 msg.mediaUrl = null; // Do not attempt to render the ciphertext blob immediately!
               } else {
                 decryptedText = plain;
@@ -4936,14 +4944,17 @@ const Room = () => {
                const plain = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
                if (plain) {
                  if (msg.mediaType && msg.mediaUrl) {
-                   decryptedText = '';
+                   // plain = the base64 media key, plus a caption if one was
+                   // sent alongside — see packMediaKeyAndCaption.
+                   const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                   decryptedText = caption;
                    decryptedMediaUrl = null;
                    const msgKey = msg.id || msg.tempId || String(msg.timestamp);
                    const targetMediaUrl = msg.mediaUrl;
                    const targetMediaType = msg.mediaType;
                    (async () => {
                      try {
-                       const mediaKeyBytes = robustDecode(plain);
+                       const mediaKeyBytes = robustDecode(mediaKeyB64);
                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -4974,14 +4985,17 @@ const Room = () => {
             const plain = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
             if (plain) {
                if (msg.mediaType && msg.mediaUrl) {
-                 decryptedText = '';
+                 // plain = the base64 media key, plus a caption if one was
+                 // sent alongside — see packMediaKeyAndCaption.
+                 const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                 decryptedText = caption;
                  decryptedMediaUrl = null;
                  const msgKey = msg.id || String(msg.timestamp);
                  const targetMediaUrl = msg.mediaUrl;
                  const targetMediaType = msg.mediaType;
                  (async () => {
                    try {
-                     const mediaKeyBytes = robustDecode(plain);
+                     const mediaKeyBytes = robustDecode(mediaKeyB64);
                      const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                      const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -5136,14 +5150,16 @@ const Room = () => {
                  const plain = decryptDMSenderCopy(msg.senderMessage, msg.nonce, msg.ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
                  if (plain) {
                    if (msg.mediaType && msg.mediaUrl) {
-                     decryptedText = '';
+                     // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                     const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                     decryptedText = caption;
                      decryptedMediaUrl = null;
                      const msgKey = msg.id || String(msg.timestamp);
                      const targetMediaUrl = msg.mediaUrl;
                      const targetMediaType = msg.mediaType;
                      (async () => {
                        try {
-                         const mediaKeyBytes = robustDecode(plain);
+                         const mediaKeyBytes = robustDecode(mediaKeyB64);
                          const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                          const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                          const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -5166,14 +5182,16 @@ const Room = () => {
               const plain = decryptDM(msg.message, msg.nonce, msg.ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
               if (plain) {
                  if (msg.mediaType && msg.mediaUrl) {
-                   decryptedText = '';
+                   // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                   const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                   decryptedText = caption;
                    decryptedMediaUrl = null;
                    const msgKey = msg.id || String(msg.timestamp);
                    const targetMediaUrl = msg.mediaUrl;
                    const targetMediaType = msg.mediaType;
                    (async () => {
                      try {
-                       const mediaKeyBytes = robustDecode(plain);
+                       const mediaKeyBytes = robustDecode(mediaKeyB64);
                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -5807,18 +5825,20 @@ const Room = () => {
             if (plain !== null) {
               changed = true;
               if (msg.mediaUrl && msg.mediaUrl.length > 50) {
-                // Media: inline await to get objectUrl directly
+                // Media: inline await to get objectUrl directly. plain =
+                // base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
                 try {
-                  const mediaKeyBytes = robustDecode(plain);
+                  const mediaKeyBytes = robustDecode(mediaKeyB64);
                   const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
                   const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                   const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
                   const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
                   const msgKey = String(msg.id || msg.timestamp);
                   groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-                  return { ...msg, decryptedText: '', mediaUrl: objectUrl };
+                  return { ...msg, decryptedText: caption, mediaUrl: objectUrl };
                 } catch(e) {
-                  return { ...msg, decryptedText: '', mediaUrl: null };
+                  return { ...msg, decryptedText: caption, mediaUrl: null };
                 }
               }
               return { ...msg, decryptedText: plain };
@@ -5854,11 +5874,13 @@ const Room = () => {
                 if (plain) {
                   changed = true;
                   if (msg.mediaType && msg.mediaUrl) {
-                    decrypted = ''; decryptedMediaUrl = null;
+                    // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                    const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                    decrypted = caption; decryptedMediaUrl = null;
                     const msgKey = msg.id || String(msg.timestamp);
                     (async () => {
                       try {
-                        const mediaKeyBytes = robustDecode(plain);
+                        const mediaKeyBytes = robustDecode(mediaKeyB64);
                         const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
                         const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -5874,11 +5896,13 @@ const Room = () => {
                 if (plain) {
                   changed = true;
                   if (msg.mediaType && msg.mediaUrl) {
-                    decrypted = ''; decryptedMediaUrl = null;
+                    // plain = base64 media key, plus caption if any — see packMediaKeyAndCaption.
+                    const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
+                    decrypted = caption; decryptedMediaUrl = null;
                     const msgKey = msg.id || String(msg.timestamp);
                     (async () => {
                       try {
-                        const mediaKeyBytes = robustDecode(plain);
+                        const mediaKeyBytes = robustDecode(mediaKeyB64);
                         const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
                         const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
@@ -6941,7 +6965,7 @@ const Room = () => {
     }
   };
 
-  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null) => {
+  const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null, caption = '') => {
     if (!socket) return;
     if (rawFile && !myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
@@ -6957,7 +6981,7 @@ const Room = () => {
       tempId,
       username,
       message: '',
-      decryptedText: '',
+      decryptedText: caption || '',
       timestamp: ts,
       mediaUrl: optimisticUrl,
       _localMediaUrl: optimisticUrl,
@@ -6991,7 +7015,9 @@ const Room = () => {
         const { encryptedBlob, mediaKeyBytes } = await encryptMedia(rawFile);
         const mediaKeyB64 = encodeBase64(mediaKeyBytes);
         const recipients = await ensureFreshGroupRecipients();
-        encryptedPayload = encryptGroupMessage(mediaKeyB64, recipients, myKeyPair.current, username);
+        // A caption (if any) rides along in the same encrypted payload as
+        // the media key, see packMediaKeyAndCaption.
+        encryptedPayload = encryptGroupMessage(packMediaKeyAndCaption(mediaKeyB64, caption), recipients, myKeyPair.current, username);
 
         const fd = new FormData();
         fd.append('file', encryptedBlob, rawFile.name || 'media');
@@ -7526,7 +7552,7 @@ const Room = () => {
     setDmChatInput('');
   };
 
-  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null) => {
+  const sendMediaDmChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null, caption = '') => {
     if (!socket || !dmTarget) return;
 
     const token = localStorage.getItem('watch_token');
@@ -7541,6 +7567,7 @@ const Room = () => {
       senderName: username,
       targetName: dmTarget,
       message: '',
+      decryptedText: caption || '',
       mediaUrl: optimisticUrl,
       _localMediaUrl: optimisticUrl,
       mediaType: type,
@@ -7615,8 +7642,9 @@ const Room = () => {
         if (!uploadData.url) throw new Error('Upload returned no URL');
         finalUrl = resolveMediaUrl(uploadData.url, SOCKET_SERVER_URL);
 
-        // Encrypt AES key with DM E2EE (same as GCW)
-        const enc = encryptDM(mediaKeyB64, targetPubKey, encodeBase64(myKeyPair.current.publicKey));
+        // Encrypt AES key with DM E2EE (same as GCW) — a caption (if any) rides
+        // along in the same encrypted payload, see packMediaKeyAndCaption.
+        const enc = encryptDM(packMediaKeyAndCaption(mediaKeyB64, caption), targetPubKey, encodeBase64(myKeyPair.current.publicKey));
         messagePayload   = enc.ciphertext;         // encrypted AES key
         senderMsgPayload = enc.senderCiphertext;   // sender-readable copy of AES key
         nonceVal         = enc.nonce;
