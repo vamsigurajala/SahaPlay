@@ -1280,7 +1280,7 @@ export default function RoomChatPanel({ p }) {
   // way p.messagesEndRef already is — only one tab is ever mounted at once.
   const composerFocusedRef = React.useRef(false);
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current) scrollToBottom(true);
+    if (composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
   });
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
@@ -1324,6 +1324,21 @@ export default function RoomChatPanel({ p }) {
 
   const groupScrollContainerRef = React.useRef(null);
   const dmScrollContainerRef = React.useRef(null);
+  // Captured at the moment a composer is focused (before the keyboard has
+  // resized anything) — whether the user was already looking at the latest
+  // messages in whichever tab is open. Scrolled up reading older history,
+  // then tapping the composer, used to always jump the list to the newest
+  // message the instant the keyboard opened; this is what makes that
+  // conditional — only snap to the bottom if that's actually where the user
+  // already was, otherwise leave the scroll position alone and let the
+  // container resize in place around it, so the keyboard covers the same
+  // messages you were already reading instead of yanking you down to the end.
+  const wasNearBottomOnFocusRef = React.useRef(true);
+  const isScrollNearBottom = () => {
+    const el = p.chatTab === 'dm' ? dmScrollContainerRef.current : groupScrollContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= 300;
+  };
   // Which collapsed "Theme changed N times" runs (keyed by the run's head
   // message key — see groupNoticeRuns) the user has manually expanded.
   const [expandedNoticeRuns, setExpandedNoticeRuns] = React.useState(() => new Set());
@@ -3411,7 +3426,7 @@ export default function RoomChatPanel({ p }) {
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(true); } catch {} }, 300); }}
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
                         onBlur={() => { composerFocusedRef.current = false; }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
@@ -4284,7 +4299,7 @@ export default function RoomChatPanel({ p }) {
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(true); } catch {} }, 300); }}
+                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
                             onBlur={() => { composerFocusedRef.current = false; }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{

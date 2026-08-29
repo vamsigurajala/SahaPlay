@@ -2288,13 +2288,30 @@ const GlobalChatWidget = forwardRef(({
   // entirely (device rotation while just reading, an OS UI element toggling)
   // doesn't yank the scroll position around when there's no keyboard in play.
   const composerFocusedRef = useRef(false);
+  // Captured at the moment the composer is focused (before the keyboard has
+  // resized anything) — whether the user was already looking at the latest
+  // messages. Reading a live scroll position here rather than trusting
+  // showScrollArrow's state avoids any lag between a scroll and that state
+  // catching up. Scrolled up reading older history, then tapping the
+  // composer, used to always jump the list to the newest message the moment
+  // the keyboard opened — this is what makes that conditional: only snap to
+  // the bottom if that's actually where the user already was, otherwise
+  // leave the scroll position alone and let the container just resize in
+  // place around it, so the keyboard covers the same messages you were
+  // already reading instead of yanking you down to the end.
+  const wasNearBottomOnFocusRef = useRef(true);
+  const isScrollNearBottom = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= 300;
+  };
   // instant (no smooth-scroll animation): this fires once the keyboard's
   // resize has actually settled (see useVisualViewportResize's own debounce),
   // so the list should already just BE in its final position the moment this
   // runs, not visibly slide there afterward — a smooth scroll here read as
   // "messages scrolling upward" on top of the keyboard's own motion.
   useVisualViewportResize(() => {
-    if (composerFocusedRef.current) scrollToBottom(true);
+    if (composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
   });
   const conversationsRef = useRef([]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -6181,7 +6198,14 @@ const GlobalChatWidget = forwardRef(({
           // call icons/3-dots read as "transparent" with the wallpaper
           // showing through them. transparentMode's normal translucent look
           // only applies when there's no wallpaper to protect against.
-          background: activeWallpaper ? 'rgba(10,10,10,0.94)' : (transparentMode ? 'transparent' : 'rgba(0,0,0,0.3)'),
+          // Flat, literal match to the panel's own #0a0a0a background (not a
+          // translucent black tint stacked on top of it) — a semi-transparent
+          // overlay compositing against the exact same solid color underneath
+          // should in theory read identically, but in practice (blend order,
+          // this element's own stacking context) it was landing as a visibly
+          // different shade from the plain list/message areas right below it.
+          // A literal value removes any room for that mismatch.
+          background: activeWallpaper ? 'rgba(10,10,10,0.94)' : (transparentMode ? 'transparent' : '#0a0a0a'),
           borderBottom: activeWallpaper ? '1px solid rgba(255,255,255,0.08)' : (transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)')
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -6606,9 +6630,11 @@ const GlobalChatWidget = forwardRef(({
               padding: '16px 20px', 
               position: 'sticky', 
               top: 0,
-              background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : 'rgba(10, 10, 10, 0.98)'), 
-              zIndex: 30, 
-              borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.03)', 
+              // Literal match to the panel's own #0a0a0a — see the top
+              // header's identical comment just above in this file.
+              background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
+              zIndex: 30,
+              borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.03)',
               transition: 'background 0.25s',
               backdropFilter: transparentMode ? 'none' : 'blur(10px)'
             }}>
@@ -6827,7 +6853,15 @@ const GlobalChatWidget = forwardRef(({
                     style={{
                       width: '100%',
                       padding: '12px 14px 12px 38px',
-                      background: 'var(--input-bg)',
+                      // Literal match to the panel's own #0a0a0a, not the
+                      // theme-reactive --input-bg (a faint 4% white tint in
+                      // dark mode) — this shell is always dark regardless of
+                      // the app's own light/dark setting (see the header's
+                      // identical background above), so the theme-reactive
+                      // variable was the one visibly different resting-state
+                      // background in the whole list view. The border alone
+                      // still marks this as an input field.
+                      background: '#0a0a0a',
                       border: '1px solid var(--input-border)',
                       borderRadius: 20,
                       color: 'var(--input-text)',
@@ -6840,7 +6874,7 @@ const GlobalChatWidget = forwardRef(({
                       e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)';
                     }}
                     onBlur={(e) => {
-                      e.target.style.background = 'var(--input-bg)';
+                      e.target.style.background = '#0a0a0a';
                       e.target.style.borderColor = 'var(--input-border)';
                     }}
                   />
@@ -8290,6 +8324,9 @@ const GlobalChatWidget = forwardRef(({
                             e.target.style.background = '#242426';
                             e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)';
                             composerFocusedRef.current = true;
+                            // Measured now, before the keyboard has resized
+                            // anything — see wasNearBottomOnFocusRef's comment.
+                            wasNearBottomOnFocusRef.current = isScrollNearBottom();
                             // Instant, and fired right away (not a 300ms-later
                             // guess) — this is only the fallback for a WebView
                             // with no VisualViewport API at all; wherever that
@@ -8299,7 +8336,7 @@ const GlobalChatWidget = forwardRef(({
                             // 300ms delay plus a smooth-scroll here is what
                             // read as the composer sitting under the keyboard
                             // for a beat before slowly sliding into place.
-                            try { scrollToBottom(true); } catch {}
+                            if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} }
                           }}
                           onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; composerFocusedRef.current = false; }}
                         />
