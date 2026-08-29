@@ -8087,9 +8087,13 @@ const GlobalChatWidget = forwardRef(({
             // opaque fill (below) needs this wrapper solid too, or there's a
             // gap of wallpaper between the preview and the input row.
             // Matches Instagram: once you're replying, the whole composer
-            // area reads as one solid surface.
+            // area reads as one solid surface. Otherwise fully transparent —
+            // no background strip under the composer when not replying,
+            // regardless of theme or wallpaper (the old default dark tint
+            // showed up as an unwanted gray strip specifically in light
+            // mode).
             borderTop: (activeWallpaper || isCustomTheme || transparentMode) ? 'none' : '1px solid rgba(255,255,255,0.05)',
-            background: (replyToMsg || editingMsg) ? '#1c1c1e' : ((activeWallpaper || isCustomTheme) ? 'transparent' : (transparentMode ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.2)')),
+            background: (replyToMsg || editingMsg) ? (isLight ? '#f1f5f9' : '#1c1c1e') : 'transparent',
             flexShrink: 0,
             position: 'relative'
           }}>
@@ -8172,10 +8176,14 @@ const GlobalChatWidget = forwardRef(({
                   // below it) — matches Instagram exactly rather than the
                   // single-line "X: text" this used to show, and reads the
                   // same way in a private chat as it does in a group.
-                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color:'#a0aab2'}}>
+                  // Theme-aware fill (light gray in light mode, matching room
+                  // chat's reply preview exactly — was hardcoded dark
+                  // regardless of theme) and no top border: that border read
+                  // as an unwanted divider line sitting on top of the preview.
+                  <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',display:'flex',flexDirection:'column',gap:2,fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                       <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}</span>
-                      <button onClick={()=>setReplyToMsg(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={12}/></button>
+                      <button onClick={()=>setReplyToMsg(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={18}/></button>
                     </div>
                     <span style={{opacity:0.85}}>{(() => {
                       const r = replyToMsg;
@@ -8189,9 +8197,9 @@ const GlobalChatWidget = forwardRef(({
                 )}
                 {editingMsg && (
                   // Same solid-fill treatment as the reply preview above.
-                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(56,189,248,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
+                  <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
                     <span style={{display:'flex',alignItems:'center',gap:6}}><Edit2 size={12} color="#38bdf8"/><span style={{color:'#38bdf8',fontWeight:600}}>{t('editingMessage', 'Editing message')}</span></span>
-                    <button onClick={()=>{ setEditingMsg(null); setInputValue(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
+                    <button onClick={()=>{ setEditingMsg(null); setInputValue(''); }} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={18}/></button>
                   </div>
                 )}
 
