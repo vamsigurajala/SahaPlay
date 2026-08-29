@@ -6537,7 +6537,7 @@ const Room = () => {
     const ts = Date.now();
     const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
     const optimisticMsg = {
-      id: tempId, username, message: msgText, decryptedText: msgText,
+      id: tempId, tempId, username, message: msgText, decryptedText: msgText,
       timestamp: ts, reactions: {}, replyTo: replyTo || null, _isOptimistic: true
     };
     setGroupMessages(prev => {
@@ -6685,6 +6685,7 @@ const Room = () => {
     // Optimistic Update
     const optimisticMsg = {
       id: tempId,
+      tempId,
       username,
       message: msgText,
       decryptedText: msgText,
@@ -6804,6 +6805,7 @@ const Room = () => {
     const optimisticUrl = rawFile ? URL.createObjectURL(rawFile) : url;
     const optimisticMsg = {
       id: tempId,
+      tempId,
       username,
       message: '',
       decryptedText: '',
@@ -6935,6 +6937,7 @@ const Room = () => {
     // Optimistic: show plaintext immediately in UI
     const optimisticMsg = {
       id: tempId,
+      tempId,
       senderName: username,
       targetName: dmTarget,
       message: plaintext,
@@ -7221,6 +7224,7 @@ const Room = () => {
     const optimisticUrl = rawFile ? URL.createObjectURL(rawFile) : url;
     const optimisticMsg = {
       id: tempId,
+      tempId,
       senderName: username,
       targetName: dmTarget,
       message: '',
