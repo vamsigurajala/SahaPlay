@@ -20,6 +20,7 @@ import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useStableHeight } from '../hooks/useStableHeight';
+import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
@@ -1289,6 +1290,13 @@ export default function RoomChatPanel({ p }) {
   const dmWrapperRef = React.useRef(null);
   const groupStableHeight = useStableHeight(groupWrapperRef);
   const dmStableHeight = useStableHeight(dmWrapperRef);
+  // Viewport-anchored version of the same idea, used instead of the two
+  // wrapper-relative heights above on mobile/tablet — see the wallpaper
+  // backdrops below for why. Read directly from window.innerHeight (known
+  // synchronously on first render, unlike useStableHeight which has to wait
+  // for a ResizeObserver callback), so there's no lag window during a live
+  // keyboard slide animation for the wallpaper to visibly catch up through.
+  const stableViewportHeight = useStableViewportHeight();
 
   // Which message keys have already had their slideIn "msg-enter" entrance
   // animation play at least once — an optimistically-sent message goes
@@ -2754,17 +2762,31 @@ export default function RoomChatPanel({ p }) {
               which meant every resize of that element (composer height
               changing, on-screen keyboard opening) recomputed the
               background-size:cover crop against a new box — reading as the
-              wallpaper visibly shifting. Pinning an explicit pixel height
-              (the wrapper's own largest-ever measured height, see
-              useStableHeight) instead of the live inset:0 auto-height means
-              this box's own size stops changing at all once the keyboard
-              opens — whatever falls outside the wrapper's current (shrunk)
-              bounds is simply clipped by its overflow:hidden, same as a
-              real wallpaper behind a window. */}
+              wallpaper visibly shifting.
+              On mobile/tablet this now goes further than clamping the
+              wrapper-relative height (useStableHeight): it switches to
+              position:fixed sized from the actual viewport's own
+              largest-ever height (useStableViewportHeight), so the layer is
+              fully detached from the wrapper's live resize instead of
+              reacting to it a frame late. useStableHeight's ResizeObserver
+              callback only fires AFTER the browser has already laid out the
+              shrunk wrapper, which left a real gap — most visible on a fast
+              keyboard open/close (e.g. a swipe-back gesture while the
+              composer is focused) — where the old clamp hadn't caught up
+              yet and the wallpaper visibly slid/leaked for a moment.
+              window.innerHeight is available synchronously on first paint,
+              so this has nothing to catch up on: the value used for frame
+              one is already the final one, for as long as the keyboard is
+              only ever shrinking the viewport below a size already seen.
+              Desktop is unaffected — position stays 'absolute', matching
+              the panel's own (non-full-viewport) box as before. */}
           {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
-              ...(groupStableHeight ? { height: groupStableHeight } : {}),
+              position: isMobileOrTablet ? 'fixed' : 'absolute',
+              top: 0, left: 0, right: 0, zIndex: -1, pointerEvents: 'none',
+              ...(isMobileOrTablet
+                ? { bottom: 'auto', height: stableViewportHeight || '100vh' }
+                : { bottom: 0, ...(groupStableHeight ? { height: groupStableHeight } : {}) }),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -3487,8 +3509,11 @@ export default function RoomChatPanel({ p }) {
                 group chat thread above; same fix, same reason. */}
             {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
-                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
-                ...(dmStableHeight ? { height: dmStableHeight } : {}),
+                position: isMobileOrTablet ? 'fixed' : 'absolute',
+                top: 0, left: 0, right: 0, zIndex: -1, pointerEvents: 'none',
+                ...(isMobileOrTablet
+                  ? { bottom: 'auto', height: stableViewportHeight || '100vh' }
+                  : { bottom: 0, ...(dmStableHeight ? { height: dmStableHeight } : {}) }),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />

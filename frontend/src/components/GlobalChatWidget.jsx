@@ -638,6 +638,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
 import { formatDistanceToNow } from 'date-fns';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
+import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia } from '../lib/crypto';
@@ -930,32 +931,13 @@ const typingCss = `
     }
   }
 
-  /* Same problem, different element: the panel above is now correctly
-     pinned to the real current viewport at every instant — but once the
-     keyboard is fully open, that's a genuinely SHORTER box (it has to be,
-     to leave room for the composer above the keyboard), and this backdrop
-     is position:absolute + inset:0 inside it, so its own box shrinks to
-     match. A background-size:cover + background-position:center image
-     recalculates its crop against that new, shorter box — which is what
-     read as "the wallpaper jumps upward when the keyboard opens" (the top
-     edge is pinned, so a shorter box's vertical center, measured from that
-     fixed top, moves up). Detaching it as its own position:fixed layer
-     sized to the LARGE viewport (100lvh — unlike 100dvh, defined to stay
-     constant regardless of the on-screen keyboard) means its crop is
-     computed against a constant box no matter what the keyboard does; any
-     part temporarily covered by the keyboard/composer just isn't visible,
-     same as how a real wallpaper behind a window works. */
-  @media (max-width: 1024px) {
-    .chat-wallpaper-backdrop {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: auto !important;
-      height: 100vh !important;
-      height: 100lvh !important;
-    }
-  }
+  /* The old CSS-only position:fixed + height:100lvh rule that used to live
+     here was replaced by an inline style driven by useStableViewportHeight
+     (see the backdrop's JSX) — 100lvh has real device/WebView support gaps,
+     and even where it is supported the CSS media query only reacted to the
+     keyboard's resize, not before it, leaving the same catch-up-lag window
+     a fully synchronous JS value doesn't have. See the backdrop's own
+     comment for the full reasoning. */
 
   .chat-menu-item {
     transition: background 0.18s ease-in-out !important;
@@ -2167,6 +2149,10 @@ const GlobalChatWidget = forwardRef(({
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+  // Viewport-anchored stable height for the wallpaper backdrop below — see
+  // its usage for why this replaced the old CSS-only position:fixed +
+  // height:100lvh media-query approach.
+  const stableViewportHeight = useStableViewportHeight();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState(null);
@@ -6045,7 +6031,23 @@ const GlobalChatWidget = forwardRef(({
             the picture like a separate panel glued on. */}
         {activeWallpaper && (
           <div className="chat-wallpaper-backdrop" style={{
-            position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
+            // On mobile/tablet the panel above is full-viewport, so this
+            // goes position:fixed sized from the actual viewport's own
+            // largest-ever height (useStableViewportHeight) instead of
+            // inset:0 inside the panel — that inset box shrinks the instant
+            // the on-screen keyboard opens, which recomputed the
+            // background-size:cover crop against a shorter box and read as
+            // the wallpaper sliding upward. window.innerHeight is known
+            // synchronously on first paint, so there's no ResizeObserver lag
+            // for this to visibly catch up through even on a fast
+            // open/close (e.g. a swipe-back gesture while the composer is
+            // focused). Desktop keeps position:absolute + inset:0, matching
+            // the panel's own small floating box as before.
+            position: isMobileOrTablet ? 'fixed' : 'absolute',
+            top: 0, left: 0, right: 0, zIndex: -1, pointerEvents: 'none',
+            ...(isMobileOrTablet
+              ? { bottom: 'auto', height: stableViewportHeight || '100vh' }
+              : { bottom: 0 }),
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
           }} />
@@ -8169,7 +8171,17 @@ const GlobalChatWidget = forwardRef(({
                             color: '#fff',
                             fontSize: 14,
                             outline: 'none',
-                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                            // NOT `transition: all` — this was also animating
+                            // height (the textarea auto-resizes as you type)
+                            // and the paddingLeft/paddingRight swap above,
+                            // which stacked a 0.2s eased delay on top of the
+                            // keyboard's own opening animation: the composer
+                            // visibly kept settling into its final size/
+                            // position for a moment after the keyboard was
+                            // already up, reading as the box briefly showing
+                            // underneath it. Only the two purely cosmetic
+                            // focus/blur properties need to animate.
+                            transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                           }}
                           onFocus={e => { e.target.style.background = '#242426'; e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)'; composerFocusedRef.current = true; setTimeout(() => { try { scrollToBottom(); } catch {} }, 300); }}
                           onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; composerFocusedRef.current = false; }}
