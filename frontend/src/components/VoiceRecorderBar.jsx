@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Trash2, Play, Pause, Send, Loader2, Check } from 'lucide-react';
+import { Trash2, Play, Pause, Send, Loader2, Square } from 'lucide-react';
 
 function fmt(t) {
   if (!isFinite(t) || t < 0) t = 0;
@@ -48,8 +48,17 @@ export default function VoiceRecorderBar({
         <button type="button" onClick={onCancel} title="Delete recording" style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <Trash2 size={18} />
         </button>
+        {/* A checkmark here read as "confirm/send" rather than "stop" —
+            people were tapping straight to the trash icon instead, since
+            there was no control that obviously meant "stop and let me
+            listen before I decide." A filled square is the universal
+            record/stop-recording glyph (every voice-memo, camera and
+            video-call app uses it), so this now reads unambiguously as
+            "stop" and lands you on the play/scrub/trash/send preview bar
+            below — same shared component, same behavior in every chat
+            surface this app has. */}
         <button type="button" onClick={onStop} title="Stop recording" style={{ width: 34, height: 34, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-          <Check size={16} color="#fff" strokeWidth={3} />
+          <Square size={14} color="#fff" fill="#fff" />
         </button>
       </div>
     );

@@ -9,11 +9,14 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera, BarChart2
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import CameraCapture from './CameraCapture';
 import VoiceRecorderBar from './VoiceRecorderBar';
+import PollComposer from './PollComposer';
+import PollBubble from './PollBubble';
+import PollVotesModal from './PollVotesModal';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
@@ -1692,6 +1695,14 @@ export default function RoomChatPanel({ p }) {
   const dmFileInputRef = React.useRef(null);
   const [showGroupCamera, setShowGroupCamera] = React.useState(false);
   const [showDmCamera, setShowDmCamera] = React.useState(false);
+  // Attach menu (Browse / Poll) — matches GlobalChatWidget's own paperclip
+  // button exactly, instead of Room chat's paperclip jumping straight to the
+  // file picker with no way to start a poll at all.
+  const [showGroupAttachMenu, setShowGroupAttachMenu] = React.useState(false);
+  const [showDmAttachMenu, setShowDmAttachMenu] = React.useState(false);
+  const [showGroupPollComposer, setShowGroupPollComposer] = React.useState(false);
+  const [showDmPollComposer, setShowDmPollComposer] = React.useState(false);
+  const [pollVotesTarget, setPollVotesTarget] = React.useState(null); // { msg, chatType }
   const groupFormRef = React.useRef(null);
   const dmFormRef = React.useRef(null);
   // Composer layout (emoji far-left, camera next to mic) only differs below
@@ -2132,6 +2143,10 @@ export default function RoomChatPanel({ p }) {
       audioChunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.onstop = () => {
+        // See the matching comment in GlobalChatWidget.jsx's own onstop:
+        // .stop() is async, so this can fire after cancelRecording() already
+        // cleared audioBlob/audioUrl, resurrecting a just-deleted recording.
+        if (mr._cancelled) return;
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType });
         const url = URL.createObjectURL(blob);
         setAudioBlob(blob);
@@ -2141,7 +2156,11 @@ export default function RoomChatPanel({ p }) {
         if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
         setWaveHeights(Array(20).fill(3));
       };
-      mr.start();
+      // 100ms timeslice (matching GlobalChatWidget.jsx's own startRecording)
+      // so chunks accumulate continuously instead of only being produced
+      // in one big flush when stop() is called — makes the stop-to-preview
+      // transition land right away instead of a beat later.
+      mr.start(100);
       mediaRecorderRef.current = mr;
       // Set up Web Audio analyser for real waveform
       try {
@@ -2188,8 +2207,9 @@ export default function RoomChatPanel({ p }) {
   const cancelRecording = () => {
     if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
     if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current._cancelled = true;
+      if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
     }
     clearInterval(timerRef.current);
     setIsRecording(false);
@@ -2487,6 +2507,33 @@ export default function RoomChatPanel({ p }) {
         />,
         document.body
       )}
+      {pollVotesTarget && (() => {
+        let poll = null;
+        try { poll = JSON.parse(pollVotesTarget.msg.decryptedText); } catch {}
+        if (!poll) return null;
+        const resolveAvatar = (u) => {
+          const uname = (u || '').toLowerCase();
+          if (uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
+          if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
+          return null;
+        };
+        const resolveDisplayName = (u) => {
+          const uname = (u || '').toLowerCase();
+          if (uname === myUser) return 'You';
+          return u;
+        };
+        return createPortal(
+          <PollVotesModal
+            poll={poll}
+            pollVotes={pollVotesTarget.msg.pollVotes}
+            onClose={() => setPollVotesTarget(null)}
+            isLight={isLight}
+            resolveAvatar={resolveAvatar}
+            resolveDisplayName={resolveDisplayName}
+          />,
+          document.body
+        );
+      })()}
       {pendingUnlockChat && (
         <ChatLockScreen
           chatKey={pendingUnlockChat.key}
@@ -3226,6 +3273,28 @@ export default function RoomChatPanel({ p }) {
                             )}
                             {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                               <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                            ) : msg.isPoll ? (
+                              (() => {
+                                let pollDef = null;
+                                try { pollDef = JSON.parse(msg.decryptedText); } catch {}
+                                if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
+                                const resolveAvatar = (u) => {
+                                  const uname = (u || '').toLowerCase();
+                                  if (uname === (msg.senderName || msg.username || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                  return null;
+                                };
+                                return (
+                                  <PollBubble
+                                    poll={pollDef}
+                                    pollVotes={msg.pollVotes}
+                                    myUsername={myUser}
+                                    onVote={(indices) => p.handlePollVote(msg, 'group', indices)}
+                                    onViewVotes={() => setPollVotesTarget({ msg, chatType: 'group' })}
+                                    isLight={isLight}
+                                    resolveAvatar={resolveAvatar}
+                                  />
+                                );
+                              })()
                             ) : msg.decryptedText !== null ? (
                               <MessageText text={msg.decryptedText} isMe={isMe} />
                             ) : (
@@ -3612,9 +3681,26 @@ export default function RoomChatPanel({ p }) {
                                 <SmilePlus size={18}/>
                               </button>
                             )}
-                            <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => { fileInputRef.current?.click(); }} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
-                              <Paperclip size={18}/>
-                            </button>
+                            {/* Attach button — opens a small "Browse / Poll" menu instead
+                                of the file picker directly, matching GlobalChatWidget's
+                                own paperclip button exactly. */}
+                            <div style={{ position: 'relative' }}>
+                              <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => setShowGroupAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                                <Paperclip size={18}/>
+                              </button>
+                              {showGroupAttachMenu && (
+                                <div className="chat-attach-menu-overlay" onMouseDown={() => setShowGroupAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
+                                  <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                    <button type="button" onClick={() => { setShowGroupAttachMenu(false); fileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                      <ImageIcon size={17} color="#3b82f6" /> Browse
+                                    </button>
+                                    <button type="button" onClick={() => { setShowGroupAttachMenu(false); setShowGroupPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                      <BarChart2 size={17} color="#f59e0b" /> Poll
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             <button type="button" disabled={isDisabled} onClick={() => startRecording('group')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:isDisabled?'pointer':'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled?0.4:1}}>
                               <Mic size={18}/>
                             </button>
@@ -3627,7 +3713,19 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         </>
                       )}
-                      {showGroupCamera && (
+                      {/* Portal to document.body: CameraCapture is a fixed,
+                          inset:0 full-screen overlay, but rendered inline
+                          here it's still a DOM descendant of this chat
+                          header's own stacking context — the room's own
+                          header row above (with its call mic/cam toggles)
+                          sits in a sibling stacking context outside that
+                          local tree, so it painted ON TOP of the "fullscreen"
+                          camera instead of being covered by it. Portaling
+                          out makes it a true top-level sibling of everything
+                          else, immune to any ancestor's z-index/stacking —
+                          same pattern this file already uses for its own
+                          lightbox/inlineNotice above. */}
+                      {showGroupCamera && createPortal(
                         <CameraCapture
                           onCapture={async (file, caption) => {
                             await handleFileSelect({ target: { files: [file], value: null } }, 'group');
@@ -3637,7 +3735,17 @@ export default function RoomChatPanel({ p }) {
                             }
                           }}
                           onClose={() => setShowGroupCamera(false)}
-                        />
+                        />,
+                        document.body
+                      )}
+                      {showGroupPollComposer && createPortal(
+                        <PollComposer
+                          isLight={isLight}
+                          title="Create poll"
+                          onClose={() => setShowGroupPollComposer(false)}
+                          onSend={(pollDef) => { setShowGroupPollComposer(false); p.sendGroupPoll(pollDef); }}
+                        />,
+                        document.body
                       )}
 
                       {isUploading && (
@@ -4085,6 +4193,29 @@ export default function RoomChatPanel({ p }) {
                                   )}
                                   {(!msg.mediaType && !msg.message && !msg.e2ee && !msg.nonce) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, fontStyle:'italic'}}>{t('messageUnavailable', '[Message unavailable]')}</div>
+                                  ) : msg.isPoll ? (
+                                    (() => {
+                                      let pollDef = null;
+                                      try { pollDef = JSON.parse(msg.decryptedText); } catch {}
+                                      if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
+                                      const resolveAvatar = (u) => {
+                                        const uname = (u || '').toLowerCase();
+                                        if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                        if (uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
+                                        return null;
+                                      };
+                                      return (
+                                        <PollBubble
+                                          poll={pollDef}
+                                          pollVotes={msg.pollVotes}
+                                          myUsername={p.username}
+                                          onVote={(indices) => p.handlePollVote(msg, 'dm', indices)}
+                                          onViewVotes={() => setPollVotesTarget({ msg, chatType: 'dm' })}
+                                          isLight={isLight}
+                                          resolveAvatar={resolveAvatar}
+                                        />
+                                      );
+                                    })()
                                   ) : (msg.decryptedText !== null && msg.decryptedText?.startsWith(CALL_LOG_PREFIX)) ? (
                                     (() => {
                                       let callData = null;
@@ -4504,9 +4635,23 @@ export default function RoomChatPanel({ p }) {
                                     <SmilePlus size={18}/>
                                   </button>
                                 )}
-                                <button type="button" disabled={isUploading} onClick={() => { dmFileInputRef.current?.click(); }} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
-                                  <Paperclip size={18}/>
-                                </button>
+                                <div style={{ position: 'relative' }}>
+                                  <button type="button" disabled={isUploading} onClick={() => setShowDmAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                    <Paperclip size={18}/>
+                                  </button>
+                                  {showDmAttachMenu && (
+                                    <div className="chat-attach-menu-overlay" onMouseDown={() => setShowDmAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
+                                      <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                        <button type="button" onClick={() => { setShowDmAttachMenu(false); dmFileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                          <ImageIcon size={17} color="#3b82f6" /> Browse
+                                        </button>
+                                        <button type="button" onClick={() => { setShowDmAttachMenu(false); setShowDmPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                          <BarChart2 size={17} color="#f59e0b" /> Poll
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                                 <button type="button" onClick={() => startRecording('dm')} title="Record voice note" style={{background:'transparent',border:'none',color: isLight ? '#64748b' : '#ffffff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:1}}>
                                   <Mic size={18}/>
                                 </button>
@@ -4519,7 +4664,7 @@ export default function RoomChatPanel({ p }) {
                               </div>
                             </>
                           )}
-                          {showDmCamera && (
+                          {showDmCamera && createPortal(
                             <CameraCapture
                               onCapture={async (file, caption) => {
                                 await handleFileSelect({ target: { files: [file], value: null } }, 'dm');
@@ -4529,7 +4674,17 @@ export default function RoomChatPanel({ p }) {
                                 }
                               }}
                               onClose={() => setShowDmCamera(false)}
-                            />
+                            />,
+                            document.body
+                          )}
+                          {showDmPollComposer && createPortal(
+                            <PollComposer
+                              isLight={isLight}
+                              title="Create poll"
+                              onClose={() => setShowDmPollComposer(false)}
+                              onSend={(pollDef) => { setShowDmPollComposer(false); p.sendDmPoll(pollDef); }}
+                            />,
+                            document.body
                           )}
 
                           {isUploading && (

@@ -5555,6 +5555,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = () => {
+        // MediaRecorder.stop() is async — this can fire AFTER
+        // cancelRecording() has already synchronously cleared audioBlob/
+        // audioUrl, silently repopulating them a moment later and making a
+        // just-deleted recording reappear in the preview bar. The recorder
+        // itself is tagged right before the cancel path calls .stop(), so
+        // this can tell "stopped to review" apart from "stopped to discard."
+        if (recorder._cancelled) return;
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setAudioBlob(blob);
         setAudioUrl(URL.createObjectURL(blob));
@@ -5613,6 +5620,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
     if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
     if (mediaRecorderRef.current) {
+      mediaRecorderRef.current._cancelled = true;
       try { mediaRecorderRef.current.stream?.getTracks().forEach(t => t.stop()); } catch {}
       try { if (mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop(); } catch {}
     }
@@ -8699,7 +8707,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             </div>
                           </>
                         )}
-                        {showCamera && (
+                        {/* Portal to document.body — same reasoning as
+                            RoomChatPanel's own CameraCapture usage: rendered
+                            inline, this widget's own frequent re-renders
+                            (a socket message landing in an unrelated chat,
+                            the 5s unread poll, etc.) reflow/repaint this
+                            whole nested subtree while the camera is open,
+                            which is what read as taps on Send/gallery not
+                            registering the first time. Portaling it out
+                            makes it a stable, independent top-level tree
+                            that this widget's own re-renders never touch. */}
+                        {showCamera && createPortal(
                           <CameraCapture
                             onCapture={async (file, caption) => {
                               await handleMediaUpload(file);
@@ -8709,7 +8727,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               }
                             }}
                             onClose={() => setShowCamera(false)}
-                          />
+                          />,
+                          document.body
                         )}
                         {showPollComposer && (
                           <PollComposer

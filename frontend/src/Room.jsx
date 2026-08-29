@@ -38,6 +38,7 @@ import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode } from './lib/crypto.js';
+import { castPollVote } from './lib/pollApi';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
 import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus, PartyPopper } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
@@ -4865,6 +4866,34 @@ const Room = () => {
       });
     });
 
+    // Poll vote sync — server broadcasts this to the whole room (group polls)
+    // or to both DM participants (private polls) whenever anyone casts,
+    // changes or withdraws a vote. Matches by id OR timestamp the same way
+    // message:delivered above does, since a poll this account just sent is
+    // still sitting under its optimistic tempId until the room broadcast
+    // reconciles it (or, for DMs, forever — see sendDmChat's own comment on
+    // why the HTTP send path never re-echoes to the sender).
+    sock.on('chat:poll_vote', ({ messageId, timestampId, pollVotes }) => {
+      const matches = m => String(m.id) === String(messageId) || String(m.timestamp) === String(timestampId);
+      setGroupMessages(prev => {
+        if (!prev.some(matches)) return prev;
+        const next = prev.map(m => matches(m) ? { ...m, pollVotes } : m);
+        groupMessagesRef.current = next;
+        return next;
+      });
+      setDmThreads(prev => {
+        let changed = false;
+        const next = { ...prev };
+        for (const user in next) {
+          if (next[user].some(matches)) {
+            changed = true;
+            next[user] = next[user].map(m => matches(m) ? { ...m, pollVotes } : m);
+          }
+        }
+        return changed ? next : prev;
+      });
+    });
+
     sock.on('private_message', msg => {
       const isMine = msg.isMe || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase());
       const otherName = isMine ? msg.targetName : msg.senderName;
@@ -6818,6 +6847,100 @@ const Room = () => {
     setGroupChatInput('');
   };
 
+  // Poll support for the room's own group chat — mirrors GlobalChatWidget's
+  // sendPollMessage exactly: same /api/chats/send endpoint, same isPoll/
+  // pollVotes wire convention, so a poll created from either surface shows
+  // up identically for everyone regardless of which one they're using. Only
+  // the E2EE plumbing differs, reusing THIS page's own group-encrypt helpers
+  // (ensureFreshGroupRecipients/encryptGroupMessage) rather than duplicating
+  // GlobalChatWidget's copy of the same call.
+  const sendGroupPoll = async (pollDef) => {
+    if (!socket || !roomId) return;
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+      return;
+    }
+    const pollText = JSON.stringify(pollDef);
+    const ts = Date.now();
+    const tempId = `opt-poll-${ts}`;
+    const optimisticMsg = {
+      id: tempId,
+      tempId,
+      username,
+      message: pollText,
+      decryptedText: pollText,
+      isPoll: true,
+      pollVotes: {},
+      timestamp: ts,
+      reactions: {},
+      replyTo: null,
+      _isOptimistic: true
+    };
+    setGroupMessages(prev => {
+      const next = [...prev, optimisticMsg];
+      groupMessagesRef.current = next;
+      return next;
+    });
+
+    let encryptedPayload = null;
+    try {
+      const recipients = await ensureFreshGroupRecipients();
+      encryptedPayload = encryptGroupMessage(pollText, recipients, myKeyPair.current, username);
+    } catch (err) {
+      console.warn('[E2EE] Group poll encrypt failed:', err);
+    }
+    if (!encryptedPayload) {
+      toast.error('Poll not sent — encryption failed.');
+      setGroupMessages(prev => {
+        const next = prev.filter(m => m.id !== tempId);
+        groupMessagesRef.current = next;
+        return next;
+      });
+      return;
+    }
+
+    const token = localStorage.getItem('watch_token');
+    try {
+      const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'room',
+          partner: (roomId || '').toLowerCase(),
+          message: encryptedPayload.ciphertext,
+          nonce: encryptedPayload.nonce,
+          e2eeKeys: encryptedPayload.keys,
+          ephemeralPublicKey: encodeBase64(myKeyPair.current.publicKey),
+          encrypted: true,
+          replyTo: null,
+          tempId,
+          isPoll: true,
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Poll could not be sent.');
+        setGroupMessages(prev => {
+          const next = prev.filter(m => m.id !== tempId);
+          groupMessagesRef.current = next;
+          return next;
+        });
+      }
+      // On success: backend broadcasts chat_message to the room (same event
+      // this page's own chat_message listener already reconciles by tempId),
+      // so no local success-path handling is needed here.
+    } catch (e) {
+      console.error('[Room] sendGroupPoll error:', e);
+      toast.error('Failed to send poll. Please try again.');
+      setGroupMessages(prev => {
+        const next = prev.filter(m => m.id !== tempId);
+        groupMessagesRef.current = next;
+        return next;
+      });
+    }
+  };
+
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null) => {
     if (!socket) return;
     if (rawFile && !myKeyPair.current) {
@@ -7152,6 +7275,170 @@ const Room = () => {
         return next;
       });
     }
+  };
+
+  // DM poll — same /api/chats/send + isPoll convention as sendGroupPoll and
+  // GlobalChatWidget's sendPollMessage, reusing sendDmChat's own public-key
+  // lookup cascade (memory cache → userList → localStorage → API → API
+  // lowercase-fallback) rather than duplicating it a third time.
+  const sendDmPoll = async (pollDef) => {
+    if (!socket || !dmTarget) return;
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) {
+      toast.error('Encryption keys not ready yet. Please refresh.');
+      return;
+    }
+
+    const token = localStorage.getItem('watch_token');
+    const ts = Date.now();
+    const tempId = `opt-poll-${ts}`;
+    const pollText = JSON.stringify(pollDef);
+
+    const optimisticMsg = {
+      id: tempId,
+      tempId,
+      senderName: username,
+      targetName: dmTarget,
+      message: pollText,
+      decryptedText: pollText,
+      isPoll: true,
+      pollVotes: {},
+      timestamp: ts,
+      isMe: true,
+      reactions: {},
+      replyTo: null,
+      _isOptimistic: true
+    };
+    setDmThreads(prev => {
+      const next = { ...prev };
+      const key = dmTarget.toLowerCase();
+      next[key] = [...(next[key] || []), optimisticMsg];
+      return next;
+    });
+
+    const targetLower = dmTarget.toLowerCase();
+    let isEncrypted = false;
+    let messagePayload = '', senderMsgPayload = '', nonceVal = '', ephKeyVal = '';
+    try {
+      const cachedKey = dbPublicKeys.current[targetLower];
+      if (cachedKey && cachedKey.length === 32) {
+        const enc = encryptDM(pollText, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+        messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+      }
+      if (!isEncrypted) {
+        const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
+        if (targetUser?.publicKey) {
+          const enc = encryptDM(pollText, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
+          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+          try { dbPublicKeys.current[targetLower] = decodeBase64(targetUser.publicKey); } catch {}
+        }
+      }
+      if (!isEncrypted) {
+        const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
+        if (localPK) {
+          const enc = encryptDM(pollText, localPK, encodeBase64(myKeyPair.current.publicKey));
+          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+          try { dbPublicKeys.current[targetLower] = decodeBase64(localPK); } catch {}
+        }
+      }
+      if (!isEncrypted) {
+        const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
+        if (pkRes.ok) {
+          const pkData = await pkRes.json();
+          if (pkData.publicKey) {
+            const enc = encryptDM(pollText, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
+            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+            try { localStorage.setItem(`wt_pk_${targetLower}`, pkData.publicKey); dbPublicKeys.current[targetLower] = decodeBase64(pkData.publicKey); } catch {}
+          }
+        }
+      }
+      if (!isEncrypted) {
+        const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
+        if (pkRes2.ok) {
+          const pkData2 = await pkRes2.json();
+          if (pkData2.publicKey) {
+            const enc = encryptDM(pollText, pkData2.publicKey, encodeBase64(myKeyPair.current.publicKey));
+            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
+            try { localStorage.setItem(`wt_pk_${targetLower}`, pkData2.publicKey); dbPublicKeys.current[targetLower] = decodeBase64(pkData2.publicKey); } catch {}
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[E2EE] DM poll encryption pipeline error:', err);
+    }
+
+    const rollback = () => setDmThreads(prev => {
+      const next = { ...prev };
+      const key = dmTarget.toLowerCase();
+      if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
+      return next;
+    });
+
+    if (!isEncrypted) {
+      toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
+      rollback();
+      return;
+    }
+
+    try {
+      const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'private',
+          partner: dmTarget.toLowerCase(),
+          message: messagePayload,
+          senderMessage: senderMsgPayload,
+          nonce: nonceVal,
+          ephemeralPublicKey: ephKeyVal,
+          encrypted: true,
+          replyTo: null,
+          tempId,
+          isPoll: true,
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Poll could not be sent.');
+        rollback();
+      }
+    } catch (err) {
+      console.error('[Room DM] sendDmPoll error:', err);
+      toast.error('Failed to send poll. Please try again.');
+      rollback();
+    }
+  };
+
+  // Casts/changes/withdraws this account's own vote on a poll message —
+  // optimistic local update first (matches GlobalChatWidget's own
+  // handlePollVote), then the real POST; the chat:poll_vote socket listener
+  // registered in the main socket effect reconciles this across every other
+  // open surface (other tab/device, GlobalChatWidget, and everyone else in
+  // the room/DM) once the server confirms it.
+  const handlePollVote = (msg, chatType, optionIndices) => {
+    const myKey = (username || '').toLowerCase();
+    const applyVote = (m) => {
+      if (String(m.id) !== String(msg.id) && String(m.timestamp) !== String(msg.timestamp)) return m;
+      const nextVotes = { ...(m.pollVotes || {}) };
+      if (optionIndices.length > 0) nextVotes[myKey] = optionIndices;
+      else delete nextVotes[myKey];
+      return { ...m, pollVotes: nextVotes };
+    };
+    if (chatType === 'group') {
+      setGroupMessages(prev => {
+        const next = prev.map(applyVote);
+        groupMessagesRef.current = next;
+        return next;
+      });
+    } else {
+      setDmThreads(prev => {
+        const key = (dmTarget || '').toLowerCase();
+        if (!key || !prev[key]) return prev;
+        return { ...prev, [key]: prev[key].map(applyVote) };
+      });
+    }
+    castPollVote(msg.id || msg.timestamp, optionIndices, localStorage.getItem('watch_token'))
+      .catch(e => { console.error('[poll] vote failed', e); toast.error('Vote failed. Please try again.'); });
   };
 
   // DM messages are E2EE, so editing must re-run the same encryption steps
@@ -13940,6 +14227,7 @@ const Room = () => {
                     keyPair, dbPublicKeys,
                     sendGroupChat, sendDmChat,
                     sendMediaGroupChat, sendMediaDmChat,
+                    sendGroupPoll, sendDmPoll, handlePollVote,
                     handleGroupReact, handleDmReact,
                     handleDeleteMessage,
                     forwardMessages,
@@ -14217,6 +14505,7 @@ const Room = () => {
                 keyPair, dbPublicKeys,
                 sendGroupChat, sendDmChat,
                 sendMediaGroupChat, sendMediaDmChat,
+                sendGroupPoll, sendDmPoll, handlePollVote,
                 handleGroupReact, handleDmReact,
                 handleDeleteMessage,
                 forwardMessages,
