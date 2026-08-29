@@ -8081,7 +8081,13 @@ const GlobalChatWidget = forwardRef(({
 
         {/* Input area for chat view */}
         {view === 'chat' && (
-          <div style={{
+          // gcw-composer-bar: registered in App.jsx's light-mode fixed-overlay
+          // exclusion list. This div is a direct child of the fixed
+          // chat-widget-main-panel with its own inline `background` — that
+          // override rule was matching it and forcing a solid #f7f8fc fill
+          // in light mode even in the idle/transparent state above, which is
+          // exactly what read as a leftover white strip under the composer.
+          <div className="gcw-composer-bar" style={{
             padding: '12px 14px',
             // A wallpaper theme sits directly on the shared backdrop layer
             // instead of this bar painting its own opaque strip on top of
@@ -8627,6 +8633,11 @@ const GlobalChatWidget = forwardRef(({
                     <button
                       key={cat.id}
                       onClick={() => setThemeCategoryFilter(cat.id)}
+                      // stay-white: light mode has a global rule that turns any
+                      // inline white-ish text black (see App.jsx) — without this,
+                      // the selected pill's deliberately-white text on its purple
+                      // fill was getting auto-darkened, unreadable-looking.
+                      className={active ? 'stay-white' : undefined}
                       style={{
                         padding: '6px 14px', borderRadius: 20, border: 'none',
                         fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',

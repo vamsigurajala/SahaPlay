@@ -10747,6 +10747,9 @@ const Room = () => {
                   <button
                     key={cat.id}
                     onClick={() => setThemeCategoryFilter(cat.id)}
+                    // stay-white — see the identical comment on this same
+                    // pill in GlobalChatWidget.jsx's copy of this sheet.
+                    className={active ? 'stay-white' : undefined}
                     style={{
                       padding: '6px 14px', borderRadius: 20, border: 'none',
                       fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',

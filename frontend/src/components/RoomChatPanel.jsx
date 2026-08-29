@@ -3093,7 +3093,15 @@ export default function RoomChatPanel({ p }) {
                         }}>
                           <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                         </div>
-                        <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
+                        {/* stay-white on the received bubble too, whenever its own
+                            text is actually white (a dark wallpaper) — light mode
+                            has a global "any inline white-ish text turns black"
+                            rule (see App.jsx) that doesn't know this white was
+                            chosen deliberately for contrast against a dark image.
+                            Scoped to only the dark-wallpaper case (not applied
+                            unconditionally like msg-sent) so the default/no-theme
+                            received bubble is untouched. */}
+                        <div className={isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
                           position: 'relative',
                           zIndex: 2,
                           background: isMediaOnly ? 'transparent' : (
@@ -3931,7 +3939,9 @@ export default function RoomChatPanel({ p }) {
                               }}>
                                 <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                               </div>
-                              <div className={isMe ? 'msg-sent stay-white' : 'msg-received'} style={{
+                              {/* stay-white on the received bubble too — see the
+                                  identical comment on the group thread's bubble. */}
+                              <div className={isMe ? 'msg-sent stay-white' : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
                                 position: 'relative',
                                 zIndex: 2,
                                 background: isMediaOnly ? 'transparent' : (
