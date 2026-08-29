@@ -8168,8 +8168,16 @@ const GlobalChatWidget = forwardRef(({
                   // through — matches Instagram's reply preview (fully
                   // opaque, readable regardless of what's behind the
                   // composer). Same solid shade the composer's own input uses.
-                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color:'#a0aab2'}}>
-                    <span><span style={{color:'var(--brand-1)',fontWeight:600}}>{replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}: </span>{(() => {
+                  // Two-line layout ("Replying to X" then the quoted text
+                  // below it) — matches Instagram exactly rather than the
+                  // single-line "X: text" this used to show, and reads the
+                  // same way in a private chat as it does in a group.
+                  <div style={{padding:'6px 12px',marginBottom:6,background:'#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color:'#a0aab2'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {replyToMsg.senderName || replyToMsg.username || activeChat?.displayName}</span>
+                      <button onClick={()=>setReplyToMsg(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={12}/></button>
+                    </div>
+                    <span style={{opacity:0.85}}>{(() => {
                       const r = replyToMsg;
                       if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
                       if (r.decryptedText) return r.decryptedText.slice(0,50);
@@ -8177,7 +8185,6 @@ const GlobalChatWidget = forwardRef(({
                       if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                       return raw.slice(0,50) || 'Media';
                     })()}</span>
-                    <button onClick={()=>setReplyToMsg(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
                   </div>
                 )}
                 {editingMsg && (

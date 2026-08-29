@@ -3348,8 +3348,12 @@ export default function RoomChatPanel({ p }) {
             // — matches Instagram's reply preview (fully opaque, everything
             // in it clearly readable regardless of what's behind the
             // composer). Same solid shade the composer's own input uses.
-            <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
-              <span><span style={{color:'var(--brand-1)',fontWeight:600}}>{(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: </span>{(() => {
+            <div style={{padding:'6px 12px',background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {(() => { const n = p.groupReplyTo.username || p.groupReplyTo.senderName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? t('yourself', 'yourself') : (isRepBlocked ? 'User' : n); })()}</span>
+                <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer',display:'flex',alignItems:'center'}}><X size={12}/></button>
+              </div>
+              <span style={{opacity:0.85}}>{(() => {
                 const r = p.groupReplyTo;
                 if (r.mediaType) { const rmt3=r.mediaType; return rmt3.startsWith('video')?'Video':rmt3.startsWith('image')?'Photo':rmt3.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
                 if (r.decryptedText) return r.decryptedText.slice(0,50);
@@ -3357,7 +3361,6 @@ export default function RoomChatPanel({ p }) {
                 if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                 return raw.slice(0,50) || 'Message';
               })()}</span>
-              <button onClick={()=>p.setGroupReplyTo(null)} style={{background:'none',border:'none',color:'#666',cursor:'pointer'}}><X size={12}/></button>
             </div>
           )}
           {p.groupEditingMessage && (
@@ -3374,7 +3377,10 @@ export default function RoomChatPanel({ p }) {
               the whole composer area reads as one solid surface. Left
               transparent the rest of the time so the wallpaper still shows
               through during normal typing, unchanged from before. */}
-          <div style={{padding:'10px 12px',flexShrink:0,position:'relative', background: (p.groupReplyTo || p.groupEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
+          {/* Bottom padding trimmed vs. the top (was symmetric 10px) — pulls
+              the composer a little closer to the keyboard, matching the
+              tighter gap the global chat window already has. */}
+          <div style={{padding:'10px 12px 6px',flexShrink:0,position:'relative', background: (p.groupReplyTo || p.groupEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
             {/* Restriction badges */}
             {(() => {
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
@@ -3446,7 +3452,12 @@ export default function RoomChatPanel({ p }) {
                         // fresh focus event at all, leaving this stuck at
                         // whatever it was from the FIRST tap.
                         onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
-                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
+                        // Instant, not a 300ms-later guess — the delay plus
+                        // scrollIntoView is what read as the composer sitting
+                        // under the keyboard for a beat before sliding into
+                        // place. See the identical fix/comment on the global
+                        // chat window's composer onFocus.
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }}
                         onBlur={() => { composerFocusedRef.current = false; }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
@@ -4176,20 +4187,23 @@ export default function RoomChatPanel({ p }) {
                 </div>
                 {/* Solid fill while a reply/edit preview is showing above —
                     see the identical comment on the group composer wrapper. */}
-                <div style={{padding:'10px 12px',flexShrink:0,position:'relative', background: (p.dmReplyTo || p.dmEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
+                {/* Bottom padding trimmed vs. the top — see the identical
+                    comment on the group composer wrapper. */}
+                <div style={{padding:'10px 12px 6px',flexShrink:0,position:'relative', background: (p.dmReplyTo || p.dmEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
                   {p.dmReplyTo && (
                     // Solid fill — see the identical comment on the group
                     // reply preview above.
-                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
-                      <span><span style={{color:'var(--brand-1)',fontWeight:600}}>
-                        {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
-                      </span> {(() => {
+                    <div style={{padding:'6px 12px',marginBottom:6,background: isLight ? '#f1f5f9' : '#1c1c1e',borderTop:'1px solid rgba(var(--brand-1-rgb),0.2)',display:'flex',flexDirection:'column',gap:2,fontSize:12,color: isLight ? '#64748b' : '#a0aab2'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                        <span style={{color:'var(--brand-1)',fontWeight:600}}>{t('replyingTo', 'Replying to')} {(() => { const n = p.dmReplyTo.username || p.dmReplyTo.senderName || p.dmReplyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? t('yourself', 'yourself') : (isRepBlocked ? 'User' : n); })()}</span>
+                        <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
+                      </div>
+                      <span style={{opacity:0.85}}>{(() => {
                         const r = p.dmReplyTo;
                         if (r.mediaType) { const rmt4=r.mediaType; return rmt4.startsWith('video')?'Video':rmt4.startsWith('image')?'Photo':rmt4.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
                         if (r.decryptedText) return r.decryptedText.slice(0,50);
                         return (r.message||'').slice(0,50) + ((r.message||'').length > 50 ? '...' : '');
                       })()}</span>
-                      <button onClick={()=>p.setDmReplyTo(null)} style={{background:'none',border:'none',color:'var(--brand-1)',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center'}}>&times;</button>
                     </div>
                   )}
                   {p.dmEditingMessage && (
@@ -4328,7 +4342,9 @@ export default function RoomChatPanel({ p }) {
                             // See the identical comment on the group composer's
                             // textarea above — same fix, same reason.
                             onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
-                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); setTimeout(() => { if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }, 300); }}
+                            // Instant — see the identical comment on the
+                            // group composer's onFocus.
+                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }}
                             onBlur={() => { composerFocusedRef.current = false; }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
