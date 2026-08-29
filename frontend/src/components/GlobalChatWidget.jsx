@@ -2065,6 +2065,41 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameInput, setRenameInput] = useState('');
 
+  // True only while the user reached the current /profile/* route by leaving
+  // an already-open chat (see leaveChatToViewProfile / hiddenByProfileRoute
+  // below); reset to false the moment a chat is opened fresh from outside.
+  //
+  // Seeded from sessionStorage (not just `false`) because this ref alone
+  // cannot survive the exact case it exists for: Room.jsx's own embedded
+  // widget instance calls leaveChatToViewProfile and sets this true, but
+  // Room.jsx (the /room/:roomId route) then fully unmounts as the route
+  // switches to /profile/:username — taking that instance, and its in-memory
+  // ref, down with it. Profile.jsx mounts its OWN separate widget instance
+  // (every non-persistent mount site does — see this file's own "self-
+  // contained" precedent), whose ref starts fresh at `false` with no memory
+  // of why we're here. Without seeding from the persisted flag, that fresh
+  // instance's hiddenByProfileRoute reads false, so it renders fully visible
+  // — showing the just-restored (view/activeChat already read from
+  // sessionStorage below) but not-yet-fetched chat right on top of the
+  // profile the user actually tapped through to see: a blank pane with a
+  // spinner that looks like "the chat came back instead of the profile."
+  const cameFromOpenChatRef = useRef((() => {
+    try { return sessionStorage.getItem('gcw_hidden_for_profile') === 'true'; } catch { return false; }
+  })());
+  // Declared up here (ahead of gcwBaseLevel/gcwLevel below, which reads it)
+  // rather than down by leaveChatToViewProfile where it conceptually
+  // belongs, specifically so gcwLevel can force itself to 0 while true — see
+  // gcwLevel's own comment for why that ordering matters.
+  //
+  // Only hide behind the profile route if we actually GOT to this profile by
+  // leaving an already-open chat (leaveChatToViewProfile). Without this flag,
+  // landing on a profile page any other way (e.g. clicking someone's avatar
+  // in a room's group chat) and then opening a fresh chat from that profile's
+  // own Message button would set activeChat/view correctly but stay
+  // display:none forever — this widget instance never became visible because
+  // the route-based hide fired unconditionally for every /profile/* route.
+  const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
+
   // Any transient overlay (forward picker, rename/clear-chat confirms, vault
   // modals) open on top of the chat view gets its own back-intercept level,
   // so a swipe-back/hardware-back closes just that overlay instead of
@@ -2091,7 +2126,30 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // above — it's a level layered on top of whatever gcwBaseLevel already is,
   // closeable back down to exactly that base level regardless of which one
   // it was.
-  const gcwLevel = showThemeSheet ? gcwBaseLevel + 1 : gcwBaseLevel;
+  //
+  // Forced to 0 while hiddenByProfileRoute (declared just above) is true,
+  // instead of the normal showThemeSheet/gcwBaseLevel value — a widget
+  // sitting invisible behind /profile/:username has nothing on screen for a
+  // swipe to meaningfully step through. Without this, a fresh instance that
+  // mounts directly into an already-open chat (restored from sessionStorage
+  // — see cameFromOpenChatRef above) backfills 3 real history entries in one
+  // shot the instant it mounts (useBackIntercept has no way to know the
+  // component didn't actually traverse list->chat live), stacked right on
+  // top of the single entry the profile navigation itself created. One
+  // swipe off /profile then only unwound one of those 4, landing back on
+  // /profile every time — the "2-3 swipes, and it lands on the whole
+  // conversation list" the user reported. Holding level at 0 the entire
+  // time the widget is hidden means it never pushes anything of its own
+  // during the detour, so the lone profile-nav entry (already protected by
+  // suppressNextPop() in leaveChatToViewProfile) is the only one a swipe
+  // has to get through. Once hiddenByProfileRoute goes back to false — the
+  // instant the widget is visible again, whether that's this same instance
+  // (the persistent case) or a fresh one on whatever page comes back into
+  // view — level jumps to its real value and backfills normally; by then
+  // the chat is already the thing on screen, so those entries only affect
+  // how many further swipes it takes to close the widget from there, not
+  // how many it took to get back to it.
+  const gcwLevel = hiddenByProfileRoute ? 0 : (showThemeSheet ? gcwBaseLevel + 1 : gcwBaseLevel);
   const gcwBack = useBackIntercept(gcwLevel, (newLevel) => {
     if (showThemeSheet && newLevel === gcwBaseLevel) {
       setShowThemeSheet(false);
@@ -2118,28 +2176,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
     }
   });
 
-  // True only while the user reached the current /profile/* route by leaving
-  // an already-open chat (see leaveChatToViewProfile / hiddenByProfileRoute
-  // below); reset to false the moment a chat is opened fresh from outside.
-  //
-  // Seeded from sessionStorage (not just `false`) because this ref alone
-  // cannot survive the exact case it exists for: Room.jsx's own embedded
-  // widget instance calls leaveChatToViewProfile and sets this true, but
-  // Room.jsx (the /room/:roomId route) then fully unmounts as the route
-  // switches to /profile/:username — taking that instance, and its in-memory
-  // ref, down with it. Profile.jsx mounts its OWN separate widget instance
-  // (every non-persistent mount site does — see this file's own "self-
-  // contained" precedent), whose ref starts fresh at `false` with no memory
-  // of why we're here. Without seeding from the persisted flag, that fresh
-  // instance's hiddenByProfileRoute reads false, so it renders fully visible
-  // — showing the just-restored (view/activeChat already read from
-  // sessionStorage below) but not-yet-fetched chat right on top of the
-  // profile the user actually tapped through to see: a blank pane with a
-  // spinner that looks like "the chat came back instead of the profile."
-  const cameFromOpenChatRef = useRef((() => {
-    try { return sessionStorage.getItem('gcw_hidden_for_profile') === 'true'; } catch { return false; }
-  })());
-
   // Leaving to view someone's profile from within an open chat does NOT
   // close this overlay (unlike every other "leave" path) — it stays fully
   // mounted with its state untouched (activeChat, view, scroll position...)
@@ -2163,6 +2199,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const leaveChatToViewProfile = (targetUsername) => {
     if (navigatingToProfileRef.current) return;
     navigatingToProfileRef.current = true;
+    // Setting cameFromOpenChatRef true (next line) drops gcwLevel to 0 on
+    // the very next render (see gcwLevel's own comment) — without telling
+    // the hook that's an intentional side effect of navigating forward, not
+    // an in-app close, it would physically call history.go() to consume
+    // this instance's already-pushed entries right as navigate() below is
+    // trying to push a new one, racing it. skipNextClose() is the same
+    // escape hatch already used a few hundred lines down for the "view a
+    // room from an open chat" navigation — same reason, same fix.
+    gcwBack.skipNextClose();
     cameFromOpenChatRef.current = true;
     // Belt-and-suspenders write, redundant with the useEffects above that
     // persist view/activeChat on every change — see the identical comment
@@ -2190,14 +2235,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // avatar. import() for an already-fetched module resolves from cache, so
   // this is a one-time cost regardless of how many times it's called.
   useEffect(() => { import('../Profile'); }, []);
-  // Only hide behind the profile route if we actually GOT to this profile by
-  // leaving an already-open chat (leaveChatToViewProfile). Without this flag,
-  // landing on a profile page any other way (e.g. clicking someone's avatar
-  // in a room's group chat) and then opening a fresh chat from that profile's
-  // own Message button would set activeChat/view correctly but stay
-  // display:none forever — this widget instance never became visible because
-  // the route-based hide fired unconditionally for every /profile/* route.
-  const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
   // Once the profile route is actually left, this widget is reachable again
   // for a fresh leaveChatToViewProfile() call — release the double-tap guard.
   // Also clear the persisted "hide behind profile" flag here (not just the
