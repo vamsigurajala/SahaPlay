@@ -2803,6 +2803,16 @@ export default function RoomChatPanel({ p }) {
           {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+              // minHeight:'100%' alongside the explicit height below — height
+              // alone can leave the panel's real (white in light mode, so
+              // visible as a thin line/border at the bottom edge; invisible
+              // in dark mode where it happens to match) background peeking
+              // through whenever the live container is taller than the
+              // largest-ever-seen snapshot this height is clamped to. min-
+              // height always wins over a smaller height per spec, so this
+              // guarantees full coverage without touching the anti-shrink
+              // behavior the explicit height exists for.
+              minHeight: '100%',
               ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
@@ -2826,11 +2836,11 @@ export default function RoomChatPanel({ p }) {
                 <Users size={15} color="#fff" />
               )}
             </div>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff'}}>{p.roomName}</div>
-              <div style={{fontSize:10,color: isLight ? '#64748b' : '#555'}}>{p.userCount} members online</div>
+            <div style={{minWidth:0,flex:1,overflow:'hidden'}}>
+              <div style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.roomName}</div>
+              <div style={{fontSize:10,color: isLight ? '#64748b' : '#555',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{p.userCount} members online</div>
             </div>
-            <div ref={p.groupMenuRef} style={{position:'relative', marginLeft:'auto', display:'flex', alignItems:'center'}}>
+            <div ref={p.groupMenuRef} style={{position:'relative', marginLeft:'auto', flexShrink:0, display:'flex', alignItems:'center'}}>
               <div 
                 onClick={e=>{e.stopPropagation(); p.setShowGroupMenu(prev=>!prev);}} 
                 style={{background:'none',border:'none',color: isLight ? '#64748b' : '#aaa',cursor:'pointer',padding:4, transition: 'color 0.2s'}}
@@ -3022,8 +3032,16 @@ export default function RoomChatPanel({ p }) {
                     </div>
                   )}
                   {msg.replyTo && (
-                    <div onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background: isLight ? 'rgba(0,0,0,0.03)' : 'rgba(255,255,255,0.05)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color: isLight ? '#64748b' : '#888',maxWidth:'80%',cursor:'pointer'}}>
-                      <span style={{color: isLight ? '#1e293b' : '#a0aab2',fontWeight:600}}>{(() => { 
+                    // Grey pill + white text, unconditionally — same in every
+                    // theme/wallpaper combo, not derived from isLight/groupWallpaper,
+                    // since this sits INSIDE the bubble (on top of whatever the
+                    // bubble's own background is) rather than needing to blend
+                    // with the surrounding chat. stay-white exempts both the
+                    // outer text color and the name span from the global
+                    // light-mode "force white-ish text to black" rule (see
+                    // App.jsx) that would otherwise undo this.
+                    <div className="stay-white" onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                      <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
                         const n = msg.replyTo.username || msg.replyTo.senderName; 
                         const partner = (n||'').toLowerCase();
                         const isRepBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner); 
@@ -3587,6 +3605,9 @@ export default function RoomChatPanel({ p }) {
             {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
+                // See the identical comment on the group chat backdrop above —
+                // same gap-covering fix, same reason.
+                minHeight: '100%',
                 ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
@@ -3902,8 +3923,11 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         )}
                         {msg.replyTo && (
-                          <div onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
-                            <span style={{color:'var(--brand-1)',fontWeight:600}} className="reply-sender">
+                          // Grey pill + white text, unconditionally — see the
+                          // identical comment on the group thread's quoted-
+                          // reply block above; same fix, same reason.
+                          <div className="stay-white" onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                            <span style={{color:'#fff',fontWeight:600}} className="reply-sender stay-white">
                               {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                             </span> {(() => {
                               const raw = msg.replyTo.message || '';

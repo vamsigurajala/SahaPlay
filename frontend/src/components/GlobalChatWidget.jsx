@@ -6170,6 +6170,15 @@ const GlobalChatWidget = forwardRef(({
             // Unconditional (not gated on isMobileOrTablet) — matches the
             // room-chat equivalent of this same backdrop exactly, which
             // applies its explicit height regardless of viewport width.
+            // minHeight:'100%' alongside it — the explicit height alone can
+            // leave the panel's own (white in light mode, so visible as a
+            // thin line/border; invisible in dark mode) background peeking
+            // through at the bottom edge whenever the live container is
+            // taller than the largest-ever-seen snapshot the height is
+            // clamped to. min-height always wins over a smaller height per
+            // spec, so this guarantees full coverage without touching the
+            // anti-shrink behavior the explicit height exists for.
+            minHeight: '100%',
             ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
@@ -6221,9 +6230,9 @@ const GlobalChatWidget = forwardRef(({
           background: activeWallpaper ? 'rgba(10,10,10,0.94)' : (transparentMode ? 'transparent' : '#0a0a0a'),
           borderBottom: activeWallpaper ? '1px solid rgba(255,255,255,0.08)' : (transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)')
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
             {view === 'chat' && (
-              <button onClick={handleBackToList} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex' }}>
+              <button onClick={handleBackToList} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
                 <ArrowLeft size={20} />
               </button>
             )}
@@ -6234,6 +6243,11 @@ const GlobalChatWidget = forwardRef(({
                 color: 'var(--header-text)',
                 textDecoration: 'none',
                 cursor: view === 'chat' && (activeChat?.type === 'private' || activeChat?.type === 'room') ? 'pointer' : 'default',
+                display: 'block',
+                minWidth: 0,
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
               }}
               onClick={() => {
                 if (view === 'chat' && activeChat?.type === 'private' && activeChat?.partner) {
@@ -6282,7 +6296,7 @@ const GlobalChatWidget = forwardRef(({
               {view === 'list' ? t('conversations', 'Conversations') : (activeChat?.type === 'private' && (blockingMe.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase()) || blockedChats.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase())) ? t('user', 'User') : activeChat?.displayName)}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             {view === 'chat' && activeChat?.type === 'private' && (() => {
               const partnerLower = (activeChat.partner || '').toLowerCase();
               const isBlocked = blockingMe.some(u => u.toLowerCase() === partnerLower) || blockedChats.some(u => u.toLowerCase() === partnerLower);
@@ -7639,8 +7653,13 @@ const GlobalChatWidget = forwardRef(({
                         </div>
                       )}
                       {msg.replyTo && (
-                        <div onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(255,255,255,0.05)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#888',maxWidth:'80%',cursor:'pointer'}}>
-                          <span style={{color:isMe?'var(--brand-1)':'var(--brand-2)',fontWeight:600}}>{(() => {
+                        // Grey pill + white text, unconditionally — see the
+                        // identical comment on RoomChatPanel.jsx's quoted-
+                        // reply block; same fix, same reason. stay-white
+                        // exempts this from the global light-mode "force
+                        // white-ish text to black" rule (see App.jsx).
+                        <div className="stay-white" onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                          <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
                             const rName = msg.replyTo.username || msg.replyTo.senderName;
                             if (rName === myUsername) return 'You';
                             const partner = (rName || '').toLowerCase();
