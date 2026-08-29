@@ -2190,14 +2190,33 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // — without it, that pop gets misattributed to whichever level is on top
   // of the shared stack and incorrectly collapses the chat view instead of
   // just revealing it.
-  // Guards against a fast double/triple-tap firing this more than once —
-  // see the identical comment on RoomChatPanel.jsx's own copy of this guard;
-  // same fix, same reason. Reset below once the profile route is left
-  // (this widget stays mounted, unlike RoomChatPanel, so unmount never does
-  // it for us here).
+  // Guards against a fast double/triple-tap firing this more than once
+  // while still ON the profile route it leads to — see the identical
+  // comment on RoomChatPanel.jsx's own copy of this guard, same fix, same
+  // reason (RoomChatPanel doesn't need the pathname check below, since
+  // Room.jsx fully unmounts/remounts across the trip and hands it a brand
+  // new ref every time; this widget instance normally stays mounted
+  // through the whole round trip, so nothing does that for it here).
+  //
+  // The `|| !location.pathname.startsWith('/profile')` half of the check
+  // below is deliberate, not redundant with the reset effect further down
+  // that clears the ref once the pathname leaves /profile: that reset runs
+  // in a useEffect, which only fires after React commits AND paints the
+  // post-navigation render — on a slower device, with this same render also
+  // needing to re-fetch/re-decrypt the chat that just came back into view
+  // (the "chat took some time to load" a real swipe-back already costs),
+  // that commit can be visibly delayed. A second avatar tap landing in that
+  // window found navigatingToProfileRef still true from the FIRST trip and
+  // got silently dropped — read here as "second avatar click just doesn't
+  // redirect at all," reliably worse on mobile than a fast laptop precisely
+  // because the gap this races is proportional to how loaded the main
+  // thread already is. Checking the pathname directly, synchronously, at
+  // call time trusts the one signal that's never stale — if we're
+  // demonstrably not on a profile route right now, a leftover `true` from
+  // an earlier trip is stale by definition and shouldn't block a new one.
   const navigatingToProfileRef = useRef(false);
   const leaveChatToViewProfile = (targetUsername) => {
-    if (navigatingToProfileRef.current) return;
+    if (navigatingToProfileRef.current && location.pathname.startsWith('/profile')) return;
     navigatingToProfileRef.current = true;
     // Setting cameFromOpenChatRef true (next line) drops gcwLevel to 0 on
     // the very next render (see gcwLevel's own comment) — without telling
