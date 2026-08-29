@@ -8197,6 +8197,12 @@ const GlobalChatWidget = forwardRef(({
                             overflowY: 'auto',
                             lineHeight: 1.4,
                             fontFamily: 'inherit',
+                            // Scopes the auto-resize hook's forced-reflow
+                            // measurement (reading scrollHeight) to just this
+                            // box instead of the whole message history in the
+                            // same document — see useAutoResizeTextarea's own
+                            // comment for the full reasoning.
+                            contain: 'layout',
                             // A solid opaque fill, not a faint tint on top of
                             // whatever's behind the composer (page background
                             // or, with a wallpaper theme, the picture) — this

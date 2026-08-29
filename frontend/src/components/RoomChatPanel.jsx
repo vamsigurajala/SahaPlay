@@ -3412,16 +3412,27 @@ export default function RoomChatPanel({ p }) {
                           overflowY:'auto',
                           lineHeight:1.4,
                           fontFamily:'inherit',
+                          // contain:'layout' scopes the auto-resize hook's
+                          // forced-reflow measurement (reading scrollHeight)
+                          // to just this box instead of it needing to
+                          // recompute layout for the whole message history
+                          // sitting in the same document — see that hook's
+                          // own comment for the full reasoning.
+                          contain: 'layout',
                           // Solid opaque fill in dark mode, not a faint tint —
                           // light mode's #f1f5f9 was already opaque.
                           background: isLight ? '#f1f5f9' : '#1c1c1e',
                           border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
-                          borderRadius:10,
-                          padding:'8px 12px',
-                          paddingRight: (!p.groupChatInput && !isUploading) ? '95px' : '12px',
-                          paddingLeft: (isMobileOrTablet && !p.groupChatInput && !isUploading) ? '36px' : '12px',
+                          // Bumped from 10px/8-12 padding — matched the global
+                          // chat window's composer more closely (not all the
+                          // way, just enough that the box reads as a proper
+                          // input instead of a thin strip).
+                          borderRadius:12,
+                          padding:'11px 15px',
+                          paddingRight: (!p.groupChatInput && !isUploading) ? '95px' : '15px',
+                          paddingLeft: (isMobileOrTablet && !p.groupChatInput && !isUploading) ? '38px' : '15px',
                           color: isLight ? '#1e293b' : '#fff',
-                          fontSize:13,
+                          fontSize:14,
                           outline:'none',
                           // NOT `transition: all` — this also animated the
                           // textarea's own auto-resize height and, worse, got
@@ -4272,16 +4283,19 @@ export default function RoomChatPanel({ p }) {
                               overflowY:'auto',
                               lineHeight:1.4,
                               fontFamily:'inherit',
+                              // See the identical comment on the group composer's
+                              // textarea above — same fix, same reason.
+                              contain: 'layout',
                               // Solid opaque fill in dark mode, not a faint tint —
                               // light mode's #f1f5f9 was already opaque.
                               background: isLight ? '#f1f5f9' : '#1c1c1e',
                               border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
-                              borderRadius:10,
-                              padding:'8px 12px',
-                              paddingRight: (!p.dmChatInput && !isUploading) ? '95px' : '12px',
-                              paddingLeft: (isMobileOrTablet && !p.dmChatInput && !isUploading) ? '36px' : '12px',
+                              borderRadius:12,
+                              padding:'11px 15px',
+                              paddingRight: (!p.dmChatInput && !isUploading) ? '95px' : '15px',
+                              paddingLeft: (isMobileOrTablet && !p.dmChatInput && !isUploading) ? '38px' : '15px',
                               color: isLight ? '#1e293b' : '#fff',
-                              fontSize:13,
+                              fontSize:14,
                               outline:'none',
                               // See the identical comment on the group composer's
                               // textarea above — same fix, same reason.
