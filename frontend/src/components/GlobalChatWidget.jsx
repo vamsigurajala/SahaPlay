@@ -2121,7 +2121,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // True only while the user reached the current /profile/* route by leaving
   // an already-open chat (see leaveChatToViewProfile / hiddenByProfileRoute
   // below); reset to false the moment a chat is opened fresh from outside.
-  const cameFromOpenChatRef = useRef(false);
+  //
+  // Seeded from sessionStorage (not just `false`) because this ref alone
+  // cannot survive the exact case it exists for: Room.jsx's own embedded
+  // widget instance calls leaveChatToViewProfile and sets this true, but
+  // Room.jsx (the /room/:roomId route) then fully unmounts as the route
+  // switches to /profile/:username — taking that instance, and its in-memory
+  // ref, down with it. Profile.jsx mounts its OWN separate widget instance
+  // (every non-persistent mount site does — see this file's own "self-
+  // contained" precedent), whose ref starts fresh at `false` with no memory
+  // of why we're here. Without seeding from the persisted flag, that fresh
+  // instance's hiddenByProfileRoute reads false, so it renders fully visible
+  // — showing the just-restored (view/activeChat already read from
+  // sessionStorage below) but not-yet-fetched chat right on top of the
+  // profile the user actually tapped through to see: a blank pane with a
+  // spinner that looks like "the chat came back instead of the profile."
+  const cameFromOpenChatRef = useRef((() => {
+    try { return sessionStorage.getItem('gcw_hidden_for_profile') === 'true'; } catch { return false; }
+  })());
 
   // Leaving to view someone's profile from within an open chat does NOT
   // close this overlay (unlike every other "leave" path) — it stays fully
@@ -2159,6 +2176,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
       sessionStorage.setItem('gcw_view', view);
       if (activeChat) sessionStorage.setItem('gcw_active_chat', JSON.stringify(activeChat));
       sessionStorage.setItem('gcw_is_open', 'true');
+      // Persisted counterpart to cameFromOpenChatRef — see its declaration
+      // above for why the in-memory ref alone doesn't survive this trip.
+      sessionStorage.setItem('gcw_hidden_for_profile', 'true');
     } catch {}
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
@@ -2180,8 +2200,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
   // Once the profile route is actually left, this widget is reachable again
   // for a fresh leaveChatToViewProfile() call — release the double-tap guard.
+  // Also clear the persisted "hide behind profile" flag here (not just the
+  // in-memory ref, which may belong to an already-dead instance by now) so
+  // it doesn't wrongly seed cameFromOpenChatRef=true on some unrelated later
+  // page that happens to render a fresh widget instance while a chat is
+  // still flagged open — e.g. swiping back from /profile to /room mounts a
+  // brand-new Room.jsx widget instance whose first render already needs to
+  // decide hiddenByProfileRoute correctly, before this effect even runs.
   useEffect(() => {
-    if (!location.pathname.startsWith('/profile')) navigatingToProfileRef.current = false;
+    if (!location.pathname.startsWith('/profile')) {
+      navigatingToProfileRef.current = false;
+      cameFromOpenChatRef.current = false;
+      try { sessionStorage.removeItem('gcw_hidden_for_profile'); } catch {}
+    }
   }, [location.pathname]);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -2667,6 +2698,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
   useImperativeHandle(ref, () => ({
     openChatWith: (partnerUsername, displayName, avatarPath) => {
       cameFromOpenChatRef.current = false;
+      try { sessionStorage.removeItem('gcw_hidden_for_profile'); } catch {}
       openChat({
         id: partnerUsername,
         partner: partnerUsername,
