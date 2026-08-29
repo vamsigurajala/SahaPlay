@@ -7596,6 +7596,14 @@ const GlobalChatWidget = forwardRef(({
                   // replying to the admin's own announcement messages doesn't make sense.
                   const canReport = activeChat?.type === 'room' && !isMe && !isSahaplayOfficialGroup(activeChat);
                   const canReplyToMsg = !(activeChat?.type === 'room' && !isMe && isSahaplayOfficialGroup(activeChat));
+                  // Secondary/meta UI (timestamp, Reply, Flag, react button,
+                  // read receipt, reaction pills) sits directly on the
+                  // wallpaper backdrop, not inside the bubble — the backdrop
+                  // always has a dark scrim over it (see its linear-gradient),
+                  // so these reuse the same light-appropriate colors the
+                  // dark-mode branch already has, whenever a wallpaper is
+                  // active, regardless of the light/dark toggle.
+                  const metaIsLight = isLight && !activeWallpaper;
                   const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => setReplyToMsg(msg));
                   const longPressHandlers = longPress.getHandlers(rowKey);
                   const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -8015,7 +8023,7 @@ const GlobalChatWidget = forwardRef(({
                             )}
 
                                                     <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#111' : '#aaa',padding:2}}>
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: metaIsLight ? '#111' : '#aaa',padding:2}}>
                                 <SmilePlus size={16}/>
                               </button>
                             </div>
@@ -8025,7 +8033,7 @@ const GlobalChatWidget = forwardRef(({
                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div style={{display:'flex',gap:4,marginTop:2,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start'}}>
                               {Object.entries(msg.reactions).map(([em, users]) => users.length > 0 && (
-                                <span key={em} onClick={(e)=>{e.stopPropagation(); setReactorsSheet({ msgId: msg.id, emoji: em, users });}} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: isLight ? '#1e293b' : '#ddd'}}>
+                                <span key={em} onClick={(e)=>{e.stopPropagation(); setReactorsSheet({ msgId: msg.id, emoji: em, users });}} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (metaIsLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: metaIsLight ? '#1e293b' : '#ddd'}}>
                                   {em} {users.length>1?users.length:''}
                                 </span>
                               ))}
@@ -8033,25 +8041,25 @@ const GlobalChatWidget = forwardRef(({
                           )}
 
                           <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}>
-                            {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
-                            <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatTime(msg.timestamp)}</span>
+                            {msg.edited && <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{t('edited', 'Edited')}</span>}
+                            <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa'}}>{formatTime(msg.timestamp)}</span>
                             {canReplyToMsg && (
-                              <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
+                              <button onClick={(e) => { e.stopPropagation(); setReplyToMsg(msg); }} style={{background:'none',border:'none',color: metaIsLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3}}><Reply size={10}/>Reply</button>
                             )}
                             {canReport && (
-                              <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
+                              <button onClick={(e) => { e.stopPropagation(); setReportMsgTarget(msg); }} title="Report this message" style={{background:'none',border:'none',color: metaIsLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
                             )}
                           </div>
                           {i === renderReceiptIndex && (
-                            <ReadReceipt 
+                            <ReadReceipt
                               msg={{
                                 ...msg,
                                 seenBy: effectiveSeenMap.get(String(msg.id || msg.timestamp)) || []
                               }}
-                              isGroup={activeChat.type === 'room'} 
-                              username={myUsername} 
-                              socketServerUrl={API} 
-                              isLight={isLight}
+                              isGroup={activeChat.type === 'room'}
+                              username={myUsername}
+                              socketServerUrl={API}
+                              isLight={metaIsLight}
                             />
                           )}
                         </div>

@@ -2980,6 +2980,14 @@ export default function RoomChatPanel({ p }) {
               )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
               const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+              // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
+              // button, read receipt) sits directly on the wallpaper backdrop,
+              // not inside the bubble — the backdrop always has a dark scrim
+              // over it (see the wallpaper backdrop's linear-gradient), so
+              // these reuse the same light-appropriate colors the dark-mode
+              // branch already has, whenever a wallpaper is active, regardless
+              // of the light/dark toggle.
+              const metaIsLight = isLight && !groupWallpaper;
               const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setGroupReplyTo(msg));
               const longPressHandlers = longPress.getHandlers(rowKey);
               const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -3081,7 +3089,7 @@ export default function RoomChatPanel({ p }) {
                                 const sName = msg.senderName || msg.username;
                                 if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
                               }}
-                              style={{ fontSize: 10, color: isLight ? '#374151' : '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
+                              style={{ fontSize: 10, color: metaIsLight ? '#374151' : '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
                               title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
                             >
                               {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : formatUsername(msg.senderName || msg.username)}
@@ -3313,7 +3321,7 @@ export default function RoomChatPanel({ p }) {
                         )}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
                           <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: metaIsLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= metaIsLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= metaIsLight ? '#6b7280' : '#9ca3af'}}>
                               <SmilePlus size={16}/>
                             </button>
                           </div>
@@ -3322,35 +3330,35 @@ export default function RoomChatPanel({ p }) {
                       <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                         {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                         <span style={{flex:1}}></span>
-                        {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
-                        <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
+                        {msg.edited && <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
+                        <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
-                          <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
+                          <button onClick={()=>p.setGroupReplyTo(msg)} style={{background:'none',border:'none',color: metaIsLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                         )}
                         {!isMe && (
-                          <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
+                          <button onClick={()=>p.reportMsg(msg)} style={{background:'none',border:'none',color: metaIsLight ? '#555' : '#aaa',cursor:'pointer',padding:0,flexShrink:0}}><Flag size={9}/></button>
                         )}
                       </div>
                     </div>
                   </div>
                   <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                     {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                      <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'group' }); }} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#374151' : '#ddd'}}>
+                      <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'group' }); }} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (metaIsLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: metaIsLight ? '#374151' : '#ddd'}}>
                         {emoji} {uids.length}
                       </button>
                     ))}
                   </div>
                   {i === renderGroupReceiptIndex && (
-                    <ReadReceipt 
+                    <ReadReceipt
                       msg={{
                         ...msg,
                         seenBy: effectiveGroupSeenMap.get(String(msg.id || msg.timestamp)) || []
                       }}
-                      isGroup={true} 
-                      username={p.username} 
-                      userList={p.userList} 
-                      socketServerUrl={p.SOCKET_SERVER_URL} 
-                      isLight={isLight}
+                      isGroup={true}
+                      username={p.username}
+                      userList={p.userList}
+                      socketServerUrl={p.SOCKET_SERVER_URL}
+                      isLight={metaIsLight}
                     />
                   )}
                 </div>
@@ -3874,6 +3882,9 @@ export default function RoomChatPanel({ p }) {
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                     const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+                    // See the identical comment on the group thread's
+                    // metaIsLight above — same reason.
+                    const metaIsLight = isLight && !dmWallpaper;
                     const swipeHandlers = swipe.getHandlers(rowKey, isMe ? 'left' : 'right', () => p.setDmReplyTo(msg));
                     const longPressHandlers = longPress.getHandlers(rowKey);
                     const rowSelectHandlers = rowSelectLongPress.getHandlers(rowKey);
@@ -4166,7 +4177,7 @@ export default function RoomChatPanel({ p }) {
                                 )}
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
                                   <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: isLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= isLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= isLight ? '#6b7280' : '#9ca3af'}}>
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: metaIsLight ? '#6b7280' : '#9ca3af',padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= metaIsLight ? '#111' : '#fff'}} onMouseLeave={(e)=>{e.currentTarget.style.color= metaIsLight ? '#6b7280' : '#9ca3af'}}>
                                       <SmilePlus size={16}/>
                                     </button>
                                   </div>
@@ -4175,32 +4186,32 @@ export default function RoomChatPanel({ p }) {
                             <div className="msg-meta-row" style={{display:'flex',alignItems:'center',gap:6,minWidth:0,width:'100%',alignSelf:'stretch'}}>
                               {(() => { if (!msg.mediaExpiresAt) return null; const mt = msg.mediaType || ''; return null; })()}
                               <span style={{flex:1}}></span>
-                              {msg.edited && <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
-                              <span style={{fontSize:10,color: isLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
+                              {msg.edited && <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{t('edited', 'Edited')}</span>}
+                              <span style={{fontSize:10,color: metaIsLight ? 'rgba(0,0,0,0.62)' : '#aaa',flexShrink:0}}>{formatTime(msg.timestamp)}</span>
                               {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
-                                <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: isLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
+                                <button onClick={()=>p.setDmReplyTo(msg)} style={{background:'none',border:'none',color: metaIsLight ? '#555' : '#aaa',cursor:'pointer',padding:0,fontSize:10,display:'flex',alignItems:'center',gap:3,flexShrink:0}}><Reply size={10}/>Reply</button>
                               )}
                             </div>
                           </div>
                         </div>
                         <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
-                            <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'dm' }); }} style={{background: isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: isLight ? '#1e293b' : '#ddd'}}>
+                            <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'dm' }); }} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (metaIsLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: metaIsLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}
                             </button>
                           ))}
                         </div>
                         {i === renderDMReceiptIndex && (
-                          <ReadReceipt 
+                          <ReadReceipt
                             msg={{
                               ...msg,
                               seenBy: effectiveDmSeenMap.get(String(msg.id || msg.timestamp)) || []
                             }}
-                            isGroup={false} 
-                            username={p.username} 
-                            userList={p.userList} 
-                            socketServerUrl={p.SOCKET_SERVER_URL} 
-                            isLight={isLight}
+                            isGroup={false}
+                            username={p.username}
+                            userList={p.userList}
+                            socketServerUrl={p.SOCKET_SERVER_URL}
+                            isLight={metaIsLight}
                           />
                         )}
                       </div>
