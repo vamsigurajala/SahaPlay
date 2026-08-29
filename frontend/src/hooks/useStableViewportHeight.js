@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Like useStableHeight, but measures the actual browser viewport
@@ -23,24 +23,48 @@ import { useEffect, useRef, useState } from 'react';
  *
  * The baseline only resets on a genuine device rotation (orientationchange)
  * — the one case a shrink is real and the old baseline needs forgetting.
+ *
+ * The baseline itself lives at module scope, not in a per-instance ref: a
+ * page like Room.jsx that hosts this (via RoomChatPanel/GlobalChatWidget)
+ * can fully unmount and remount — e.g. navigating out to view a profile and
+ * swiping back — and a fresh component instance means a fresh ref with no
+ * memory of the largest height already established. If that remount lands
+ * while the on-screen keyboard happens to still be mid-close (a live
+ * possibility right after a swipe-back), window.innerHeight at that exact
+ * instant can read the smaller, keyboard-open value, which a fresh ref
+ * would then wrongly adopt as its new ceiling — sizing the wallpaper
+ * backdrop short and exposing a plain colored gap where the keyboard used
+ * to be (white in light mode, off-black in dark) until some later resize
+ * event happens to correct it, if one even fires. A module-level baseline
+ * survives the remount entirely, so the very first render of the new
+ * instance already has the correct, previously-established ceiling.
  */
+let sharedMaxViewportHeight = 0;
+
 export function useStableViewportHeight() {
   const getReading = () => (typeof window === 'undefined' ? 0 :
     Math.max(window.innerHeight || 0, window.visualViewport?.height || 0));
 
-  const [height, setHeight] = useState(getReading);
-  const maxRef = useRef(height);
+  // Reading (never writing) sharedMaxViewportHeight here is fine during
+  // render — the lazy useState initializer only runs once, on mount, and
+  // the actual reassignment of the module-level baseline happens
+  // exclusively inside the effect below, never here.
+  const [height, setHeight] = useState(() => Math.max(sharedMaxViewportHeight, getReading()));
 
   useEffect(() => {
+    // This instance's own initial reading may be larger than what the
+    // module baseline already knew about — fold it in before listening for
+    // further changes.
+    if (height > sharedMaxViewportHeight) sharedMaxViewportHeight = height;
     const measure = () => {
       const h = getReading();
-      if (h > maxRef.current) {
-        maxRef.current = h;
+      if (h > sharedMaxViewportHeight) {
+        sharedMaxViewportHeight = h;
         setHeight(h);
       }
     };
     const onOrientationChange = () => {
-      maxRef.current = 0;
+      sharedMaxViewportHeight = 0;
       // Let the browser finish reflowing the rotated layout before the
       // next measurement re-establishes the baseline for the new orientation.
       setTimeout(measure, 50);

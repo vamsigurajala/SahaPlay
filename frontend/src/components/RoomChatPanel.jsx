@@ -23,7 +23,7 @@ import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
-import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import crownImg from '../assets/crown.svg';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
@@ -1507,6 +1507,27 @@ export default function RoomChatPanel({ p }) {
 
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // Leaving this panel's own chat view to view a profile is a real route
+  // change (unlike GlobalChatWidget's leaveChatToViewProfile, this panel's
+  // parent — Room.jsx — has no equivalent "stay mounted, hide behind the
+  // profile route" mechanism, so this fully unmounts and later remounts
+  // fresh). suppressNextPop() still matters here regardless: without it,
+  // the popstate from swiping back off the profile page gets misattributed
+  // to this panel's own already-unmounted useBackIntercept level (chat-view-
+  // open) instead of being left alone, which is what read as swiping back
+  // from a profile closing/exiting the chat instead of just returning to it.
+  const goToProfile = React.useCallback((username) => {
+    suppressNextPop();
+    navigate(`/profile/${username}`);
+  }, [navigate]);
+
+  // Profile is a route-level lazy chunk (see App.jsx's lazy(() =>
+  // import('./Profile'))) — with avatars all over this panel, an actual
+  // click is a near-certain next action, so warm the chunk once up front
+  // rather than paying for the network fetch only once someone taps an
+  // avatar. import() for an already-fetched module resolves from cache, so
+  // this is a one-time cost regardless of how many times it's called.
+  React.useEffect(() => { import('../Profile'); }, []);
   const [isUploading, setIsUploading] = React.useState(false);
   const [lightbox, setLightbox] = React.useState(null); // { url, type }
   const [isRecording, setIsRecording] = React.useState(false);
@@ -3078,7 +3099,7 @@ export default function RoomChatPanel({ p }) {
                       const uIsHost = userObj?.isHost || (p.room?.hostUsername && partnerName.toLowerCase() === p.room.hostUsername.toLowerCase());
                       const uIsAdmin = !!(p.room?.settings?.newMembersAdmins && partnerName && partnerName !== 'Anonymous' && !partnerName.toLowerCase().startsWith('guest_') && !uIsHost);
                       
-                      return <span onClick={() => !amIBlockedBySender && navigate(`/profile/${partnerName}`)} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
+                      return <span onClick={() => !amIBlockedBySender && goToProfile(partnerName)} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
                     })()}
                     <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                       {!isMe && (
@@ -3087,7 +3108,7 @@ export default function RoomChatPanel({ p }) {
                               onClick={(e) => { 
                                 e.stopPropagation(); 
                                 const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) navigate(`/profile/${sName}`); 
+                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) goToProfile(sName);
                               }}
                               style={{ fontSize: 10, color: metaIsLight ? '#374151' : '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
                               title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
@@ -3661,7 +3682,7 @@ export default function RoomChatPanel({ p }) {
                         <Avatar name={displayUname} size={32} src={displayAvatarSrc}/>
                         <div>
                           <div
-                            onClick={() => !isBlocked && navigate(`/profile/${p.dmTarget}`)}
+                            onClick={() => !isBlocked && goToProfile(p.dmTarget)}
                             title={isBlocked ? 'Blocked User' : `View ${p.dmTarget}'s profile`}
                             style={{fontSize:13,fontWeight:700,color: isLight ? '#1e293b' : '#fff',display:'flex',alignItems:'center',gap:5,cursor:isBlocked?'default':'pointer'}}
                           >
@@ -3962,7 +3983,7 @@ export default function RoomChatPanel({ p }) {
                             const uObj = p.userList.find(u => u.username === rName);
                             const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
                             const avatarSrc = isSenderBlocked ? null : getAvatarUrl(fallbackMsgAvatar);
-                            return <span onClick={() => !isSenderBlocked && navigate(`/profile/${rName}`)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
+                            return <span onClick={() => !isSenderBlocked && goToProfile(rName)} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
@@ -4350,7 +4371,7 @@ export default function RoomChatPanel({ p }) {
                           <p style={{ fontSize: 11, color: isLight ? '#64748b' : '#888', margin: 0, lineHeight: 1.5 }}>
                             {t('needMutualFollow', 'You need to follow each other to start messaging.')}
                           </p>
-                          <button type="button" className="stay-white" onClick={() => navigate(`/profile/${p.dmTarget}`)} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(var(--brand-1-rgb),0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
+                          <button type="button" className="stay-white" onClick={() => goToProfile(p.dmTarget)} style={{ display: 'inline-block', marginTop: 12, padding: '8px 20px', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', border: 'none', color: '#fff !important', borderRadius: 10, textDecoration: 'none', fontSize: 11, fontWeight: 800, cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(var(--brand-1-rgb),0.2)' }} onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 15px rgba(var(--brand-1-rgb),0.4)'; e.currentTarget.style.filter = 'brightness(1.1)'; }} onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(var(--brand-1-rgb),0.2)'; e.currentTarget.style.filter = 'brightness(1)'; }}>
                             {t('viewProfile', 'View Profile')}
                           </button>
                         </div>

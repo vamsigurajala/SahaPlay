@@ -2142,6 +2142,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
   };
+  // Profile is a route-level lazy chunk (see App.jsx's lazy(() =>
+  // import('./Profile'))) — with avatars all over this panel, an actual
+  // click is a near-certain next action, so warm the chunk once up front
+  // rather than paying for the network fetch only once someone taps an
+  // avatar. import() for an already-fetched module resolves from cache, so
+  // this is a one-time cost regardless of how many times it's called.
+  useEffect(() => { import('../Profile'); }, []);
   // Only hide behind the profile route if we actually GOT to this profile by
   // leaving an already-open chat (leaveChatToViewProfile). Without this flag,
   // landing on a profile page any other way (e.g. clicking someone's avatar
