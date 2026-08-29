@@ -2929,7 +2929,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
         const cPartner = (c.partner || '').toLowerCase();
         return (cId === target || cPartner === target) ? { ...c, unread: 0 } : c;
       }));
-      if (onMarkRead && (activeChatRef.current?.id || '').toLowerCase() === target) {
+      // Every mounted instance of this widget (Room's inline chat panel,
+      // the floating overlay, BottomNav's own instance that owns the nav
+      // icon badge) has its own socket connection and its own onMarkRead
+      // callback wired to its own app-wide unread counter. This event
+      // fires whenever THIS chat was marked read anywhere by this same
+      // account — so every instance's counter needs to drop it, not just
+      // whichever one instance happens to currently have this exact chat
+      // "active". Gating this on activeChatRef (as before) is why reading
+      // a chat in Room's panel, or the floating widget, never reliably
+      // cleared BottomNav's icon badge — that badge's owning instance
+      // almost never has the same chat marked "active" in its own state.
+      if (onMarkRead) {
         onMarkRead(chatId);
       }
     });

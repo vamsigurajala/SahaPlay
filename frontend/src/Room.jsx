@@ -13595,10 +13595,34 @@ const Room = () => {
               it true while the Quick Controls/Cast-to-TV box (width-gated only) stayed
               visible too, showing both stacked/overlapping at once. */}
           {!mediaUrl && !isScreensharing && !isViewer && !isTvMode && (
-            <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
-              <LayoutGrid size={18} color="#fff" />
-              <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
-            </button>
+            streamPending ? (
+              // Mobile's default view (this right column: quick controls + chat)
+              // sits in front of the player column until the user pulls it up —
+              // see the peek-gesture handle above. That means the streamPending
+              // spinner rendered inside the player column (the "No Media
+              // Selected" empty-state replacement further down this file) is
+              // invisible on mobile until someone discovers that swipe. This is
+              // the pinned slot mobile users actually look at while nothing's
+              // playing yet, so it needs its own copy of the same "it's coming"
+              // signal rather than relying on the hidden column underneath.
+              <div className="mobile-browse-media-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '14px 20px', background: 'var(--room-sidebar-bg, #1a1a2e)', border: 'none', borderRadius: 0, color: '#fff', flexShrink: 0 }}>
+                <span style={{
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                  border: '2.5px solid rgba(255,255,255,0.25)',
+                  borderTopColor: '#fff',
+                  animation: 'room-media-pending-spin 0.8s linear infinite',
+                }} />
+                <style>{`@keyframes room-media-pending-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                <span className="forced-white" style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {t('mediaUploading', 'Getting the video ready…')} {Math.round(streamPending.progress || 0)}%
+                </span>
+              </div>
+            ) : (
+              <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>
+                <LayoutGrid size={18} color="#fff" />
+                <span className="forced-white">{t('browseMediaAndApps', 'Browse Media & Apps')}</span>
+              </button>
+            )
           )}
 
           {/* — Controls Box — unchanged in both modes */}
