@@ -2418,17 +2418,21 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
     const isAudio = type?.startsWith('audio/');
-    const tick = (isMe && msg) ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null;
-    const cardTick = (isMe && msg) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface /> : null;
+    // hideTick: this media has a caption, which already gets its own tick on
+    // the caption's own line (see the msg-bubble layout) — showing a second
+    // one on the media itself, right next to the caption's, was the "we
+    // already had a tick" duplicate the caption/media stacking fix removed.
+    const tick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null;
+    const cardTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface /> : null;
     // Voice note bubbles use a light tinted background in light mode (unlike the dark
     // text/media bubbles the default white tick assumes), so treat it as a light
     // surface in light mode only — dark mode keeps the original white tick unchanged.
-    const voiceTick = (isMe && msg) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface={isLight} /> : null;
+    const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface={isLight} /> : null;
 
     if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
 
@@ -3265,6 +3269,10 @@ export default function RoomChatPanel({ p }) {
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}
                         onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); }}>
+                          {/* Caption+tick get their own row, forced full-width whenever
+                              there's media alongside them — see the matching comment in
+                              GlobalChatWidget.jsx's own copy of this layout. */}
+                          <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
                           <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                             {!msg.mediaType && msg.forwarded && (
                               <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -3310,6 +3318,7 @@ export default function RoomChatPanel({ p }) {
                               <MessageTick msg={msg} username={p.username} isLight={isLight} />
                             </div>
                           )}
+                          </div>
                           {mediaGroupItems ? (
                             <MediaGrid
                               items={mediaGroupItems}
@@ -3319,7 +3328,7 @@ export default function RoomChatPanel({ p }) {
                               resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                               onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                             />
-                          ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg)}
+                          ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly)}
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -4184,6 +4193,10 @@ export default function RoomChatPanel({ p }) {
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); }}>
+                                {/* Caption+tick get their own row, forced full-width whenever
+                                    there's media alongside them — see the matching comment in
+                                    GlobalChatWidget.jsx's own copy of this layout. */}
+                                <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
                                 <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                   {!msg.mediaType && msg.forwarded && (
                                     <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -4244,6 +4257,7 @@ export default function RoomChatPanel({ p }) {
                                     <MessageTick msg={msg} username={p.username} isLight={isLight} />
                                   </div>
                                 )}
+                                </div>
                                 {mediaGroupItems ? (
                                   <MediaGrid
                                     items={mediaGroupItems}
@@ -4253,7 +4267,7 @@ export default function RoomChatPanel({ p }) {
                                     resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                                     onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                                   />
-                                ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg)}
+                                ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly)}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>

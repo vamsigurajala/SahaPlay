@@ -574,17 +574,21 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username) => {
+const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false) => {
   if (!url && !type) return null;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
   const isAudio = type?.startsWith('audio/');
-  const tick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} /> : null;
-  const cardTick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface /> : null;
+  // hideTick: this media has a caption, which already gets its own tick on
+  // the caption's own line (see the msg-bubble layout) — showing a second
+  // one on the media itself, right next to the caption's, was the "we
+  // already had a tick" duplicate the caption/media stacking fix removed.
+  const tick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={username} isLight={isLight} /> : null;
+  const cardTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface /> : null;
   // Voice note bubbles use a light tinted background in light mode (unlike the dark
   // text/media bubbles the default white tick assumes), so treat it as a light
   // surface in light mode only — dark mode keeps the original white tick unchanged.
-  const voiceTick = (isMe && msg) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
+  const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
 
   if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
 
@@ -7988,6 +7992,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 columnGap: 6
                               }}
                             >
+                              {/* Caption+tick get their own row, forced full-width whenever
+                                  there's media alongside them (flexBasis:100% leaves the
+                                  wrapping bubble row zero space for anything else, so the
+                                  media below is pushed onto its own line) — otherwise a short
+                                  caption just floated beside the image via flex-wrap instead
+                                  of stacking under it, and the media's own tick (see hideTick
+                                  below) duplicated the one already at the end of this row. */}
+                              <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
                               <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                 {!msg.mediaType && msg.forwarded && (
                                   <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -8048,6 +8060,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   <MessageTick msg={msg} username={myUsername} isLight={isLight} />
                                 </div>
                               )}
+                              </div>
                               {(() => {
                                 if (mediaGroupItems) {
                                   return (
@@ -8084,7 +8097,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   openLightbox,
                                   isLight,
                                   msg,
-                                  myUsername
+                                  myUsername,
+                                  !isMediaOnly // has a caption — its tick already shows on the caption's own row above
                                 );
                               })()}
                               
