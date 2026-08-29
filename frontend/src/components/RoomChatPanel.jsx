@@ -19,7 +19,6 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
-import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
 import { useLongPress } from '../hooks/useLongPress';
 import { useTimestampPeek } from '../hooks/useTimestampPeek';
@@ -1282,17 +1281,6 @@ export default function RoomChatPanel({ p }) {
   });
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
-  // Gives the wallpaper backdrops below a fixed pixel height instead of one
-  // that shrinks whenever the on-screen keyboard opens (which is what made
-  // the wallpaper image visibly jump/recompute its crop). Read directly from
-  // window.innerHeight and clamped to the largest value ever seen — this
-  // used to be measured off each wrapper's own box via a ResizeObserver
-  // (ex-useStableHeight), but that callback only fires AFTER the browser has
-  // already laid out the shrunk wrapper, leaving a real lag window during a
-  // live keyboard animation for the backdrop to visibly catch up through.
-  // window.innerHeight needs no such catch-up: it's known synchronously on
-  // first paint, so the value used for frame one is already final.
-  const stableViewportHeight = useStableViewportHeight();
 
   // Which message keys have already had their slideIn "msg-enter" entrance
   // animation play at least once — an optimistically-sent message goes
@@ -2430,23 +2418,18 @@ export default function RoomChatPanel({ p }) {
           }}
         />
       )}
-      {/* contain:'paint' + a forced compositing layer (transform) below are
-          the fix for a specific report: rapidly refocusing the composer and
-          swiping back (repeated on-screen-keyboard open/close in quick
-          succession) could, for a single frame, show this panel's own
-          content (messages, the wallpaper) painted OUTSIDE its rounded-
-          corner bounds, on top of the room's own top nav bar above it —
-          plain overflow:hidden clips correctly in the steady state (already
-          verified live) but isn't always enough to stop a mobile WebView's
-          compositor from briefly showing a stale/misaligned layer while
-          several native resize events land back-to-back. contain:'paint'
-          gives the browser an explicit guarantee that this subtree's
-          painting never affects anything outside its box, and the
-          transform promotes it to its own hardware-accelerated compositing
-          layer instead of leaving it to software-rasterized clipping —
-          together the standard mitigation for exactly this class of
-          rapid-resize clipping glitch. */}
-      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', contain:'paint', transform:'translateZ(0)', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      {/* A contain:'paint' + transform:translateZ(0) compositing-layer
+          promotion was tried here to stop the same content-briefly-
+          escaping-the-panel report — reverted: it didn't fix the leak, and
+          forcing this panel onto its own layer is a plausible cause of the
+          separate "header text doubled/cut" artifact reported alongside it
+          (a stale rasterization of the old layer showing through during a
+          fast resize is a known failure mode of exactly this technique).
+          The actual fix is on the wallpaper backdrop below instead: it no
+          longer has any explicit height larger than its own container (see
+          that comment), which makes the leak structurally impossible rather
+          than relying on the compositor to always clip correctly. */}
+      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{
@@ -2769,32 +2752,30 @@ export default function RoomChatPanel({ p }) {
           {/* Shared wallpaper backdrop — one continuous image behind the
               header, message list AND composer, same "single layer, both
               scrollable content and composer go transparent" pattern
-              GlobalChatWidget.jsx uses for its DM chat. Previously the image
-              was painted directly on the scrollable message list itself,
-              which meant every resize of that element (composer height
-              changing, on-screen keyboard opening) recomputed the
-              background-size:cover crop against a new box — reading as the
-              wallpaper visibly shifting.
-              Stays position:absolute, clipped by this wrapper's own
-              overflow:hidden (a position:fixed version was tried — it
-              escapes overflow:hidden entirely, since fixed positioning is
-              computed against the viewport rather than the ancestor, so the
-              backdrop painted across the WHOLE screen instead of staying
-              inside this wrapper's box: bleeding up behind the room's own
-              top nav bar and the "Browse Media & Apps" bar above this panel,
-              and flashing full-screen on keyboard-driven reflows — reverted).
-              The height comes from useStableViewportHeight — window.innerHeight
-              clamped to the largest value ever seen, available synchronously
-              on first paint — instead of a per-wrapper ResizeObserver
-              measurement, which only fires AFTER the browser has already
-              laid out the shrunk wrapper: that lag was leaving a real window,
-              worst on a fast keyboard open/close (e.g. a swipe-back gesture
-              while the composer is focused), where the wallpaper's box
-              hadn't caught up to its clamped size yet and visibly slid. */}
+              GlobalChatWidget.jsx uses for its DM chat.
+              inset:0 — matching this wrapper's OWN live box exactly, not an
+              explicit pixel height larger than it — is deliberate: an
+              earlier version gave this an explicit height clamped to the
+              largest viewport ever seen (useStableViewportHeight), sized
+              bigger than the wrapper so it wouldn't need to recompute its
+              background-size:cover crop as the wrapper shrank for the
+              keyboard. That's a real box taller than its clipping
+              container, relying entirely on overflow:hidden to hide the
+              excess — which was still occasionally visible for a frame on a
+              fast keyboard open/close (a swipe-back gesture while the
+              composer is focused, i.e. several native resize events landing
+              back-to-back), read as this content briefly painting over the
+              room's own top nav bar above the panel. inset:0 makes that
+              structurally impossible: the backdrop can never be larger than
+              its own container, so there is nothing for any clipping lapse
+              to reveal, on any device or WebView, regardless of how the
+              compositor behaves mid-resize. The trade-off is accepting a
+              minor background-position recompute during the keyboard's own
+              animation, same as most apps' wallpaper implementations — a
+              much smaller issue than content escaping the chat entirely. */}
           {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
-              ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+              position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -3517,8 +3498,7 @@ export default function RoomChatPanel({ p }) {
                 group chat thread above; same fix, same reason. */}
             {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
-                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
-                ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+                position: 'absolute', inset: 0, zIndex: -1, pointerEvents: 'none',
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />
