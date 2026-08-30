@@ -364,7 +364,14 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
                 // branch in renderMedia below — muted+no controls so it renders
                 // as a static poster, the Play icon overlay (below) is what
                 // actually invites the tap-to-open-lightbox interaction.
-                <video src={url} muted playsInline preload="metadata" disablePictureInPicture onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
+                // autoPlay+immediate-pause (not just preload="metadata") — on
+                // mobile Chrome/Android WebView, preload="metadata" alone only
+                // fetches duration/dimensions, not an actual decoded frame, so
+                // the thumbnail stayed blank until the video was played. A
+                // muted autoplay is exempt from browser autoplay-blocking and
+                // forces the first frame to decode+paint; onLoadedData pauses
+                // it right away so nothing actually plays.
+                <video src={url} autoPlay muted playsInline preload="auto" disablePictureInPicture onLoadedData={e => { try { e.target.pause(); } catch {} }} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
               ) : (
                 <img src={url} alt="" loading="lazy" draggable={false} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
@@ -2551,13 +2558,21 @@ export default function RoomChatPanel({ p }) {
             {/* Real first-frame thumbnail, same sizing as the image branch above
                 (width 100%, capped height, cover) — muted+no controls so it
                 renders as a static poster instead of actually playing; tapping
-                opens the lightbox, which is where it actually plays. */}
+                opens the lightbox, which is where it actually plays.
+                autoPlay+immediate-pause (not just preload="metadata") — on
+                mobile Chrome/Android WebView, preload="metadata" alone only
+                fetches duration/dimensions, not an actual decoded frame, so the
+                thumbnail stayed blank until played. A muted autoplay is exempt
+                from browser autoplay-blocking and forces the first frame to
+                decode+paint; onLoadedData pauses it right away. */}
             <video
               src={url}
+              autoPlay
               muted
               playsInline
-              preload="metadata"
+              preload="auto"
               disablePictureInPicture
+              onLoadedData={e => { try { e.target.pause(); } catch {} }}
               onContextMenu={e => e.preventDefault()}
               style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', background: '#000' }}
               onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)}
@@ -2584,6 +2599,15 @@ export default function RoomChatPanel({ p }) {
     observer.observe(document.documentElement, { attributes: true });
     return () => observer.disconnect();
   }, []);
+
+  // A wallpaper/chat theme is meant to fill #room-chat-panel edge-to-edge —
+  // the panel's own default 1px frame (var(--room-border), a light grey in
+  // light mode) was still drawn on top of it regardless, reading as a thin
+  // white-ish line around the whole chat the moment a theme made the
+  // panel's actual edges visible against it (most noticeable once the
+  // keyboard shrinks the panel and it redraws). Only the currently-visible
+  // tab's own wallpaper should suppress it.
+  const activeTabWallpaper = p.chatTab === 'dm' ? dmWallpaper : groupWallpaper;
 
   return (
     <>
@@ -2663,7 +2687,7 @@ export default function RoomChatPanel({ p }) {
           longer has any explicit height larger than its own container (see
           that comment), which makes the leak structurally impossible rather
           than relying on the compositor to always clip correctly. */}
-      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border:'1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{

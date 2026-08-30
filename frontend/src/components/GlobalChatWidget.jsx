@@ -553,7 +553,14 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
                 // branch in renderMedia below — muted+no controls so it renders
                 // as a static poster, the Play icon overlay (below) is what
                 // actually invites the tap-to-open-lightbox interaction.
-                <video src={url} muted playsInline preload="metadata" disablePictureInPicture onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
+                // autoPlay+immediate-pause (not just preload="metadata") — on
+                // mobile Chrome/Android WebView, preload="metadata" alone only
+                // fetches duration/dimensions, not an actual decoded frame, so
+                // the thumbnail stayed blank until the video was played. A
+                // muted autoplay is exempt from browser autoplay-blocking and
+                // forces the first frame to decode+paint; onLoadedData pauses
+                // it right away so nothing actually plays.
+                <video src={url} autoPlay muted playsInline preload="auto" disablePictureInPicture onLoadedData={e => { try { e.target.pause(); } catch {} }} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
               ) : (
                 <img src={url} alt="" loading="lazy" draggable={false} onContextMenu={e => e.preventDefault()} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
                   onError={(e) => { e.target.onerror = null; e.target.style.opacity = 0.2; }} />
@@ -647,13 +654,21 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
           {/* Real first-frame thumbnail, same sizing as the image branch above
               (width 100%, capped height, cover) — muted+no controls so it
               renders as a static poster instead of actually playing; tapping
-              opens the lightbox, which is where it actually plays. */}
+              opens the lightbox, which is where it actually plays.
+              autoPlay+immediate-pause (not just preload="metadata") — on
+              mobile Chrome/Android WebView, preload="metadata" alone only
+              fetches duration/dimensions, not an actual decoded frame, so the
+              thumbnail stayed blank until played. A muted autoplay is exempt
+              from browser autoplay-blocking and forces the first frame to
+              decode+paint; onLoadedData pauses it right away. */}
           <video
             src={url}
+            autoPlay
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             disablePictureInPicture
+            onLoadedData={e => { try { e.target.pause(); } catch {} }}
             onContextMenu={e => e.preventDefault()}
             style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', background: '#000' }}
             onClick={() => onOpenLightbox(url, type)}

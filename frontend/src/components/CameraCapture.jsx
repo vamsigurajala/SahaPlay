@@ -428,14 +428,20 @@ export default function CameraCapture({ onCapture, onClose }) {
     const blob = await buildFinalBlob();
     const file = new File([blob || capturedBlob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
     skipNextClose();
-    try {
-      await onCapture(file, caption);
-    } finally {
-      if (capturedUrl) URL.revokeObjectURL(capturedUrl);
-      stopStream();
-      setClosing(true);
-      setTimeout(() => onClose(), 180);
-    }
+    // Deliberately not awaited: onCapture (handleMediaUpload) already shows
+    // its own optimistic preview of this exact photo the instant it's
+    // called and uploads in the background from there — the same pattern
+    // every other media send in this app already uses. Awaiting the whole
+    // upload here just kept this screen open with a second, redundant
+    // loading state on top of it, so send felt slow even though the chat
+    // itself was ready to show the photo immediately. Firing it and closing
+    // right away means the chat is what the user lands on and sees loading,
+    // not this screen.
+    onCapture(file, caption);
+    if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+    stopStream();
+    setClosing(true);
+    setTimeout(() => onClose(), 180);
   };
 
   // Swipe-down-to-dismiss: follows the finger 1:1 while dragging, snaps back
