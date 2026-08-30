@@ -12190,9 +12190,15 @@ const Room = () => {
                         overflow: mediaUrl.includes('twitch.tv') ? 'visible' : 'hidden',
                         // Sharp corners + edge-to-edge once the peek gesture has
                         // pulled the video up to fill the screen (portrait
-                        // "fullscreen") — rounded corners only make sense for the
-                        // small collapsed preview, not a screen-filling video.
-                        borderRadius: isPeekExpanded ? 0 : 12,
+                        // "fullscreen"), AND for the regular mobile mini-player —
+                        // index.css's `.mob-media-active .player-wrap` already forces
+                        // that OUTER wrap to sharp/edge-to-edge on mobile (merging
+                        // video+chat with no gap), so this INNER div (the actual video
+                        // surface) has to match or the video renders inset with visibly
+                        // rounded corners inside an otherwise-sharp frame. Rounded
+                        // corners only make sense on desktop, where .player-wrap keeps
+                        // its normal card styling.
+                        borderRadius: (isPeekExpanded || (isMobile && !isTvMode)) ? 0 : 12,
                         willChange: 'transform',
                         background: '#000',
                         // Pinch-to-zoom (mobile/tablet fullscreen) scales just this
