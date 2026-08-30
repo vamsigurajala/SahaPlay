@@ -2206,6 +2206,59 @@ const Room = () => {
   // aid for that session, not something that should silently carry over and leave
   // the player looking dim the next time fullscreen is entered.
   useEffect(() => { if (!isMobileFsMode) setBrightnessLevel(1); }, [isMobileFsMode]);
+
+  // Pinch-to-zoom on the video itself (mobile/tablet fullscreen only) —
+  // scales just the media surface (the div wrapping the <video>/ReactPlayer,
+  // NOT playerWrapRef itself, which also hosts the chat widget and menus and
+  // would zoom those right along with the video). Whatever zoom level the
+  // user pinches to stays put — it's a per-viewing-session framing choice,
+  // same lifecycle as brightness above, reset on leaving fullscreen or on a
+  // new video loading (the old zoom was tuned to the old video's framing).
+  const [videoZoom, setVideoZoom] = useState(1);
+  const MIN_VIDEO_ZOOM = 1;
+  const MAX_VIDEO_ZOOM = 3;
+  const pinchGestureRef = useRef({ active: false, startDist: 0, startZoom: 1 });
+  const justPinchedRef = useRef(false);
+  useEffect(() => { if (!isMobileFsMode) setVideoZoom(1); }, [isMobileFsMode]);
+  useEffect(() => { setVideoZoom(1); }, [mediaUrl]);
+
+  const touchDistance = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+
+  const handlePinchGestureStart = (e) => {
+    if (!(isTouchPlayer && isMobileFsMode)) return;
+    if (e.touches.length === 2) {
+      // A second finger landing means this is a pinch, not a volume/
+      // brightness drag — whichever single-finger gesture was mid-flight
+      // (started by the first finger, on whichever zone it landed in) is no
+      // longer meaningful once a second finger is down.
+      verticalGestureRef.current = { active: false, zone: null, startY: 0, startVal: 0, moved: false };
+      pinchGestureRef.current = {
+        active: true,
+        startDist: touchDistance(e.touches[0], e.touches[1]),
+        startZoom: videoZoom,
+      };
+    }
+  };
+  const handlePinchGestureMove = (e) => {
+    const g = pinchGestureRef.current;
+    if (!g.active || e.touches.length !== 2 || !g.startDist) return;
+    e.preventDefault();
+    const dist = touchDistance(e.touches[0], e.touches[1]);
+    const nextZoom = Math.min(MAX_VIDEO_ZOOM, Math.max(MIN_VIDEO_ZOOM, g.startZoom * (dist / g.startDist)));
+    setVideoZoom(nextZoom);
+  };
+  const handlePinchGestureEnd = (e) => {
+    if (pinchGestureRef.current.active) {
+      // Two fingers lifting off can synthesize a trailing click on whichever
+      // zone the last one leaves from — same reasoning as justDraggedVerticalRef
+      // for the single-finger drag, guarding handlePlayerZoneTap below.
+      justPinchedRef.current = true;
+      setTimeout(() => { justPinchedRef.current = false; }, 400);
+    }
+    if (!e.touches || e.touches.length < 2) {
+      pinchGestureRef.current = { active: false, startDist: 0, startZoom: 1 };
+    }
+  };
   // Inside the Capacitor-wrapped app, seed the on-screen volume level from the
   // phone's actual current volume when entering mobile fullscreen, so the
   // slider starts where the hardware really is instead of wherever it was
@@ -8476,7 +8529,7 @@ const Room = () => {
     // sequence still fires a synthetic click afterward, which would otherwise also
     // toggle play/pause or the control bar right after the user was just adjusting
     // volume/brightness.
-    if (justDraggedVerticalRef.current) return;
+    if (justDraggedVerticalRef.current || justPinchedRef.current) return;
     if (zone === 'center') {
       if (hasPlayerPrivileges) {
         togglePlayPause();
@@ -11235,7 +11288,7 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: isTvMode ? 0 : 12, gap: isTvMode ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded) ? 0 : 12, gap: (isTvMode || isPeekExpanded) ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -12123,13 +12176,23 @@ const Room = () => {
                         style={{ position: 'absolute', inset: 0, zIndex: 1, cursor: 'pointer' }}
                       />
                     )}
-                    <div 
-                      style={{ 
-                        position: 'absolute', inset: 0, 
-                        overflow: mediaUrl.includes('twitch.tv') ? 'visible' : 'hidden', 
-                        borderRadius: 12,
+                    <div
+                      style={{
+                        position: 'absolute', inset: 0,
+                        overflow: mediaUrl.includes('twitch.tv') ? 'visible' : 'hidden',
+                        // Sharp corners + edge-to-edge once the peek gesture has
+                        // pulled the video up to fill the screen (portrait
+                        // "fullscreen") — rounded corners only make sense for the
+                        // small collapsed preview, not a screen-filling video.
+                        borderRadius: isPeekExpanded ? 0 : 12,
                         willChange: 'transform',
-                        background: '#000'
+                        background: '#000',
+                        // Pinch-to-zoom (mobile/tablet fullscreen) scales just this
+                        // media surface — not playerWrapRef, which also hosts the
+                        // chat widget/menus and would zoom those right along with
+                        // the video. overflow:hidden above crops whatever the zoom
+                        // pushes past this box's own edges.
+                        transform: (isTouchPlayer && isMobileFsMode && videoZoom !== 1) ? `scale(${videoZoom})` : undefined,
                       }}
                       onMouseMove={resetInactivityTimer}
                       onMouseEnter={() => setUiVisible(true)}
@@ -12849,7 +12912,13 @@ const Room = () => {
             {isTouchPlayer && !isTvMode && hasMounted && mediaUrl && !(isScreensharing || isViewer) &&
               !isGameOrActivity(mediaUrl) && !isWebIframe(mediaUrl) && (!isEmbedPlatform(mediaUrl) || !hideCustomControls) &&
               !isTwitch && !isVimeo && (
-              <div style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}>
+              <div
+                style={{ position: 'absolute', inset: 0, zIndex: 8, display: 'flex' }}
+                onTouchStart={handlePinchGestureStart}
+                onTouchMove={handlePinchGestureMove}
+                onTouchEnd={handlePinchGestureEnd}
+                onTouchCancel={handlePinchGestureEnd}
+              >
                 <div
                   style={{ flex: 1, touchAction: isMobileFsMode ? 'none' : 'auto' }}
                   onClick={() => handlePlayerZoneTap('left')}
@@ -13923,14 +13992,18 @@ const Room = () => {
               bar and drag down to grow the video over the chat panel; drag
               back up on the video itself (see .room-player-col above) to
               return here. Only shown collapsed/mobile/media-active — once
-              expanded this whole panel has ~0px of space anyway. */}
+              expanded this whole panel has ~0px of space anyway.
+              The hit-target is deliberately much bigger than the visible
+              pill — a bare few pixels around a 36×4px bar was too easy to
+              miss; this whole row (including the empty space either side
+              of the pill) starts the drag now, not just the pill itself. */}
           {canPeekGesture && !isPeekExpanded && (
             <div
               onTouchStart={startPeekDrag}
               onTouchMove={movePeekDrag}
               onTouchEnd={endPeekDrag}
               onTouchCancel={endPeekDrag}
-              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '8px 0', flexShrink: 0, touchAction: 'none' }}
+              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 40, padding: '18px 0', flexShrink: 0, touchAction: 'none' }}
             >
               <div className="room-peek-handle-bar" style={{ width: 36, height: 4, borderRadius: 2 }} />
             </div>
