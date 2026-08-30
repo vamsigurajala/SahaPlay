@@ -2508,17 +2508,6 @@ const Room = () => {
                  if (msg.mediaUrl && msg.mediaUrl.length > 50) {
                    try {
                      const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plain);
-                     const mediaKeyBytes = robustDecode(mediaKeyB64);
-                     const resolvedUrl = resolveMediaUrl(msg.mediaUrl, SOCKET_SERVER_URL);
-                     const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                     const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                     const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: msg.mediaType }));
-                     const msgKey = String(msg.id || msg.timestamp);
-                     groupDecryptedMediaUrls.current[msgKey] = objectUrl;
-
-                     const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
-                     msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
-
                      decryptedText = caption;
                      // Leave displayMediaUrl as the original permanent file URL (its initial
                      // value from msg.mediaUrl above) — do NOT overwrite it with the blob:
@@ -2527,12 +2516,35 @@ const Room = () => {
                      // fetchable URL so forwarding (which reuses it as-is for already-
                      // encrypted media) never picks up a tab-local blob: reference that's
                      // meaningless to anyone else, including the sender after a reload.
+                     const targetMediaUrl = msg.mediaUrl;
+                     const targetMediaType = msg.mediaType;
+                     const msgKeys = [String(msg.id || ''), String(msg.tempId || ''), String(msg.timestamp || '')].filter(Boolean);
+                     // Fetch+decrypt the media itself in the background instead of awaiting
+                     // it inline here — this whole function runs inside a Promise.all over
+                     // every message in the history batch, so awaiting a full video download
+                     // (up to 50MB) here held up EVERY message in the batch from appearing
+                     // until it finished, or forever if the fetch never settled on a bad
+                     // connection. Matches the real-time (non-history) decrypt path, which
+                     // already does this correctly.
+                     (async () => {
+                       try {
+                         const mediaKeyBytes = robustDecode(mediaKeyB64);
+                         const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                         const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                         const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                         const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                         msgKeys.forEach(k => { groupDecryptedMediaUrls.current[k] = objectUrl; });
+                         setGroupMediaUrlVersion(v => v + 1);
+                       } catch (e) {
+                         console.warn('[E2EE] Group messages media decrypt failed:', e);
+                         // Local preview decrypt/fetch failed (e.g. network hiccup) — the media
+                         // key itself was already recovered successfully above, so the real
+                         // mediaUrl is still valid and forwardable; only the inline preview
+                         // failed. displayMediaUrl was already left untouched (still the real URL).
+                       }
+                     })();
                    } catch (e) {
-                     console.warn('[E2EE] Group messages media decrypt failed:', e);
-                     // Local preview decrypt/fetch failed (e.g. network hiccup) — the media
-                     // key itself was already recovered successfully above, so the real
-                     // mediaUrl is still valid and forwardable; only the inline preview
-                     // failed. Leave displayMediaUrl untouched (still the real URL).
+                     console.warn('[E2EE] Group messages media key unpack failed:', e);
                    }
                  } else {
                    decryptedText = plain;
@@ -2609,15 +2621,22 @@ const Room = () => {
                 const msgKey = msg.id || String(msg.timestamp);
                 const targetMediaUrl = msg.mediaUrl;
                 const targetMediaType = msg.mediaType;
-                try {
-                  const mediaKeyBytes = robustDecode(mediaKeyB64);
-                  const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
-                  const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                  const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                  const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
-                  dmDecryptedMediaUrls.current[msgKey] = objectUrl;
-                  setDmMediaUrlVersion(v => v + 1);
-                } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+                // Fetch+decrypt the media itself in the background instead of awaiting
+                // it inline here — see the matching comment in decryptRoomGroupMessages:
+                // this whole function runs inside a Promise.all over the DM history
+                // batch, so awaiting a full video download here held up every message
+                // in the batch until it finished (or forever, on a stalled connection).
+                (async () => {
+                  try {
+                    const mediaKeyBytes = robustDecode(mediaKeyB64);
+                    const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                    dmDecryptedMediaUrls.current[msgKey] = objectUrl;
+                    setDmMediaUrlVersion(v => v + 1);
+                  } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+                })();
               } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
                 decryptedMediaUrl = plain; decryptedText = '';
               } else { decryptedText = plain; }
@@ -2639,15 +2658,18 @@ const Room = () => {
               const msgKey = msg.id || String(msg.timestamp);
               const targetMediaUrl = msg.mediaUrl;
               const targetMediaType = msg.mediaType;
-              try {
-                const mediaKeyBytes = robustDecode(mediaKeyB64);
-                const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
-                const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
-                dmDecryptedMediaUrls.current[msgKey] = objectUrl;
-                setDmMediaUrlVersion(v => v + 1);
-              } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+              // Background fetch+decrypt — see the comment on the isMe branch above.
+              (async () => {
+                try {
+                  const mediaKeyBytes = robustDecode(mediaKeyB64);
+                  const resolvedUrl = resolveMediaUrl(targetMediaUrl, SOCKET_SERVER_URL);
+                  const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                  const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                  const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                  dmDecryptedMediaUrls.current[msgKey] = objectUrl;
+                  setDmMediaUrlVersion(v => v + 1);
+                } catch (e) { console.warn('[E2EE] DM messages decrypt file error:', e); }
+              })();
             } else if (msg.mediaUrl && msg.mediaUrl.length > 50) {
               decryptedMediaUrl = plain; decryptedText = '';
             } else { decryptedText = plain; }

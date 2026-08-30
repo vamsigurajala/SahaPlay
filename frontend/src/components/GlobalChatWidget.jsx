@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2 } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2, ImageOff } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
@@ -608,7 +608,17 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
     // photo at; the old size made every image look like a thumbnail next to
     // a normal-width caption line.
     if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '20px 20px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
-    return null;
+    // Decrypt/download never finished (or failed) within the wait window —
+    // rendering nothing here is what read as "I sent it but there's no
+    // video/image in the chat at all". Say so instead, so a failure is
+    // visible and diagnosable instead of silent. Reopening the chat re-runs
+    // history decryption from scratch, which is a real retry path.
+    return (
+      <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '20px 20px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', padding: 12, textAlign: 'center' }}>
+        <ImageOff size={18} style={{ opacity: 0.7 }} />
+        <span style={{ fontSize: 11.5 }}>Couldn't load {isVid ? 'video' : 'image'} — reopen chat to retry</span>
+      </div>
+    );
   }
 
   return (
@@ -2347,6 +2357,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const [waveHeights, setWaveHeights] = useState(() => Array(20).fill(3));
   const analyserRef = useRef(null);
   const waveAnimRef = useRef(null);
+  // Bumped by startRecording (new attempt) and stop/cancelRecording (abort) so
+  // a getUserMedia() call that resolves AFTER the user already stopped/cancelled
+  // can tell it's stale and back out instead of reviving a dead recording UI —
+  // see the sequencing comment inside startRecording.
+  const recordingSeqRef = useRef(0);
   // Re-auth overlay state (shown when sessionStorage key is missing after tab close)
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState('');
@@ -4544,18 +4559,32 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 if (m.mediaType && m.mediaUrl) {
                   try {
                     const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(plainText);
-                    const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
-                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                    decryptedMediaUrls.current[msgKey] = objectUrl;
+                    decryptedText = caption;
                     // decryptedMediaUrl stays m.mediaUrl (its initial value) — the real,
                     // permanent file URL — not the blob: object URL. Rendering reads the
                     // decrypted blob from decryptedMediaUrls above; mediaUrl must stay
                     // forwardable/fetchable by anyone, not just this tab.
-                    decryptedText = caption;
-                  } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
+                    const targetMediaUrl = m.mediaUrl;
+                    const targetMediaType = m.mediaType;
+                    // Fetch+decrypt in the background instead of awaiting inline — this
+                    // whole function runs inside a Promise.all over the entire history
+                    // batch, so awaiting a full video download (up to 50MB) here held up
+                    // EVERY message in the batch from appearing until it finished, or
+                    // forever if the fetch never settled on a bad connection. Matches
+                    // the real-time (non-history) decrypt path above, which already does
+                    // this correctly.
+                    (async () => {
+                      try {
+                        const mediaKeyBytes = robustDecode(mediaKeyB64);
+                        const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                        const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                        const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                        const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                        decryptedMediaUrls.current[msgKey] = objectUrl;
+                        setMediaUrlVersion(v => v + 1);
+                      } catch(e) { console.warn('[E2EE] History media decrypt (sender) failed:', e); }
+                    })();
+                  } catch(e) { console.warn('[E2EE] History media key unpack (sender) failed:', e); }
                 } else { decryptedText = plainText; }
               }
             }
@@ -4566,16 +4595,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 const decryptedPayload = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
                 const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
                 if (mediaKeyB64) {
-                  try {
-                    const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
-                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                    decryptedMediaUrls.current[msgKey] = objectUrl;
-                    // decryptedMediaUrl stays m.mediaUrl — see sender-copy branch above.
-                    decryptedText = caption;
-                  } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
+                  // decryptedMediaUrl stays m.mediaUrl — see sender-copy branch above.
+                  decryptedText = caption;
+                  const targetMediaUrl = m.mediaUrl;
+                  const targetMediaType = m.mediaType;
+                  // Background fetch+decrypt — see the comment on the sender-copy branch above.
+                  (async () => {
+                    try {
+                      const mediaKeyBytes = robustDecode(mediaKeyB64);
+                      const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                      const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                      decryptedMediaUrls.current[msgKey] = objectUrl;
+                      setMediaUrlVersion(v => v + 1);
+                    } catch(e) { console.warn('[E2EE] History media decrypt (recipient) failed:', e); }
+                  })();
                 }
               } else if (m.message && m.message !== '') {
                 decryptedText = decryptDM(m.message, m.nonce, senderPK, encodeBase64(kp.secretKey));
@@ -4592,16 +4627,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 const decryptedPayload = decryptGroupMessage(m.message, m.nonce, userKeyWrap, senderPK, kp.secretKey);
                 const { mediaKeyB64, caption } = unpackMediaKeyAndCaption(decryptedPayload);
                 if (mediaKeyB64) {
-                  try {
-                    const mediaKeyBytes = robustDecode(mediaKeyB64);
-                    const resolvedUrl = resolveMediaUrl(m.mediaUrl, API);
-                    const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
-                    const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
-                    const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: m.mediaType }));
-                    decryptedMediaUrls.current[msgKey] = objectUrl;
-                    // decryptedMediaUrl stays m.mediaUrl — see DM branches above.
-                    decryptedText = caption;
-                  } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
+                  // decryptedMediaUrl stays m.mediaUrl — see DM branches above.
+                  decryptedText = caption;
+                  const targetMediaUrl = m.mediaUrl;
+                  const targetMediaType = m.mediaType;
+                  // Background fetch+decrypt — see the comment on the DM sender-copy branch above.
+                  (async () => {
+                    try {
+                      const mediaKeyBytes = robustDecode(mediaKeyB64);
+                      const resolvedUrl = resolveMediaUrl(targetMediaUrl, API);
+                      const buff = await fetch(resolvedUrl).then(r => r.arrayBuffer());
+                      const decryptedBlob = await decryptMedia(buff, mediaKeyBytes);
+                      const objectUrl = URL.createObjectURL(new Blob([decryptedBlob], { type: targetMediaType }));
+                      decryptedMediaUrls.current[msgKey] = objectUrl;
+                      setMediaUrlVersion(v => v + 1);
+                    } catch(e) { console.warn('[E2EE] Group history media decrypt failed:', e); }
+                  })();
                 }
               } else if (m.message && m.message !== '') {
                 // A message that was edited but still fails to decrypt is most likely one of
@@ -5591,6 +5632,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
   };
 
   async function startRecording() {
+    // Show the recording UI the instant the button is tapped instead of
+    // after getUserMedia + MediaRecorder + AudioContext setup all finish —
+    // that round trip (mic permission handshake, Android WebView first-touch
+    // overhead) is a real, user-visible beat, and waiting for all of it
+    // before switching the composer over is what read as "not starting
+    // immediately". mySeq/recordingSeqRef lets a getUserMedia that resolves
+    // AFTER the user already cancelled tell it's stale and back out instead
+    // of reviving a dead recording.
+    const mySeq = ++recordingSeqRef.current;
+    setIsRecording(true);
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => {
+      setRecordingTime(prev => {
+        if (prev >= 299) { stopRecording(); return 300; }
+        return prev + 1;
+      });
+    }, 1000);
     try {
       // Explicitly OFF (not just omitted): leaving these unset lets Chromium
       // pick its default WebRTC-oriented "communications" audio source on
@@ -5603,6 +5661,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
+      if (recordingSeqRef.current !== mySeq) {
+        // Stopped/cancelled while getUserMedia was still resolving — tear
+        // this stream down and don't touch state, it's already been reset.
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
       const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
@@ -5648,21 +5712,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
         };
         animate();
       } catch {}
-
-      setIsRecording(true);
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          if (prev >= 299) { stopRecording(); return 300; }
-          return prev + 1;
-        });
-      }, 1000);
     } catch {
+      // getUserMedia rejected (permission denied, no mic, etc) — only roll
+      // the optimistic UI back if a later stop/cancel hasn't already done so.
+      if (recordingSeqRef.current === mySeq) {
+        clearInterval(timerRef.current);
+        setIsRecording(false);
+      }
       toast.error('Microphone access denied. Please allow microphone permission.');
     }
   }
 
   function stopRecording() {
+    // Invalidates any getUserMedia() from startRecording that's still
+    // in-flight — it'll see a stale seq when it resolves and back out
+    // instead of reviving a recording that was already stopped.
+    recordingSeqRef.current++;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -5671,6 +5736,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
   }
 
   function cancelRecording() {
+    recordingSeqRef.current++;
     if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
     if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
     if (mediaRecorderRef.current) {
@@ -7838,7 +7904,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     if (!mt) return null;
                     const isImg = mt.startsWith('image/');
                     const isVid = mt.startsWith('video/');
-                    const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < 30000;
+                    // Videos can be up to 50MB and are fetched+decrypted in full before
+                    // they can render at all (see the async decrypt IIFEs above) — a slow
+                    // connection can genuinely take longer than the 30s window images/
+                    // audio/files need, which was flipping isDecrypting false (and the
+                    // placeholder to "couldn't load") while the decrypt was still in flight.
+                    const decryptWindowMs = isVid ? 120000 : 30000;
+                    const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < decryptWindowMs;
                     return renderMedia(
                       resolvedUrl,
                       mt,

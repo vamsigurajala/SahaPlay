@@ -9,7 +9,7 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera, BarChart2
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import CameraCapture from './CameraCapture';
@@ -1607,6 +1607,11 @@ export default function RoomChatPanel({ p }) {
   const timerRef = React.useRef(null);
   const analyserRef = React.useRef(null);
   const waveAnimRef = React.useRef(null);
+  // Bumped by startRecording (new attempt) and stop/cancelRecording (abort) so
+  // a getUserMedia() call that resolves AFTER the user already stopped/
+  // cancelled can tell it's stale and back out instead of reviving a dead
+  // recording UI — see the sequencing comment inside startRecording.
+  const recordingSeqRef = React.useRef(0);
   const [waveHeights, setWaveHeights] = React.useState(() => Array(20).fill(3));
   const [activeMessageMenu, setActiveMessageMenu] = React.useState(null);
   const messageMenuRef = React.useRef(null);
@@ -2157,6 +2162,22 @@ export default function RoomChatPanel({ p }) {
 
 
   const startRecording = async (chatType) => {
+    // Show the recording UI the instant the mic button is tapped instead of
+    // after getUserMedia + MediaRecorder + AudioContext setup all finish —
+    // that round trip (mic permission handshake, Android WebView first-touch
+    // overhead) is a real, user-visible beat, and waiting for all of it
+    // before switching the composer over is what read as "not starting
+    // immediately". mySeq/recordingSeqRef lets a getUserMedia that resolves
+    // AFTER the user already cancelled tell it's stale and back out instead
+    // of reviving a dead recording.
+    const mySeq = ++recordingSeqRef.current;
+    setRecordingFor(chatType);
+    setIsRecording(true);
+    setRecordingTime(0);
+    timerRef.current = setInterval(() => setRecordingTime(prev => {
+      if (prev >= 299) { stopRecording(); return 300; }
+      return prev + 1;
+    }), 1000);
     try {
       // Explicitly OFF (not just omitted) — see the matching comment in
       // GlobalChatWidget.jsx's startRecording: leaving these unset lets
@@ -2167,6 +2188,12 @@ export default function RoomChatPanel({ p }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
+      if (recordingSeqRef.current !== mySeq) {
+        // Stopped/cancelled while getUserMedia was still resolving — tear
+        // this stream down and don't touch state, it's already been reset.
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
       const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
       audioChunksRef.current = [];
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
@@ -2212,19 +2239,22 @@ export default function RoomChatPanel({ p }) {
         };
         animate();
       } catch {}
-      setRecordingFor(chatType);
-      setIsRecording(true);
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => setRecordingTime(prev => {
-        if (prev >= 299) { stopRecording(); return 300; }
-        return prev + 1;
-      }), 1000);
     } catch {
+      // getUserMedia rejected (permission denied, no mic, etc) — only roll
+      // the optimistic UI back if a later stop/cancel hasn't already done so.
+      if (recordingSeqRef.current === mySeq) {
+        clearInterval(timerRef.current);
+        setIsRecording(false);
+      }
       toast.error('Microphone access denied');
     }
   };
 
   const stopRecording = () => {
+    // Invalidates any getUserMedia() from startRecording that's still
+    // in-flight — it'll see a stale seq when it resolves and back out
+    // instead of reviving a recording that was already stopped.
+    recordingSeqRef.current++;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
@@ -2233,6 +2263,7 @@ export default function RoomChatPanel({ p }) {
   };
 
   const cancelRecording = () => {
+    recordingSeqRef.current++;
     if (waveAnimRef.current) { cancelAnimationFrame(waveAnimRef.current); waveAnimRef.current = null; }
     if (analyserRef.current) { try { analyserRef.current.disconnect(); } catch {} analyserRef.current = null; }
     if (mediaRecorderRef.current) {
@@ -2477,7 +2508,17 @@ export default function RoomChatPanel({ p }) {
       // a photo at; the old size made every image look like a thumbnail next
       // to a normal-width caption line.
       if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '14px 14px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
-      return null;
+      // Decrypt/download never finished (or failed) within the wait window —
+      // rendering nothing here is what read as "I sent it but there's no
+      // video/image in the chat at all". Say so instead, so a failure is
+      // visible and diagnosable instead of silent. Reopening the chat re-runs
+      // history decryption from scratch, which is a real retry path.
+      return (
+        <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '14px 14px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'rgba(255,255,255,0.5)', padding: 12, textAlign: 'center' }}>
+          <ImageOff size={18} style={{ opacity: 0.7 }} />
+          <span style={{ fontSize: 11.5 }}>Couldn't load {isVid ? 'video' : 'image'} — reopen chat to retry</span>
+        </div>
+      );
     }
 
     return (
@@ -3123,7 +3164,10 @@ export default function RoomChatPanel({ p }) {
                 p.groupDecryptedMediaUrls.current[msg.tempId] ||
                 p.groupDecryptedMediaUrls.current[String(msg.timestamp)]
               )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
-              const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
+              // Videos (up to 50MB) genuinely take longer to fetch+decrypt than the
+              // 30s window images/audio/files need — see the matching comment in
+              // GlobalChatWidget.jsx's isDecrypting.
+              const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
               // Computed once so it can be placed either before the caption row
               // (captioned media — image on top) or after it (media-only, unchanged
@@ -4133,7 +4177,8 @@ export default function RoomChatPanel({ p }) {
                       p.dmDecryptedMediaUrls.current[msg.tempId] ||
                       p.dmDecryptedMediaUrls.current[String(msg.timestamp)]
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
-                    const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
+                    // See the matching comment on isDecryptingGroup above.
+                    const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
                     // Computed once — see the identical comment on the group thread's
                     // groupMediaNode above.
