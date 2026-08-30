@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Copy, Mail, Check, MessageSquare, Shield, Bug, User } from 'lucide-react';
+import { X, Copy, Mail, Check, MessageSquare, Shield, Bug, User, Scale } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
 
 const SupportModal = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
@@ -28,6 +29,19 @@ const SupportModal = ({ isOpen, onClose }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // This modal is position:fixed on top of whatever page opened it (Profile,
+  // Navbar, BottomNav, AppSettings) without unmounting it — the page behind
+  // never actually scrolls while this is up (window.scrollY stays 0), so
+  // scrolling inside the modal's own content was misread as a pull-to-refresh
+  // gesture on the page underneath, reloading the whole app. Same fix as
+  // GlobalChatWidget's identical issue: block the page's pull-to-refresh for
+  // as long as this modal is open.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    blockPullToRefresh();
+    return () => unblockPullToRefresh();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -94,6 +108,20 @@ const SupportModal = ({ isOpen, onClose }) => {
         t('supportModalFoundersUse3', 'Serious account or platform concerns')
       ],
       note: t('supportModalFoundersNote', 'For admin/founder-level concerns only.')
+    },
+    {
+      key: 'legal',
+      title: t('supportModalLegalTitle', 'Legal'),
+      email: 'legal@sahaplay.com',
+      Icon: Scale,
+      color: '#8b5cf6',
+      useFor: [
+        t('supportModalLegalUse1', 'Legal notices'),
+        t('supportModalLegalUse2', 'Copyright / DMCA claims'),
+        t('supportModalLegalUse3', 'Law enforcement requests'),
+        t('supportModalLegalUse4', 'Terms or privacy inquiries')
+      ],
+      note: t('supportModalLegalNote', 'For legal and compliance matters only.')
     }
   ];
 
@@ -143,7 +171,7 @@ const SupportModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Scrollable Content */}
-        <div className="support-modal-content no-scrollbar" style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="support-modal-content no-scrollbar" style={{ padding: '24px', overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <p style={{ fontSize: '14px', color: isLight ? '#475569' : '#9ca3af', lineHeight: 1.6, margin: 0 }}>
             {t('supportModalSubtitle', 'Need help with SahaPlay? Choose the right contact below and our team will review your request.')}
           </p>
@@ -315,6 +343,15 @@ const SupportModal = ({ isOpen, onClose }) => {
           z-index: 100010;
           padding: 16px;
           animation: fadeIn 0.2s ease-out;
+          /* This sits on top of the page that opened it (Profile,
+             AppSettings, the Navbar/BottomNav menus) without unmounting it.
+             Scrolling the content inside to its own top/bottom edge would
+             otherwise chain into that underlying page and, on mobile,
+             trigger the browser/WebView's own native pull-to-refresh —
+             reloading the whole app just from scrolling inside this modal.
+             overscroll-behavior contain stops scroll from ever reaching the
+             page behind it. */
+          overscroll-behavior: contain;
         }
         html[data-theme='light'] .support-modal-overlay {
           background-color: rgba(15, 23, 42, 0.4) !important;
