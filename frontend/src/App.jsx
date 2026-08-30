@@ -112,6 +112,24 @@ class ErrorBoundary extends React.Component {
         }}>
           <h2 className="stay-white">Something went wrong</h2>
           <p style={{ color: '#aaa', fontSize: 14 }}>Please refresh the page</p>
+          {/* Surfaces the actual thrown error right here — this has been
+              genuinely hard to pin down blind (repeated live reproduction
+              attempts against production found nothing), so the fastest path
+              to a real fix is showing whoever hits it exactly what broke,
+              not sending them to dig through DevTools. Sentry already gets
+              this via componentDidCatch above; this is the same information,
+              just visible without needing separate access to that dashboard. */}
+          {this.state.error && (
+            <pre style={{
+              color: '#f87171', fontSize: 11, maxWidth: '90vw', maxHeight: '30vh',
+              overflow: 'auto', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 8, padding: '10px 14px', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              textAlign: 'left',
+            }}>
+              {String(this.state.error?.message || this.state.error)}
+              {this.state.error?.stack ? `\n\n${this.state.error.stack}` : ''}
+            </pre>
+          )}
           <button
             onClick={() => window.location.reload()}
             style={{
