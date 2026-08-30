@@ -598,12 +598,12 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
     // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders a
     // photo at; the old size made every image look like a thumbnail next to
     // a normal-width caption line.
-    if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? 0 : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
+    if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '20px 20px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
     return null;
   }
 
   return (
-    <div style={{ marginTop: 0, borderRadius: flush ? 0 : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
+    <div style={{ marginTop: 0, borderRadius: flush ? '20px 20px 0 0' : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
       {isImg ? (
         <>
           <img
@@ -7817,7 +7817,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       msg.mediaExpiresAt,
                       isDecrypting,
                       openLightbox,
-                      isLight,
+                      // Same "on the wallpaper's dark scrim, use the dark-mode-appropriate
+                      // colors regardless of the light/dark toggle" rule as metaIsLight
+                      // below — voice-note bars/time/expiry and the file-card tick were
+                      // still using bare isLight, so picking a wallpaper in light mode
+                      // made them render near-black-on-black.
+                      isLight && !activeWallpaper,
                       msg,
                       myUsername,
                       !isMediaOnly, // hideTick
@@ -8004,7 +8009,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))))),
                                 border: msg.isPoll ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
                                 boxShadow: msg.isPoll ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
-                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
+                                // Skipped for captioned media too (not just media-only) —
+                                // blurring the wallpaper behind an opaque image is a no-op
+                                // that, combined with this element's own overflow:hidden +
+                                // border-radius clip, triggers a real Chromium rendering bug:
+                                // the blur backdrop isn't clipped cleanly at the rounded
+                                // corners, showing as a faint gap/glow right where the image
+                                // should be flush against the bubble's edges — only ever
+                                // visible on received bubbles, since sent bubbles never get
+                                // backdropFilter at all.
+                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.mediaType && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead

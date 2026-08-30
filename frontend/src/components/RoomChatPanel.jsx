@@ -2418,36 +2418,42 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperActive = false) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
     const isAudio = type?.startsWith('audio/');
+    // Same "on the wallpaper's dark scrim, use the dark-mode-appropriate colors
+    // regardless of the light/dark toggle" rule the msg-meta-row (reply/
+    // timestamp/flag) text already follows — voice-note bars/time/expiry and
+    // the file-card tick were still keyed off bare isLight, so picking a
+    // wallpaper in light mode made them render near-black-on-black.
+    const effIsLight = isLight && !wallpaperActive;
     // hideTick: this media has a caption, which already gets its own tick on
     // the caption's own line (see the msg-bubble layout) — showing a second
     // one on the media itself, right next to the caption's, was the "we
     // already had a tick" duplicate the caption/media stacking fix removed.
-    const tick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null;
-    const cardTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface /> : null;
+    const tick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} /> : null;
+    const cardTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface /> : null;
     // Voice note bubbles use a light tinted background in light mode (unlike the dark
     // text/media bubbles the default white tick assumes), so treat it as a light
     // surface in light mode only — dark mode keeps the original white tick unchanged.
-    const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={isLight} onLightSurface={isLight} /> : null;
+    const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
     if (!url) {
       // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
       // a photo at; the old size made every image look like a thumbnail next
       // to a normal-width caption line.
-      if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? 0 : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
+      if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? '14px 14px 0 0' : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
       return null;
     }
 
     return (
-      <div style={{ marginTop: 0, borderRadius: flush ? 0 : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
+      <div style={{ marginTop: 0, borderRadius: flush ? '14px 14px 0 0' : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
         {isImg ? (
           <>
             <img
@@ -3103,7 +3109,7 @@ export default function RoomChatPanel({ p }) {
                   resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                   onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                 />
-              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly);
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, !!groupWallpaper);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3263,8 +3269,16 @@ export default function RoomChatPanel({ p }) {
                               (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                             )
                           ),
-                          backdropFilter: (!isMediaOnly && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                          WebkitBackdropFilter: (!isMediaOnly && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                          // Skipped for captioned media too (not just media-only) — blurring
+                          // the wallpaper behind an opaque image is a no-op that, combined
+                          // with this element's own overflow:hidden + border-radius clip,
+                          // triggers a real rendering bug in Chromium: the blur backdrop
+                          // isn't clipped cleanly at the rounded corners, showing as a faint
+                          // gap/glow right where the image should be flush against the
+                          // bubble's edges — only ever visible on received bubbles, since
+                          // sent bubbles never get backdropFilter at all.
+                          backdropFilter: (!isMediaOnly && !msg.mediaType && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
                           ...(isMe && isGroupCustomTheme && !groupWallpaper && !isMediaOnly ? {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
@@ -4094,7 +4108,7 @@ export default function RoomChatPanel({ p }) {
                         resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                         onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                       />
-                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly);
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, !!dmWallpaper);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4201,8 +4215,9 @@ export default function RoomChatPanel({ p }) {
                                     (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                                   )
                                 ),
-                                backdropFilter: (!isMediaOnly && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                                WebkitBackdropFilter: (!isMediaOnly && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                                // See the identical comment on the group thread's bubble above.
+                                backdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
                                 ...(isMe && isDMCustomTheme && !dmWallpaper && !isMediaOnly ? {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
