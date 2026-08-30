@@ -86,17 +86,23 @@ export function usePullToRefresh({ disabled, onRefresh }) {
         setRefreshing(true);
         setIndicator(PULL_THRESHOLD, true);
         if (iconRef.current) iconRef.current.style.animation = 'ptr-spin 0.7s linear infinite';
-        const startedAt = Date.now();
-        Promise.resolve().then(() => onRefresh?.())
-          .catch(() => {})
-          .finally(() => {
-            const wait = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
-            setTimeout(() => {
-              setIndicator(0, true);
-              if (iconRef.current) iconRef.current.style.animation = '';
-              setRefreshing(false);
-            }, wait);
-          });
+        if (onRefresh) {
+          const startedAt = Date.now();
+          Promise.resolve().then(() => onRefresh())
+            .catch(() => {})
+            .finally(() => {
+              const wait = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+              setTimeout(() => {
+                setIndicator(0, true);
+                if (iconRef.current) iconRef.current.style.animation = '';
+                setRefreshing(false);
+              }, wait);
+            });
+        } else {
+          // No scoped refresh wired up — same as every other pull-to-refresh
+          // surface in this app, a completed pull just reloads the whole app.
+          setTimeout(() => window.location.reload(), 320);
+        }
       } else {
         setIndicator(0, true);
       }

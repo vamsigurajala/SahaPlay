@@ -9953,9 +9953,16 @@ io.on('connection', (socket) => {
     // Also update the name in pinned_rooms
     db.run('UPDATE pinned_rooms SET roomName = ? WHERE roomId = ?', [cleanName, roomId]);
 
-    io.in(roomId).emit('room_renamed', cleanName);
+    // roomId included (not just the bare name) so a listener tracking
+    // several rooms at once — GlobalChatWidget's conversation list, which
+    // joins every one of its room-type conversations' channels via
+    // track_rooms — can tell which one this event is actually about.
+    io.in(roomId).emit('room_renamed', { roomId, newName: cleanName });
 
-    // Global notification for user's other sessions
+    // Global notification for user's other sessions — belt-and-suspenders
+    // alongside the room-scoped broadcast above, for a session whose widget
+    // hasn't (yet) tracked this room's channel (e.g. its conversation list
+    // is still loading) but should still reflect the rename immediately.
     if (socket.username) {
         emitToUser(socket.username, 'room_renamed_global', { roomId, newName: cleanName });
     }
@@ -9989,7 +9996,10 @@ io.on('connection', (socket) => {
        if (trimmedName.length > 60) return; // A6-F8
        room.roomName = trimmedName;
        db.run('UPDATE room_names SET roomName = ? WHERE roomId = ?', [room.roomName, roomId]);
-       io.in(roomId).emit('room_renamed', room.roomName);
+       io.in(roomId).emit('room_renamed', { roomId, newName: room.roomName });
+       if (socket.username) {
+         emitToUser(socket.username, 'room_renamed_global', { roomId, newName: room.roomName });
+       }
     }
 
     // A6-F15 (settings): whitelist known permission/setting keys to prevent payload pollution

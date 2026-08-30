@@ -69,7 +69,7 @@ const Home = () => {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
   const standalone = isStandalonePWA();
-  const { pinnedRooms, unpinRoom, fetchRooms: refreshPinnedRooms } = usePinnedRooms({ limit: 6 });
+  const { pinnedRooms, unpinRoom } = usePinnedRooms({ limit: 6 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -160,7 +160,7 @@ const Home = () => {
 
 
   return (
-    <PullToRefresh onRefresh={refreshPinnedRooms}>
+    <PullToRefresh>
     <div className="page-enter" style={{ minHeight: '100vh' }}>
       <SeoHead path="/" />
       <Toaster position="top-center" />

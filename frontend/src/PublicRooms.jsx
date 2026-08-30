@@ -117,7 +117,7 @@ const PublicRooms = () => {
   };
 
   return (
-    <PullToRefresh onRefresh={fetchRooms}>
+    <PullToRefresh>
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`

@@ -3771,6 +3771,28 @@ const GlobalChatWidget = React.memo(forwardRef(({
       applyRoomPermissions({ roomId: rid, permissions, isHost });
     });
 
+    // A room rename (from this widget, Room.jsx's settings, or any other
+    // session/device) should show up here immediately without waiting on a
+    // reload — this socket already joined every room-type conversation's
+    // channel via track_rooms above, so it receives this live regardless of
+    // whether the rename happened in THIS session or somewhere else. Also
+    // updates the conversation list's own localStorage cache (the effect
+    // syncing `conversations` there already exists) so a cold reload picks
+    // up the fresh name too, not just this live update.
+    const applyRoomRename = ({ roomId, newName }) => {
+      if (!roomId || !newName) return;
+      const rid = roomId.toLowerCase();
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+        (c.type === 'room' && (c.partner || c.id || '').toLowerCase() === rid) ? { ...c, displayName: newName } : c
+      ));
+      const current = activeChatRef.current;
+      if (current && current.type === 'room' && (current.partner || current.id || '').toLowerCase() === rid) {
+        setActiveChat(prev => (prev ? { ...prev, displayName: newName } : prev));
+      }
+    };
+    sock.on('room_renamed', applyRoomRename);
+    sock.on('room_renamed_global', applyRoomRename);
+
     // Re-unified typing indicator is now handled by sock.on('chat:typing') at the top
     sock.on('dm_cleared', (data) => {
       const { userA, userB, targetUsername: legacyTarget } = data;
@@ -6212,7 +6234,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // messages, and it isn't "refresh the page" territory at all.
   const ptr = usePullToRefresh({
     disabled: view !== 'list',
-    onRefresh: fetchConversations,
   });
 
   // This widget sits on top of Home/PublicRooms/PinnedRooms without

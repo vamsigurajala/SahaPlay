@@ -3804,7 +3804,13 @@ const Room = () => {
 
 
 
-    sock.on('room_renamed', name => {
+    sock.on('room_renamed', payload => {
+      // Now carries { roomId, newName } so listeners tracking several rooms
+      // at once (GlobalChatWidget's conversation list) can tell which room
+      // this is about — still accepts a bare string defensively, since this
+      // page only ever has the one room open anyway.
+      const name = typeof payload === 'string' ? payload : payload?.newName;
+      if (!name) return;
       setRoomName(name);
       syncRecentChat({ roomName: name });
     });
