@@ -787,24 +787,30 @@ function App() {
         color: #ffffff !important;
       }
 
-      /* File card text overrides inside sent message bubbles */
-      html[data-theme='light'] .msg-bubble .fc-name { color: #111827 !important; }
-      html[data-theme='light'] .msg-bubble .fc-sub { color: #374151 !important; }
-      html[data-theme='light'] .msg-bubble .fc-expiry-warn { color: #d97706 !important; }
-      html[data-theme='light'] .msg-bubble .fc-expiry-ok { color: #9ca3af !important; }
-      html[data-theme='light'] .msg-bubble .fc-dl,
-      html[data-theme='light'] .msg-bubble .fc-dl * { color: var(--brand-2-darker) !important; }
-      html[data-theme='light'] .msg-bubble .media-expiry-warn { color: #d97706 !important; }
-      html[data-theme='light'] .msg-bubble .media-expiry-ok { color: #666666 !important; }
+      /* File card text overrides inside sent message bubbles. :not(.on-wallpaper)
+         on each — a wallpaper needs this text to stay white regardless of the
+         light/dark toggle (see GlobalChatWidget.jsx/RoomChatPanel.jsx's own
+         ".on-wallpaper .fc-name"-style rules), and this rule was winning
+         over that one on ties since it's a global rule with no reliable
+         ordering relative to a component-local <style> tag. */
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-name { color: #111827 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-sub { color: #374151 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-warn { color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-ok { color: #9ca3af !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-dl,
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-dl * { color: var(--brand-2-darker) !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-warn { color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-ok { color: #666666 !important; }
 
-      /* Voice note text overrides inside message bubbles in light mode */
-      html[data-theme='light'] .msg-bubble .rcp-vn-time,
-      html[data-theme='light'] .msg-bubble .rcp-vn-time * {
+      /* Voice note text overrides inside message bubbles in light mode — see
+         the :not(.on-wallpaper) comment just above. */
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time,
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time * {
         color: rgba(0,0,0,0.6) !important;
         -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
       }
-      html[data-theme='light'] .msg-bubble .rcp-vn-expiry,
-      html[data-theme='light'] .msg-bubble .rcp-vn-expiry * {
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry,
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry * {
         color: rgba(0,0,0,0.6) !important;
         -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
       }

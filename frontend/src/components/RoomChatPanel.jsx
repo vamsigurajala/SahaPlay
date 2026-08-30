@@ -735,20 +735,25 @@ const MenuStyles = () => (
     html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
     /* On a wallpaper, file-card/voice-note text is always white — same as
        dark mode already renders it — instead of a color keyed to the
-       light/dark theme toggle. Placed after (and, in light mode, matched
-       in specificity to) the rules above so it wins the cascade there; the
-       unprefixed copy below wins outright in dark mode since nothing else
-       targets these classes there. */
-    html[data-theme='light'] .on-wallpaper .fc-name, html[data-theme='light'] .on-wallpaper .fc-name *,
-    html[data-theme='light'] .on-wallpaper .fc-sub, html[data-theme='light'] .on-wallpaper .fc-sub *,
-    html[data-theme='light'] .on-wallpaper .fc-expiry, html[data-theme='light'] .on-wallpaper .fc-expiry *,
-    html[data-theme='light'] .on-wallpaper .rcp-vn-time, html[data-theme='light'] .on-wallpaper .rcp-vn-time *,
-    html[data-theme='light'] .on-wallpaper .rcp-vn-expiry, html[data-theme='light'] .on-wallpaper .rcp-vn-expiry *,
-    .on-wallpaper .fc-name, .on-wallpaper .fc-name *,
-    .on-wallpaper .fc-sub, .on-wallpaper .fc-sub *,
-    .on-wallpaper .fc-expiry, .on-wallpaper .fc-expiry *,
-    .on-wallpaper .rcp-vn-time, .on-wallpaper .rcp-vn-time *,
-    .on-wallpaper .rcp-vn-expiry, .on-wallpaper .rcp-vn-expiry * {
+       light/dark theme toggle. This was tied in specificity with the
+       ".msg-sent .fc-name" / ".stay-white .fc-name" rules above (both
+       html[data-theme='light'] + 2 classes + the target class), so which
+       one won was coming down to source order alone — fragile, and this
+       rule was losing in practice despite being placed after them.
+       ".on-wallpaper.on-wallpaper" (the class repeated) is a valid selector
+       — it still just means "has the on-wallpaper class" — but counts as
+       one extra class toward specificity, so this now wins outright
+       instead of depending on order. */
+    html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-name, html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-name *,
+    html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-sub, html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-sub *,
+    html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-expiry, html[data-theme='light'] .on-wallpaper.on-wallpaper .fc-expiry *,
+    html[data-theme='light'] .on-wallpaper.on-wallpaper .rcp-vn-time, html[data-theme='light'] .on-wallpaper.on-wallpaper .rcp-vn-time *,
+    html[data-theme='light'] .on-wallpaper.on-wallpaper .rcp-vn-expiry, html[data-theme='light'] .on-wallpaper.on-wallpaper .rcp-vn-expiry *,
+    .on-wallpaper.on-wallpaper .fc-name, .on-wallpaper.on-wallpaper .fc-name *,
+    .on-wallpaper.on-wallpaper .fc-sub, .on-wallpaper.on-wallpaper .fc-sub *,
+    .on-wallpaper.on-wallpaper .fc-expiry, .on-wallpaper.on-wallpaper .fc-expiry *,
+    .on-wallpaper.on-wallpaper .rcp-vn-time, .on-wallpaper.on-wallpaper .rcp-vn-time *,
+    .on-wallpaper.on-wallpaper .rcp-vn-expiry, .on-wallpaper.on-wallpaper .rcp-vn-expiry * {
       color: #ffffff !important;
       -webkit-text-fill-color: #ffffff !important;
     }
@@ -3380,6 +3385,13 @@ export default function RoomChatPanel({ p }) {
                           // instead of showing its own separately-rounded corners floating
                           // inside — see the flush param passed to renderMedia below.
                           overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
+                          // Thin frame around a captioned image/video (WhatsApp draws a border
+                          // around the whole image+caption block) and polls — not for media-only
+                          // (uncaptioned) messages, which stay edge-to-edge borderless like
+                          // WhatsApp's own uncaptioned photos, and not on a wallpaper, whose own
+                          // opaque bubble color already reads as a frame.
+                          border: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !groupWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
+                          boxShadow: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !groupWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                           fontSize: 14,
                           color: isMe ? (groupWallpaper ? groupWallpaperTextColor : '#fff') : (groupWallpaper ? groupWallpaperTextColor : (isLight ? '#111827' : '#fff')),
@@ -4323,6 +4335,9 @@ export default function RoomChatPanel({ p }) {
                                 // instead of showing its own separately-rounded corners
                                 // floating inside — see the flush param passed to renderMedia.
                                 overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
+                                // See the identical comment on the group thread's bubble above.
+                                border: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !dmWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
+                                boxShadow: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !dmWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                                 borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                                 fontSize: 14,
                                 color: isMe ? (dmWallpaper ? dmWallpaperTextColor : '#fff') : (dmWallpaper ? dmWallpaperTextColor : (isLight ? '#111827' : '#ddd')),

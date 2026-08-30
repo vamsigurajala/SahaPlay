@@ -1057,6 +1057,28 @@ const typingCss = `
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
   }
+  /* App.jsx also carries its own global "html[data-theme='light']
+     .msg-bubble .fc-name"-style rule (no .on-wallpaper awareness) at the
+     SAME specificity tier (html + attr + 2 classes) as the unprefixed
+     override just above in light mode, so which one won was coming down to
+     DOM order between two unrelated <style> tags — fragile, and it was
+     losing in practice. This adds one more class to the tally (via the
+     harmless ".on-wallpaper.on-wallpaper" repeat, since .msg-bubble here is
+     already guaranteed) so it wins outright in light mode regardless of
+     source order. */
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-name,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-name *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-sub,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-sub *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-expiry,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .fc-expiry *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .rcp-vn-time,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .rcp-vn-time *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .rcp-vn-expiry,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .rcp-vn-expiry * {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+  }
 
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
   /* Applied via .gcw-force-dark on the panel root when transparentMode=true */
@@ -8136,8 +8158,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                     ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
                                     : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))
                                 )),
-                                border: (msg.isPoll && !activeWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
-                                boxShadow: (msg.isPoll && !activeWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
+                                // Same subtle frame for polls and a captioned image/video (WhatsApp
+                                // draws a thin border around the whole image+caption block) — not
+                                // for media-only (uncaptioned) messages, which stay edge-to-edge
+                                // borderless like WhatsApp's own uncaptioned photos, and not on a
+                                // wallpaper, whose own opaque bubble color already reads as a frame.
+                                border: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !activeWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
+                                boxShadow: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !activeWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                                 // Skipped for captioned media and polls — both are now opaque
                                 // (see background above), so blurring the wallpaper behind them is
                                 // a no-op that, combined with this element's own overflow:hidden +

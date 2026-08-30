@@ -479,11 +479,26 @@ export default function CameraCapture({ onCapture, onClose }) {
 
   return (
     <div
+      // App.jsx's light-mode CSS matches elements by literal inline-style
+      // substring (e.g. any element with "color: #fff" in its style attribute
+      // gets forced to dark text) so the rest of the site's UI reads correctly
+      // in light mode — CameraCapture never opted out of that, so its own
+      // white-on-black styling (the "Aa" add-text button, the caption/text-
+      // overlay inputs) was getting silently re-colored for light mode instead
+      // of staying the fixed dark camera chrome it's meant to always be,
+      // regardless of the light/dark toggle. gcw-force-dark is the exact,
+      // already-established opt-out other full-screen dark overlays in this
+      // app use (see MediaLightbox.jsx).
+      className="gcw-force-dark"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
       style={{
         position: 'fixed', inset: 0, zIndex: 999999, background: '#000',
+        // Explicit viewport sizing alongside inset:0 — belt-and-suspenders
+        // against any mobile-WebView viewport-unit quirk that could leave
+        // inset:0 sizing against something other than the true viewport.
+        width: '100vw', height: '100dvh',
         transform: `translateY(${translateY})`,
         opacity,
         transition: draggingRef.current ? 'none' : 'transform 0.24s cubic-bezier(0.32,0.72,0,1), opacity 0.24s ease',
