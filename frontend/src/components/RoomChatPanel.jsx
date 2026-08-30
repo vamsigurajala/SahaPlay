@@ -734,13 +734,12 @@ const MenuStyles = () => (
     html[data-theme='light'] .rcp-vn-expiry,
     html[data-theme='light'] .msg-sent .rcp-vn-expiry,
     html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
-    /* On a wallpaper, file-card/voice-note text follows the exact same
-       per-image luminance color plain message text already uses
-       (--wp-text-color, set inline per bubble) instead of a color keyed
-       only to the light/dark theme toggle. Placed after (and, in light
-       mode, matched in specificity to) the rules above so it wins the
-       cascade there; the unprefixed copy below wins outright in dark mode
-       since nothing else targets these classes there. */
+    /* On a wallpaper, file-card/voice-note text is always white — same as
+       dark mode already renders it — instead of a color keyed to the
+       light/dark theme toggle. Placed after (and, in light mode, matched
+       in specificity to) the rules above so it wins the cascade there; the
+       unprefixed copy below wins outright in dark mode since nothing else
+       targets these classes there. */
     html[data-theme='light'] .on-wallpaper .fc-name, html[data-theme='light'] .on-wallpaper .fc-name *,
     html[data-theme='light'] .on-wallpaper .fc-sub, html[data-theme='light'] .on-wallpaper .fc-sub *,
     html[data-theme='light'] .on-wallpaper .fc-expiry, html[data-theme='light'] .on-wallpaper .fc-expiry *,
@@ -751,8 +750,8 @@ const MenuStyles = () => (
     .on-wallpaper .fc-expiry, .on-wallpaper .fc-expiry *,
     .on-wallpaper .rcp-vn-time, .on-wallpaper .rcp-vn-time *,
     .on-wallpaper .rcp-vn-expiry, .on-wallpaper .rcp-vn-expiry * {
-      color: var(--wp-text-color, #ffffff) !important;
-      -webkit-text-fill-color: var(--wp-text-color, #ffffff) !important;
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
     }
     .menu-dropdown {
       animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -3138,7 +3137,7 @@ export default function RoomChatPanel({ p }) {
                   resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                   onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                 />
-              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (isMe ? (groupWallpaperColor || groupWallpaper.brightColor) : groupWallpaperReceivedBg) : null);
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) : null);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3248,7 +3247,7 @@ export default function RoomChatPanel({ p }) {
                                 const sName = msg.senderName || msg.username;
                                 if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) goToProfile(sName);
                               }}
-                              style={{ fontSize: 10, color: metaIsLight ? '#374151' : '#888', cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
+                              style={{ fontSize: 10, color: metaIsLight ? '#374151' : (groupWallpaper ? 'rgba(255,255,255,0.85)' : '#888'), cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
                               title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
                             >
                               {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : formatUsername(msg.senderName || msg.username)}
@@ -3289,32 +3288,34 @@ export default function RoomChatPanel({ p }) {
                         <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                           position: 'relative',
                           zIndex: 2,
-                          // Read by the .on-wallpaper .fc-name/.rcp-vn-* overrides in
-                          // MenuStyles below — same reasoning as GlobalChatWidget.jsx's copy.
-                          ...(groupWallpaper ? { '--wp-text-color': groupWallpaperTextColor } : {}),
-                          // A captioned image's caption row uses the exact same per-theme
-                          // color plain text already does below (wallpaperColor/
-                          // wallpaperReceivedBg) — no special-case needed, this ternary
-                          // already gets there once isMediaOnly is false.
-                          background: isMediaOnly ? 'transparent' : (
-                            isMe ? (
-                              groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
-                              (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
-                            ) : (
-                              groupWallpaper ? groupWallpaperReceivedBg :
-                              (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
-                            )
+                          // A poll or captioned image's caption row uses the wallpaper's own
+                          // opaque dominant color, the SAME value for sent and received (unlike
+                          // plain text's received bubble, which stays the translucent frosted
+                          // groupWallpaperReceivedBg below — these "card" UI types looked
+                          // half-see-through with that treatment). Voice notes/documents get
+                          // the identical treatment via AudioPlayerBubble/FileCard's own
+                          // wallpaperBg prop, computed the same way at the renderMedia call
+                          // below.
+                          background: isMediaOnly ? 'transparent' : (groupWallpaper && (msg.isPoll || msg.mediaType)
+                            ? (groupWallpaperColor || groupWallpaper.brightColor)
+                            : (isMe ? (
+                                groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
+                                (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
+                              ) : (
+                                groupWallpaper ? groupWallpaperReceivedBg :
+                                (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
+                              ))
                           ),
-                          // Skipped for captioned media too (not just media-only) — blurring
-                          // the wallpaper behind an opaque image is a no-op that, combined
-                          // with this element's own overflow:hidden + border-radius clip,
-                          // triggers a real rendering bug in Chromium: the blur backdrop
-                          // isn't clipped cleanly at the rounded corners, showing as a faint
-                          // gap/glow right where the image should be flush against the
-                          // bubble's edges — only ever visible on received bubbles, since
-                          // sent bubbles never get backdropFilter at all.
-                          backdropFilter: (!isMediaOnly && !msg.mediaType && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                          // Skipped for captioned media/polls too (not just media-only) —
+                          // both are opaque now (see background above), so blurring the
+                          // wallpaper behind them is a no-op that, combined with this
+                          // element's own overflow:hidden + border-radius clip, triggers a
+                          // real rendering bug in Chromium: the blur backdrop isn't clipped
+                          // cleanly at the rounded corners, showing as a faint gap/glow at the
+                          // edges — only ever visible on received bubbles, since sent bubbles
+                          // never get backdropFilter at all.
+                          backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
                           ...(isMe && isGroupCustomTheme && !groupWallpaper && !isMediaOnly ? {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
@@ -3375,7 +3376,8 @@ export default function RoomChatPanel({ p }) {
                                     myUsername={myUser}
                                     onVote={(indices) => p.handlePollVote(msg, 'group', indices)}
                                     onViewVotes={() => setPollVotesTarget({ msg, chatType: 'group' })}
-                                    isLight={isLight}
+                                    // Same white-on-wallpaper rule as fc-name/rcp-vn-*.
+                                    isLight={isLight && !groupWallpaper}
                                     resolveAvatar={resolveAvatar}
                                   />
                                 );
@@ -4144,7 +4146,7 @@ export default function RoomChatPanel({ p }) {
                         resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                         onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                       />
-                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (isMe ? (dmWallpaperColor || dmWallpaper.brightColor) : dmWallpaperReceivedBg) : null);
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) : null);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4243,20 +4245,19 @@ export default function RoomChatPanel({ p }) {
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.
-                                ...(dmWallpaper ? { '--wp-text-color': dmWallpaperTextColor } : {}),
-                                // See the identical comment on the group thread's bubble above.
-                                background: isMediaOnly ? 'transparent' : (
-                                  isMe ? (
-                                    dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
-                                    (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
-                                  ) : (
-                                    dmWallpaper ? dmWallpaperReceivedBg :
-                                    (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
-                                  )
+                                background: isMediaOnly ? 'transparent' : (dmWallpaper && (msg.isPoll || msg.mediaType)
+                                  ? (dmWallpaperColor || dmWallpaper.brightColor)
+                                  : (isMe ? (
+                                      dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
+                                      (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
+                                    ) : (
+                                      dmWallpaper ? dmWallpaperReceivedBg :
+                                      (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
+                                    ))
                                 ),
                                 // See the identical comment on the group thread's bubble above.
-                                backdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                                backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
                                 ...(isMe && isDMCustomTheme && !dmWallpaper && !isMediaOnly ? {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
@@ -4316,7 +4317,8 @@ export default function RoomChatPanel({ p }) {
                                           myUsername={p.username}
                                           onVote={(indices) => p.handlePollVote(msg, 'dm', indices)}
                                           onViewVotes={() => setPollVotesTarget({ msg, chatType: 'dm' })}
-                                          isLight={isLight}
+                                          // Same white-on-wallpaper rule as fc-name/rcp-vn-*.
+                                          isLight={isLight && !dmWallpaper}
                                           resolveAvatar={resolveAvatar}
                                         />
                                       );

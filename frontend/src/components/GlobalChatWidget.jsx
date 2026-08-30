@@ -1018,12 +1018,11 @@ const typingCss = `
     -webkit-text-fill-color: rgba(0,0,0,0.62) !important;
   }
 
-  /* On a wallpaper, file-card/voice-note text follows the exact same
-     per-image luminance color plain message text already uses (--wp-text-
-     color, set inline per bubble — see the msg-bubble style block) instead
-     of a color keyed only to the light/dark theme toggle. Applies in both
-     light and dark mode (no html[data-theme] gate) since the wallpaper's
-     own color, not the toggle, decides what's readable here. */
+  /* On a wallpaper, file-card/voice-note text is always white — same as
+     dark mode already renders it — instead of a color keyed to the
+     light/dark theme toggle. Applies in both light and dark mode (no
+     html[data-theme] gate) since it's the wallpaper, not the toggle, that
+     decides these need it. */
   .msg-bubble.on-wallpaper .fc-name,
   .msg-bubble.on-wallpaper .fc-name *,
   .msg-bubble.on-wallpaper .fc-sub,
@@ -1034,8 +1033,8 @@ const typingCss = `
   .msg-bubble.on-wallpaper .rcp-vn-time *,
   .msg-bubble.on-wallpaper .rcp-vn-expiry,
   .msg-bubble.on-wallpaper .rcp-vn-expiry * {
-    color: var(--wp-text-color, #ffffff) !important;
-    -webkit-text-fill-color: var(--wp-text-color, #ffffff) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
   }
 
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
@@ -7859,9 +7858,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       myUsername,
                       !isMediaOnly, // hideTick
                       !isMediaOnly, // flush — caption row underneath handles its own rounding
-                      // Same per-theme color plain text bubbles use — see the identical
-                      // background calc on the msg-bubble style block above.
-                      activeWallpaper ? (isMe ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg) : null
+                      // Opaque wallpaper color, same for sent and received — see the
+                      // identical (msg.isPoll || msg.mediaType) background calc above.
+                      activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : null
                     );
                   })();
                   const prevMsg = i > 0 ? messages[i - 1] : null;
@@ -7997,7 +7996,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             isSahaplayOfficialGroup(activeChat) ? (
                               // Broadcast channel — recipients should see "SahaPlay" as the
                               // sender, not whichever admin account actually posted it.
-                              <span style={{ fontSize: 10, color: '#888', marginBottom: 1 }}>SahaPlay</span>
+                              <span style={{ fontSize: 10, color: activeWallpaper ? 'rgba(255,255,255,0.85)' : '#888', marginBottom: 1 }}>SahaPlay</span>
                             ) : (
                             <span
                               onClick={(e) => {
@@ -8005,7 +8004,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 const sName = msg.senderName || msg.username;
                                 if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { leaveChatToViewProfile(sName); }
                               }}
-                              style={{ fontSize: 10, color: '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
+                              style={{ fontSize: 10, color: activeWallpaper ? 'rgba(255,255,255,0.85)' : '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
                               title={`View ${msg.senderName || msg.username}'s profile`}
                             >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
                             )
@@ -8035,39 +8034,35 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                // Read by the .on-wallpaper .fc-name/.rcp-vn-* overrides below —
-                                // lets those CSS rules track the exact same per-wallpaper
-                                // luminance-based color the bubble's own text already uses,
-                                // instead of a hardcoded value that'd be wrong for a light
-                                // wallpaper.
-                                ...(activeWallpaper ? { '--wp-text-color': wallpaperTextColor } : {}),
                                 // Polls get their own neutral card background when there's no
                                 // wallpaper — the vivid sent-bubble gradient (fine for a line of
                                 // text) made option rows/vote bars unreadable once a poll's whole
                                 // card was painted in it. Once a wallpaper IS active, polls (and
-                                // a captioned image's caption row) instead follow the exact same
-                                // per-theme color plain text bubbles already use — wallpaperColor
-                                // for sent, wallpaperReceivedBg for received — so every bubble
-                                // type in the chat reads as one consistent theme instead of media/
-                                // poll bubbles staying a fixed dark/light card regardless of it.
-                                background: isMediaOnly ? 'transparent' : (activeWallpaper
-                                  ? (isMe ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg)
-                                  : (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
-                                      ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
-                                      : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))))),
+                                // a captioned image's caption row, and — see AudioPlayerBubble/
+                                // FileCard's own wallpaperBg — voice notes/documents) instead
+                                // follow the wallpaper's own opaque dominant color, the SAME value
+                                // for both sent and received (unlike plain text's received bubble,
+                                // which stays the translucent frosted wallpaperReceivedBg — these
+                                // "card" UI types looked half-see-through with that treatment).
+                                background: isMediaOnly ? 'transparent' : (activeWallpaper ? (
+                                  (msg.isPoll || msg.mediaType)
+                                    ? (wallpaperColor || 'rgba(255,255,255,0.25)')
+                                    : (isMe ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg)
+                                ) : (
+                                  msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
+                                    ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
+                                    : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))
+                                )),
                                 border: (msg.isPoll && !activeWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
                                 boxShadow: (msg.isPoll && !activeWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
-                                // Skipped for captioned media — blurring the wallpaper behind an
-                                // opaque image is a no-op that, combined with this element's own
-                                // overflow:hidden + border-radius clip, triggers a real Chromium
-                                // rendering bug: the blur backdrop isn't clipped cleanly at the
-                                // rounded corners, showing as a faint gap/glow right where the
-                                // image should be flush against the bubble's edges — only ever
-                                // visible on received bubbles, since sent bubbles never get
-                                // backdropFilter at all. Polls now share the same
-                                // wallpaperReceivedBg as text (see background above), so they get
-                                // the same frosted-glass blur treatment too.
-                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.mediaType ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
+                                // Skipped for captioned media and polls — both are now opaque
+                                // (see background above), so blurring the wallpaper behind them is
+                                // a no-op that, combined with this element's own overflow:hidden +
+                                // border-radius clip, triggers a real Chromium rendering bug: the
+                                // blur backdrop isn't clipped cleanly at the rounded corners,
+                                // showing as a faint gap/glow at the edges — only ever visible on
+                                // received bubbles, since sent bubbles never get backdropFilter.
+                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.mediaType && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
@@ -8139,7 +8134,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                         myUsername={myUsername}
                                         onVote={(indices) => handlePollVote(msg, indices)}
                                         onViewVotes={() => setPollVotesTargetKey(String(msg.id || msg.timestamp))}
-                                        isLight={isLight}
+                                        // Same white-on-wallpaper rule as fc-name/rcp-vn-* —
+                                        // the option-circle border, checkmark, and text all key
+                                        // off this same isLight prop internally.
+                                        isLight={isLight && !activeWallpaper}
                                         resolveAvatar={resolveAvatar}
                                       />
                                     );
