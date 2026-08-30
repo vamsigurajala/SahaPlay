@@ -189,6 +189,27 @@ public class SahaplayMediaPlugin extends Plugin {
         call.resolve();
     }
 
+    // setBrightness above always clamps to a real 0.01–1.0 value — there was
+    // no way to ever CLEAR the per-window override it applies, so once a user
+    // dragged the fullscreen brightness gesture even once, this app's window
+    // stayed pinned at that brightness — including after leaving the room,
+    // backgrounding the app, or relaunching it later — until the whole app
+    // process was killed. BRIGHTNESS_OVERRIDE_NONE (-1) is the documented
+    // Android sentinel for "stop overriding, follow the system's own current
+    // brightness again" — this is what Room.jsx now calls whenever the
+    // brightness gesture's own CSS dim resets (leaving fullscreen) and on
+    // unmount, so the override can never actually outlive the room screen.
+    @PluginMethod
+    public void resetBrightness(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            Window window = getActivity().getWindow();
+            WindowManager.LayoutParams layoutParams = window.getAttributes();
+            layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+            window.setAttributes(layoutParams);
+        });
+        call.resolve();
+    }
+
     // The web `screen.orientation.lock()` API is a no-op on Android whenever
     // the device's own auto-rotate system setting is off (a very common
     // default) — Chromium's implementation only lets the API pick between

@@ -2898,7 +2898,19 @@ export default function RoomChatPanel({ p }) {
 
               if (filteredUsernames.length === 0) {
                 return (
-                  <div style={{padding:40, textAlign:'center', color:'#444'}}>
+                  // Genuinely empty background — also doubles as the peek-drag
+                  // (pull video up over this panel) hit-region, same gesture
+                  // as the handle bar above the panel, just a much bigger
+                  // place to grab it from. Safe here specifically because
+                  // there's nothing else interactive in this block to fight
+                  // with (no onClick, no scroll-sensitive content).
+                  <div
+                    onTouchStart={p.onEmptyDragStart}
+                    onTouchMove={p.onEmptyDragMove}
+                    onTouchEnd={p.onEmptyDragEnd}
+                    onTouchCancel={p.onEmptyDragEnd}
+                    style={{padding:40, textAlign:'center', color:'#444', touchAction:'none'}}
+                  >
                     <MessageSquare size={32} opacity={0.2} style={{margin:'0 auto 12px', display:'block'}}/>
                     <div style={{fontSize:12}}>{showHiddenChats ? 'No hidden chats' : 'No conversations yet'}</div>
                   </div>
@@ -2986,7 +2998,18 @@ export default function RoomChatPanel({ p }) {
               });
             })()}
             {Object.keys(p.dmThreads).length===0 && (
-              <div style={{padding:'20px',color:'#444',fontSize:12,textAlign:'center'}}>No other users in room</div>
+              // flex:1 (last child of this scrollable column) so it silently
+              // absorbs whatever blank space is left below it — same peek-drag
+              // hit-region reasoning as the placeholder above.
+              <div
+                onTouchStart={p.onEmptyDragStart}
+                onTouchMove={p.onEmptyDragMove}
+                onTouchEnd={p.onEmptyDragEnd}
+                onTouchCancel={p.onEmptyDragEnd}
+                style={{padding:'20px',color:'#444',fontSize:12,textAlign:'center',flex:1,touchAction:'none'}}
+              >
+                No other users in room
+              </div>
             )}
           </div>
         </>

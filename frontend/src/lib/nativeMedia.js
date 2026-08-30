@@ -18,6 +18,16 @@ export function setNativeBrightness(value) {
   plugin()?.setBrightness({ value }).catch(() => {});
 }
 
+// setBrightness above always pins the window to a real value — there is no
+// value that means "stop overriding". Call this once the brightness gesture
+// is done with (leaving fullscreen, leaving the room) so the window's real
+// brightness override actually clears and the phone's own current system
+// brightness shows again, instead of staying stuck at whatever the gesture
+// last set it to (previously: forever, until the app process was killed).
+export function resetNativeBrightness() {
+  plugin()?.resetBrightness().catch(() => {});
+}
+
 export async function getNativeVolume() {
   try {
     const result = await plugin()?.getVolume();

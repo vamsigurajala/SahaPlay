@@ -6885,7 +6885,12 @@ app.post('/api/stream/init', authenticateToken, (req, res) => {
       receivedIndices: new Set(),
       contiguousReceived: 0,
       readyEmitted: false,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      // Updated on every chunk arrival — the stale-stream sweep below uses
+      // this (not createdAt) to notice an upload that's genuinely stopped
+      // (uploader disconnected, refreshed, or left) well before the 4-hour
+      // cleanup above would ever catch it.
+      lastChunkAt: Date.now()
     });
 
     const room = rooms.get(roomId.toLowerCase());
@@ -6911,6 +6916,7 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
 
     const idx = Number(chunkIndex);
+    stream.lastChunkAt = Date.now();
     // Chunks can now arrive out of order (concurrent upload) — a Set survives
     // a retried/duplicate chunk index without double-counting, unlike a bare
     // increment.
@@ -7115,6 +7121,36 @@ setInterval(() => {
   }
   if (removed > 0) console.log(`[stream/cleanup] Removed ${removed} expired stream(s)`);
 }, 60 * 60 * 1000);
+
+// Frequent sweep for an upload that's genuinely stopped (uploader disconnected,
+// refreshed the page, or left the room) before ever reaching stream_ready —
+// without this, everyone else in the room was stuck on "Getting the video
+// ready…" forever, with no way to cancel or pick a different video, since
+// nothing ever told them the upload wasn't coming. Only ever targets a
+// still-pending stream (readyEmitted false) — once ready, the file already
+// exists and plays fine regardless of whether the uploader is still connected.
+// 25s of total silence is generous: with the concurrent chunk uploader, a
+// genuinely-still-uploading file sends chunks continuously; this only fires
+// for a connection that's actually gone (the chunk fetch() calls die with
+// the page, they don't survive a refresh/navigation the way the socket
+// reconnect logic elsewhere in this file does).
+const STALE_STREAM_MS = 25 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, stream] of activeStreams.entries()) {
+    if (stream.readyEmitted) continue;
+    if (now - stream.lastChunkAt < STALE_STREAM_MS) continue;
+    const room = rooms.get(stream.roomId);
+    if (room && room.streamPending && room.streamPending.streamKey === key) {
+      room.streamPending = null;
+    }
+    const dir = path.join(__dirname, 'uploads', 'streams', key);
+    if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    activeStreams.delete(key);
+    io.to(stream.roomId).emit('stream_cancelled');
+    console.log(`[stream/cleanup] Cancelled stale pending stream ${key} in room ${stream.roomId} (no chunks for ${STALE_STREAM_MS}ms)`);
+  }
+}, 10 * 1000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 

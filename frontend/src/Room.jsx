@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
-import { setNativeVolume, setNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
+import { setNativeVolume, setNativeBrightness, resetNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
 import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
@@ -2204,8 +2204,16 @@ const Room = () => {
   const justDraggedVerticalRef = useRef(false);
   // Reset the dim back to normal on exiting fullscreen — it's a transient viewing
   // aid for that session, not something that should silently carry over and leave
-  // the player looking dim the next time fullscreen is entered.
-  useEffect(() => { if (!isMobileFsMode) setBrightnessLevel(1); }, [isMobileFsMode]);
+  // the player looking dim the next time fullscreen is entered. setBrightnessLevel
+  // only resets the CSS dim overlay (the always-available fallback) — the real
+  // hardware brightness override (Capacitor only, see setNativeBrightness above)
+  // needs its own explicit clear, or the phone stays pinned at whatever the
+  // gesture last set even after leaving fullscreen. A second effect covers
+  // leaving the ROOM ENTIRELY while still fullscreen (unmount), which this one
+  // alone wouldn't catch since isMobileFsMode never gets the chance to flip
+  // back to false first in that case.
+  useEffect(() => { if (!isMobileFsMode) { setBrightnessLevel(1); resetNativeBrightness(); } }, [isMobileFsMode]);
+  useEffect(() => () => resetNativeBrightness(), []);
 
   // Pinch-to-zoom on the video itself (mobile/tablet fullscreen only) —
   // scales just the media surface (the div wrapping the <video>/ReactPlayer,
@@ -14003,7 +14011,7 @@ const Room = () => {
               onTouchMove={movePeekDrag}
               onTouchEnd={endPeekDrag}
               onTouchCancel={endPeekDrag}
-              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 40, padding: '18px 0', flexShrink: 0, touchAction: 'none' }}
+              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 24, padding: '10px 0', flexShrink: 0, touchAction: 'none' }}
             >
               <div className="room-peek-handle-bar" style={{ width: 36, height: 4, borderRadius: 2 }} />
             </div>
@@ -14396,7 +14404,10 @@ const Room = () => {
                     groupHistoryLoading, dmHistoryLoading,
                     groupHistoryReady, dmHistoryReady,
                     hasMoreGroupHistory, hasMoreDmHistory,
-                    loadMoreGroupHistory, loadMoreDmHistory
+                    loadMoreGroupHistory, loadMoreDmHistory,
+                    onEmptyDragStart: startPeekDrag,
+                    onEmptyDragMove: movePeekDrag,
+                    onEmptyDragEnd: endPeekDrag,
                   }} />
                 </div>
 
@@ -14674,7 +14685,17 @@ const Room = () => {
                 groupHistoryLoading, dmHistoryLoading,
                 groupHistoryReady, dmHistoryReady,
                 hasMoreGroupHistory, hasMoreDmHistory,
-                loadMoreGroupHistory, loadMoreDmHistory
+                loadMoreGroupHistory, loadMoreDmHistory,
+                // Reels-style peek-drag (pull the video up over this panel) —
+                // wired onto this panel's own genuinely-empty areas (the "no
+                // conversations"/"no other users" placeholders) so there's a
+                // much bigger place to grab than just the handle row above,
+                // without any risk of hijacking a real scroll/tap on actual
+                // chat content. No-ops on non-mobile since the handlers
+                // themselves bail out via canPeekGesture first.
+                onEmptyDragStart: startPeekDrag,
+                onEmptyDragMove: movePeekDrag,
+                onEmptyDragEnd: endPeekDrag,
               }} />
             )
           )}
