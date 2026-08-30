@@ -1,6 +1,15 @@
 import { useState, useRef, useCallback } from 'react';
 
 const CHUNK_SIZE = 1024 * 1024; // 1MB
+// Chunks used to go out one at a time, each awaiting its own full round trip
+// before the next even started — on any real network the connection sat
+// idle between chunks waiting on the server's response, which is what
+// actually capped how fast the ready-threshold (see server.js) and everyone
+// else's playback caught up, regardless of real available bandwidth. This
+// many chunks now go out in parallel instead; the server tracks exactly
+// which indices have actually landed (not just how many), so out-of-order
+// arrival from concurrent uploads can never corrupt what gets served.
+const UPLOAD_CONCURRENCY = 5;
 
 export function useVideoUpload({ socket, roomId, serverUrl }) {
   const [uploadState, setUploadState] = useState({
@@ -64,10 +73,19 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
         totalSize: file.size
       });
 
-      // Step 2: Upload chunks sequentially
-      for (let i = 0; i < totalChunks; i++) {
-        if (abortRef.current) break;
+      // Step 2: Upload chunks with a bounded concurrency pool instead of one
+      // at a time — completedCount (not the chunk index) drives the shown
+      // progress, since chunks can now finish out of order.
+      let nextIndex = 0;
+      let completedCount = 0;
+      let firstError = null;
+      // Separate from abortRef (which means "the USER cancelled" and is
+      // read again below to decide whether to surface an error) — this one
+      // just tells the other workers to stop picking up new chunks once one
+      // of them has genuinely failed.
+      let stopped = false;
 
+      const uploadOne = async (i) => {
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
@@ -82,11 +100,32 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
         });
 
         if (!res.ok) throw new Error('Chunk upload failed');
-
-        const { progress } = await res.json();
-        console.log('[UPLOAD] Chunk', i + 1, 'of', totalChunks, `(${progress}%)`);
+        await res.json();
+        completedCount += 1;
+        const progress = Math.round((completedCount / totalChunks) * 100);
+        console.log('[UPLOAD] Chunk', i + 1, 'of', totalChunks, `(${progress}% overall)`);
         setUploadState(prev => ({ ...prev, progress }));
-      }
+      };
+
+      const worker = async () => {
+        while (!abortRef.current && !stopped) {
+          const i = nextIndex++;
+          if (i >= totalChunks) return;
+          try {
+            await uploadOne(i);
+          } catch (err) {
+            firstError = err;
+            stopped = true;
+            return;
+          }
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(UPLOAD_CONCURRENCY, totalChunks) }, () => worker())
+      );
+
+      if (firstError) throw firstError;
 
       if (!abortRef.current) {
         setUploadState(prev => ({ ...prev, isUploading: false, progress: 100, canPlay: true }));

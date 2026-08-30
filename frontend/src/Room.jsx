@@ -12788,9 +12788,14 @@ const Room = () => {
                 <p className={(isFullscreen || isTvMode) ? 'stay-white' : undefined} style={{ margin: '0 0 4px', color: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.75)' : (isLight ? '#64748b' : 'rgba(255,255,255,0.6)'), fontSize: 14, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {streamPending.filename || t('videoFile', 'Video file')}
                 </p>
-                <p className={(isFullscreen || isTvMode) ? 'stay-white' : undefined} style={{ margin: 0, color: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.55)' : (isLight ? '#94a3b8' : 'rgba(255,255,255,0.4)'), fontSize: 13 }}>
-                  {Math.round(streamPending.progress || 0)}%
-                </p>
+                <div style={{ width: '100%', maxWidth: 220, background: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'), borderRadius: 999, height: 4, overflow: 'hidden', marginTop: 4 }}>
+                  <div style={{
+                    background: 'linear-gradient(90deg, var(--brand-2-dark), var(--brand-1-light))',
+                    height: '100%', borderRadius: 999,
+                    width: `${Math.max(4, Math.round(streamPending.progress || 0))}%`,
+                    transition: 'width 0.3s ease',
+                  }} />
+                </div>
               </div>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
@@ -13948,17 +13953,34 @@ const Room = () => {
               // the pinned slot mobile users actually look at while nothing's
               // playing yet, so it needs its own copy of the same "it's coming"
               // signal rather than relying on the hidden column underneath.
-              <div className="mobile-browse-media-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '14px 20px', background: 'var(--room-sidebar-bg, #1a1a2e)', border: 'none', borderRadius: 0, color: '#fff', flexShrink: 0 }}>
-                <span style={{
-                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                  border: '2.5px solid rgba(255,255,255,0.25)',
-                  borderTopColor: '#fff',
-                  animation: 'room-media-pending-spin 0.8s linear infinite',
-                }} />
-                <style>{`@keyframes room-media-pending-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                <span className="forced-white" style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {t('mediaUploading', 'Getting the video ready…')} {Math.round(streamPending.progress || 0)}%
-                </span>
+              // background here was always the dark var(--room-sidebar-bg)
+              // value with hardcoded white text on top ("forced-white" isn't
+              // an actual defined class — it did nothing) — in light mode
+              // that CSS variable is white, so this read as invisible white-
+              // on-white text. Now explicitly theme-aware, and a real
+              // progress bar replaces the bare percentage number for a
+              // steadier, less "is this even moving" feel.
+              <div className="mobile-browse-media-btn" style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', padding: '12px 20px', background: isLight ? '#fff' : 'var(--room-sidebar-bg, #1a1a2e)', border: 'none', borderRadius: 0, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                  <span style={{
+                    width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                    border: `2.5px solid ${isLight ? 'rgba(var(--brand-1-rgb),0.2)' : 'rgba(255,255,255,0.25)'}`,
+                    borderTopColor: isLight ? 'var(--brand-1)' : '#fff',
+                    animation: 'room-media-pending-spin 0.8s linear infinite',
+                  }} />
+                  <style>{`@keyframes room-media-pending-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: isLight ? '#0f172a' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t('mediaUploading', 'Getting the video ready…')}
+                  </span>
+                </div>
+                <div style={{ background: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)', borderRadius: 999, height: 4, overflow: 'hidden' }}>
+                  <div style={{
+                    background: 'linear-gradient(90deg, var(--brand-2-dark), var(--brand-1-light))',
+                    height: '100%', borderRadius: 999,
+                    width: `${Math.max(4, Math.round(streamPending.progress || 0))}%`,
+                    transition: 'width 0.3s ease',
+                  }} />
+                </div>
               </div>
             ) : (
               <button className="mobile-browse-media-btn" onClick={() => setShowMediaSelector(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px 20px', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: 'none', borderRadius: 0, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', flexShrink: 0 }}>

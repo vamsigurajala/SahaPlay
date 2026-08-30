@@ -6846,7 +6846,7 @@ const chunkUpload = multer({
 });
 
 // In-memory stream registry — no DB migration needed
-const activeStreams = new Map(); // streamKey → { roomId, filename, mimetype, totalSize, totalChunks, chunksReceived, createdAt }
+const activeStreams = new Map(); // streamKey → { roomId, filename, mimetype, totalSize, totalChunks, chunksReceived, receivedIndices, contiguousReceived, createdAt }
 
 app.post('/api/stream/init', authenticateToken, (req, res) => {
   try {
@@ -6871,7 +6871,19 @@ app.post('/api/stream/init', authenticateToken, (req, res) => {
       mimetype: mt,
       totalSize: Number(totalSize),
       totalChunks: Number(totalChunks),
+      // chunksReceived: total chunks that have landed, in ANY order — purely
+      // informational (host's own upload-progress display). contiguousReceived
+      // is the one that actually matters for what's safe to serve: the
+      // highest N such that chunk indices 0..N-1 are ALL present. The
+      // uploader now sends chunks with concurrency, so they can genuinely
+      // arrive out of order — every place that decides "how many bytes can
+      // I serve right now" or "is it time to flip stream_ready" must use
+      // contiguousReceived, never the total-arrived count, or a still-
+      // missing chunk in the middle would silently get skipped over instead
+      // of correctly blocking playback until it lands.
       chunksReceived: 0,
+      receivedIndices: new Set(),
+      contiguousReceived: 0,
       readyEmitted: false,
       createdAt: Date.now()
     });
@@ -6894,11 +6906,20 @@ app.post('/api/stream/init', authenticateToken, (req, res) => {
 
 app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpload.single('chunk'), (req, res) => {
   try {
-    const { streamKey } = req.params;
+    const { streamKey, chunkIndex } = req.params;
     const stream = activeStreams.get(streamKey);
     if (!stream) return res.status(404).json({ error: 'Stream not found' });
 
-    stream.chunksReceived += 1;
+    const idx = Number(chunkIndex);
+    // Chunks can now arrive out of order (concurrent upload) — a Set survives
+    // a retried/duplicate chunk index without double-counting, unlike a bare
+    // increment.
+    if (!stream.receivedIndices) stream.receivedIndices = new Set(); // defensive, older in-flight streams
+    stream.receivedIndices.add(idx);
+    stream.chunksReceived = stream.receivedIndices.size;
+    while (stream.receivedIndices.has(stream.contiguousReceived)) {
+      stream.contiguousReceived += 1;
+    }
     const newCount = stream.chunksReceived;
     const progress = Math.round((newCount / stream.totalChunks) * 100);
 
@@ -6914,7 +6935,11 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
     // background. Without this, everyone but the uploader waited for 100% of a
     // multi-minute upload before their player got a URL at all.
     const readyThreshold = Math.min(stream.totalChunks, Math.max(3, Math.ceil(stream.totalChunks * 0.08)));
-    if (!stream.readyEmitted && newCount >= readyThreshold) {
+    // contiguousReceived, not newCount — the GET endpoint below can only
+    // safely serve a contiguous run of chunks from the start of the file,
+    // so "ready" has to mean that run is long enough, not just that this
+    // many chunks have landed somewhere.
+    if (!stream.readyEmitted && stream.contiguousReceived >= readyThreshold) {
       stream.readyEmitted = true;
       if (room) {
         room.streamPending = null;
@@ -6965,10 +6990,14 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
-    // Calculate bytes actually available on disk right now
+    // Calculate bytes actually available on disk right now. Bounded by
+    // contiguousReceived (the longest unbroken run from chunk 0), NOT total
+    // chunks landed — chunks can arrive out of order now that the uploader
+    // sends them concurrently, and a still-missing chunk in the middle must
+    // block everything after it rather than being silently skipped over.
     const computeAvailableBytes = async () => {
       let bytes = 0;
-      for (let i = 0; i < stream.chunksReceived; i++) {
+      for (let i = 0; i < stream.contiguousReceived; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
         try {
           const stats = await fs.promises.stat(chunkPath);
@@ -7001,7 +7030,7 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       // so a slow/still-uploading host just looks like a slow network to the
       // video element, which it recovers from natively once data arrives.
       const waitDeadline = Date.now() + 15000;
-      while (start >= availableBytes && stream.chunksReceived < stream.totalChunks && Date.now() < waitDeadline) {
+      while (start >= availableBytes && stream.contiguousReceived < stream.totalChunks && Date.now() < waitDeadline) {
         await new Promise(r => setTimeout(r, 300));
         availableBytes = await computeAvailableBytes();
       }
@@ -7028,7 +7057,7 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       let bytesWritten = 0;
       const totalToWrite = end - start + 1;
 
-      for (let i = startChunk; i <= endChunk && i < stream.chunksReceived; i++) {
+      for (let i = startChunk; i <= endChunk && i < stream.contiguousReceived; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
         try {
           await fs.promises.access(chunkPath);
@@ -7055,7 +7084,7 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       // No Range header — serve what's available so far
       res.setHeader('Content-Length', availableBytes);
       res.writeHead(200);
-      for (let i = 0; i < stream.chunksReceived; i++) {
+      for (let i = 0; i < stream.contiguousReceived; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
         try {
           const data = await fs.promises.readFile(chunkPath);
