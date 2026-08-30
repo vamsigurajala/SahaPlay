@@ -574,7 +574,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false) => {
+const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false, flush = false) => {
   if (!url && !type) return null;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
@@ -595,12 +595,15 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
   if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
   if (!url) {
-    if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
+    // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders a
+    // photo at; the old size made every image look like a thumbnail next to
+    // a normal-width caption line.
+    if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? 0 : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
     return null;
   }
 
   return (
-    <div style={{ marginTop: 0, borderRadius: 10, overflow: 'hidden', background: '#000', maxWidth: 220, position: 'relative', cursor: 'pointer' }}>
+    <div style={{ marginTop: 0, borderRadius: flush ? 0 : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
       {isImg ? (
         <>
           <img
@@ -609,7 +612,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
             loading="lazy"
             draggable={false}
             onContextMenu={e => e.preventDefault()}
-            style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+            style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
             onClick={() => onOpenLightbox(url, type)}
             onError={(e) => {
               e.target.onerror = null;
@@ -622,7 +625,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
           {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
         </>
       ) : (
-        <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div onClick={() => onOpenLightbox(url, type)} style={{ position: 'relative', width: '100%', height: 200, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {/* No static frame preview by design — see the matching comment
               in the grid-preview renderer above. */}
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -7783,6 +7786,44 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   const mediaGroupItems = mediaRuns.heads.get(rowKey) || null;
                   const reactions = msg.reactions || {};
                   const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+                  // Computed once per message so it can be placed either before the caption
+                  // row (captioned media — image on top) or after it (media-only — unchanged
+                  // spot). `flush`/hideTick (the shared !isMediaOnly condition) drops the
+                  // media's own corner-rounding and overlay tick whenever a caption row is
+                  // about to render right underneath it with its own rounding/tick.
+                  const mediaNode = mediaGroupItems ? (
+                    <MediaGrid
+                      items={mediaGroupItems}
+                      forwarded={msg?.forwarded}
+                      expiresAt={msg.mediaExpiresAt}
+                      tick={isMe ? <MessageTick msg={msg} username={myUsername} isLight={isLight} /> : null}
+                      resolveUrl={(it) => resolveDecryptedUrl(it, decryptedMediaUrls)}
+                      onOpenItem={(it, url) => openLightbox(url, it.mediaType)}
+                    />
+                  ) : (() => {
+                    const msgKey = String(msg.id || msg.timestamp);
+                    const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
+                    const mt = msg.mediaType || '';
+                    if (!mt) return null;
+                    const isImg = mt.startsWith('image/');
+                    const isVid = mt.startsWith('video/');
+                    const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < 30000;
+                    return renderMedia(
+                      resolvedUrl,
+                      mt,
+                      isMe,
+                      msg._fileName || msg.mediaFileName,
+                      msg._fileSize || msg.mediaFileSize,
+                      msg.mediaExpiresAt,
+                      isDecrypting,
+                      openLightbox,
+                      isLight,
+                      msg,
+                      myUsername,
+                      !isMediaOnly, // hideTick
+                      !isMediaOnly  // flush — caption row underneath handles its own rounding
+                    );
+                  })();
                   const prevMsg = i > 0 ? messages[i - 1] : null;
                   const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);
                   // The SahaPlay Updates channel is a one-way broadcast — regular users
@@ -7977,7 +8018,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   backgroundSize: `100% ${Math.max(messages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                                 } : {}),
-                                padding: isMediaOnly ? '0' : '10px 16px',
+                                padding: msg.mediaType ? '0' : '10px 16px',
+                                // A captioned image clips to the bubble's own rounded
+                                // corners (see flexDirection below) instead of showing its
+                                // own separately-rounded corners floating inside — see the
+                                // flush param passed to renderMedia further down.
+                                overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
                                 fontSize: 14,
                                 color: msg.isPoll ? (isLight ? '#0f172a' : '#ffffff') : (transparentMode ? '#fff' : (activeWallpaper ? wallpaperTextColor : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')))),
@@ -7987,19 +8033,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 transform: `translateX(${rowDragX}px)`,
                                 transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
                                 display: isMediaOnly ? 'block' : 'flex',
-                                flexWrap: 'wrap',
-                                alignItems: 'flex-end',
-                                columnGap: 6
+                                // Captioned media stacks in a column (image on top, caption
+                                // row directly under it, WhatsApp-style) so the caption's
+                                // width — and therefore how far the tick sits from the text —
+                                // is bounded by the image's own rendered width instead of the
+                                // whole chat panel. Plain text/poll bubbles keep the original
+                                // wrapping row (text + tick, tick wraps below if text is long).
+                                flexDirection: (msg.mediaType && !isMediaOnly) ? 'column' : 'row',
+                                flexWrap: (msg.mediaType && !isMediaOnly) ? 'nowrap' : 'wrap',
+                                alignItems: (msg.mediaType && !isMediaOnly) ? 'stretch' : 'flex-end',
+                                columnGap: (msg.mediaType && !isMediaOnly) ? 0 : 6
                               }}
                             >
-                              {/* Caption+tick get their own row, forced full-width whenever
-                                  there's media alongside them (flexBasis:100% leaves the
-                                  wrapping bubble row zero space for anything else, so the
-                                  media below is pushed onto its own line) — otherwise a short
-                                  caption just floated beside the image via flex-wrap instead
-                                  of stacking under it, and the media's own tick (see hideTick
-                                  below) duplicated the one already at the end of this row. */}
-                              <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
+                              {/* Captioned media renders its image/video first (flush, full
+                                  width) — the caption+tick row further below renders after it
+                                  instead of before, so it lands underneath, not on top. */}
+                              {(msg.mediaType && !isMediaOnly) && mediaNode}
+                              <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '6px 10px 8px' } : {}) }}>
                               <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                 {!msg.mediaType && msg.forwarded && (
                                   <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -8061,46 +8111,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 </div>
                               )}
                               </div>
-                              {(() => {
-                                if (mediaGroupItems) {
-                                  return (
-                                    <MediaGrid
-                                      items={mediaGroupItems}
-                                      forwarded={msg?.forwarded}
-                                      expiresAt={msg.mediaExpiresAt}
-                                      tick={isMe ? <MessageTick msg={msg} username={myUsername} isLight={isLight} /> : null}
-                                      resolveUrl={(it) => resolveDecryptedUrl(it, decryptedMediaUrls)}
-                                      onOpenItem={(it, url) => openLightbox(url, it.mediaType)}
-                                    />
-                                  );
-                                }
-                                const msgKey = String(msg.id || msg.timestamp);
-                                const resolvedUrl = decryptedMediaUrls.current[msgKey] || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
-                                const mt = msg.mediaType || '';
-                                if (!mt) return null;
-
-                                const isImg = mt.startsWith('image/');
-                                const isVid = mt.startsWith('video/');
-                                const isAudio = mt.startsWith('audio/');
-                                const isFile = mt && !isImg && !isVid && !isAudio;
-
-                                const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < 30000;
-
-                                return renderMedia(
-                                  resolvedUrl,
-                                  mt,
-                                  isMe,
-                                  msg._fileName || msg.mediaFileName,
-                                  msg._fileSize || msg.mediaFileSize,
-                                  msg.mediaExpiresAt,
-                                  isDecrypting,
-                                  openLightbox,
-                                  isLight,
-                                  msg,
-                                  myUsername,
-                                  !isMediaOnly // has a caption — its tick already shows on the caption's own row above
-                                );
-                              })()}
+                              {isMediaOnly && mediaNode}
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>

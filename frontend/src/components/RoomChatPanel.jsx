@@ -2418,7 +2418,7 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
@@ -2439,12 +2439,15 @@ export default function RoomChatPanel({ p }) {
     if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
     if (!url) {
-      if (loading) return <div style={{ width: 220, height: isVid ? 140 : 160, borderRadius: 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
+      // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
+      // a photo at; the old size made every image look like a thumbnail next
+      // to a normal-width caption line.
+      if (loading) return <div style={{ width: 300, height: isVid ? 200 : 240, borderRadius: flush ? 0 : 10, background: isMe ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Loader2 size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--brand-1)', opacity: 0.6 }} /></div>;
       return null;
     }
 
     return (
-      <div style={{ marginTop: 0, borderRadius: 10, overflow: 'hidden', background: '#000', maxWidth: 220, position: 'relative', cursor: 'pointer' }}>
+      <div style={{ marginTop: 0, borderRadius: flush ? 0 : 10, overflow: 'hidden', background: '#000', maxWidth: 300, position: 'relative', cursor: 'pointer' }}>
         {isImg ? (
           <>
             <img
@@ -2452,7 +2455,7 @@ export default function RoomChatPanel({ p }) {
               alt="Shared media"
               draggable={false}
               onContextMenu={e => e.preventDefault()}
-              style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+              style={{ width: '100%', maxHeight: 320, objectFit: 'cover', display: 'block', WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
               onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)}
               onError={(e) => {
                 e.target.onerror = null;
@@ -2465,7 +2468,7 @@ export default function RoomChatPanel({ p }) {
             {tick && <div style={{ position: 'absolute', bottom: 5, right: 6, display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.5)', borderRadius: 4, padding: '2px 5px', backdropFilter: 'blur(4px)' }}>{tick}</div>}
           </>
         ) : (
-          <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 140, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => openLightboxAt(url, type, allMessages, decryptedUrlsRef)} style={{ position: 'relative', width: '100%', height: 200, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* No static frame preview by design — see the matching comment
                 in the grid-preview renderer above. */}
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -3088,6 +3091,19 @@ export default function RoomChatPanel({ p }) {
               )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
               const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+              // Computed once so it can be placed either before the caption row
+              // (captioned media — image on top) or after it (media-only, unchanged
+              // spot). flush/hideTick share the !isMediaOnly condition.
+              const groupMediaNode = mediaGroupItems ? (
+                <MediaGrid
+                  items={mediaGroupItems}
+                  forwarded={msg?.forwarded}
+                  expiresAt={msg.mediaExpiresAt}
+                  tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
+                  resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
+                  onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
+                />
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3253,7 +3269,11 @@ export default function RoomChatPanel({ p }) {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                           } : {}),
-                          padding: isMediaOnly ? '0' : '8px 12px',
+                          padding: msg.mediaType ? '0' : '8px 12px',
+                          // A captioned image clips to the bubble's own rounded corners
+                          // instead of showing its own separately-rounded corners floating
+                          // inside — see the flush param passed to renderMedia below.
+                          overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
                           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                           fontSize: 14,
                           color: isMe ? (groupWallpaper ? groupWallpaperTextColor : '#fff') : (groupWallpaper ? groupWallpaperTextColor : (isLight ? '#111827' : '#fff')),
@@ -3262,17 +3282,24 @@ export default function RoomChatPanel({ p }) {
                           transform: `translateX(${rowDragX}px)`,
                           transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
                           display: isMediaOnly ? 'block' : 'flex',
-                          flexWrap: 'wrap',
-                          alignItems: 'flex-end',
-                          columnGap: 6
+                          // Captioned media stacks in a column (image on top, caption row
+                          // directly under it, WhatsApp-style) so the caption's width — and
+                          // how far the tick sits from the text — is bounded by the image's
+                          // own rendered width instead of the whole chat panel. Plain
+                          // text/poll bubbles keep the original wrapping row.
+                          flexDirection: (msg.mediaType && !isMediaOnly) ? 'column' : 'row',
+                          flexWrap: (msg.mediaType && !isMediaOnly) ? 'nowrap' : 'wrap',
+                          alignItems: (msg.mediaType && !isMediaOnly) ? 'stretch' : 'flex-end',
+                          columnGap: (msg.mediaType && !isMediaOnly) ? 0 : 6
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}
                         onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); }}>
-                          {/* Caption+tick get their own row, forced full-width whenever
-                              there's media alongside them — see the matching comment in
-                              GlobalChatWidget.jsx's own copy of this layout. */}
-                          <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
+                          {/* Captioned media renders its image/video first (flush, full
+                              width) — the caption+tick row below renders after it instead
+                              of before, so it lands underneath, not on top. */}
+                          {(msg.mediaType && !isMediaOnly) && groupMediaNode}
+                          <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px' } : {}) }}>
                           <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                             {!msg.mediaType && msg.forwarded && (
                               <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -3319,16 +3346,7 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           )}
                           </div>
-                          {mediaGroupItems ? (
-                            <MediaGrid
-                              items={mediaGroupItems}
-                              forwarded={msg?.forwarded}
-                              expiresAt={msg.mediaExpiresAt}
-                              tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
-                              resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
-                              onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
-                            />
-                          ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly)}
+                          {isMediaOnly && groupMediaNode}
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
@@ -4065,6 +4083,18 @@ export default function RoomChatPanel({ p }) {
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                     const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < 30000;
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
+                    // Computed once — see the identical comment on the group thread's
+                    // groupMediaNode above.
+                    const dmMediaNode = mediaGroupItems ? (
+                      <MediaGrid
+                        items={mediaGroupItems}
+                        forwarded={msg?.forwarded}
+                        expiresAt={msg.mediaExpiresAt}
+                        tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
+                        resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
+                        onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
+                      />
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4177,7 +4207,11 @@ export default function RoomChatPanel({ p }) {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
                                 } : {}),
-                                padding: isMediaOnly ? '0' : '8px 12px',
+                                padding: msg.mediaType ? '0' : '8px 12px',
+                                // A captioned image clips to the bubble's own rounded corners
+                                // instead of showing its own separately-rounded corners
+                                // floating inside — see the flush param passed to renderMedia.
+                                overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
                                 borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                                 fontSize: 14,
                                 color: isMe ? (dmWallpaper ? dmWallpaperTextColor : '#fff') : (dmWallpaper ? dmWallpaperTextColor : (isLight ? '#111827' : '#ddd')),
@@ -4186,17 +4220,22 @@ export default function RoomChatPanel({ p }) {
                                 transform: `translateX(${rowDragX}px)`,
                                 transition: rowDragging ? 'none' : (rowBounce ? 'transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'transform 0.2s ease'),
                                 display: isMediaOnly ? 'block' : 'flex',
-                                flexWrap: 'wrap',
-                                alignItems: 'flex-end',
-                                columnGap: 6
+                                // Captioned media stacks in a column (image on top, caption
+                                // row directly under it) — see the identical comment on the
+                                // group thread's bubble above.
+                                flexDirection: (msg.mediaType && !isMediaOnly) ? 'column' : 'row',
+                                flexWrap: (msg.mediaType && !isMediaOnly) ? 'nowrap' : 'wrap',
+                                alignItems: (msg.mediaType && !isMediaOnly) ? 'stretch' : 'flex-end',
+                                columnGap: (msg.mediaType && !isMediaOnly) ? 0 : 6
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); }}>
-                                {/* Caption+tick get their own row, forced full-width whenever
-                                    there's media alongside them — see the matching comment in
-                                    GlobalChatWidget.jsx's own copy of this layout. */}
-                                <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, flexBasis: (msg.mediaType && !isMediaOnly) ? '100%' : undefined, minWidth: 0 }}>
+                                {/* Captioned media renders its image/video first (flush, full
+                                    width) — the caption+tick row below renders after it
+                                    instead of before, so it lands underneath, not on top. */}
+                                {(msg.mediaType && !isMediaOnly) && dmMediaNode}
+                                <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px' } : {}) }}>
                                 <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                   {!msg.mediaType && msg.forwarded && (
                                     <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -4258,16 +4297,7 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                                 </div>
-                                {mediaGroupItems ? (
-                                  <MediaGrid
-                                    items={mediaGroupItems}
-                                    forwarded={msg?.forwarded}
-                                    expiresAt={msg.mediaExpiresAt}
-                                    tick={isMe ? <MessageTick msg={msg} username={p.username} isLight={isLight} /> : null}
-                                    resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
-                                    onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
-                                  />
-                                ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly)}
+                                {isMediaOnly && dmMediaNode}
                                 
                                 {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                   <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
