@@ -8542,9 +8542,15 @@ const Room = () => {
       if (hasPlayerPrivileges) {
         togglePlayPause();
         clearTimeout(centerFeedbackTimerRef.current);
-        // isPlaying is still the pre-toggle value here (closure), so its opposite
-        // is the state the video is transitioning into — show that icon.
-        setCenterFeedback({ type: isPlaying ? 'pause' : 'play', key: Date.now() });
+        // isPlaying is still the pre-toggle value here (closure) — the video is
+        // transitioning to its opposite, which is also what the bottom control
+        // bar's own play/pause button (isPlaying ? Pause : Play, using the NEW
+        // state once it re-renders) is about to show. Matching that exactly —
+        // NOT just showing the icon for isPlaying's current value — is what
+        // this flash needs to agree with, or the two visibly contradict each
+        // other for a moment (this used to show Pause while pausing, i.e. the
+        // icon for the state being LEFT, not entered).
+        setCenterFeedback({ type: isPlaying ? 'play' : 'pause', key: Date.now() });
         centerFeedbackTimerRef.current = setTimeout(() => setCenterFeedback(null), 550);
       }
       toggleControlsVisibility();
@@ -12983,7 +12989,6 @@ const Room = () => {
                       transform: 'translateY(-50%)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', pointerEvents: 'none',
-                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.5))',
                       animation: 'sp-seek-pulse 0.6s ease-out',
                     }}
                   >
@@ -12998,7 +13003,6 @@ const Room = () => {
                       transform: 'translate(-50%, -50%)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       color: '#fff', pointerEvents: 'none',
-                      filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.9)) drop-shadow(0 0 8px rgba(0,0,0,0.5))',
                       animation: 'sp-center-pulse 0.55s ease-out',
                     }}
                   >
