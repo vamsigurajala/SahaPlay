@@ -12,6 +12,7 @@ import {
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
+import { getMenuFloorY } from '../lib/chatMenuPlacement';
 import CameraCapture from './CameraCapture';
 import VoiceRecorderBar from './VoiceRecorderBar';
 import PollComposer from './PollComposer';
@@ -3265,7 +3266,7 @@ export default function RoomChatPanel({ p }) {
                 onTouchStart: (e) => {
                   if (e.target.closest && e.target.closest('.long-press-menu')) return;
                   if (longPress.activeId === rowKey) { longPress.close(); }
-                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((window.innerHeight - touch.clientY) < 260 ? 'up' : 'down'); }
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - touch.clientY) < 260 ? 'up' : 'down'); }
                   swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                 },
                 onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -3516,7 +3517,7 @@ export default function RoomChatPanel({ p }) {
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                              <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((window.innerHeight - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                              <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
@@ -4274,7 +4275,7 @@ export default function RoomChatPanel({ p }) {
                       onTouchStart: (e) => {
                         if (e.target.closest && e.target.closest('.long-press-menu')) return;
                         if (longPress.activeId === rowKey) { longPress.close(); }
-                        else { const touch = e.touches[0]; if (touch) setLongPressPlacement((window.innerHeight - touch.clientY) < 260 ? 'up' : 'down'); }
+                        else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - touch.clientY) < 260 ? 'up' : 'down'); }
                         swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                       },
                       onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -4478,7 +4479,7 @@ export default function RoomChatPanel({ p }) {
                                     <button
                                       className={(isLight && msg.mediaType) ? 'stay-white' : ''}
                                       ref={activeMessageMenu === msg.id ? messageMenuRef : null}
-                                      onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((window.innerHeight - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                      onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
                                     {activeMessageMenu === msg.id && (

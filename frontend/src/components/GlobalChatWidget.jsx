@@ -11,6 +11,7 @@ import ReportMessageModal from './ReportMessageModal';
 import CameraCapture from './CameraCapture';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
+import { getMenuFloorY } from '../lib/chatMenuPlacement';
 import PinSetupModal from './PinSetupModal';
 import PollComposer from './PollComposer';
 import PollBubble from './PollBubble';
@@ -8079,7 +8080,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     onTouchStart: (e) => {
                       if (e.target.closest && e.target.closest('.long-press-menu')) return;
                       if (longPress.activeId === rowKey) { longPress.close(); }
-                      else { const touch = e.touches[0]; if (touch) setLongPressPlacement((window.innerHeight - touch.clientY) < 260 ? 'up' : 'down'); }
+                      else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - touch.clientY) < 260 ? 'up' : 'down'); }
                       swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                     },
                     onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -8370,7 +8371,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((window.innerHeight - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
