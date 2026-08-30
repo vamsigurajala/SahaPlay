@@ -210,7 +210,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 
 const _vnReg_gcw = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperActive = false }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -237,7 +237,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)');
+  // Solid, not translucent, whenever a wallpaper's active — a low-alpha tint
+  // over a busy photo (instead of the plain solid page background this was
+  // designed against) reads as "barely there" rather than as a bubble.
+  const loadBg = wallpaperActive ? '#1b1b25' : (isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)'));
 
   if (isLoading) return (
     <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
@@ -345,9 +348,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     } catch { toast?.error?.('Download failed'); }
   };
 
-  const bubbleBg = isMe
+  // Same "solid card, not a translucent tint" reasoning as loadBg above.
+  const bubbleBg = wallpaperActive ? '#1b1b25' : (isMe
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
-    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = 'var(--brand-2)';
   const unplayedColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
@@ -574,7 +578,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false, flush = false) => {
+const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false, flush = false, wallpaperActive = false) => {
   if (!url && !type) return null;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
@@ -590,7 +594,7 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
   // surface in light mode only — dark mode keeps the original white tick unchanged.
   const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
 
-  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
+  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperActive={wallpaperActive} />;
 
   if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
@@ -7826,7 +7830,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       msg,
                       myUsername,
                       !isMediaOnly, // hideTick
-                      !isMediaOnly  // flush — caption row underneath handles its own rounding
+                      !isMediaOnly, // flush — caption row underneath handles its own rounding
+                      !!activeWallpaper // wallpaperActive — forces a solid (not translucent) voice-note bubble
                     );
                   })();
                   const prevMsg = i > 0 ? messages[i - 1] : null;
@@ -8003,10 +8008,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 // Polls get their own neutral card background regardless of isMe/
                                 // wallpaper/custom theme — the vivid sent-bubble gradient (fine for
                                 // a line of text) made option rows/vote bars unreadable once a poll's
-                                // whole card was painted in it.
-                                background: isMediaOnly ? 'transparent' : (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
+                                // whole card was painted in it. A captioned image's caption row gets
+                                // the same solid-card treatment whenever a wallpaper is active — the
+                                // translucent wallpaper-derived colors (wallpaperColor/
+                                // wallpaperReceivedBg) are fine behind plain text, but behind a
+                                // caption they let the photo show through enough to read as "not
+                                // really there", same problem the poll comment above already solved.
+                                background: isMediaOnly ? 'transparent' : (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : ((msg.mediaType && activeWallpaper) ? '#1b1b25' : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
                                   ? (activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
-                                  : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)'))))),
+                                  : (activeWallpaper ? wallpaperReceivedBg : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))))),
                                 border: msg.isPoll ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
                                 boxShadow: msg.isPoll ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                                 // Skipped for captioned media too (not just media-only) —

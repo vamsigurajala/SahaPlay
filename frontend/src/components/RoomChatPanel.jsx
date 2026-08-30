@@ -472,7 +472,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 // One voice note plays at a time across the room chat panel
 const _vnReg_rcp = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperActive = false }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -500,7 +500,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  const loadBg = isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)');
+  // Solid, not translucent, whenever a wallpaper's active — a low-alpha tint
+  // over a busy photo (instead of the plain solid page background this was
+  // designed against) reads as "barely there" rather than as a bubble.
+  const loadBg = wallpaperActive ? '#1b1b25' : (isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)'));
 
   if (isLoading) return (
     <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
@@ -612,9 +615,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     } catch { toast.error('Download failed'); }
   };
 
-  const bubbleBg = isMe
+  // Same "solid card, not a translucent tint" reasoning as loadBg above.
+  const bubbleBg = wallpaperActive ? '#1b1b25' : (isMe
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
-    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)');
+    : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = 'var(--brand-2)';
   const unplayedColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
@@ -2440,7 +2444,7 @@ export default function RoomChatPanel({ p }) {
     // surface in light mode only — dark mode keeps the original white tick unchanged.
     const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperActive={wallpaperActive} />;
 
     if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
 
@@ -3260,7 +3264,10 @@ export default function RoomChatPanel({ p }) {
                         <div className={isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
                           position: 'relative',
                           zIndex: 2,
-                          background: isMediaOnly ? 'transparent' : (
+                          // A captioned image's caption row gets the same solid-card
+                          // treatment as a poll whenever a wallpaper is active — see the
+                          // identical comment on GlobalChatWidget.jsx's own copy of this.
+                          background: isMediaOnly ? 'transparent' : ((msg.mediaType && groupWallpaper) ? '#1b1b25' : (
                             isMe ? (
                               groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
                               (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
@@ -3268,7 +3275,7 @@ export default function RoomChatPanel({ p }) {
                               groupWallpaper ? groupWallpaperReceivedBg :
                               (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                             )
-                          ),
+                          )),
                           // Skipped for captioned media too (not just media-only) — blurring
                           // the wallpaper behind an opaque image is a no-op that, combined
                           // with this element's own overflow:hidden + border-radius clip,
@@ -4206,7 +4213,8 @@ export default function RoomChatPanel({ p }) {
                               <div className={isMe ? 'msg-sent stay-white' : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
                                 position: 'relative',
                                 zIndex: 2,
-                                background: isMediaOnly ? 'transparent' : (
+                                // See the identical comment on the group thread's bubble above.
+                                background: isMediaOnly ? 'transparent' : ((msg.mediaType && dmWallpaper) ? '#1b1b25' : (
                                   isMe ? (
                                     dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
                                     (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
@@ -4214,7 +4222,7 @@ export default function RoomChatPanel({ p }) {
                                     dmWallpaper ? dmWallpaperReceivedBg :
                                     (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                                   )
-                                ),
+                                )),
                                 // See the identical comment on the group thread's bubble above.
                                 backdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
                                 WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
