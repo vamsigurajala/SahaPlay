@@ -13,10 +13,10 @@ import PullToRefresh from './components/PullToRefresh';
 // already gets its own page rather than being mixed into the home view.
 const PinnedRooms = () => {
   const { t } = useTranslation();
-  const { pinnedRooms, unpinRoom } = usePinnedRooms();
+  const { pinnedRooms, unpinRoom, fetchRooms } = usePinnedRooms();
 
   return (
-    <PullToRefresh>
+    <PullToRefresh onRefresh={fetchRooms}>
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`

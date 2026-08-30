@@ -72,13 +72,16 @@ const PublicRooms = () => {
   const loggedInUsername = localStorage.getItem('watch_username');
 
 
+  // Lifted out of the effect (and memoized) so pull-to-refresh can call this
+  // directly to reload just this page's own data instead of the whole app.
+  const fetchRooms = useCallback(() => {
+    return fetch(`${API}/api/rooms/public`)
+      .then(r => r.json())
+      .then(data => { if(Array.isArray(data)) setPublicRooms(data); })
+      .catch(err => console.error('Failed to load public rooms', err));
+  }, []);
+
   useEffect(() => {
-    const fetchRooms = () => {
-      fetch(`${API}/api/rooms/public`)
-        .then(r => r.json())
-        .then(data => { if(Array.isArray(data)) setPublicRooms(data); })
-        .catch(err => console.error('Failed to load public rooms', err));
-    };
     fetchRooms();
     const interval = setInterval(fetchRooms, 4000);
 
@@ -90,7 +93,7 @@ const PublicRooms = () => {
     }
 
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, fetchRooms]);
 
   const handleMakePrivate = async (e, roomId) => {
     e.stopPropagation();
@@ -114,7 +117,7 @@ const PublicRooms = () => {
   };
 
   return (
-    <PullToRefresh>
+    <PullToRefresh onRefresh={fetchRooms}>
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`

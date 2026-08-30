@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2, ImageOff } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2, ImageOff, RefreshCw } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
 import CameraCapture from './CameraCapture';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
 import PinSetupModal from './PinSetupModal';
 import PollComposer from './PollComposer';
 import PollBubble from './PollBubble';
@@ -2465,6 +2467,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const activeChatRef = useRef(null);
   const viewRef = useRef('list');
   const containerRef = useRef(null);
+  // The scrollable "Body" div hosting both the conversation list and an open
+  // conversation (same element, different children depending on `view`) —
+  // used by the pull-to-refresh gesture below to track its own scrollTop
+  // instead of the window's, since this whole widget is a fixed overlay that
+  // never scrolls the window/document itself.
+  const chatListScrollRef = useRef(null);
   const processedMsgsRef = useRef(new Set());
   const guestLastMsgCountRef = useRef({});
 
@@ -6204,11 +6212,45 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // own filter UI visually consistent regardless of theme selection.
   const sheetFilterAccent = '#a855f7';
 
+  // Pull-to-refresh, scoped to the conversation LIST only — dragging down
+  // while an actual conversation is open (view === 'chat') must never
+  // trigger this: that's exactly the gesture used to scroll toward older
+  // messages, and it isn't "refresh the page" territory at all.
+  const ptr = usePullToRefresh({
+    containerRef: chatListScrollRef,
+    disabled: view !== 'list',
+    onRefresh: fetchConversations,
+  });
+
+  // This widget sits on top of Home/PublicRooms/PinnedRooms without
+  // unmounting them whenever it's open — block their own window-scroll
+  // pull-to-refresh for as long as that's the case (see pullToRefreshGate.js).
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    blockPullToRefresh();
+    return () => unblockPullToRefresh();
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <div ref={wrapperRef} style={{ display: hiddenByProfileRoute ? 'none' : 'contents' }}>
       <style>{typingCss}</style>
+      <div ref={ptr.indicatorRef} style={{
+        position: 'fixed', top: 'calc(10px + var(--sp-status-bar-inset, 0px) + env(safe-area-inset-top))',
+        left: '50%', transform: 'translate(-50%, -44px)', opacity: 0,
+        width: 38, height: 38, borderRadius: '50%',
+        background: isLight ? '#ffffff' : '#1c1c1e',
+        boxShadow: isLight ? '0 4px 16px rgba(0,0,0,0.18)' : '0 4px 16px rgba(0,0,0,0.5)',
+        border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 1000001, pointerEvents: 'none',
+      }}>
+        <span ref={ptr.iconRef} style={{ display: 'flex', transformOrigin: 'center' }}>
+          <RefreshCw size={17} color="var(--brand-1)" />
+        </span>
+      </div>
+      <style>{`@keyframes ptr-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     {/* In-widget notice banner — portalled above the widget's own high z-index so it's
         never hidden behind it (unlike a page-level react-hot-toast). */}
     {inlineNotice && createPortal(
@@ -6999,7 +7041,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         )}
 
         {/* Body */}
-        <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div ref={chatListScrollRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {view === 'list' && (
             <div className="chat-list-header" style={{ 
               padding: '16px 20px', 

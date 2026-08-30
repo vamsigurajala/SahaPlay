@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { isPullToRefreshBlocked } from '../lib/pullToRefreshGate';
 
 // Drag-down-anywhere-to-refresh, WhatsApp/Twitter-style — a thin gesture
 // layer, not a scroll container of its own. It watches the real window
@@ -13,11 +14,21 @@ import { RefreshCw } from 'lucide-react';
 // and never call preventDefault, so normal scrolling anywhere on the page
 // is completely unaffected — this only ever shows an indicator and acts
 // once the user is already at the very top and pulls further down.
+//
+// isPullToRefreshBlocked() additionally bails a drag out when a full-screen
+// overlay (GlobalChatWidget's floating chat, opened on top of this same
+// page without unmounting it) is currently open — see pullToRefreshGate.js
+// for why that's necessary.
 const PULL_THRESHOLD = 68;
 const MAX_PULL = 100;
 const MAX_INDICATOR_ROTATE = 200;
 
-export default function PullToRefresh({ children }) {
+// onRefresh: optional async function. When given, a completed pull calls
+// this and waits for it instead of reloading the whole app — "refresh"
+// should mean "reload this page's own data", not "restart everything".
+// Falls back to a full window.location.reload() only when the page hasn't
+// wired up anything more targeted.
+export default function PullToRefresh({ children, onRefresh }) {
   const dragRef = useRef(null); // { startY, active }
   const indicatorRef = useRef(null);
   const iconRef = useRef(null);
@@ -48,12 +59,13 @@ export default function PullToRefresh({ children }) {
       // scrolled to the top — a downward drag anywhere else is just a
       // normal scroll, left completely alone.
       if ((window.scrollY || document.documentElement.scrollTop || 0) > 0) return;
+      if (isPullToRefreshBlocked()) return;
       dragRef.current = { startY: e.touches[0].clientY, active: true };
     };
     const onTouchMove = (e) => {
       const d = dragRef.current;
       if (!d || !d.active) return;
-      if ((window.scrollY || document.documentElement.scrollTop || 0) > 0) {
+      if ((window.scrollY || document.documentElement.scrollTop || 0) > 0 || isPullToRefreshBlocked()) {
         d.active = false;
         setIndicator(0, true);
         return;
@@ -75,12 +87,19 @@ export default function PullToRefresh({ children }) {
         setRefreshing(true);
         setIndicator(PULL_THRESHOLD, true);
         if (iconRef.current) iconRef.current.style.animation = 'ptr-spin 0.7s linear infinite';
-        // A real full reload — every page this wraps re-fetches its own
-        // data on load already, so this is the simplest way to guarantee
-        // "refresh the page" actually means everything on it, not just
-        // whichever bit of state a more surgical refetch would remember to
-        // cover.
-        setTimeout(() => window.location.reload(), 320);
+        if (onRefresh) {
+          // Reload just this page's own data and stop — the whole point of
+          // wiring a real onRefresh in is to avoid a full app reload.
+          Promise.resolve().then(() => onRefresh())
+            .catch(() => {})
+            .finally(() => {
+              setIndicator(0, true);
+              if (iconRef.current) iconRef.current.style.animation = '';
+              setRefreshing(false);
+            });
+        } else {
+          setTimeout(() => window.location.reload(), 320);
+        }
       } else {
         setIndicator(0, true);
       }
@@ -97,7 +116,7 @@ export default function PullToRefresh({ children }) {
       window.removeEventListener('touchcancel', onTouchEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshing]);
+  }, [refreshing, onRefresh]);
 
   return (
     <>

@@ -78,6 +78,16 @@ export default function CameraCapture({ onCapture, onClose }) {
   // real device), only surfaced through state once, at drag start/end.
   const deleteZoneRef = useRef(null);
   const overDeleteRef = useRef(false);
+  // True for the whole span between tapping "choose from gallery" and the
+  // native Android picker actually returning a result. Whatever exactly
+  // causes it (a stray popstate from the picker Activity's transition,
+  // suppressNextPop below is one attempt at that; the WebView briefly
+  // losing/regaining focus while a separate Activity covers it is another
+  // plausible source), a pop/close signal arriving in this window is never
+  // something the user actually did — they can't interact with this screen
+  // at all while the native picker has focus — so it's ignored outright
+  // rather than relying on any single event being perfectly timed away.
+  const awaitingGalleryPickRef = useRef(false);
   // The text-entry input is uncontrolled (see the editingText JSX below) —
   // its value and live drag-color are both read from refs at commit time
   // instead of React state, so neither typing a single character nor
@@ -114,6 +124,11 @@ export default function CameraCapture({ onCapture, onClose }) {
   // is a separate, deliberate "close entirely" shortcut regardless of level.
   const level = capturedUrl ? 2 : 1;
   const { skipNextClose } = useBackIntercept(level, (newLevel) => {
+    // See awaitingGalleryPickRef above — a pop arriving while the native
+    // gallery picker is in front is never a real user gesture on THIS
+    // screen; acting on it is exactly what was closing the camera and
+    // silently dropping the picked photo.
+    if (awaitingGalleryPickRef.current) return;
     if (newLevel === 1) backToCamera();
     else if (newLevel === 0) onClose && onClose();
   });
@@ -173,6 +188,20 @@ export default function CameraCapture({ onCapture, onClose }) {
   useEffect(() => {
     const id = requestAnimationFrame(() => setEntered(true));
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Safety net for awaitingGalleryPickRef: normally cleared the moment
+  // pickFromGallery's onChange fires, but some WebView/picker combos never
+  // fire `change` at all if the user backs out of the picker without
+  // choosing anything — without this, that flag could stay stuck true and
+  // permanently swallow every future close gesture on this screen. The app
+  // regaining focus is the reliable "the native picker Activity is gone"
+  // signal either way; a short delay avoids racing pickFromGallery's own
+  // clear when a file WAS actually picked.
+  useEffect(() => {
+    const onFocus = () => { setTimeout(() => { awaitingGalleryPickRef.current = false; }, 600); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, []);
 
   // Discards whatever was captured/picked and returns to the live camera —
@@ -257,6 +286,10 @@ export default function CameraCapture({ onCapture, onClose }) {
   };
 
   const pickFromGallery = (e) => {
+    // The picker flow is over — whether or not a file actually came back
+    // (the user may have backed out without picking anything) — either way
+    // it's safe again to treat a pop/close signal as real.
+    awaitingGalleryPickRef.current = false;
     const file = e.target.files?.[0];
     e.target.value = null;
     if (!file) return;
@@ -682,6 +715,9 @@ export default function CameraCapture({ onCapture, onClose }) {
               // the next popstate here is the same escape hatch the hook
               // already exposes for exactly this "an external action, not
               // a user gesture, is about to cause a stray popstate" case.
+              // Belt-and-suspenders alongside awaitingGalleryPickRef above,
+              // which covers any pop/close signal this one miss-times.
+              awaitingGalleryPickRef.current = true;
               suppressNextPop();
               galleryInputRef.current?.click();
             }}
