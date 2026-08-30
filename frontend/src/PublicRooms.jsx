@@ -7,6 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import RoomThumbnail from './components/RoomThumbnail';
+import PullToRefresh from './components/PullToRefresh';
 import { API } from './lib/api';
 import { isStandalonePWA } from './lib/platform';
 
@@ -113,6 +114,7 @@ const PublicRooms = () => {
   };
 
   return (
+    <PullToRefresh>
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
@@ -517,6 +519,7 @@ const PublicRooms = () => {
       </section>
       {!isStandalonePWA() && <Footer />}
     </div>
+    </PullToRefresh>
   );
 };
 

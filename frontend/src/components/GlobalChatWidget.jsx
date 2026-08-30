@@ -6469,7 +6469,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
         zIndex: 10000,
         overflow: 'hidden',
         borderRadius: transparentMode ? 0 : 32,
-        border: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.08)',
+        // A wallpaper/chat theme is meant to fill this panel edge-to-edge —
+        // this 1px frame was still drawn on top of it regardless (and in
+        // light mode App.jsx's global [style*="border: 1px solid rgba(255,
+        // 255, 255"] rule recolors it to a light grey, rgba(0,0,0,0.1)),
+        // reading as a thin white-ish line around the whole chat. Same fix
+        // as RoomChatPanel.jsx's #room-chat-panel.
+        border: (transparentMode || activeWallpaper) ? 'none' : '1px solid rgba(255,255,255,0.08)',
         color: '#fff',
         // NOT `transition: all` — this used to also animate height/width/top/
         // right, which meant every on-screen-keyboard resize (the mobile

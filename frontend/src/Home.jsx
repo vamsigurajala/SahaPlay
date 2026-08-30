@@ -9,6 +9,7 @@ import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
 import PinnedRoomsGrid from './components/PinnedRoomsGrid';
 import HomeTab from './components/HomeTab';
+import PullToRefresh from './components/PullToRefresh';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
 import { isStandalonePWA } from './lib/platform';
 
@@ -159,6 +160,7 @@ const Home = () => {
 
 
   return (
+    <PullToRefresh>
     <div className="page-enter" style={{ minHeight: '100vh' }}>
       <SeoHead path="/" />
       <Toaster position="top-center" />
@@ -1017,6 +1019,7 @@ const Home = () => {
       </>
       )}
     </div>
+    </PullToRefresh>
   );
 };
 

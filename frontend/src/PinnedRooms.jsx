@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PinnedRoomsGrid from './components/PinnedRoomsGrid';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
+import PullToRefresh from './components/PullToRefresh';
 
 // Standalone "Pinned Rooms" page — the desktop (Tauri) Navbar links here directly
 // instead of showing this grid inline on the Dashboard, matching how Public Rooms
@@ -15,6 +16,7 @@ const PinnedRooms = () => {
   const { pinnedRooms, unpinRoom } = usePinnedRooms();
 
   return (
+    <PullToRefresh>
     <div style={{ minHeight: '100vh' }}>
       <Toaster position="top-center" />
       <style>{`
@@ -90,6 +92,7 @@ const PinnedRooms = () => {
       </section>
       <Footer />
     </div>
+    </PullToRefresh>
   );
 };
 

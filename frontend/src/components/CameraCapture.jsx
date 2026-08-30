@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download } from 'lucide-react';
-import { useBackIntercept } from '../hooks/useBackIntercept';
+import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download, Trash2 } from 'lucide-react';
+import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -61,24 +61,6 @@ function colorAtFraction(f) {
   return 'rgb(255,255,255)';
 }
 
-// The gradient slider hands back 'rgb(r, g, b)' strings (and the default is
-// '#ffffff') — this needs to handle both to decide whether the text's own
-// outline/shadow should flip to a light tone for a near-black pick instead
-// of the default dark one.
-function isColorDark(color) {
-  if (!color) return false;
-  let r, g, b;
-  const rgbMatch = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(color);
-  if (rgbMatch) {
-    r = Number(rgbMatch[1]); g = Number(rgbMatch[2]); b = Number(rgbMatch[3]);
-  } else {
-    const hex = color.replace('#', '');
-    if (hex.length !== 6) return false;
-    r = parseInt(hex.slice(0, 2), 16); g = parseInt(hex.slice(2, 4), 16); b = parseInt(hex.slice(4, 6), 16);
-  }
-  return (0.299 * r + 0.587 * g + 0.114 * b) < 100;
-}
-
 export default function CameraCapture({ onCapture, onClose }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -90,6 +72,12 @@ export default function CameraCapture({ onCapture, onClose }) {
   const colorBarRef = useRef(null);
   const colorCircleRef = useRef(null);
   const colorDraggingRef = useRef(false);
+  // Drag-to-delete target for the placed text overlay — written to directly
+  // via refs while dragging (same reasoning as the color slider below: a
+  // React re-render per pointermove is what read as laggy dragging on a
+  // real device), only surfaced through state once, at drag start/end.
+  const deleteZoneRef = useRef(null);
+  const overDeleteRef = useRef(false);
   // The text-entry input is uncontrolled (see the editingText JSX below) —
   // its value and live drag-color are both read from refs at commit time
   // instead of React state, so neither typing a single character nor
@@ -112,6 +100,7 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [flashOn, setFlashOn] = useState(false);
   const [rotation, setRotation] = useState(0); // 0 | 90 | 180 | 270
   const [textOverlay, setTextOverlay] = useState(null); // { text, xPct, yPct, color }
+  const [isDraggingText, setIsDraggingText] = useState(false);
   const [editingText, setEditingText] = useState(false);
   const [textDraft, setTextDraft] = useState('');
   const [textDraftColor, setTextDraftColor] = useState('#ffffff');
@@ -303,12 +292,11 @@ export default function CameraCapture({ onCapture, onClose }) {
         ctx.font = `700 ${fontSize}px 'Outfit', -apple-system, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.lineWidth = Math.max(3, Math.round(fontSize * 0.16));
-        ctx.strokeStyle = isColorDark(textOverlay.color) ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.55)';
+        // No outline/stroke around the text — plain fill only, in both
+        // light and dark mode, per explicit request.
         ctx.fillStyle = textOverlay.color || '#ffffff';
         const tx = textOverlay.xPct * w;
         const ty = textOverlay.yPct * h;
-        ctx.strokeText(textOverlay.text, tx, ty);
         ctx.fillText(textOverlay.text, tx, ty);
       }
       canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92);
@@ -340,12 +328,39 @@ export default function CameraCapture({ onCapture, onClose }) {
   // Reads the live values straight from the uncontrolled input + the color
   // ref (see textInputRef/latestColorRef above) rather than React state —
   // neither one was ever committed to state while the user was actually
-  // typing/dragging, only here, once, when they're done.
+  // typing/dragging, only here, once, when they're done. Explicit blur()
+  // first — Done means "typing is done", closing the keyboard is part of
+  // that, not just committing the value.
   const commitText = () => {
+    textInputRef.current?.blur();
     const t = (textInputRef.current?.value ?? '').trim();
     setEditingText(false);
     if (!t) { setTextOverlay(null); return; }
     setTextOverlay(prev => ({ text: t, color: latestColorRef.current, xPct: prev?.xPct ?? 0.5, yPct: prev?.yPct ?? 0.5 }));
+  };
+
+  // Cancel discards this editing session entirely — textOverlay is never
+  // touched, so it's left exactly as it was before openTextEditor() ran
+  // (untouched if this was a fresh "Aa" tap, or the previous text/color/
+  // position if this was re-editing existing text — dragging it around the
+  // photo is a separate action from this editor and isn't affected either
+  // way).
+  const cancelTextEdit = () => {
+    textInputRef.current?.blur();
+    setEditingText(false);
+  };
+
+  const deleteTextOverlay = () => setTextOverlay(null);
+
+  // Hit-tests a drag point against the delete-zone's live rect (only
+  // mounted while isDraggingText is true) — a generous pad beyond its
+  // visible circle since it's a small target to hit precisely mid-drag.
+  const isOverDeleteZone = (clientX, clientY) => {
+    const el = deleteZoneRef.current;
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    const pad = 24;
+    return clientX >= r.left - pad && clientX <= r.right + pad && clientY >= r.top - pad && clientY <= r.bottom + pad;
   };
 
   // Pointer events handle the actual drag (percentage position within the
@@ -369,12 +384,33 @@ export default function CameraCapture({ onCapture, onClose }) {
     const d = textDragRef.current;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) textJustDraggedRef.current = true;
+    if (!textJustDraggedRef.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      textJustDraggedRef.current = true;
+      setIsDraggingText(true);
+    }
+    if (!textJustDraggedRef.current) return;
     const xPct = Math.min(0.95, Math.max(0.05, d.origX + dx / d.rect.width));
     const yPct = Math.min(0.95, Math.max(0.05, d.origY + dy / d.rect.height));
     setTextOverlay(prev => prev ? { ...prev, xPct, yPct } : prev);
+    // Live hover feedback on the delete target — written directly to its
+    // own DOM node, not through state, so this stays smooth at pointermove
+    // frequency (same reasoning as the color slider below).
+    const overNow = isOverDeleteZone(e.clientX, e.clientY);
+    if (overNow !== overDeleteRef.current) {
+      overDeleteRef.current = overNow;
+      if (deleteZoneRef.current) {
+        deleteZoneRef.current.style.transform = overNow ? 'translateX(-50%) scale(1.2)' : 'translateX(-50%) scale(1)';
+        deleteZoneRef.current.style.background = overNow ? '#ef4444' : 'rgba(0,0,0,0.55)';
+      }
+    }
   };
-  const onTextPointerUp = () => { textDragRef.current = null; };
+  const onTextPointerUp = () => {
+    const droppedOnDelete = textJustDraggedRef.current && overDeleteRef.current;
+    textDragRef.current = null;
+    overDeleteRef.current = false;
+    setIsDraggingText(false);
+    if (droppedOnDelete) deleteTextOverlay();
+  };
   const onTextClick = (e) => {
     e.stopPropagation();
     if (textJustDraggedRef.current) { textJustDraggedRef.current = false; return; }
@@ -542,12 +578,35 @@ export default function CameraCapture({ onCapture, onClose }) {
               style={{
                 position: 'absolute', left: `${textOverlay.xPct * 100}%`, top: `${textOverlay.yPct * 100}%`,
                 transform: 'translate(-50%, -50%)', color: textOverlay.color || '#fff', fontWeight: 700, fontSize: 22,
-                textShadow: isColorDark(textOverlay.color) ? '0 1px 4px rgba(255,255,255,0.5)' : '0 2px 6px rgba(0,0,0,0.7)',
+                // No outline/shadow around the text at all, in either mode —
+                // plain fill, matching exactly what buildFinalBlob bakes
+                // into the actual sent image (no WYSIWYG mismatch).
                 cursor: 'grab', padding: 6, touchAction: 'none',
                 userSelect: 'none', whiteSpace: 'nowrap',
               }}
             >
               {textOverlay.text}
+            </div>
+          )}
+          {/* Drag-to-delete target — only shown while actively dragging the
+              text label. Purely a hit-test target (isOverDeleteZone reads
+              its rect directly, see onTextPointerMove/Up above); it never
+              receives pointer events itself, so the drag gesture captured
+              on the text label above is never interrupted. */}
+          {isDraggingText && (
+            <div
+              ref={deleteZoneRef}
+              style={{
+                position: 'absolute', left: '50%', bottom: 'max(96px, calc(24px + env(safe-area-inset-bottom) + 76px))',
+                transform: 'translateX(-50%) scale(1)',
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(255,255,255,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s ease, transform 0.15s ease',
+                pointerEvents: 'none', zIndex: 5,
+              }}
+            >
+              <Trash2 size={22} color="#fff" />
             </div>
           )}
         </div>
@@ -612,7 +671,20 @@ export default function CameraCapture({ onCapture, onClose }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <button
-            onClick={() => galleryInputRef.current?.click()}
+            onClick={() => {
+              // Launching the native Android photo/file picker (a real
+              // Activity on top of the WebView) was producing a spurious
+              // popstate when it returned control — useBackIntercept's
+              // shared listener then misread that as a real back gesture
+              // and popped THIS screen's own level-1 entry, closing the
+              // whole camera right as (or just before) the picked file
+              // came back, instead of advancing to the preview. Swallowing
+              // the next popstate here is the same escape hatch the hook
+              // already exposes for exactly this "an external action, not
+              // a user gesture, is about to cause a stray popstate" case.
+              suppressNextPop();
+              galleryInputRef.current?.click();
+            }}
             aria-label="Choose from gallery"
             style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
@@ -673,21 +745,37 @@ export default function CameraCapture({ onCapture, onClose }) {
 
       {editingText && (
         <div
-          onClick={commitText}
-          style={{ position: 'fixed', inset: 0, zIndex: 1000000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000000, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column' }}
         >
-          <input
-            ref={textInputRef}
-            autoFocus
-            defaultValue={textDraft}
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => { if (e.key === 'Enter') commitText(); }}
-            placeholder="Type something..."
-            style={{
-              width: '100%', maxWidth: 360, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 12, padding: '14px 16px', color: textDraftColor, fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
-            }}
-          />
+          {/* Cancel (discard this edit) / Done (commit + close keyboard) —
+              the only two ways out of this screen now; tapping the
+              backdrop itself no longer does either, so there's no
+              accidental commit from a stray tap. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: 'calc(12px + var(--sp-status-bar-inset, 0px) + env(safe-area-inset-top)) 8px 8px',
+            flexShrink: 0,
+          }}>
+            <button onClick={cancelTextEdit} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer', padding: '10px 14px' }}>
+              Cancel
+            </button>
+            <button onClick={commitText} style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', padding: '10px 14px' }}>
+              Done
+            </button>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <input
+              ref={textInputRef}
+              autoFocus
+              defaultValue={textDraft}
+              onKeyDown={e => { if (e.key === 'Enter') commitText(); }}
+              placeholder="Type something..."
+              style={{
+                width: '100%', maxWidth: 360, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: 12, padding: '14px 16px', color: textDraftColor, fontSize: 20, fontWeight: 700, textAlign: 'center', outline: 'none',
+              }}
+            />
+          </div>
           {/* Continuous vertical color spectrum, matching WhatsApp's own
               text-color slider: thin, sitting close to the right edge, and
               covering only the middle band of the screen rather than
