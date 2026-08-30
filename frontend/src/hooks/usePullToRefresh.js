@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isPullToRefreshBlocked } from '../lib/pullToRefreshGate';
 
 // Same drag-down-to-refresh gesture as components/PullToRefresh.jsx, but for
@@ -12,22 +12,36 @@ import { isPullToRefreshBlocked } from '../lib/pullToRefreshGate';
 const PULL_THRESHOLD = 68;
 const MAX_PULL = 100;
 const MAX_INDICATOR_ROTATE = 200;
+// Keeps the spinner visible for at least this long once triggered, even if
+// onRefresh resolves near-instantly — otherwise a fast refetch reads as "the
+// icon just came down and popped back up", not "it refreshed".
+const MIN_VISIBLE_MS = 500;
 
-// containerRef: ref to the scrollable element to track (its own scrollTop,
-//   not window.scrollY).
 // disabled: while true, no drag can start — e.g. while an open conversation
 //   is showing rather than the conversation list, so scrolling through
 //   message history is never misread as pulling to refresh.
 // onRefresh: optional async function, called (and awaited) once a completed
 //   pull crosses the threshold.
-export function usePullToRefresh({ containerRef, disabled, onRefresh }) {
+//
+// Returns { containerRef, indicatorRef, iconRef, refreshing }. containerRef
+// is a CALLBACK ref — pass it as the scrollable element's own `ref` prop.
+// A plain useRef object here would silently never attach any listeners: the
+// widget conditionally renders `null` while closed (see its own `if
+// (!isOpen) return null`), so the very first time this hook's effect ran,
+// the ref's `.current` was still null; since neither `disabled` nor
+// `refreshing` necessarily changes value once the panel actually opens and
+// the DOM node appears, the effect would never re-run to pick it up. A
+// callback ref fires exactly when the node mounts, regardless of any of
+// that, so it can't go stale the same way.
+export function usePullToRefresh({ disabled, onRefresh }) {
   const dragRef = useRef(null);
   const indicatorRef = useRef(null);
   const iconRef = useRef(null);
+  const [container, setContainer] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const containerRef = useCallback((node) => { setContainer(node); }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
     if (!container) return undefined;
 
     const setIndicator = (pull, animateBack) => {
@@ -54,8 +68,12 @@ export function usePullToRefresh({ containerRef, disabled, onRefresh }) {
         setIndicator(0, true);
         return;
       }
-      const delta = e.touches[0].clientY - d.startY;
-      if (delta <= 0) { setIndicator(0, false); return; }
+      // Clamp rather than hard-resetting to 0 on any single backward sample
+      // — a real drag isn't perfectly monotonic (small hand tremor/mouse
+      // jitter), and snapping the indicator fully shut on every tiny
+      // upward blip read as it "coming and going" instead of following the
+      // finger smoothly.
+      const delta = Math.max(0, e.touches[0].clientY - d.startY);
       const pulled = delta < PULL_THRESHOLD ? delta : PULL_THRESHOLD + (delta - PULL_THRESHOLD) * 0.35;
       d.lastPull = Math.min(pulled, MAX_PULL);
       setIndicator(d.lastPull, false);
@@ -68,12 +86,16 @@ export function usePullToRefresh({ containerRef, disabled, onRefresh }) {
         setRefreshing(true);
         setIndicator(PULL_THRESHOLD, true);
         if (iconRef.current) iconRef.current.style.animation = 'ptr-spin 0.7s linear infinite';
+        const startedAt = Date.now();
         Promise.resolve().then(() => onRefresh?.())
           .catch(() => {})
           .finally(() => {
-            setIndicator(0, true);
-            if (iconRef.current) iconRef.current.style.animation = '';
-            setRefreshing(false);
+            const wait = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+            setTimeout(() => {
+              setIndicator(0, true);
+              if (iconRef.current) iconRef.current.style.animation = '';
+              setRefreshing(false);
+            }, wait);
           });
       } else {
         setIndicator(0, true);
@@ -91,7 +113,7 @@ export function usePullToRefresh({ containerRef, disabled, onRefresh }) {
       container.removeEventListener('touchcancel', onTouchEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, disabled, refreshing]);
+  }, [container, disabled, refreshing]);
 
-  return { indicatorRef, iconRef, refreshing };
+  return { containerRef, indicatorRef, iconRef, refreshing };
 }

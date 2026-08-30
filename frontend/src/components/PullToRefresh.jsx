@@ -22,6 +22,11 @@ import { isPullToRefreshBlocked } from '../lib/pullToRefreshGate';
 const PULL_THRESHOLD = 68;
 const MAX_PULL = 100;
 const MAX_INDICATOR_ROTATE = 200;
+// Keeps the spinner visible for at least this long once triggered, even if
+// onRefresh (or the reload itself) resolves near-instantly — otherwise a
+// fast refresh reads as "the icon just came down and popped back up", not
+// "it refreshed".
+const MIN_VISIBLE_MS = 500;
 
 // onRefresh: optional async function. When given, a completed pull calls
 // this and waits for it instead of reloading the whole app — "refresh"
@@ -71,11 +76,13 @@ export default function PullToRefresh({ children, onRefresh }) {
         return;
       }
       const delta = e.touches[0].clientY - d.startY;
-      if (delta <= 0) { setIndicator(0, false); return; }
-      // Rubber-band resistance past the trigger point, matching the
-      // swipe-down-to-dismiss feel already used elsewhere in this app
-      // (CameraCapture.jsx).
-      const pulled = delta < PULL_THRESHOLD ? delta : PULL_THRESHOLD + (delta - PULL_THRESHOLD) * 0.35;
+      // Clamp rather than hard-resetting to 0 on any single backward sample
+      // — a real drag isn't perfectly monotonic (small hand tremor/mouse
+      // jitter), and snapping the indicator fully shut on every tiny
+      // upward blip read as it "coming and going" instead of following the
+      // finger smoothly.
+      const clampedDelta = Math.max(0, delta);
+      const pulled = clampedDelta < PULL_THRESHOLD ? clampedDelta : PULL_THRESHOLD + (clampedDelta - PULL_THRESHOLD) * 0.35;
       d.lastPull = Math.min(pulled, MAX_PULL);
       setIndicator(d.lastPull, false);
     };
@@ -87,15 +94,19 @@ export default function PullToRefresh({ children, onRefresh }) {
         setRefreshing(true);
         setIndicator(PULL_THRESHOLD, true);
         if (iconRef.current) iconRef.current.style.animation = 'ptr-spin 0.7s linear infinite';
+        const startedAt = Date.now();
         if (onRefresh) {
           // Reload just this page's own data and stop — the whole point of
           // wiring a real onRefresh in is to avoid a full app reload.
           Promise.resolve().then(() => onRefresh())
             .catch(() => {})
             .finally(() => {
-              setIndicator(0, true);
-              if (iconRef.current) iconRef.current.style.animation = '';
-              setRefreshing(false);
+              const wait = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+              setTimeout(() => {
+                setIndicator(0, true);
+                if (iconRef.current) iconRef.current.style.animation = '';
+                setRefreshing(false);
+              }, wait);
             });
         } else {
           setTimeout(() => window.location.reload(), 320);

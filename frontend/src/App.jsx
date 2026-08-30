@@ -80,6 +80,30 @@ class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
+      // componentDidCatch (above) auto-reloads once per session, silently,
+      // for exactly this kind of self-healing hiccup (stale post-deploy
+      // chunk, cold-starting backend) — the reload itself takes a moment,
+      // and this render() runs BEFORE componentDidCatch's sessionStorage
+      // write (React calls getDerivedStateFromError + this render, THEN
+      // componentDidCatch), so the guard read here still correctly reflects
+      // "have we already tried this, this session" without needing its own
+      // extra setState/render round trip. Showing the real "Something went
+      // wrong" text for a failure that's about to silently fix itself is
+      // exactly the flash the user shouldn't have to see; only a SECOND
+      // failure this session (the auto-reload already happened once and it
+      // still broke) is worth surfacing as something to act on.
+      const alreadyAutoReloaded = !!sessionStorage.getItem('watch_chunk_reload_attempted');
+      if (!alreadyAutoReloaded) {
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            height: '100vh', background: '#0f0a1e',
+          }}>
+            <div style={{ width: 34, height: 34, border: '3px solid rgba(255,255,255,0.15)', borderTopColor: 'var(--brand-1, #a855f7)', borderRadius: '50%', animation: 'errBoundarySpin 0.8s linear infinite' }} />
+            <style>{'@keyframes errBoundarySpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }'}</style>
+          </div>
+        );
+      }
       return (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',

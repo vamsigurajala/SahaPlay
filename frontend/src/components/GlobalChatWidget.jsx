@@ -2467,12 +2467,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const activeChatRef = useRef(null);
   const viewRef = useRef('list');
   const containerRef = useRef(null);
-  // The scrollable "Body" div hosting both the conversation list and an open
-  // conversation (same element, different children depending on `view`) —
-  // used by the pull-to-refresh gesture below to track its own scrollTop
-  // instead of the window's, since this whole widget is a fixed overlay that
-  // never scrolls the window/document itself.
-  const chatListScrollRef = useRef(null);
   const processedMsgsRef = useRef(new Set());
   const guestLastMsgCountRef = useRef({});
 
@@ -6217,7 +6211,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // trigger this: that's exactly the gesture used to scroll toward older
   // messages, and it isn't "refresh the page" territory at all.
   const ptr = usePullToRefresh({
-    containerRef: chatListScrollRef,
     disabled: view !== 'list',
     onRefresh: fetchConversations,
   });
@@ -7041,7 +7034,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         )}
 
         {/* Body */}
-        <div ref={chatListScrollRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {view === 'list' && (
             <div className="chat-list-header" style={{ 
               padding: '16px 20px', 
@@ -7051,7 +7044,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // header's identical comment just above in this file.
               background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
               zIndex: 30,
-              borderBottom: transparentMode ? 'none' : '1px solid rgba(255,255,255,0.03)',
+              // App.jsx's global light-mode CSS turns this div's own
+              // background: #0a0a0a into white (matching by literal inline-
+              // style substring) but leaves the border-bottom below alone —
+              // that border gets its OWN global override (turning it into a
+              // visible rgba(0,0,0,0.1) line), so the two together produced
+              // a divider line under the search bar in light mode that was
+              // never intended to show against a white header.
+              borderBottom: (transparentMode || isLight) ? 'none' : '1px solid rgba(255,255,255,0.03)',
               transition: 'background 0.25s',
               backdropFilter: transparentMode ? 'none' : 'blur(10px)'
             }}>
