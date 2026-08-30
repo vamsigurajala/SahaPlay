@@ -8,7 +8,31 @@ import { isCapacitorApp } from './platform';
 // `./platform`. No-ops everywhere outside a Capacitor-wrapped native app
 // (plain web, PWA, TWA, desktop) — those keep using the existing simulated
 // video-volume / CSS-dim fallback in Room.jsx untouched.
-const plugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.SahaplayMedia : null);
+//
+// Wrapped in a Proxy so calling a method the currently-installed native
+// build doesn't have YET is safe. This app's JS ships instantly to every
+// installed APK (Capacitor's WebView just loads the live site — no rebuild
+// needed), but the native Java plugin only updates on an actual
+// build+sideload, which lags behind. Every call site below already chains
+// `.catch(() => {})` for a promise that REJECTS — but calling a genuinely
+// missing method throws a plain synchronous TypeError ("X is not a
+// function") before that promise/catch machinery ever engages, which is
+// exactly what crashed every room-open right after `resetBrightness` shipped
+// in JS ahead of the native build that actually implements it. The `get`
+// trap below makes any not-yet-implemented method resolve to a harmless
+// no-op instead, for every call site here, present and future.
+const plugin = () => {
+  if (!isCapacitorApp()) return null;
+  const target = window.Capacitor?.Plugins?.SahaplayMedia;
+  if (!target) return null;
+  return new Proxy(target, {
+    get(obj, prop) {
+      const value = obj[prop];
+      if (typeof value === 'function') return value.bind(obj);
+      return () => Promise.resolve(undefined);
+    },
+  });
+};
 
 export function setNativeVolume(value) {
   plugin()?.setVolume({ value }).catch(() => {});
