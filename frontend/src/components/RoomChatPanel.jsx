@@ -394,7 +394,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
@@ -425,9 +425,14 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
     } catch { toast.error('Download failed'); }
   };
 
-  // In light mode all cards use white bg + pure black text regardless of sender
-  const cardBg = isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)');
-  const cardBorder = isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)');
+  // In light mode all cards use white bg + pure black text regardless of
+  // sender. On a wallpaper, the card follows the exact same per-theme color
+  // plain message bubbles use instead (wallpaperColor/wallpaperReceivedBg —
+  // see renderMedia's wallpaperBg arg); its own text is repainted to match
+  // by the .on-wallpaper CSS rules in MenuStyles regardless of what's
+  // computed below.
+  const cardBg = wallpaperBg || (isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'));
+  const cardBorder = wallpaperBg ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
   const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
   const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
   const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? 'rgba(255,255,255,0.8)' : 'var(--brand-1-light)');
@@ -472,7 +477,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 // One voice note plays at a time across the room chat panel
 const _vnReg_rcp = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperActive = false }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -500,10 +505,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  // Solid, not translucent, whenever a wallpaper's active — a low-alpha tint
-  // over a busy photo (instead of the plain solid page background this was
-  // designed against) reads as "barely there" rather than as a bubble.
-  const loadBg = wallpaperActive ? '#1b1b25' : (isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)'));
+  // Same per-theme color plain message bubbles use whenever a wallpaper's
+  // active, instead of a low-alpha tint over the photo (reads as "barely
+  // there") or a fixed card unrelated to the picked theme.
+  const loadBg = wallpaperBg || (isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)'));
 
   if (isLoading) return (
     <div style={{ padding: '8px 12px', background: loadBg, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 }}>
@@ -615,8 +620,8 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     } catch { toast.error('Download failed'); }
   };
 
-  // Same "solid card, not a translucent tint" reasoning as loadBg above.
-  const bubbleBg = wallpaperActive ? '#1b1b25' : (isMe
+  // Same per-theme reasoning as loadBg above.
+  const bubbleBg = wallpaperBg || (isMe
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = 'var(--brand-2)';
@@ -729,6 +734,26 @@ const MenuStyles = () => (
     html[data-theme='light'] .rcp-vn-expiry,
     html[data-theme='light'] .msg-sent .rcp-vn-expiry,
     html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
+    /* On a wallpaper, file-card/voice-note text follows the exact same
+       per-image luminance color plain message text already uses
+       (--wp-text-color, set inline per bubble) instead of a color keyed
+       only to the light/dark theme toggle. Placed after (and, in light
+       mode, matched in specificity to) the rules above so it wins the
+       cascade there; the unprefixed copy below wins outright in dark mode
+       since nothing else targets these classes there. */
+    html[data-theme='light'] .on-wallpaper .fc-name, html[data-theme='light'] .on-wallpaper .fc-name *,
+    html[data-theme='light'] .on-wallpaper .fc-sub, html[data-theme='light'] .on-wallpaper .fc-sub *,
+    html[data-theme='light'] .on-wallpaper .fc-expiry, html[data-theme='light'] .on-wallpaper .fc-expiry *,
+    html[data-theme='light'] .on-wallpaper .rcp-vn-time, html[data-theme='light'] .on-wallpaper .rcp-vn-time *,
+    html[data-theme='light'] .on-wallpaper .rcp-vn-expiry, html[data-theme='light'] .on-wallpaper .rcp-vn-expiry *,
+    .on-wallpaper .fc-name, .on-wallpaper .fc-name *,
+    .on-wallpaper .fc-sub, .on-wallpaper .fc-sub *,
+    .on-wallpaper .fc-expiry, .on-wallpaper .fc-expiry *,
+    .on-wallpaper .rcp-vn-time, .on-wallpaper .rcp-vn-time *,
+    .on-wallpaper .rcp-vn-expiry, .on-wallpaper .rcp-vn-expiry * {
+      color: var(--wp-text-color, #ffffff) !important;
+      -webkit-text-fill-color: var(--wp-text-color, #ffffff) !important;
+    }
     .menu-dropdown {
       animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       transform-origin: top right;
@@ -2422,7 +2447,7 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperActive = false) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperBg = null) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
@@ -2432,7 +2457,7 @@ export default function RoomChatPanel({ p }) {
     // timestamp/flag) text already follows — voice-note bars/time/expiry and
     // the file-card tick were still keyed off bare isLight, so picking a
     // wallpaper in light mode made them render near-black-on-black.
-    const effIsLight = isLight && !wallpaperActive;
+    const effIsLight = isLight && !wallpaperBg;
     // hideTick: this media has a caption, which already gets its own tick on
     // the caption's own line (see the msg-bubble layout) — showing a second
     // one on the media itself, right next to the caption's, was the "we
@@ -2444,9 +2469,9 @@ export default function RoomChatPanel({ p }) {
     // surface in light mode only — dark mode keeps the original white tick unchanged.
     const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperActive={wallpaperActive} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
 
     if (!url) {
       // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
@@ -3113,7 +3138,7 @@ export default function RoomChatPanel({ p }) {
                   resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                   onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                 />
-              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, !!groupWallpaper);
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (isMe ? (groupWallpaperColor || groupWallpaper.brightColor) : groupWallpaperReceivedBg) : null);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3261,13 +3286,17 @@ export default function RoomChatPanel({ p }) {
                             Scoped to only the dark-wallpaper case (not applied
                             unconditionally like msg-sent) so the default/no-theme
                             received bubble is untouched. */}
-                        <div className={isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
+                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                           position: 'relative',
                           zIndex: 2,
-                          // A captioned image's caption row gets the same solid-card
-                          // treatment as a poll whenever a wallpaper is active — see the
-                          // identical comment on GlobalChatWidget.jsx's own copy of this.
-                          background: isMediaOnly ? 'transparent' : ((msg.mediaType && groupWallpaper) ? '#1b1b25' : (
+                          // Read by the .on-wallpaper .fc-name/.rcp-vn-* overrides in
+                          // MenuStyles below — same reasoning as GlobalChatWidget.jsx's copy.
+                          ...(groupWallpaper ? { '--wp-text-color': groupWallpaperTextColor } : {}),
+                          // A captioned image's caption row uses the exact same per-theme
+                          // color plain text already does below (wallpaperColor/
+                          // wallpaperReceivedBg) — no special-case needed, this ternary
+                          // already gets there once isMediaOnly is false.
+                          background: isMediaOnly ? 'transparent' : (
                             isMe ? (
                               groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
                               (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
@@ -3275,7 +3304,7 @@ export default function RoomChatPanel({ p }) {
                               groupWallpaper ? groupWallpaperReceivedBg :
                               (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                             )
-                          )),
+                          ),
                           // Skipped for captioned media too (not just media-only) — blurring
                           // the wallpaper behind an opaque image is a no-op that, combined
                           // with this element's own overflow:hidden + border-radius clip,
@@ -4115,7 +4144,7 @@ export default function RoomChatPanel({ p }) {
                         resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                         onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                       />
-                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, !!dmWallpaper);
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (isMe ? (dmWallpaperColor || dmWallpaper.brightColor) : dmWallpaperReceivedBg) : null);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4210,11 +4239,13 @@ export default function RoomChatPanel({ p }) {
                               </div>
                               {/* stay-white on the received bubble too — see the
                                   identical comment on the group thread's bubble. */}
-                              <div className={isMe ? 'msg-sent stay-white' : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')} style={{
+                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? 'msg-sent stay-white' : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.
-                                background: isMediaOnly ? 'transparent' : ((msg.mediaType && dmWallpaper) ? '#1b1b25' : (
+                                ...(dmWallpaper ? { '--wp-text-color': dmWallpaperTextColor } : {}),
+                                // See the identical comment on the group thread's bubble above.
+                                background: isMediaOnly ? 'transparent' : (
                                   isMe ? (
                                     dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
                                     (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
@@ -4222,7 +4253,7 @@ export default function RoomChatPanel({ p }) {
                                     dmWallpaper ? dmWallpaperReceivedBg :
                                     (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                                   )
-                                )),
+                                ),
                                 // See the identical comment on the group thread's bubble above.
                                 backdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
                                 WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
