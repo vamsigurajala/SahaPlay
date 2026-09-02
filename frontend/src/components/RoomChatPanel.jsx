@@ -9,7 +9,7 @@ import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
-  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, Palette, Camera, BarChart2, ImageOff
+  SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, PhoneOff, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import { getMenuFloorY } from '../lib/chatMenuPlacement';
@@ -1871,10 +1871,15 @@ export default function RoomChatPanel({ p }) {
       try { setMutedChats(JSON.parse(localStorage.getItem(`muted_chats_${myUser}`) || '[]')); } catch {}
     };
     window.addEventListener('muted_chats_updated', syncMuted);
+    const syncMutedCalls = () => {
+      try { setMutedCallChats(JSON.parse(localStorage.getItem(`muted_call_chats_${myUser}`) || '[]')); } catch {}
+    };
+    window.addEventListener('muted_call_chats_updated', syncMutedCalls);
 
     return () => {
       window.removeEventListener('locked_chats_updated', syncLocked);
       window.removeEventListener('muted_chats_updated', syncMuted);
+      window.removeEventListener('muted_call_chats_updated', syncMutedCalls);
     };
   }, [p.username, p.SOCKET_SERVER_URL]);
 
@@ -1890,6 +1895,10 @@ export default function RoomChatPanel({ p }) {
   // ── Muted chats ──
   const [mutedChats, setMutedChats] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(`muted_chats_${myUser}`) || '[]'); } catch { return []; }
+  });
+  // ── Muted call chats (DM-only — see toggleMuteCallChat below) ──
+  const [mutedCallChats, setMutedCallChats] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(`muted_call_chats_${myUser}`) || '[]'); } catch { return []; }
   });
   const [pinnedRoomChats, setPinnedRoomChats] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(`pinned_room_chats_${myUser}`) || '[]'); } catch { return []; }
@@ -2320,6 +2329,21 @@ export default function RoomChatPanel({ p }) {
     localStorage.setItem(`muted_chats_${myUser}`, JSON.stringify(next));
     window.dispatchEvent(new Event('muted_chats_updated'));
     toast.success(mutedChats.includes(key) ? 'Notifications unmuted' : 'Notifications muted');
+  };
+
+  // DM-only — no ring, no push, no missed-call notification from this
+  // specific person, enforced server-side in call:invite. Distinct from
+  // toggleMuteChat above so muting someone's calls doesn't also mute their
+  // messages. GlobalChatWidget (always mounted) listens for the same
+  // muted_call_chats_updated event and pushes the updated list to the
+  // backend — nothing to sync to the server from here directly.
+  const toggleMuteCallChat = (chatKey) => {
+    const key = (chatKey || '').toLowerCase();
+    const next = mutedCallChats.includes(key) ? mutedCallChats.filter(k => k !== key) : [...mutedCallChats, key];
+    setMutedCallChats(next);
+    localStorage.setItem(`muted_call_chats_${myUser}`, JSON.stringify(next));
+    window.dispatchEvent(new Event('muted_call_chats_updated'));
+    toast.success(mutedCallChats.includes(key) ? 'Calls unmuted' : 'Calls muted');
   };
 
   const togglePinRoomChat = (chatKey) => {
@@ -4068,6 +4092,12 @@ export default function RoomChatPanel({ p }) {
                         </div>
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                           {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? <Bell size={16}/> : <BellOff size={16}/>} {mutedChats.includes((p.dmTarget||'').toLowerCase()) ? t('unmute', 'Unmute') : t('mute', 'Mute')}
+                        </div>
+                        {/* Mute calls — DM only, distinct from the message mute above.
+                            No ring/push/missed-call notification for calls from this
+                            person, enforced server-side in call:invite. */}
+                        <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); toggleMuteCallChat(p.dmTarget);}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
+                          {mutedCallChats.includes((p.dmTarget||'').toLowerCase()) ? <Phone size={16}/> : <PhoneOff size={16}/>} {mutedCallChats.includes((p.dmTarget||'').toLowerCase()) ? t('unmuteCalls', 'Unmute calls') : t('muteCalls', 'Mute calls')}
                         </div>
                         <div onClick={e=>{e.stopPropagation(); p.setShowDmMenu(null); p.openChatThemeSheet({ type: 'private', partner: p.dmTarget });}} style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'transparent',border:'none',color: 'var(--menu-item-text)',fontSize:13,cursor:'pointer',textAlign:'left',borderRadius:8}} className="chat-menu-item menu-btn">
                           <Palette size={16}/> {t('chatTheme', 'Chat theme')}

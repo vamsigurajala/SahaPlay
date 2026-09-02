@@ -628,6 +628,17 @@ export default function RoomSettingsModal({
                 crop={crop}
                 zoom={zoom}
                 aspect={3 / 2}
+                // react-easy-crop defaults to objectFit="contain" — at zoom 1
+                // that fits the WHOLE image inside the crop frame without
+                // ever filling it, so any image whose aspect ratio doesn't
+                // already roughly match 3:2 (a tall screenshot, an ID-card
+                // photo, etc.) rendered tiny and letterboxed instead of
+                // covering the fixed crop grid. "cover" always scales the
+                // image to fill the frame first — cropping/zooming from
+                // there, same as every other app's photo cropper — so the
+                // saved thumbnail is always an actual crop of the frame, not
+                // whatever the original image's own proportions happened to be.
+                objectFit="cover"
                 onCropChange={setCrop}
                 onCropComplete={onCropComplete}
                 onZoomChange={setZoom}

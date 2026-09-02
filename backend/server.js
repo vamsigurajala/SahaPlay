@@ -824,7 +824,7 @@ class SupabaseAdapter {
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
         'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
         'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus',
-        'mutedChats', 'notifyCalls'
+        'mutedChats', 'notifyCalls', 'mutedCallChats'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -1655,6 +1655,16 @@ const migrationsReady = (async () => {
   // db.run call sites; notifyCalls needs adding there too for the same reason.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "notifyCalls" BOOLEAN DEFAULT TRUE`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] notifyCalls:', e.message);
+  });
+  // mutedCallChats: same shape/purpose as mutedChats above, but scoped to
+  // just incoming call rings/pushes from a specific DM partner — muting a
+  // person's calls should not also silence their chat messages, and muting
+  // their messages (mutedChats) should not silence their calls either, so
+  // this is deliberately a separate list rather than reusing mutedChats.
+  // Private (DM) chats only — see call:invite below, which is the only
+  // enforcement point; group calls are out of scope.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "mutedCallChats" TEXT DEFAULT '[]'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] mutedCallChats:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -3818,7 +3828,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, role FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, mutedCallChats, role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     // EXISTS-against-users mirrors the INNER JOIN /api/follow/:username/list
     // uses to actually render the list — without it, a follow row left
@@ -3954,6 +3964,24 @@ app.post('/api/profile/muted-chats', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(req.user.username);
     res.json({ message: 'Muted chats updated', mutedChats: jsonStr });
+  });
+});
+
+// ─── UPDATE Muted Call Chats ───
+// Same pattern as /api/profile/muted-chats above, kept as a separate list
+// (see the mutedCallChats migration comment) so muting a person's calls
+// doesn't also mute their messages, and vice versa. Enforced in call:invite.
+app.post('/api/profile/muted-call-chats', authenticateToken, (req, res) => {
+  const { mutedCallChats } = req.body;
+  if (!Array.isArray(mutedCallChats)) return res.status(400).json({ error: 'mutedCallChats must be an array' });
+  let jsonStr = '[]';
+  try {
+    jsonStr = JSON.stringify(mutedCallChats.map(c => String(c).toLowerCase()));
+  } catch (e) {}
+  db.run('UPDATE users SET mutedCallChats = ? WHERE id = ?', [jsonStr, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Muted call chats updated', mutedCallChats: jsonStr });
   });
 });
 
@@ -9483,18 +9511,33 @@ io.on('connection', (socket) => {
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
       if (blockCheck) { socket.emit('call:invalid', { callId, reason: 'blocked' }); return; }
 
+      // Has the callee muted CALLS specifically from this caller (a private-
+      // chat-only setting, distinct from muting their messages)? If so, the
+      // call must still ring normally from the CALLER's own side — same as a
+      // real phone call to someone with Do Not Disturb on, it just goes
+      // unanswered — but the callee gets no ring (socket or native/FCM push)
+      // and no "missed call" notification afterward either, on any device.
+      // Checked once, upfront, and remembered on the call entry so the
+      // ring-timeout/cancel handlers below don't need their own query.
+      const calleeMuteRow = await queryGet('SELECT mutedCallChats FROM users WHERE LOWER(username) = LOWER(?)', [callee]);
+      let calleeMutedCallers = [];
+      try { calleeMutedCallers = JSON.parse(calleeMuteRow?.mutedCallChats || '[]'); } catch { calleeMutedCallers = []; }
+      const calleeMutedCaller = calleeMutedCallers.some(m => String(m).toLowerCase() === caller);
+
       const timeoutHandle = setTimeout(() => {
         const call = endCallInternal(callId);
         if (call) {
           emitToUser(call.caller, 'call:timeout', { callId });
           emitToUser(call.callee, 'call:timeout', { callId });
-          sendMissedCallPush(call.callee, callId, call.caller);
+          if (!call.calleeMutedCaller) sendMissedCallPush(call.callee, callId, call.caller);
         }
       }, CALL_RING_TIMEOUT_MS);
 
-      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map() });
+      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map(), calleeMutedCaller });
       userActiveCallId.set(caller, callId);
       userActiveCallId.set(callee, callId);
+
+      if (calleeMutedCaller) return;
 
       emitToUser(callee, 'call:incoming', { callId, callerUsername: caller, callType });
 
@@ -9532,8 +9575,11 @@ io.on('connection', (socket) => {
     emitToUser(call.callee, 'call:cancelled', { callId });
     // The callee never got to answer — a missed call from their side too,
     // same as a plain ring-timeout (see the CALL_RING_TIMEOUT_MS handler
-    // above), just triggered by the caller hanging up early instead.
-    sendMissedCallPush(call.callee, callId, call.caller);
+    // above), just triggered by the caller hanging up early instead. Skipped
+    // entirely if the callee had muted calls from this caller — they were
+    // never shown a ring in the first place, so a "missed call" afterward
+    // would be the exact disturbance muting them was supposed to prevent.
+    if (!call.calleeMutedCaller) sendMissedCallPush(call.callee, callId, call.caller);
   });
 
   socket.on('call:accept', ({ callId }) => {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, Palette, Camera, Image as ImageIcon, BarChart2, ImageOff, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, X, User, Users, SmilePlus, Reply, Plus, MoreVertical, Search, Paperclip, Loader2, Play, Pause, Trash2, Edit2, MoreHorizontal, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Lock, ShieldAlert, Pin, Bell, BellOff, MessageSquareX, Eye, EyeOff, CheckCheck, Check, Ban, SquareCheck, Square, Unlock, Timer as TimerIcon, Key, Mic, MicOff, Download, FileText, Music, Clock, Flag, Copy, Forward, Phone, Video, PhoneMissed, PhoneOff, Palette, Camera, Image as ImageIcon, BarChart2, ImageOff, RefreshCw } from 'lucide-react';
 import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
@@ -1647,6 +1647,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const next = safeParse(`muted_chats_${user}`, '[]');
           return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
         });
+        setMutedCallChats(prev => {
+          const next = safeParse(`muted_call_chats_${user}`, '[]');
+          return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+        });
         setLockedChats(prev => {
           const next = safeParse(`locked_chats_${user}`, '[]');
           return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
@@ -1706,6 +1710,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     };
 
     window.addEventListener('muted_chats_updated', handleSync);
+    window.addEventListener('muted_call_chats_updated', handleSync);
     window.addEventListener('locked_chats_updated', handleSync);
     window.addEventListener('blocked_chats_updated', handleSync);
     window.addEventListener('pinned_chats_updated', handleSync);
@@ -1716,6 +1721,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
     return () => {
       window.removeEventListener('muted_chats_updated', handleSync);
+      window.removeEventListener('muted_call_chats_updated', handleSync);
       window.removeEventListener('locked_chats_updated', handleSync);
       window.removeEventListener('blocked_chats_updated', handleSync);
       window.removeEventListener('pinned_chats_updated', handleSync);
@@ -1808,6 +1814,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
       body: JSON.stringify({ mutedChats }),
     }).catch(() => {});
   }, [mutedChats]);
+  // Separate from mutedChats above — muting a person's CALLS (private/DM
+  // chats only) must not also silence their messages, and vice versa. Same
+  // push-to-server-on-change pattern, enforced backend-side in call:invite
+  // (the only place a call ring/push actually originates from).
+  const [mutedCallChats, setMutedCallChats] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`muted_call_chats_${myUsername}`) || '[]');
+    } catch { return []; }
+  });
+  useEffect(() => {
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn || tkn === 'null' || tkn === 'undefined') return;
+    fetch(`${API}/api/profile/muted-call-chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
+      body: JSON.stringify({ mutedCallChats }),
+    }).catch(() => {});
+  }, [mutedCallChats]);
   const [hiddenChats, setHiddenChats] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(`hidden_chats_${myUsername}`) || '[]');
@@ -2739,6 +2763,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
       const next = isMuted ? prev.filter(k => k !== chatKey) : [...prev, chatKey];
       localStorage.setItem(`muted_chats_${myUsername}`, JSON.stringify(next));
       window.dispatchEvent(new Event('muted_chats_updated'));
+      return next;
+    });
+    setActiveConvMenu(null);
+  };
+
+  // Private (DM) chats only — no ring, no push, no missed-call notification
+  // for calls from this specific person, enforced entirely backend-side (see
+  // call:invite in server.js). Nothing to do client-side beyond persisting
+  // the list — if the server never sends call:incoming for a muted caller,
+  // there's nothing here to suppress.
+  const toggleMuteCallChat = (chatKey) => {
+    setMutedCallChats(prev => {
+      const isMuted = prev.includes(chatKey);
+      const next = isMuted ? prev.filter(k => k !== chatKey) : [...prev, chatKey];
+      localStorage.setItem(`muted_call_chats_${myUsername}`, JSON.stringify(next));
+      window.dispatchEvent(new Event('muted_call_chats_updated'));
       return next;
     });
     setActiveConvMenu(null);
@@ -7762,6 +7802,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     <div className="chat-menu-item" onClick={() => toggleMuteChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       <BellOff size={16} color="var(--menu-icon)" /> {mutedChats.includes(chatKey) ? t('unmuteNotifications', 'Unmute notifications') : t('muteNotifications', 'Mute notifications')}
                     </div>
+                    {/* Mute calls — private (DM) chats only, distinct from muting
+                        messages above. No ring, no push, no missed-call
+                        notification for calls from this person, enforced
+                        server-side in call:invite; nothing to toggle client-side
+                        beyond this list. */}
+                    {chat.type !== 'room' && (
+                      <div className="chat-menu-item" onClick={() => toggleMuteCallChat(chatKey)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
+                        {mutedCallChats.includes(chatKey) ? <Phone size={16} color="var(--menu-icon)" /> : <PhoneOff size={16} color="var(--menu-icon)" />} {mutedCallChats.includes(chatKey) ? t('unmuteCalls', 'Unmute calls') : t('muteCalls', 'Mute calls')}
+                      </div>
+                    )}
                     {/* Chat theme — works whether or not this conversation is currently open */}
                     <div className="chat-menu-item" onClick={() => { setThemeSheetTarget(chat); setShowThemeSheet(true); setActiveConvMenu(null); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.2s' }}>
                       <Palette size={16} color="var(--menu-icon)" /> {t('chatTheme', 'Chat theme')}
