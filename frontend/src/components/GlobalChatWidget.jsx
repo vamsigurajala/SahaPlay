@@ -7747,7 +7747,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '16px',
                 borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
                 transition: 'background 0.2s', position: 'relative',
-                background: selectedChats.includes(chatKey) ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent'
+                background: selectedChats.includes(chatKey) ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent',
+                // Same fix as .msg-sent/.msg-received in index.css — a
+                // long-press (this row's own long-press-to-open-menu gesture)
+                // used to also trigger the browser's native text-selection
+                // (copy/cut/select-all) on the name/tag/preview text
+                // underneath, since nothing here told touch devices this row
+                // wasn't selectable text. user-select is inherited, so this
+                // one declaration covers every child (name, ROOM/PRIVATE tag,
+                // last-message preview) without needing it on each of them.
+                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = selectedChats.includes(chatKey) ? 'rgba(var(--brand-1-rgb),0.15)' : 'rgba(255,255,255,0.05)';
