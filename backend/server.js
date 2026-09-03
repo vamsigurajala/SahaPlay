@@ -1014,6 +1014,26 @@ function emitToUser(username, event, data) {
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
 
+// Routes mid-call signaling (offer/answer/ice/state) to the ONE specific
+// device that's actually a live participant in this call, instead of every
+// device that user happens to be logged into. Without this, a user logged in
+// on two devices at once (e.g. phone + laptop) would have BOTH devices
+// receive an incoming call's offer/ICE once accepted on just one of them —
+// the still-ringing device would independently create its own real
+// RTCPeerConnection and answer too, and its ICE candidates would get mixed
+// into the caller's single PeerConnection for that username, breaking the
+// connection for everyone. `call.activeSocketId` is populated at the moment
+// each participant actually becomes active (call:invite for the caller,
+// call:accept for the callee, call:member-join for an added member) — see
+// those handlers. Falls back to the old broadcast-to-every-device behavior
+// only if no specific device was ever recorded, which shouldn't normally
+// happen for these events (they only ever fire post-accept/post-join).
+function emitToActiveSocket(call, username, event, data) {
+  const sid = call?.activeSocketId?.get(username);
+  if (sid) { io.to(sid).emit(event, data); return; }
+  emitToUser(username, event, data);
+}
+
 // ─── 1:1 DM voice/video calls — ephemeral signaling only (mirrors `rooms`) ───
 // No DB table: the only durable trace of a call is the E2E-encrypted call-
 // summary chat message the client writes via POST /api/chats/send once the
@@ -9533,7 +9553,7 @@ io.on('connection', (socket) => {
         }
       }, CALL_RING_TIMEOUT_MS);
 
-      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map(), calleeMutedCaller });
+      activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map(), calleeMutedCaller, activeSocketId: new Map([[caller, socket.id]]) });
       userActiveCallId.set(caller, callId);
       userActiveCallId.set(callee, callId);
 
@@ -9589,6 +9609,7 @@ io.on('connection', (socket) => {
     clearTimeout(call.timeoutHandle);
     call.status = 'active';
     call.answeredAt = Date.now();
+    call.activeSocketId.set(me, socket.id);
     // Both sides get the SAME server-stamped answeredAt now (previously each
     // side stamped its own local Date.now() independently — close enough not
     // to matter for the live duration ticker, but this is the one place that
@@ -9606,6 +9627,20 @@ io.on('connection', (socket) => {
     // dismissed locally on whichever one actually answered; the rest would
     // otherwise keep ringing/showing a now-answered call indefinitely.
     sendCallCancelPush(call.callee, callId);
+    // Same coverage for a device that's foregrounded right now (a browser/PWA
+    // tab, the desktop app) rather than relying on a native push it doesn't
+    // receive — those don't listen for FCM at all, so without this they kept
+    // ringing forever AND (see emitToActiveSocket above) would have gone on
+    // to actually try answering the call's SDP offer themselves. This tells
+    // every OTHER currently-connected device of this same callee to tear
+    // its ring UI down immediately, with no missed-call/declined semantics —
+    // the call WAS answered, just from a different device.
+    const otherCalleeSockets = connectedSockets.get(me);
+    if (otherCalleeSockets) {
+      for (const sid of otherCalleeSockets) {
+        if (sid !== socket.id) io.to(sid).emit('call:taken-elsewhere', { callId });
+      }
+    }
   });
 
   socket.on('call:decline', ({ callId }) => {
@@ -9627,7 +9662,7 @@ io.on('connection', (socket) => {
     const me = socket.username?.toLowerCase();
     const target = (targetUsername || '').toLowerCase();
     if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
-    emitToUser(target, 'call:offer', { callId, fromUsername: me, sdp });
+    emitToActiveSocket(call, target, 'call:offer', { callId, fromUsername: me, sdp });
   });
 
   socket.on('call:answer', ({ callId, targetUsername, sdp }) => {
@@ -9635,7 +9670,7 @@ io.on('connection', (socket) => {
     const me = socket.username?.toLowerCase();
     const target = (targetUsername || '').toLowerCase();
     if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
-    emitToUser(target, 'call:answer', { callId, fromUsername: me, sdp });
+    emitToActiveSocket(call, target, 'call:answer', { callId, fromUsername: me, sdp });
   });
 
   socket.on('call:ice', ({ callId, targetUsername, candidate }) => {
@@ -9643,7 +9678,7 @@ io.on('connection', (socket) => {
     const me = socket.username?.toLowerCase();
     const target = (targetUsername || '').toLowerCase();
     if (!call || !isActiveCallParticipant(call, me) || !isActiveCallParticipant(call, target)) return;
-    emitToUser(target, 'call:ice', { callId, fromUsername: me, candidate });
+    emitToActiveSocket(call, target, 'call:ice', { callId, fromUsername: me, candidate });
   });
 
   // Mic/cam on-off state — not SDP, not sensitive, sent plain so everyone
@@ -9654,7 +9689,7 @@ io.on('connection', (socket) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
     if (!call || !isActiveCallParticipant(call, me)) return;
-    getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToUser(u, 'call:state', { callId, fromUsername: me, micOn, camOn }));
+    getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToActiveSocket(call, u, 'call:state', { callId, fromUsername: me, micOn, camOn }));
   });
 
   // Anyone currently in the call — original caller, original callee, or
@@ -9730,7 +9765,7 @@ io.on('connection', (socket) => {
 
       const activeParticipants = getCallActiveUsernames(call);
       emitToUser(target, 'call:incoming', { callId, callerUsername: me, callType: call.type, groupParticipants: activeParticipants });
-      activeParticipants.filter(u => u !== me).forEach(u => emitToUser(u, 'call:member-invited', { callId, username: target, invitedBy: me }));
+      activeParticipants.filter(u => u !== me).forEach(u => emitToActiveSocket(call, u, 'call:member-invited', { callId, username: target, invitedBy: me }));
 
       sendPushToUser(target, {
         title: call.type === 'video' ? 'Incoming video call' : 'Incoming voice call',
@@ -9759,9 +9794,18 @@ io.on('connection', (socket) => {
     clearTimeout(entry.timeoutHandle);
     entry.status = 'active';
     entry.joinedAt = Date.now();
+    call.activeSocketId.set(me, socket.id);
     const others = getCallActiveUsernames(call).filter(u => u !== me);
     socket.emit('call:joined-call', { callId, participants: others, type: call.type });
-    others.forEach(u => emitToUser(u, 'call:member-joined', { callId, username: me, invitedBy: entry.invitedBy }));
+    others.forEach(u => emitToActiveSocket(call, u, 'call:member-joined', { callId, username: me, invitedBy: entry.invitedBy }));
+    // Same "stop ringing elsewhere" fix as call:accept — this invitee may be
+    // logged into more than one device too.
+    const otherMemberSockets = connectedSockets.get(me);
+    if (otherMemberSockets) {
+      for (const sid of otherMemberSockets) {
+        if (sid !== socket.id) io.to(sid).emit('call:taken-elsewhere', { callId });
+      }
+    }
   });
 
   // Declining an invite to join an already-active call — the member was

@@ -33,6 +33,8 @@ import crownImg from '../assets/crown.svg';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
 import ChatLockScreen from './ChatLockScreen';
 import MediaLightbox from './MediaLightbox';
+import DownloadAppModal from './DownloadAppModal';
+import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { getMessagePreview } from '../utils/messagePreview';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -1763,6 +1765,11 @@ export default function RoomChatPanel({ p }) {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+  // Same call-availability gate as GlobalChatWidget.jsx — a plain desktop
+  // browser tab can't reliably call, so redialing from here prompts
+  // installing the app instead.
+  const canMakeCalls = isMobileOrTablet || isTauriApp() || isCapacitorApp();
+  const [showCallInstallPrompt, setShowCallInstallPrompt] = React.useState(false);
   const [hiddenChats, setHiddenChats] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(`hidden_chats_${myUser}`) || '[]'); } catch { return []; }
   });
@@ -4482,7 +4489,7 @@ export default function RoomChatPanel({ p }) {
                                           data={callData}
                                           isMe={isMe}
                                           myUsername={p.username}
-                                          onRedial={p.dmTarget && !call.callState ? () => call.startCall(p.dmTarget, callData.callType) : undefined}
+                                          onRedial={p.dmTarget && !call.callState ? () => { if (!canMakeCalls) { setShowCallInstallPrompt(true); return; } call.startCall(p.dmTarget, callData.callType); } : undefined}
                                         />
                                       );
                                     })()
@@ -5239,6 +5246,7 @@ export default function RoomChatPanel({ p }) {
           </div>
         </div>
       )}
+      <DownloadAppModal isOpen={showCallInstallPrompt} onClose={() => setShowCallInstallPrompt(false)} />
     </>
   );
 }

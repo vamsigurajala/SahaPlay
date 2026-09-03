@@ -347,6 +347,20 @@ export function CallProvider({ children }) {
       teardownCall();
     });
 
+    // Same account answered/joined this call from a DIFFERENT device (see
+    // the matching server-side fix in call:accept/call:member-join) — just
+    // silently stop ringing here, no missed-call log or notification. This
+    // is what "if anyone device answers, immediately connect and stop
+    // ringing everywhere else" actually requires: without this, a second
+    // logged-in device (e.g. a laptop while you answer on your phone) kept
+    // showing the incoming-call screen indefinitely and would go on to try
+    // answering the SDP offer itself, corrupting the call for everyone.
+    sock.on('call:taken-elsewhere', ({ callId }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || cs.phase === 'active') return;
+      teardownCall();
+    });
+
     sock.on('call:answered', async ({ callId, answeredAt }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId || cs.phase !== 'outgoing') return;

@@ -106,8 +106,24 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
     return () => clearInterval(id);
   }, [callState.answeredAt]);
 
+  // Unlike the full ringing/active call screens (which stay permanently dark
+  // on purpose, like every other calling app's immersive UI), this bar is a
+  // small utility strip floating OVER whatever page you're browsing — it
+  // needs to follow the app's own light/dark setting like every other
+  // floating widget in the app, not fight it. Same data-theme + MutationObserver
+  // pattern already used throughout this codebase (see PullToRefresh.jsx).
+  const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsLight(document.documentElement.getAttribute('data-theme') === 'light'));
+    obs.observe(document.documentElement, { attributes: true });
+    return () => obs.disconnect();
+  }, []);
+
   const isPoor = networkStatus === 'poor';
   const statusColor = isPoor ? '#f59e0b' : '#22c55e';
+  const textPrimary = isLight ? '#0f172a' : '#fff';
+  const textSecondary = isLight ? 'rgba(15,23,42,0.62)' : 'rgba(255,255,255,0.68)';
+  const dividerColor = isLight ? 'rgba(15,23,42,0.35)' : 'rgba(255,255,255,0.5)';
 
   return (
     <>
@@ -124,37 +140,40 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
         position: 'fixed', left: 12, right: 12,
         top: 'calc(10px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
         zIndex: 2147483500, display: 'flex', alignItems: 'center', gap: 10,
-        background: 'linear-gradient(160deg, rgba(38,40,54,0.94), rgba(16,17,26,0.94))',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: isLight
+          ? 'linear-gradient(160deg, rgba(255,255,255,0.96), rgba(241,245,249,0.96))'
+          : 'linear-gradient(160deg, rgba(38,40,54,0.94), rgba(16,17,26,0.94))',
+        border: isLight ? '1px solid rgba(15,23,42,0.08)' : '1px solid rgba(255,255,255,0.08)',
         backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
         borderRadius: 999, padding: '8px 14px 8px 8px',
-        boxShadow: '0 10px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)',
+        boxShadow: isLight
+          ? '0 10px 28px rgba(15,23,42,0.16), inset 0 1px 0 rgba(255,255,255,0.6)'
+          : '0 10px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)',
         cursor: 'pointer', fontFamily: "'Outfit', 'Inter', sans-serif",
-        // Pin this permanently-dark bar's own color scheme — without this, a
-        // WebView's algorithmic dark/light re-coloring (only relevant when the
-        // app's OWN theme is light, since that's what tells the OS/WebView the
-        // page "wants" light colors) can recompute this bar's near-white text
-        // against its own dark background and make it unreadable. Same fix as
-        // OneOnOneCallScreen.jsx's overlayStyle for the same reason.
-        colorScheme: 'dark',
+        // Explicitly matches whichever palette this bar is actually rendering
+        // right now, so a WebView's algorithmic dark/light re-coloring pass
+        // never "corrects" colors that already match its own background —
+        // this is what fixed the light-mode-only invisible-text bug (the bar
+        // used to hardcode a dark scheme regardless of the app's own theme).
+        colorScheme: isLight ? 'light' : 'dark',
       }}
     >
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <Avatar url={callState.peerAvatar} name={callState.peerDisplayName || callState.peerUsername} size={38} />
         <div style={{
           position: 'absolute', bottom: -1, right: -1, width: 12, height: 12, borderRadius: '50%',
-          background: statusColor, border: '2px solid #171821', boxShadow: `0 0 6px ${statusColor}`,
+          background: statusColor, border: `2px solid ${isLight ? '#fff' : '#171821'}`, boxShadow: `0 0 6px ${statusColor}`,
         }} className={isPoor ? '' : 'gco-avatar-pulse'} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: '#fff', fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ color: textPrimary, fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {callState.peerDisplayName || callState.peerUsername}
         </div>
-        <div style={{ color: isPoor ? '#f59e0b' : 'rgba(255,255,255,0.68)', fontSize: 11.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ color: isPoor ? '#f59e0b' : textSecondary, fontSize: 11.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
           {isPoor && <WifiOff size={11} color="#f59e0b" />}
           <span>{isPoor ? 'Poor connection' : (callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…')}</span>
-          <span style={{ opacity: 0.5 }}>•</span>
-          <span style={{ opacity: 0.85 }}>Tap to return</span>
+          <span style={{ color: dividerColor }}>•</span>
+          <span style={{ opacity: 0.9 }}>Tap to return</span>
         </div>
       </div>
       <button

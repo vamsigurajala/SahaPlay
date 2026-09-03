@@ -38,6 +38,8 @@ import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/d
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
+import DownloadAppModal from './DownloadAppModal';
+import { isCapacitorApp, isTauriApp } from '../lib/platform';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -2426,6 +2428,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
+  // Calling is only reliable from: a real mobile device (any browser tab,
+  // PWA, or the APK — WebRTC works fine there), or the installed Tauri
+  // desktop app. A plain desktop browser tab is the one case blocked —
+  // rather than let it half-work, the call buttons below prompt installing
+  // the desktop app instead of ever calling call.startCall from there.
+  const canMakeCalls = isMobileOrTablet || isTauriApp() || isCapacitorApp();
+  const [showCallInstallPrompt, setShowCallInstallPrompt] = useState(false);
   // Viewport-anchored stable height for the wallpaper backdrop below — see
   // its usage for why this replaced the old CSS-only position:fixed +
   // height:100lvh media-query approach.
@@ -6767,7 +6776,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
               return (
                 <>
                   <button
-                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'voice', activeChat.displayName, activeChat.partnerAvatar); }}
+                    onClick={() => { if (busy) return; if (!canMakeCalls) { setShowCallInstallPrompt(true); return; } call.startCall(activeChat.partner, 'voice', activeChat.displayName, activeChat.partnerAvatar); }}
                     disabled={busy}
                     title={t('voiceCall', 'Voice call')}
                     style={callBtnStyle}
@@ -6781,7 +6790,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     <Phone size={18} strokeWidth={2.1} />
                   </button>
                   <button
-                    onClick={() => { if (!busy) call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
+                    onClick={() => { if (busy) return; if (!canMakeCalls) { setShowCallInstallPrompt(true); return; } call.startCall(activeChat.partner, 'video', activeChat.displayName, activeChat.partnerAvatar); }}
                     disabled={busy}
                     title={t('videoCall', 'Video call')}
                     style={callBtnStyle}
@@ -8499,7 +8508,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                         data={callData}
                                         isMe={isMe}
                                         myUsername={myUsername}
-                                        onRedial={activeChat?.type === 'private' && !call.callState ? () => call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar) : undefined}
+                                        onRedial={activeChat?.type === 'private' && !call.callState ? () => { if (!canMakeCalls) { setShowCallInstallPrompt(true); return; } call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar); } : undefined}
                                       />
                                     );
                                   })()
@@ -9722,6 +9731,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         onClose={() => setReportMsgTarget(null)}
       />
     )}
+    <DownloadAppModal isOpen={showCallInstallPrompt} onClose={() => setShowCallInstallPrompt(false)} />
     </div>
   );
 }));

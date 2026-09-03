@@ -19,6 +19,7 @@ import toast from 'react-hot-toast';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
+import { isCapacitorApp } from '../lib/platform';
 
 function Avatar({ url, name, size, pulsing }) {
   return (
@@ -137,6 +138,14 @@ export default function OneOnOneCallScreen({
   const remotes = getRemoteParticipants(callState, remoteStreams, participantMeta);
   const isGroup = remotes.length > 1;
   const answeredAt = callState.answeredAt;
+  // Screen share only actually works from the installed app — most mobile
+  // browsers either don't implement getDisplayMedia at all (iOS Safari) or
+  // support it too inconsistently to rely on, so a plain mobile browser tab
+  // (isCoarsePointer true, not the Capacitor-wrapped app) never gets a
+  // working option in the first place rather than a button that silently
+  // fails. Desktop browsers/Tauri aren't affected — coarse-pointer is
+  // specifically a touch-primary-input signal, not "not installed."
+  const canScreenShare = !isCoarsePointer || isCapacitorApp();
 
   // Tap-anywhere-to-toggle chrome — top bar + bottom dock (and, per the
   // product ask, the Add-to-call button that lives in the top bar) fade
@@ -507,13 +516,15 @@ export default function OneOnOneCallScreen({
       {/* ── More options: screen share / send message ── */}
       {moreMenuOpen && (
         <div className="ooc-more-menu" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
-          <button
-            className="ooc-more-opt"
-            style={{ color: '#fff' }}
-            onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
-          >
-            <ScreenShare size={17} color="#fff" /> <span style={{ color: '#fff' }}>{isScreenSharing ? 'Stop screen share' : 'Screen share'}</span>
-          </button>
+          {canScreenShare && (
+            <button
+              className="ooc-more-opt"
+              style={{ color: '#fff' }}
+              onClick={() => { setMoreMenuOpen(false); isScreenSharing ? stopScreenShare?.() : startScreenShare?.(); }}
+            >
+              <ScreenShare size={17} color="#fff" /> <span style={{ color: '#fff' }}>{isScreenSharing ? 'Stop screen share' : 'Screen share'}</span>
+            </button>
+          )}
           {primaryRemote && (
             <button
               className="ooc-more-opt"
