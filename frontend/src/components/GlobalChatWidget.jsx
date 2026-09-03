@@ -2160,6 +2160,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
     };
   }, [activeMessageMenu, longPress.activeId, longPress, activeReactionMsg, showAllEmojis, showEmojiPicker]);
   const [activeConvMenu, setActiveConvMenu] = useState(null);
+  // Same "does it fit below?" problem the long-press/desktop message menus
+  // had (see chatMenuPlacement.js) — this row-level "..." menu used to
+  // decide up/down from the row's ARRAY INDEX (only the last 2 rows ever
+  // flipped up), which breaks the moment the panel is short enough that even
+  // a row further up doesn't have 300ish px of real room below it: the menu
+  // still opened downward and ran past the panel's own bottom edge. Computed
+  // from the trigger's actual on-screen position at click time instead.
+  const [convMenuPlacement, setConvMenuPlacement] = useState('down');
   const [hoveredConvId, setHoveredConvId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [hoveredMenuBtn, setHoveredMenuBtn] = useState(null); // tracks hovered header menu button
@@ -7750,6 +7758,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const next = activeConvMenu === chatKey ? null : chatKey;
+                                if (next) {
+                                  const triggerRect = e.currentTarget.getBoundingClientRect();
+                                  const panelBottom = containerRef.current?.getBoundingClientRect().bottom ?? window.innerHeight;
+                                  // ~300px covers this menu's tallest form (every
+                                  // item shown at once: Hide/Pin/Mute/Theme/Mark
+                                  // read/Lock/Clear/Delete) — a shorter render
+                                  // still fits comfortably under this margin.
+                                  setConvMenuPlacement((panelBottom - triggerRect.bottom) < 300 ? 'up' : 'down');
+                                }
                                 setActiveConvMenu(next);
                                 if (next) {
                                   setShowGlobalMenu(false);
@@ -7783,8 +7800,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     className="nav-dropdown"
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                      position: 'absolute', right: 40, 
-                      ...(idx >= arr.length - 2 && arr.length > 3 ? { bottom: 30 } : { top: 55 }),
+                      position: 'absolute', right: 40,
+                      ...(convMenuPlacement === 'up' ? { bottom: 30 } : { top: 55 }),
                       background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
                       borderRadius: 12, padding: '6px', minWidth: 195, overflow: 'hidden',
                       boxShadow: 'var(--dropdown-shadow)', zIndex: 20,
