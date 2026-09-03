@@ -15,7 +15,7 @@
 // mesh model (CallContext.jsx) means every tile here really is a direct,
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff, ArrowLeft, Maximize2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff, Maximize2, X } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 import { isCapacitorApp } from '../lib/platform';
@@ -571,7 +571,7 @@ export default function OneOnOneCallScreen({
           myAvatarUrl={myAvatarUrl}
           isFlippingCamera={isFlippingCamera}
         />
-      ) : (
+      ) : !fullscreenTile ? (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
           {remotes.map(r => {
             // A member just added via "Add to call" gets a placeholder tile
@@ -584,11 +584,7 @@ export default function OneOnOneCallScreen({
             return (
               <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
                 {r.hasVideo ? (
-                  // Muted while this same person's fullscreen overlay is
-                  // showing (see below) — that overlay plays their audio
-                  // itself via its own <video>; leaving this one unmuted
-                  // too would double it up, both playing the same stream.
-                  <VideoTile stream={r.stream} muted={fullscreenTile === r.username} fit={r.sharingScreen ? 'contain' : 'cover'} />
+                  <VideoTile stream={r.stream} fit={r.sharingScreen ? 'contain' : 'cover'} />
                 ) : (
                   <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={!isRinging && r.micOn} />
                 )}
@@ -637,7 +633,7 @@ export default function OneOnOneCallScreen({
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {fullscreenTile && (() => {
         const isMe = fullscreenTile === '__me__';
@@ -649,13 +645,19 @@ export default function OneOnOneCallScreen({
         return (
           <div className="ooc-fullscreen-tile" onClick={() => setFullscreenTile(null)}>
             <VideoTile stream={stream} muted={isMe} fit={sharingScreen ? 'contain' : 'cover'} />
-            <div className="ooc-fullscreen-tile-bar">
+            {/* stay-white: the app's light-mode stylesheet forces most
+                un-colored text/icons dark for readability elsewhere — this
+                bar sits on a permanently-dark video backdrop regardless of
+                app theme, so it needs the same opt-out every other
+                always-dark call surface on this screen uses (see the
+                header's own name/status text above). */}
+            <div className="ooc-fullscreen-tile-bar stay-white">
               <button
                 className="ooc-fullscreen-tile-back"
                 onClick={(e) => { e.stopPropagation(); setFullscreenTile(null); }}
                 aria-label="Exit full screen"
               >
-                <ArrowLeft size={18} color="#fff" />
+                <X size={18} color="#fff" />
               </button>
               <span>{name}</span>
             </div>
