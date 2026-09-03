@@ -103,6 +103,19 @@ function getCtx() {
   return sharedCtx;
 }
 
+// Mobile browsers/WebViews (Android's Capacitor WebView included) refuse to
+// let an AudioContext actually produce sound until it's created or resumed
+// from directly inside a real user-gesture handler (tap/click) — resuming
+// it later from an async socket-event callback with no gesture in the call
+// stack is silently ignored, so a message arriving with the app open but
+// with no context ever unlocked plays nothing at all, no error. Call this
+// once from a document-level, one-time gesture listener at app startup
+// (see App.jsx) so the SAME shared context used by playNotificationTone is
+// already unlocked by the time any tone needs to play.
+export function unlockAudio() {
+  getCtx();
+}
+
 let noiseBuffer = null;
 function getNoiseBuffer(ctx) {
   if (!noiseBuffer || noiseBuffer.sampleRate !== ctx.sampleRate) {

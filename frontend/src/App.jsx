@@ -11,6 +11,7 @@ import { useInactivityLogout } from './hooks/useInactivityLogout';
 import { isTauriApp, isStandalonePWA } from './lib/platform';
 import { syncStatusBarTheme } from './lib/nativeShell';
 import { setNativeThemePreference } from './lib/nativeMedia';
+import { unlockAudio } from './lib/notificationSounds';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
 import AnimatedSplash from './components/AnimatedSplash';
@@ -338,6 +339,23 @@ function App() {
       sessionStorage.removeItem('watch_chunk_reload_attempted');
     }, 3000);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Unlocks the shared Web Audio context (notification/message tones) on the
+  // very first tap anywhere in the app — mobile browsers/WebViews (Android's
+  // Capacitor WebView included) otherwise leave it permanently silent since
+  // it's normally first created from an async socket-event handler, with no
+  // user gesture in that call stack. See notificationSounds.js's unlockAudio.
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('touchend', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('touchend', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
   }, []);
 
   useEffect(() => {

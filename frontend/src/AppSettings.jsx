@@ -1903,16 +1903,24 @@ const AppSettings = () => {
               <div style={{ borderTop: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.08)', paddingTop: 18 }}>
                 <p style={{ color: isLight ? '#4b5563' : '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('callRingtone', 'Call ringtone')}</p>
                 <p style={{ color: isLight ? '#6b7280' : '#666', fontSize: 12, margin: '0 0 12px' }}>{t('callRingtoneDesc', 'Upload your own clip (about a minute or shorter) to play when you get a call, instead of the default ring')}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: isLight ? 'rgba(0,0,0,0.025)' : 'rgba(255,255,255,0.03)', borderRadius: 12, border: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? 8 : 10, padding: '12px 14px', background: isLight ? 'rgba(0,0,0,0.025)' : 'rgba(255,255,255,0.03)', borderRadius: 12, border: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Music size={16} color="#a855f7" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13.5, fontWeight: 700 }}>
-                      {ringtonePath ? t('customRingtoneSet', 'Custom ringtone set') : t('defaultRingtone', 'Default ring')}
+                  {/* Status text ("Custom ringtone set" / "Default ring") is
+                      dropped on mobile — the row was cramped enough there to
+                      overflow, and the section's own heading above already
+                      says "Call ringtone", so the label was redundant. */}
+                  {!isMobile && (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13.5, fontWeight: 700 }}>
+                        {ringtonePath ? t('customRingtoneSet', 'Custom ringtone set') : t('defaultRingtone', 'Default ring')}
+                      </div>
+                      {ringtoneUploading && <div style={{ color: isLight ? '#6b7280' : '#888', fontSize: 12 }}>{t('uploading', 'Uploading…')}</div>}
                     </div>
-                    {ringtoneUploading && <div style={{ color: isLight ? '#6b7280' : '#888', fontSize: 12 }}>{t('uploading', 'Uploading…')}</div>}
-                  </div>
+                  )}
+                  {isMobile && <div style={{ flex: 1 }} />}
+                  {isMobile && ringtoneUploading && <div style={{ color: isLight ? '#6b7280' : '#888', fontSize: 12, width: '100%' }}>{t('uploading', 'Uploading…')}</div>}
                   {ringtonePath && (
                     <button
                       onClick={previewRingtone}
