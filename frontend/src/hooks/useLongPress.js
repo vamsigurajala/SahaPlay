@@ -13,11 +13,20 @@ export function useLongPress(delay = 500) {
   const [activeId, setActiveId] = useState(null);
   const timerRef = useRef(null);
   const startPosRef = useRef({ x: 0, y: 0 });
+  // Row element the press started on, captured at touchstart — a menu that
+  // opens off this long-press (e.g. GlobalChatWidget's chat-list row menu)
+  // needs this to decide whether it fits below or must flip upward, the same
+  // way a plain click already measures its own trigger element. Safe to read
+  // any time after activeId fires: moving the finger before then cancels the
+  // press entirely (see onTouchMove below), so if the press fires at all,
+  // this element hasn't scrolled out from under the finger since.
+  const elRef = useRef(null);
 
   const onTouchStart = useCallback((e, id) => {
     const touch = e.touches[0];
     if (!touch) return;
     startPosRef.current = { x: touch.clientX, y: touch.clientY };
+    elRef.current = e.currentTarget;
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setActiveId(id), delay);
   }, [delay]);
@@ -45,5 +54,7 @@ export function useLongPress(delay = 500) {
     onTouchEnd,
   }), [onTouchStart, onTouchMove, onTouchEnd]);
 
-  return { activeId, close, getHandlers };
+  const getTriggerRect = useCallback(() => elRef.current?.getBoundingClientRect() ?? null, []);
+
+  return { activeId, close, getHandlers, getTriggerRect };
 }

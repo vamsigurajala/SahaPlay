@@ -2078,6 +2078,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const chatListLongPress = useLongPress();
   useEffect(() => {
     if (chatListLongPress.activeId) {
+      // Same up/down decision the desktop dropdown-arrow click already makes
+      // (see its onClick below) — measured against the real trigger row
+      // rather than left at whatever convMenuPlacement last happened to be,
+      // which is what made a long-pressed row near the bottom of the (mobile-
+      // scrolled) list always open downward and run off-screen regardless of
+      // how little room was actually left below it.
+      const rect = chatListLongPress.getTriggerRect?.();
+      if (rect) {
+        const panelBottom = containerRef.current?.getBoundingClientRect().bottom ?? window.innerHeight;
+        setConvMenuPlacement((panelBottom - rect.bottom) < 300 ? 'up' : 'down');
+      }
       setActiveConvMenu(chatListLongPress.activeId);
       setShowGlobalMenu(false);
       setShowSelectionMenu(false);
