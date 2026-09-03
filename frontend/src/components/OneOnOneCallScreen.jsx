@@ -20,6 +20,7 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, Switch
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 import { isCapacitorApp } from '../lib/platform';
+import { useSpeakingDetection } from '../hooks/useSpeakingDetection';
 
 function Avatar({ url, name, size, pulsing }) {
   return (
@@ -138,6 +139,15 @@ export default function OneOnOneCallScreen({
   const remotes = getRemoteParticipants(callState, remoteStreams, participantMeta);
   const isGroup = remotes.length > 1;
   const answeredAt = callState.answeredAt;
+  // Real-time "who's actually talking" for the group grid below — keyed by
+  // username (localStream, not the screen-share substitute, since a screen
+  // share stream carries no mic audio to measure).
+  const speakingStreams = {};
+  if (isGroup) {
+    remotes.forEach(r => { if (r.stream) speakingStreams[r.username] = r.stream; });
+    if (localStream) speakingStreams.__me__ = localStream;
+  }
+  const speakingKeys = useSpeakingDetection(speakingStreams);
   // Screen share only actually works from the installed app — most mobile
   // browsers either don't implement getDisplayMedia at all (iOS Safari) or
   // support it too inconsistently to rely on, so a plain mobile browser tab
@@ -411,7 +421,12 @@ export default function OneOnOneCallScreen({
         .ooc-tile {
           position: relative; border-radius: 14px; overflow: hidden; background: #131928;
           display: flex; align-items: center; justify-content: center;
+          border: 2.5px solid transparent; transition: border-color 0.15s ease;
         }
+        /* Real-time active-speaker highlight (see useSpeakingDetection) —
+           a plain border rather than a box-shadow glow so it reads clearly
+           on both a video tile and a plain avatar-on-dark-background tile. */
+        .ooc-tile-speaking { border-color: #22c55e; }
         .ooc-tile-label {
           position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px;
           background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 700;
@@ -442,7 +457,7 @@ export default function OneOnOneCallScreen({
       ) : (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
           {remotes.map(r => (
-            <div key={r.username} className="ooc-tile">
+            <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
               {r.hasVideo ? (
                 <VideoTile stream={r.stream} muted={false} />
               ) : (
@@ -455,7 +470,7 @@ export default function OneOnOneCallScreen({
               </div>
             </div>
           ))}
-          <div className="ooc-tile">
+          <div className={`ooc-tile${speakingKeys.has('__me__') ? ' ooc-tile-speaking' : ''}`}>
             {isVideo && (isCamOn || isScreenSharing) && localDisplayStream ? (
               <VideoTile stream={localDisplayStream} muted />
             ) : (

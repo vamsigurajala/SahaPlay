@@ -4081,31 +4081,29 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
 // â"€â"€ Promisify queries locally for cleaner async/await â"€â"€
 // (queryGet and queryAll moved above)
 
-// Lightweight distinct-partner list for the in-call "Add to call" picker —
-// deliberately not the full /api/chats/recent payload (which needs
-// lastSeen/localRooms and returns every last-message field this doesn't
-// need), and deliberately not the full friends list either: the user asked
-// for "only private chats" in the picker, i.e. people there's already a
-// conversation with, not every accepted-follow relationship.
-app.get('/api/chats/private-partners', authenticateToken, async (req, res) => {
+// Full mutual-friends list for the in-call "Add to call" picker — every
+// user who both follows and is followed-back (status 'accepted' in both
+// directions), i.e. exactly the set call:add-member's own areFriends check
+// already allows adding. Previously this picker only showed people there
+// was already a private chat with (GET /api/chats/private-partners), which
+// meant a mutual friend you'd simply never DMed couldn't be added to a call
+// at all despite being allowed to.
+app.get('/api/friends/mutual', authenticateToken, async (req, res) => {
   const username = req.user.username;
   try {
-    const rows = await queryAll(
-      `SELECT DISTINCT CASE WHEN LOWER(senderName) = LOWER(?) THEN targetName ELSE senderName END as partner
-       FROM messages WHERE type = 'private' AND (LOWER(senderName) = LOWER(?) OR LOWER(targetName) = LOWER(?))`,
-      [username, username, username]
-    );
-    const partnerUsernames = [...new Set(rows.map(r => r.partner))].filter(p => p && p.toLowerCase() !== username.toLowerCase());
-    if (partnerUsernames.length === 0) return res.json({ partners: [] });
-    const placeholders = partnerUsernames.map(() => '?').join(',');
     const users = await queryAll(
-      `SELECT username, displayName, avatarPath FROM users WHERE LOWER(username) IN (${placeholders})`,
-      partnerUsernames.map(u => u.toLowerCase())
+      `SELECT u.username, u.displayName, u.avatarPath
+       FROM follows f1
+       JOIN follows f2 ON LOWER(f1.followingId) = LOWER(f2.followerId) AND LOWER(f1.followerId) = LOWER(f2.followingId)
+       JOIN users u ON LOWER(u.username) = LOWER(f1.followingId)
+       WHERE LOWER(f1.followerId) = LOWER(?) AND f1.status = 'accepted' AND f2.status = 'accepted'
+       ORDER BY u.displayName`,
+      [username]
     );
-    res.json({ partners: users.map(u => ({ username: u.username, displayName: u.displayName || u.username, avatarUrl: u.avatarPath || null })) });
+    res.json({ friends: users.map(u => ({ username: u.username, displayName: u.displayName || u.username, avatarUrl: u.avatarPath || null })) });
   } catch (e) {
-    console.error('[private-partners] error:', e.message);
-    res.status(500).json({ error: 'Failed to load private chats' });
+    console.error('[friends/mutual] error:', e.message);
+    res.status(500).json({ error: 'Failed to load friends' });
   }
 });
 

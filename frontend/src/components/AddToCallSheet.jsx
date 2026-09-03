@@ -1,12 +1,13 @@
 // AddToCallSheet.jsx — the "Add to call" picker opened from the top bar of
-// an active call. Per the product ask, this deliberately lists only people
-// there's an existing PRIVATE CHAT with (not the full friends list) — see
-// GET /api/chats/private-partners in backend/server.js. Selecting someone
-// sends them a real ring (call:add-member -> a normal call:incoming on
-// their end) through the same E2E-encrypted signaling path every other
-// call invite already uses; nothing about adding a person weakens the
-// call's encryption, it's just another pairwise NaCl-wrapped WebRTC
-// handshake once they join (see CallContext.jsx's mesh design).
+// an active call. Lists every mutual friend (see GET /api/friends/mutual in
+// backend/server.js) — exactly the set call:add-member's own server-side
+// areFriends check already allows adding, regardless of whether there's any
+// private-chat history with them. Selecting someone sends them a real ring
+// (call:add-member -> a normal call:incoming on their end) through the same
+// E2E-encrypted signaling path every other call invite already uses;
+// nothing about adding a person weakens the call's encryption, it's just
+// another pairwise NaCl-wrapped WebRTC handshake once they join (see
+// CallContext.jsx's mesh design).
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Search, UserPlus } from 'lucide-react';
 import { API } from '../lib/api';
@@ -20,9 +21,9 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
 
   useEffect(() => {
     const token = localStorage.getItem('watch_token');
-    fetch(`${API}/api/chats/private-partners`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/api/friends/mutual`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(d => setPartners(Array.isArray(d.partners) ? d.partners : []))
+      .then(d => setPartners(Array.isArray(d.friends) ? d.friends : []))
       .catch(() => setPartners([]));
     inputRef.current?.focus();
   }, []);
@@ -51,6 +52,13 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
             width: 100%; max-height: 72vh; background: #14161f; border-radius: 20px 20px 0 0;
             display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px);
             box-shadow: 0 -16px 40px rgba(0,0,0,0.5);
+            /* This sheet is a permanently-dark surface by design, same as the
+               call screen it opens from — without pinning color-scheme, a
+               WebView's own light/dark re-coloring pass (only relevant when
+               the app's OWN theme is light) can recompute this sheet's white
+               text against its own dark background and make it unreadable.
+               Same fix as OneOnOneCallScreen.jsx/GlobalCallOverlay.jsx. */
+            color-scheme: dark;
           }
           .atc-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
           .atc-title { color: #fff; font-weight: 800; font-size: 16px; }
@@ -83,7 +91,7 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
           <input
             ref={inputRef}
             className="atc-search-input"
-            placeholder="Search your chats…"
+            placeholder="Search your friends…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -92,7 +100,7 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
           {partners === null ? (
             <div className="atc-empty">Loading…</div>
           ) : visible.length === 0 ? (
-            <div className="atc-empty">{query.trim() ? 'No matches' : 'No private chats to add from yet'}</div>
+            <div className="atc-empty">{query.trim() ? 'No matches' : 'No friends available to add'}</div>
           ) : (
             visible.map(p => {
               const isAdded = added.has(p.username);
@@ -108,6 +116,7 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
                   <button
                     className="atc-add-btn"
                     disabled={isAdded}
+                    onClick={(e) => { e.stopPropagation(); handlePick(p); }}
                     style={{ background: isAdded ? 'rgba(16,185,129,0.25)' : 'rgba(var(--brand-1-rgb),0.25)', color: isAdded ? '#10b981' : 'var(--brand-1-light)' }}
                   >
                     <UserPlus size={15} />
