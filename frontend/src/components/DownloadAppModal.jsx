@@ -73,7 +73,12 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div className="download-app-modal-body" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+        {/* marginRight/paddingRight push the native scrollbar itself out
+            past the card's own edge, where .download-app-modal-card's
+            overflow:hidden physically clips it — belt-and-suspenders with
+            the ::-webkit-scrollbar CSS below, so this stays invisible even
+            in a browser/OS combination that ignores that rule. */}
+        <div className="download-app-modal-body" style={{ paddingTop: 24, paddingBottom: 24, paddingLeft: 24, paddingRight: 44, marginRight: -20, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <p style={{ fontSize: 14, color: isLight ? '#475569' : '#9ca3af', lineHeight: 1.6, margin: 0 }}>
             {t('downloadAppSubtitle', 'Install SahaPlay as a native desktop app — same account, same rooms, its own window.')}
           </p>

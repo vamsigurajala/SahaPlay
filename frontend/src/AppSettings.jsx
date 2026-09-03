@@ -518,6 +518,7 @@ const AppSettings = () => {
         setShowNotifications(false);
         setShowUserMenu(false);
         // Only close showRecentChats (which drives isOpen on widget) if the click is outside the widget
+        setShowRecentChats(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
