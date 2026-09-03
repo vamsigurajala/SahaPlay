@@ -3988,6 +3988,36 @@ app.post('/api/calls/:callId/end', (req, res) => {
   res.json({ success: true });
 });
 
+// Native-only "I'm trying to answer" ping — fired the instant the incoming-
+// call notification's Answer button is tapped (see CallActionReceiver.java's
+// ACTION_ANSWER_PING), before the app has even launched. Answering can't
+// itself happen over REST (real getUserMedia/RTCPeerConnection only exists
+// once the JS/WebView layer is alive), but a cold start from fully killed —
+// Capacitor init, crypto/keystore load, socket connect, then the server's
+// own reconnect-resync — can easily eat several seconds, and CALL_RING_TIMEOUT_MS
+// doesn't know an answer is already in flight. Without this, a slow-enough
+// cold start loses that race: the call times out server-side before the JS
+// layer is ready to actually emit call:accept, so tapping Answer opens the
+// app to a call that's already gone. This just extends the ring window once,
+// deliberately unauthenticated and callId-gated like decline/end above.
+app.post('/api/calls/:callId/extend-ring', (req, res) => {
+  const { callId } = req.params;
+  const call = activeCalls.get(callId);
+  if (!call || call.status !== 'ringing') return res.status(404).json({ error: 'No such ringing call' });
+  if (call.ringExtended) return res.json({ success: true });
+  call.ringExtended = true;
+  clearTimeout(call.timeoutHandle);
+  call.timeoutHandle = setTimeout(() => {
+    const c = endCallInternal(callId);
+    if (c) {
+      emitToUser(c.caller, 'call:timeout', { callId });
+      emitToUser(c.callee, 'call:timeout', { callId });
+      if (!c.calleeMutedCaller) sendMissedCallPush(c.callee, callId, c.caller);
+    }
+  }, CALL_RING_TIMEOUT_MS);
+  res.json({ success: true });
+});
+
 // ── UPDATE Pinned Rooms ──
 app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
   const { pinnedRooms } = req.body;

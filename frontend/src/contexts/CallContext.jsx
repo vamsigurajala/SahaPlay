@@ -130,6 +130,13 @@ export function CallProvider({ children }) {
   // username. localStreamRef stays singular: one mic/camera capture, shared
   // as the track source across every peer connection in the mesh.
   const pcsRef = useRef(new Map());
+  // username -> the RTCRtpSender currently carrying our mic audio to that
+  // peer, captured once per connection in doConnect. toggleMic uses this
+  // (not a fresh pc.getSenders() lookup) because once muted via
+  // replaceTrack(null) below, the sender's own .track is null and can no
+  // longer be identified as "the audio one" by kind — this ref is how
+  // toggleMic finds the right sender again to unmute.
+  const audioSendersRef = useRef(new Map());
   const localStreamRef = useRef(null);
   // Tracked explicitly rather than read back from the camera track's own
   // getSettings().facingMode - that field is unreliably reported (often
@@ -858,7 +865,18 @@ export function CallProvider({ children }) {
 
     const stream = await ensureLocalStream(type);
     if (stream) {
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      stream.getTracks().forEach(t => {
+        const sender = pc.addTrack(t, stream);
+        if (t.kind === 'audio') {
+          audioSendersRef.current.set(targetUsername, sender);
+          // Already muted before this peer connected (e.g. muted during
+          // the outgoing ring, then a group member joined) — a fresh
+          // sender always starts attached to the real track regardless of
+          // isMicOn, so bring it in line immediately rather than briefly
+          // sending live audio to this one peer.
+          if (!t.enabled) sender.replaceTrack(null).catch(() => {});
+        }
+      });
       broadcastState(callId);
     }
 
@@ -878,6 +896,7 @@ export function CallProvider({ children }) {
     const pc = pcsRef.current.get(username);
     if (pc) { try { pc.close(); } catch {} }
     pcsRef.current.delete(username);
+    audioSendersRef.current.delete(username);
     remoteStreamsRef.current.delete(username);
     iceBuffersRef.current.delete(username);
     connectPromisesRef.current.delete(username);
@@ -1157,12 +1176,26 @@ export function CallProvider({ children }) {
     socketRef.current.emit('call:add-member', { callId: cs.callId, newMemberUsername: username.toLowerCase() });
   }, []);
 
-  const toggleMic = useCallback(() => {
+  const toggleMic = useCallback(async () => {
     const stream = localStreamRef.current;
     const cs = callStateRef.current;
-    if (!stream) return;
-    stream.getAudioTracks().forEach(t => { t.enabled = !t.enabled; });
-    const nowOn = stream.getAudioTracks().some(t => t.enabled);
+    const audioTrack = stream?.getAudioTracks()[0];
+    if (!stream || !audioTrack) return;
+    const nowOn = !audioTrack.enabled;
+    audioTrack.enabled = nowOn;
+    // Real enforcement beyond track.enabled=false: on some Android WebView/
+    // chipset combinations, a track that's merely disabled hasn't reliably
+    // kept sending silence through an already-established sender, especially
+    // right after an unrelated renegotiation on the same peer connection
+    // (e.g. toggleCamera adding a video track) — reported as "muted but the
+    // other person could still hear me" specifically after turning video on.
+    // replaceTrack(null) detaches the RTP sender from producing ANY audio
+    // packets at all while muted, which nothing else on the connection can
+    // silently undo; replaceTrack(audioTrack) re-attaches the SAME track
+    // object on unmute so echo-cancellation/AGC state isn't reset.
+    for (const sender of audioSendersRef.current.values()) {
+      try { await sender.replaceTrack(nowOn ? audioTrack : null); } catch {}
+    }
     setIsMicOn(nowOn);
     if (cs) broadcastState(cs.callId);
   }, []);

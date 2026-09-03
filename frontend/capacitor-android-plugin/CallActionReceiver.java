@@ -4,6 +4,7 @@ import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -13,8 +14,12 @@ import java.nio.charset.StandardCharsets;
 
 // Handles the incoming-call notification's Decline button and the
 // ongoing-call notification's Hang Up button entirely in the background —
-// no Activity, no bringing the app to the foreground at all. Both used to
-// be PendingIntent.getActivity() (Decline via IncomingCallActivity's
+// no Activity, no bringing the app to the foreground at all. Also handles
+// the Answer button's ACTION_ANSWER_PING — that one DOES still launch the
+// app (answering needs real WebRTC, which only exists in the JS/WebView
+// layer), but fires a background extend-ring ping first, before the launch
+// even starts (see that branch below and the /extend-ring route). Decline/
+// End used to be PendingIntent.getActivity() (Decline via IncomingCallActivity's
 // EXTRA_AUTO_DECLINE cold-launch, End via the sahaplay://call-end deep
 // link), and EVERY getActivity() PendingIntent — even one that resolves to
 // an Activity which finishes itself instantly — briefly resumes/launches
@@ -39,6 +44,10 @@ public class CallActionReceiver extends BroadcastReceiver {
 
     public static final String ACTION_DECLINE = "com.sahaplay.app.action.DECLINE_CALL";
     public static final String ACTION_END = "com.sahaplay.app.action.END_CALL";
+    // Fired the instant the notification's Answer button is tapped, before
+    // the (possibly cold-starting) app has even launched — see the matching
+    // comment on this class and on the /extend-ring route it hits.
+    public static final String ACTION_ANSWER_PING = "com.sahaplay.app.action.ANSWER_PING";
     public static final String EXTRA_CALL_ID = "callId";
     // Whichever account is declining (see IncomingCallActivity.EXTRA_CALLEE
     // for why this must be THIS device's own username, not the caller's) or
@@ -49,13 +58,37 @@ public class CallActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         String callId = intent.getStringExtra(EXTRA_CALL_ID);
-        String username = intent.getStringExtra(EXTRA_USERNAME);
-        if (callId == null || username == null) return;
+        if (callId == null) return;
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(callId.hashCode());
 
         String action = intent.getAction();
+
+        // Answer is fundamentally different from Decline/End: it can't
+        // happen over REST at all (real getUserMedia/RTCPeerConnection only
+        // exists once the JS/WebView layer is alive), so this can't just
+        // stay backgrounded the way Decline/End do. It still needs to launch
+        // the app via the same sahaplay://call-answer deep link the old
+        // getActivity() PendingIntent used directly — the difference is this
+        // fires the extend-ring ping FIRST, in the background, before that
+        // launch even starts, buying the cold-starting app some runway
+        // against CALL_RING_TIMEOUT_MS. Returns immediately after — none of
+        // the Decline/End bookkeeping below (call-log username requirement,
+        // notifyNativeCallEnded) applies to answering.
+        if (ACTION_ANSWER_PING.equals(action)) {
+            postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/extend-ring", "{}");
+            Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
+            Intent viewIntent = new Intent(Intent.ACTION_VIEW, uri);
+            viewIntent.setPackage(context.getPackageName());
+            viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try { context.startActivity(viewIntent); } catch (Exception ignored) {}
+            return;
+        }
+
+        String username = intent.getStringExtra(EXTRA_USERNAME);
+        if (username == null) return;
+
         if (ACTION_DECLINE.equals(action)) {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/decline",
                 "{\"calleeUsername\":\"" + escapeJson(username) + "\"}");

@@ -360,12 +360,17 @@ public class IncomingCallActivity extends android.app.Activity {
     // uses (see the instance answer() method below) — factored out so the
     // notification's own Answer action can go straight there too, with no
     // intermediate ring-screen prompt.
+    // Routed through CallActionReceiver (a background BroadcastReceiver, not
+    // a direct getActivity() PendingIntent) so the /extend-ring ping fires
+    // BEFORE the app launch even starts — see ACTION_ANSWER_PING there and
+    // the matching comment on backend/server.js's /extend-ring route. The
+    // receiver itself does the actual sahaplay://call-answer launch right
+    // after firing that ping.
     private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags) {
-        Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        intent.setPackage(ctx.getPackageName());
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        return PendingIntent.getActivity(ctx, callId.hashCode() ^ 2, intent, piFlags);
+        Intent intent = new Intent(ctx, CallActionReceiver.class);
+        intent.setAction(CallActionReceiver.ACTION_ANSWER_PING);
+        intent.putExtra(CallActionReceiver.EXTRA_CALL_ID, callId);
+        return PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 2, intent, piFlags);
     }
 
     // Tracks whichever instance of this Activity is currently on screen, if
@@ -806,6 +811,14 @@ public class IncomingCallActivity extends android.app.Activity {
     // unlikely case no live Connection is found (e.g. this Activity was
     // somehow reached a different way) — degraded, but still answerable.
     private void answer() {
+        // This Activity being on screen at all (via the full-screen intent)
+        // doesn't mean the separate JS/WebView layer has finished cold-
+        // starting yet — extend the server's ring window before handing off,
+        // same reasoning as CallActionReceiver's ACTION_ANSWER_PING for the
+        // notification's own Answer action (see backend/server.js's
+        // /extend-ring route). Harmless if the app was already warm and this
+        // was never needed.
+        postExtendRing(callId);
         SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
         if (conn != null) {
             conn.answerFromUi();
@@ -858,6 +871,25 @@ public class IncomingCallActivity extends android.app.Activity {
                     os.write(body.getBytes(StandardCharsets.UTF_8));
                 }
                 conn.getResponseCode(); // force the request to actually execute
+                conn.disconnect();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private static void postExtendRing(String callId) {
+        new Thread(() -> {
+            try {
+                URL url = new URL(API_BASE + "/api/calls/" + Uri.encode(callId) + "/extend-ring");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write("{}".getBytes(StandardCharsets.UTF_8));
+                }
+                conn.getResponseCode();
                 conn.disconnect();
             } catch (Exception ignored) {}
         }).start();
