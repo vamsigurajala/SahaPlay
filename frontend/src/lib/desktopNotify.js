@@ -51,21 +51,46 @@ export function ensureDesktopNotifyPermission() {
   }
 }
 
+// Exposed so AppSettings.jsx can show real status ("Windows notifications
+// are off for SahaPlay") instead of a fix that silently no-ops forever —
+// requestPermission() only re-prompts once per install on Windows; if the
+// user (or Windows' own default) already denied it, the only way back is
+// the OS Settings app itself, which openWindowsNotificationSettings below
+// opens directly.
+export async function getTauriNotifyPermissionStatus() {
+  if (!isTauriApp()) return null;
+  const mod = await getTauriNotify();
+  if (!mod) return 'unsupported';
+  try {
+    return (await mod.isPermissionGranted()) ? 'granted' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+export function openWindowsNotificationSettings() {
+  if (!isTauriApp()) return;
+  import('@tauri-apps/plugin-opener')
+    .then((mod) => mod.openUrl('ms-settings:notifications'))
+    .catch(() => {});
+}
+
+function sendTauriNotification(title, body) {
+  getTauriNotify().then(async (mod) => {
+    if (!mod) return;
+    const granted = await mod.isPermissionGranted();
+    if (!granted) return;
+    mod.sendNotification({ title, body });
+  }).catch(() => {});
+}
+
 export function showDesktopNotification(title, body, tag) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
   // Window/tab is visible AND focused — an in-page UI already covers this;
   // showing an OS notification too would just be a redundant duplicate.
   if (!document.hidden && document.hasFocus()) return;
-  if (isTauriApp()) {
-    getTauriNotify().then(async (mod) => {
-      if (!mod) return;
-      const granted = await mod.isPermissionGranted();
-      if (!granted) return;
-      mod.sendNotification({ title, body });
-    }).catch(() => {});
-    return null;
-  }
+  if (isTauriApp()) { sendTauriNotification(title, body); return null; }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
   try {
@@ -75,4 +100,14 @@ export function showDesktopNotification(title, body, tag) {
   } catch {
     return null;
   }
+}
+
+// Settings screen's "Send a test notification" button — deliberately skips
+// the visible/focused check above (the user is, by definition, looking
+// straight at the app when they tap this), unlike every other call site
+// here which only ever fires for a backgrounded/unfocused window.
+export function sendTestDesktopNotification(title, body) {
+  if (isTauriApp()) { sendTauriNotification(title, body); return; }
+  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try { new Notification(title, { body, icon: '/logos/trans_appletouch.png' }); } catch {}
 }

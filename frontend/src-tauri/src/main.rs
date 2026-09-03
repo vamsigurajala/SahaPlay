@@ -24,6 +24,13 @@ fn main() {
         // way Tauri apps are documented to do it. See desktopNotify.js, which
         // routes through this plugin specifically when running under Tauri.
         .plugin(tauri_plugin_notification::init())
+        // Lets the app open ms-settings:notifications directly — used when
+        // the OS-level notification toggle for SahaPlay is off, so "fix it
+        // for me" from inside our own Settings screen actually takes the
+        // user to the one place that can fix it (the app itself can't grant
+        // its own OS notification permission, only Windows' own Settings UI
+        // can flip that toggle).
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

@@ -14,6 +14,7 @@ import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA, isCapacitorApp } from './lib/platform';
+import { getTauriNotifyPermissionStatus, openWindowsNotificationSettings, sendTestDesktopNotification } from './lib/desktopNotify';
 import { requestMediaAccess } from './lib/mediaPermissionGate';
 import { ensureWebPushSubscription } from './lib/webPushSubscribe';
 import { NOTIFICATION_TONE_LIST, playNotificationTone } from './lib/notificationSounds';
@@ -436,6 +437,15 @@ const AppSettings = () => {
   const [browserNotifPermission, setBrowserNotifPermission] = useState(
     (typeof window !== 'undefined' && 'Notification' in window) ? Notification.permission : 'unsupported'
   );
+  // The plain Notification.permission above isn't meaningful inside the
+  // Tauri desktop app (see desktopNotify.js) — real status has to come from
+  // the native plugin instead, which is the only thing that actually knows
+  // whether Windows' own notification toggle for SahaPlay is on.
+  const [desktopNotifyStatus, setDesktopNotifyStatus] = useState(null);
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    getTauriNotifyPermissionStatus().then(setDesktopNotifyStatus).catch(() => {});
+  }, []);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [openSection, setOpenSection] = useState('general');
   const [expiryReminders, setExpiryReminders] = useState(() => localStorage.getItem('expiry_reminders') !== 'false');
@@ -2026,7 +2036,12 @@ const AppSettings = () => {
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <NotifRowText id="call" title={t('callNotifications', 'Call Notifications')} desc={t('whenSomeoneCalls', 'Incoming and missed calls')} />
-                    {!isCapacitorApp() && browserNotifPermission !== 'unsupported' && browserNotifPermission !== 'granted' && (
+                    {/* The plain Notification API's permission isn't a
+                        meaningful signal inside the Tauri desktop app (it
+                        goes through a separate native plugin instead — see
+                        desktopNotifyStatus below), so this hint is scoped to
+                        everywhere else. */}
+                    {!isCapacitorApp() && !isDesktopApp && browserNotifPermission !== 'unsupported' && browserNotifPermission !== 'granted' && (
                       <button
                         onClick={requestBrowserCallAlerts}
                         style={{
@@ -2038,6 +2053,36 @@ const AppSettings = () => {
                         {browserNotifPermission === 'denied'
                           ? t('browserAlertsBlockedHint', 'Notifications blocked — tap for how to enable')
                           : t('enableBrowserAlerts', 'Enable browser alerts on this device')}
+                      </button>
+                    )}
+                    {/* Desktop app: real status from the native plugin, with
+                        a direct path to actually fix it — the app can't
+                        grant its own OS notification permission, only
+                        Windows' own Settings page can, so "enable" here
+                        means opening that page for the user rather than
+                        pretending a plain requestPermission() would work. */}
+                    {isDesktopApp && (desktopNotifyStatus === 'denied' || desktopNotifyStatus === 'unsupported') && (
+                      <button
+                        onClick={openWindowsNotificationSettings}
+                        style={{
+                          marginTop: 6, background: 'none', border: 'none', padding: 0,
+                          color: '#f59e0b', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {t('desktopNotifsBlockedHint', 'Windows notifications are off for SahaPlay — tap to open Settings')}
+                      </button>
+                    )}
+                    {isDesktopApp && desktopNotifyStatus === 'granted' && (
+                      <button
+                        onClick={() => sendTestDesktopNotification(t('testNotifTitle', 'Test notification'), t('testNotifBody', 'This is what call and message alerts look like'))}
+                        style={{
+                          marginTop: 6, background: 'none', border: 'none', padding: 0,
+                          color: 'var(--brand-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {t('sendTestNotif', 'Send a test notification')}
                       </button>
                     )}
                   </div>
