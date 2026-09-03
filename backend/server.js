@@ -7275,6 +7275,17 @@ io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
   // Register in global map if authenticated
   if (socket.username) registerSocket(socket.username, socket.id);
+  // A token WAS supplied but jwt.verify rejected it (expired/invalid) — the
+  // io.use middleware above lets the handshake through anyway (some socket
+  // features intentionally allow anonymous/guest connections), so without
+  // this the client sees a normal-looking "connected" socket that can never
+  // send or receive anything keyed by username (calls, DMs) — silently dead,
+  // with nothing telling the user to log back in. Only fires when a token
+  // was actually present; a genuinely anonymous/guest connection is expected
+  // to have no username and shouldn't be flagged as an error.
+  else if (socket.handshake.auth?.token) {
+    socket.emit('auth:invalid');
+  }
 
   // Call resync: this socket may be a brand-new app launch (e.g. the user
   // tapped an incoming-call push notification after the app was backgrounded

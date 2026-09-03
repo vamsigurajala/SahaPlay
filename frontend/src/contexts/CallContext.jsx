@@ -242,7 +242,16 @@ export function CallProvider({ children }) {
     if (!token || token === 'null' || token === 'undefined' || isGuest || !cryptoReady) return;
     if (socketRef.current) return;
 
-    const sock = io(API, { auth: { token }, transports: ['websocket', 'polling'] });
+    // `auth` as a function (not a static object) re-reads localStorage on
+    // every reconnect attempt, not just the first connect — matters most for
+    // a long-lived session that's never fully reloaded (e.g. the Tauri
+    // desktop app, which hides-not-destroys its window on close so this
+    // effect can go weeks without re-running). A stale captured token here
+    // would silently authenticate a reconnect with an old/expired value,
+    // leaving socket.username unset server-side and this device unable to
+    // send or receive ANY call — with no visible error, since the socket
+    // still "connects" successfully at the transport level either way.
+    const sock = io(API, { auth: (cb) => cb({ token: localStorage.getItem('watch_token') }), transports: ['websocket', 'polling'] });
     socketRef.current = sock;
     ensureDesktopNotifyPermission();
     // Covers the browser-fully-closed case Notification-API-from-a-live-tab
@@ -250,6 +259,16 @@ export function CallProvider({ children }) {
     // open at all. Only does real work once permission is already granted
     // and there's no existing subscription yet; safe/no-op otherwise.
     ensureWebPushSubscription(token);
+
+    // Server confirms our token was rejected (expired/invalid) — the socket
+    // still looks "connected" but can't send or receive calls (or anything
+    // else keyed by username). Surface it instead of leaving calling
+    // silently dead with no explanation — see the matching comment on
+    // server.js's io.on('connection').
+    sock.on('auth:invalid', () => {
+      console.warn('[Call] socket authentication failed — token expired or invalid; calls will not work until re-login');
+      toast.error('Your session has expired — please log out and log back in to receive calls');
+    });
 
     sock.on('call:incoming', async ({ callId, callerUsername, callType, groupParticipants }) => {
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.
@@ -308,16 +327,19 @@ export function CallProvider({ children }) {
 
     sock.on('call:invalid', ({ callId, reason }) => {
       if (callStateRef.current?.callId !== callId) return;
-      if (reason === 'not_friends') toast('You can only add mutual friends to a call');
-      else if (reason === 'blocked') toast('Could not add that person to the call');
-      else if (reason === 'already_in_call') toast('They’re already in this call');
-      // These two are specifically an Answer/Join tap getting rejected after
-      // acceptCall() already optimistically flipped the UI to "active" — see
-      // the matching comment in server.js's call:accept. Without a message
-      // here, that screen just silently vanished with no explanation, which
-      // read as "I tapped Answer and nothing happened" (most often: a
-      // different device of the same account answered first).
-      else if (reason === 'already_active') toast.error('This call was already answered on another device');
+      // add-to-call rejections (not_friends/blocked/already_in_call) mean
+      // MY attempt to add someone failed — the call I'm already on is still
+      // live and connected, so just show why and keep the call going. Only
+      // already_active/call_gone mean the call itself is gone from under me
+      // (an Answer/Join tap rejected after acceptCall() already optimistically
+      // flipped the UI to "active" — see the matching comment in
+      // server.js's call:accept — most often a different device of the same
+      // account answered first) and those are the only cases that should
+      // tear down the local call UI.
+      if (reason === 'not_friends') { toast('You can only add mutual friends to a call'); return; }
+      if (reason === 'blocked') { toast('Could not add that person to the call'); return; }
+      if (reason === 'already_in_call') { toast('They’re already in this call'); return; }
+      if (reason === 'already_active') toast.error('This call was already answered on another device');
       else if (reason === 'call_gone') toast.error('This call has ended');
       teardownCall();
     });
