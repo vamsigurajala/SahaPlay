@@ -7659,9 +7659,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
               </button>
               <EyeOff size={14} color="var(--brand-1-light)" />
               <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brand-1-light)', flex: 1 }}>
-                Hidden Chats {hiddenChats.length > 0 ? `(${hiddenChats.length})` : ''}
+                {t('hiddenChats', 'Hidden Chats')} {hiddenChats.length > 0 ? `(${hiddenChats.length})` : ''}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--header-btn)' }}>Tap a chat to open</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--header-btn)' }}>{t('tapChatToOpen', 'Tap a chat to open')}</span>
             </div>
           )}
 
@@ -7722,8 +7722,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
               ) : showHiddenChats ? (
                 <>
                   <EyeOff size={28} color="var(--header-btn)" />
-                  <div style={{ fontSize: 14, color: 'var(--header-btn)' }}>No hidden chats</div>
-                  <div style={{ fontSize: 12, color: 'var(--menu-icon)' }}>Chats you hide will appear here</div>
+                  <div style={{ fontSize: 14, color: 'var(--header-btn)' }}>{t('noHiddenChats', 'No hidden chats')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--menu-icon)' }}>{t('hiddenChatsEmptyDesc', 'Chats you hide will appear here')}</div>
                 </>
               ) : (
                 <div style={{ color: 'var(--header-btn)' }}>No recent chats.</div>
