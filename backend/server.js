@@ -1123,6 +1123,41 @@ function endCallInternal(callId) {
   return call;
 }
 
+// Periodic safety net for in-memory call state that somehow never went
+// through any of the normal accept/decline/end/disconnect cleanup paths
+// above — every one of those paths already clears both activeCalls and
+// userActiveCallId correctly, but this exists for whatever edge case none
+// of them anticipated. The most visible symptom of a leak here isn't to
+// the stuck call itself (nobody's listening to it) — it's to the NEXT call
+// either participant tries to make or receive: userActiveCallId still
+// marking them busy makes call:invite/call:add-member reject silently
+// (call:busy / call:member-busy) with the other side never even ringing,
+// which reads as "adding someone to a call does nothing." Runs well past
+// every timeout it checks against, so it can never race a call that's
+// genuinely still ringing or active.
+setInterval(() => {
+  try {
+    const now = Date.now();
+    for (const [callId, call] of activeCalls) {
+      if (call.status === 'ringing' && (now - call.startedAt) > CALL_RING_TIMEOUT_MS * 2) {
+        console.warn('[Call janitor] force-ending a call stuck ringing past its own timeout:', callId);
+        endCallInternal(callId);
+      } else if (call.status === 'active' && !call.caller && !call.callee && (!call.members || call.members.size === 0)) {
+        console.warn('[Call janitor] removing an orphaned, fully-vacated call:', callId);
+        activeCalls.delete(callId);
+      }
+    }
+    for (const [username, callId] of userActiveCallId) {
+      if (!activeCalls.has(callId)) {
+        console.warn('[Call janitor] clearing an orphaned busy flag for', username);
+        userActiveCallId.delete(username);
+      }
+    }
+  } catch (err) {
+    console.error('[Call janitor] sweep error:', err.message);
+  }
+}, 60000);
+
 // Post-accept departure — ANY current participant (original caller,
 // original callee, or an added member, ringing or already joined) leaving
 // or being removed goes through here. Removes just that one person; the
