@@ -950,6 +950,28 @@ export function CallProvider({ children }) {
     }
   }
 
+  // Guaranteed-delivery backup for ending a call, alongside (not instead of)
+  // the real-time socket emit — mirrors the exact reliability pattern the
+  // native Android side already uses (CallActionReceiver.java /
+  // CallEngineService.declineIncomingCall, both REST-only, deliberately not
+  // socket-dependent) for its own decline/hang-up buttons. A socket.emit()
+  // is fire-and-forget with no ack/retry — if that one message is dropped
+  // for any reason (a momentary hiccup on either side's connection), there
+  // was previously nothing else telling the other party the call ended, so
+  // their screen just sat there "ringing"/"connected" indefinitely. A plain
+  // POST with a real HTTP response doesn't have that failure mode, and the
+  // server-side handlers are idempotent (activeCalls.get(callId) already
+  // gone/changed is a normal no-op) — safe to fire both unconditionally.
+  function postCallActionRest(path, body) {
+    const token = localStorage.getItem('watch_token');
+    if (!token) return;
+    fetch(`${API}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }
+
   function teardownCall() {
     clearPendingNativeCallAnswer();
     stopNativeCallService();
@@ -1056,6 +1078,10 @@ export function CallProvider({ children }) {
       socketRef.current?.emit('call:decline', { callId: cs.callId });
       writeCallLog(cs, 'declined');
     }
+    // Same REST endpoint handles both shapes — a core callee declining
+    // (call.callee match) and a group invitee declining before joining
+    // (call.members match, see the route's own two branches).
+    postCallActionRest(`/api/calls/${cs.callId}/decline`, { calleeUsername: myUsername });
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1064,6 +1090,7 @@ export function CallProvider({ children }) {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'outgoing') return;
     socketRef.current?.emit('call:cancel', { callId: cs.callId });
+    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsername });
     writeCallLog(cs, 'missed');
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1089,6 +1116,7 @@ export function CallProvider({ children }) {
     const cs = callStateRef.current;
     if (!cs) return;
     socketRef.current?.emit('call:end', { callId: cs.callId });
+    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsername });
     // peerUsername means "the original other party" for a core caller/
     // callee, or "whoever invited me" for an added member — either way,
     // this is always the one relationship this call's own state directly
