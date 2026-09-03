@@ -17,6 +17,13 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
+        // The plain Web `Notification` API doesn't reliably surface as a real
+        // Windows toast from an unpackaged WebView2 host (no registered AUMID)
+        // — confirmed by testing, not just a theoretical risk. This plugin
+        // talks to the native Windows notification system directly, the same
+        // way Tauri apps are documented to do it. See desktopNotify.js, which
+        // routes through this plugin specifically when running under Tauri.
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

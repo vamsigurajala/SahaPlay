@@ -1,4 +1,4 @@
-import { isCapacitorApp } from './platform';
+import { isCapacitorApp, isTauriApp } from './platform';
 
 // Desktop-browser equivalent of the native app's push notifications — an
 // in-page toast only helps while the relevant tab is actually visible, so
@@ -13,12 +13,39 @@ import { isCapacitorApp } from './platform';
 // Originally lived only in GlobalChatWidget.jsx (chat messages); extracted
 // here so CallContext.jsx can reuse the exact same permission/gating logic
 // for incoming and missed calls instead of duplicating it.
+//
+// Inside the Tauri desktop app, the plain Web `Notification` API does NOT
+// reliably produce a real Windows toast — WebView2 hosts that aren't
+// registered with an Application User Model ID largely swallow it, either
+// silently or with no OS-level identity to attach the toast to. Confirmed
+// by testing (not just a theoretical risk), so the Tauri build routes
+// through `@tauri-apps/plugin-notification` instead, which talks to the
+// native Windows notification system directly. Same package.json/frontend
+// bundle serves both plain browsers and the Tauri shell (tauri.conf.json's
+// window just loads https://sahaplay.com), so this file has to branch at
+// runtime rather than being two separate builds.
 let desktopNotifyPermissionRequested = false;
+let tauriNotifyModPromise = null;
+
+function getTauriNotify() {
+  if (!tauriNotifyModPromise) {
+    tauriNotifyModPromise = import('@tauri-apps/plugin-notification').catch(() => null);
+  }
+  return tauriNotifyModPromise;
+}
 
 export function ensureDesktopNotifyPermission() {
   if (isCapacitorApp() || desktopNotifyPermissionRequested) return;
-  if (typeof window === 'undefined' || !('Notification' in window)) return;
   desktopNotifyPermissionRequested = true;
+  if (isTauriApp()) {
+    getTauriNotify().then(async (mod) => {
+      if (!mod) return;
+      const granted = await mod.isPermissionGranted();
+      if (!granted) await mod.requestPermission();
+    }).catch(() => {});
+    return;
+  }
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission === 'default') {
     Notification.requestPermission().catch(() => {});
   }
@@ -26,11 +53,21 @@ export function ensureDesktopNotifyPermission() {
 
 export function showDesktopNotification(title, body, tag) {
   if (isCapacitorApp()) return;
+  if (typeof document === 'undefined') return;
+  // Window/tab is visible AND focused — an in-page UI already covers this;
+  // showing an OS notification too would just be a redundant duplicate.
+  if (!document.hidden && document.hasFocus()) return;
+  if (isTauriApp()) {
+    getTauriNotify().then(async (mod) => {
+      if (!mod) return;
+      const granted = await mod.isPermissionGranted();
+      if (!granted) return;
+      mod.sendNotification({ title, body });
+    }).catch(() => {});
+    return null;
+  }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
-  // Tab is visible AND focused — an in-page UI already covers this; showing
-  // an OS notification too would just be a redundant duplicate.
-  if (!document.hidden && document.hasFocus()) return;
   try {
     const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
     n.onclick = () => { window.focus(); n.close(); };

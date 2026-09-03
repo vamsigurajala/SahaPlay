@@ -1,9 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window — remote-URL shell, no extra native APIs needed",
+  "description": "Capability for the main window — remote-URL shell, plus native desktop notifications for calls/messages",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "notification:default"
   ]
 }
