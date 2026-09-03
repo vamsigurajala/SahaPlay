@@ -193,6 +193,174 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
   );
 }
 
+// Desktop/laptop equivalent of MinimizedCallBar above — a small circular
+// "chat head" style bubble (Messenger-style) instead of a bar stretched
+// across the full window width, which on a wide laptop window sat directly
+// over the app's own top nav bar. Draggable anywhere on screen and snaps to
+// whichever side edge it's closer to on release, with its position
+// remembered across minimizes (not calls — see BUBBLE_POS_KEY) via
+// localStorage. Only used for non-coarse-pointer (mouse/trackpad) viewports;
+// touch devices keep the existing full-width bar, which was never reported
+// as a problem there.
+const BUBBLE_POS_KEY = 'sp_call_bubble_pos';
+const BUBBLE_SIZE = 60;
+const BUBBLE_MARGIN = 14;
+
+function clampBubblePos(pos) {
+  const maxX = Math.max(BUBBLE_MARGIN, window.innerWidth - BUBBLE_SIZE - BUBBLE_MARGIN);
+  const maxY = Math.max(BUBBLE_MARGIN, window.innerHeight - BUBBLE_SIZE - BUBBLE_MARGIN);
+  return {
+    x: Math.min(Math.max(pos.x, BUBBLE_MARGIN), maxX),
+    y: Math.min(Math.max(pos.y, BUBBLE_MARGIN), maxY),
+  };
+}
+
+function loadBubblePos() {
+  try {
+    const raw = localStorage.getItem(BUBBLE_POS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.x === 'number' && typeof parsed?.y === 'number') return clampBubblePos(parsed);
+    }
+  } catch {}
+  return clampBubblePos({ x: window.innerWidth - BUBBLE_SIZE - BUBBLE_MARGIN, y: 84 });
+}
+
+function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall }) {
+  const [durationSecs, setDurationSecs] = useState(0);
+  useEffect(() => {
+    if (!callState.answeredAt) return;
+    const tick = () => setDurationSecs(Math.floor((Date.now() - callState.answeredAt) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [callState.answeredAt]);
+
+  const [pos, setPos] = useState(loadBubblePos);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const dragRef = useRef(null); // { startX, startY, originX, originY, moved }
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setPos(p => clampBubblePos(p));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const savePos = (next) => {
+    try { localStorage.setItem(BUBBLE_POS_KEY, JSON.stringify(next)); } catch {}
+  };
+
+  const handlePointerDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return; // left click / primary touch only
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: posRef.current.x, originY: posRef.current.y, moved: false };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const handlePointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) > 5) { d.moved = true; setIsDragging(true); }
+    if (d.moved) setPos(clampBubblePos({ x: d.originX + dx, y: d.originY + dy }));
+  };
+
+  const handlePointerUp = () => {
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerUp);
+    const d = dragRef.current;
+    dragRef.current = null;
+    setIsDragging(false);
+    if (!d) return;
+    if (!d.moved) {
+      // A real click/tap, not a drag — go back to the full call screen.
+      onRestore();
+      return;
+    }
+    // Chat-head style: settle against whichever side of the window it ended
+    // up closer to, rather than leaving it floating mid-screen.
+    setPos((p) => {
+      const snapped = clampBubblePos({
+        x: (p.x + BUBBLE_SIZE / 2) < window.innerWidth / 2 ? BUBBLE_MARGIN : window.innerWidth - BUBBLE_SIZE - BUBBLE_MARGIN,
+        y: p.y,
+      });
+      savePos(snapped);
+      return snapped;
+    });
+  };
+
+  const isPoor = networkStatus === 'poor';
+  const statusColor = isPoor ? '#f59e0b' : '#22c55e';
+  const label = callState.peerDisplayName || callState.peerUsername;
+  const statusText = isPoor ? 'Poor connection' : (callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…');
+
+  return (
+    <>
+      <style>{`
+        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.75; } }
+        .gco-avatar-pulse { animation: gco-pulse-mini 1.6s infinite ease-in-out; }
+        .gco-bubble:hover .gco-bubble-tooltip { opacity: 1; transform: translateY(0); }
+      `}</style>
+      <div
+        onPointerDown={handlePointerDown}
+        title={`${label} — tap to return, drag to move`}
+        className="gco-bubble"
+        style={{
+          position: 'fixed', left: pos.x, top: pos.y, zIndex: 2147483500,
+          width: BUBBLE_SIZE, height: BUBBLE_SIZE, borderRadius: '50%',
+          cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none',
+          boxShadow: isDragging
+            ? '0 14px 32px rgba(0,0,0,0.4)'
+            : '0 8px 22px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,255,255,0.12)',
+          transition: isDragging ? 'none' : 'box-shadow 0.15s ease, transform 0.15s ease',
+          transform: isDragging ? 'scale(1.05)' : 'scale(1)',
+          userSelect: 'none',
+        }}
+      >
+        <Avatar url={callState.peerAvatar} name={label} size={BUBBLE_SIZE} />
+        <div style={{
+          position: 'absolute', top: -3, right: -3, width: 13, height: 13, borderRadius: '50%',
+          background: statusColor, border: '2.5px solid #171821', boxShadow: `0 0 6px ${statusColor}`,
+        }} className={isPoor ? '' : 'gco-avatar-pulse'} />
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onEndCall(); }}
+          title="End call"
+          style={{
+            position: 'absolute', bottom: -4, right: -4, width: 22, height: 22, borderRadius: '50%', border: '2px solid #171821',
+            background: 'linear-gradient(160deg, #f87171, #ef4444)', boxShadow: '0 2px 6px rgba(239,68,68,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+          }}
+        >
+          <PhoneOff size={11} color="#fff" />
+        </button>
+        {/* Small label that appears just under the bubble on hover — the
+            bubble itself is too small to show name/duration text at rest,
+            same info the mobile bar always shows inline. */}
+        <div
+          className="gco-bubble-tooltip"
+          style={{
+            position: 'absolute', top: '100%', left: '50%', transform: 'translate(-50%, -4px)',
+            marginTop: 8, padding: '6px 10px', borderRadius: 10, whiteSpace: 'nowrap',
+            background: 'rgba(20,21,31,0.95)', border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 8px 20px rgba(0,0,0,0.4)', pointerEvents: 'none',
+            opacity: 0, transition: 'opacity 0.15s ease, transform 0.15s ease',
+          }}
+        >
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 12.5 }}>{label}</div>
+          <div style={{ color: isPoor ? '#f59e0b' : 'rgba(255,255,255,0.65)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {isPoor && <WifiOff size={10} color="#f59e0b" />}
+            {statusText}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function GlobalCallOverlay() {
   const call = useCall();
   const { callState } = call;
@@ -307,8 +475,9 @@ export default function GlobalCallOverlay() {
   };
 
   if (minimized) {
+    const Minimized = isCoarsePointer ? MinimizedCallBar : DraggableCallBubble;
     return (
-      <MinimizedCallBar
+      <Minimized
         callState={callState}
         networkStatus={call.networkStatus}
         onRestore={() => setMinimized(false)}
