@@ -587,8 +587,21 @@ export function CallProvider({ children }) {
 
     // ─── Group calling ("Add to call") ───
     // Someone else in the call invited a new person — nothing to connect to
-    // yet (they haven't joined), this is purely informational.
-    sock.on('call:member-invited', () => {});
+    // yet (they haven't joined), but adds a "Ringing…" placeholder tile
+    // (no stream yet — see getRemoteParticipants, which derives ringing vs.
+    // connected purely from stream presence) so everyone already on the
+    // call sees the invite happen in real time, not just the person who
+    // sent it.
+    sock.on('call:member-invited', async ({ callId, username }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || !username || username === myUsername) return;
+      const brief = await fetchUserBrief(username);
+      setCallState(prev => {
+        if (!prev || prev.callId !== callId) return prev;
+        if ((prev.groupMembers || []).some(m => m.username === username)) return prev;
+        return { ...prev, groupMembers: [...(prev.groupMembers || []), { username, displayName: brief?.displayName || username, avatarUrl: brief?.avatarUrl || null }] };
+      });
+    });
 
     // A person I (or someone else) invited has joined — I wait for THEM to
     // send me an offer (handled by the generic call:offer handler above,
@@ -662,12 +675,46 @@ export function CallProvider({ children }) {
       toast(`${username} is on another call`);
     });
 
+    // Self-heal for the periodic roster poll below — reconciles against
+    // whoever the server currently, authoritatively considers active on
+    // this call. Only prunes people this client actually has/had a real
+    // peer connection to; a "Ringing…" placeholder (not yet joined) is
+    // expected to be absent from this list and is left alone.
+    sock.on('call:roster', ({ callId, exists, participants }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId) return;
+      if (!exists) { endCall(); return; }
+      const authoritative = new Set(participants);
+      const staleUsernames = [...pcsRef.current.keys()].filter(u => !authoritative.has(u));
+      if (staleUsernames.length === 0) return;
+      staleUsernames.forEach(u => closePeerConnection(u));
+      const remainingMembers = (cs.groupMembers || []).filter(m => !staleUsernames.includes(m.username));
+      const peerGone = !cs.isGroupJoin && cs.peerUsername && staleUsernames.includes(cs.peerUsername);
+      if (peerGone && remainingMembers.length === 0) { endCall(); return; }
+      setCallState(prev => (prev ? { ...prev, groupMembers: remainingMembers } : prev));
+    });
+
     return () => {
       sock.disconnect();
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cryptoReady]);
+
+  // Drives the call:roster self-heal above — asks the server "who's
+  // actually still on this call?" every 12s while active. Deliberately a
+  // poll rather than something event-triggered: the whole point is
+  // catching cases where an event-driven signal (call:member-left,
+  // call:ended) never arrived in the first place, so nothing here can
+  // depend on one having fired correctly.
+  useEffect(() => {
+    if (!callState || callState.phase !== 'active') return;
+    const callId = callState.callId;
+    const interval = setInterval(() => {
+      socketRef.current?.emit('call:get-roster', { callId });
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [callState?.callId, callState?.phase]);
 
   // ─── Native "Answer" deep link (see nativeCallBridge.js / IncomingCallActivity.java) ───
   // Tapping Answer on the lock-screen call UI can't itself join the call (no
@@ -1177,10 +1224,22 @@ export function CallProvider({ children }) {
   // (private chats only, per the product ask) calls this, already filtered
   // to mutual friends isn't required client-side since the server enforces
   // it anyway (same areFriends/block checks call:invite already used).
-  const addMemberToCall = useCallback((username) => {
+  const addMemberToCall = useCallback((username, displayName, avatarUrl) => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'active' || !socketRef.current || !username) return;
-    socketRef.current.emit('call:add-member', { callId: cs.callId, newMemberUsername: username.toLowerCase() });
+    const uname = username.toLowerCase();
+    socketRef.current.emit('call:add-member', { callId: cs.callId, newMemberUsername: uname });
+    // Optimistic placeholder tile, shown as "Ringing…" (no stream yet — see
+    // getRemoteParticipants/OneOnOneCallScreen.jsx, which render purely off
+    // stream presence) until call:member-joined replaces it with a real
+    // connection. Without this, the person who just tapped "add" saw no
+    // change at all beyond the picker sheet's own icon until the invitee
+    // actually answered, which read as "did that even do anything."
+    setCallState(prev => {
+      if (!prev || prev.callId !== cs.callId) return prev;
+      if ((prev.groupMembers || []).some(m => m.username === uname)) return prev;
+      return { ...prev, groupMembers: [...(prev.groupMembers || []), { username: uname, displayName: displayName || uname, avatarUrl: avatarUrl || null }] };
+    });
   }, []);
 
   const toggleMic = useCallback(() => {

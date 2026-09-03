@@ -9904,7 +9904,39 @@ io.on('connection', (socket) => {
       }).catch(() => {});
     } catch (err) {
       console.error('[SOCKET] call:add-member error:', err.message, 'user:', socket.username);
+      // The busy reservation above (userActiveCallId.set(target, callId))
+      // has to be undone here too, not just on the explicit not_friends/
+      // blocked branches — otherwise an unexpected error mid-handler leaves
+      // `target` permanently marked busy pointing at a call they were never
+      // actually added to (activeCalls itself still exists, so the periodic
+      // janitor's "orphaned busy flag" sweep never catches this — it only
+      // clears flags pointing at a callId that no longer exists at all).
+      if (typeof target === 'string' && userActiveCallId.get(target) === callId && !call?.members.has(target)) {
+        userActiveCallId.delete(target);
+      }
     }
+  });
+
+  // Lightweight self-heal for the group-call grid: any client currently on
+  // an active call can ask "who's actually still on this, right now?" and
+  // reconcile its own UI against the answer. Exists because the normal
+  // signals (call:member-left, call:ended) are a single emitToUser call
+  // each — if the recipient's socket happens to be disconnected at that
+  // exact instant, there's no retry/queue, and (unlike a genuine network
+  // failure) a peer's graceful pc.close() doesn't reliably trigger the
+  // remaining side's own ICE connection state to change at all, so the
+  // give-up watchdog in CallContext.jsx's doConnect never fires either —
+  // nothing was left to catch it. Polled periodically from the client
+  // rather than pushed, deliberately simple: whatever it finds is always
+  // the current truth, no ordering/dedup to get wrong.
+  socket.on('call:get-roster', ({ callId }) => {
+    const call = activeCalls.get(callId);
+    const me = socket.username?.toLowerCase();
+    if (!call || !me || !isActiveCallParticipant(call, me)) {
+      socket.emit('call:roster', { callId, exists: false, participants: [] });
+      return;
+    }
+    socket.emit('call:roster', { callId, exists: true, participants: getCallActiveUsernames(call).filter(u => u !== me) });
   });
 
   // The invited person accepting — tells them who's already there

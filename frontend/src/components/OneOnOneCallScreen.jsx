@@ -15,7 +15,6 @@
 // mesh model (CallContext.jsx) means every tile here really is a direct,
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
-import toast from 'react-hot-toast';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
@@ -450,6 +449,11 @@ export default function OneOnOneCallScreen({
            a plain border rather than a box-shadow glow so it reads clearly
            on both a video tile and a plain avatar-on-dark-background tile. */
         .ooc-tile-speaking { border-color: #22c55e; }
+        .ooc-tile-ringing-dot {
+          width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0;
+          animation: ooc-ringing-pulse 1s infinite ease-in-out;
+        }
+        @keyframes ooc-ringing-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
         .ooc-tile-label {
           position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px;
           background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 700;
@@ -479,20 +483,32 @@ export default function OneOnOneCallScreen({
         />
       ) : (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
-          {remotes.map(r => (
-            <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
-              {r.hasVideo ? (
-                <VideoTile stream={r.stream} muted={false} />
-              ) : (
-                <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={r.micOn} />
-              )}
-              {!r.hasVideo && <AudioRenderer stream={r.stream} />}
-              <div className="ooc-tile-label">
-                {!r.micOn && <MicOff size={11} color="#f87171" />}
-                {r.displayName}
+          {remotes.map(r => {
+            // A member just added via "Add to call" gets a placeholder tile
+            // the instant the invite goes out (see addMemberToCall/
+            // call:member-invited in CallContext.jsx) rather than only
+            // appearing once they actually join — the absence of a stream
+            // is exactly "invited but not connected yet," no separate
+            // status field needed.
+            const isRinging = !r.stream;
+            return (
+              <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
+                {r.hasVideo ? (
+                  <VideoTile stream={r.stream} muted={false} />
+                ) : (
+                  <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={!isRinging && r.micOn} />
+                )}
+                {!r.hasVideo && <AudioRenderer stream={r.stream} />}
+                <div className="ooc-tile-label">
+                  {isRinging ? (
+                    <span className="ooc-tile-ringing-dot" />
+                  ) : (!r.micOn && <MicOff size={11} color="#f87171" />)}
+                  {r.displayName}
+                  {isRinging && <span style={{ opacity: 0.65, fontWeight: 500 }}>&nbsp;· Ringing…</span>}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div className={`ooc-tile${speakingKeys.has('__me__') ? ' ooc-tile-speaking' : ''}`}>
             {isVideo && (isCamOn || isScreenSharing) && localDisplayStream ? (
               <VideoTile stream={localDisplayStream} muted />
@@ -686,7 +702,7 @@ export default function OneOnOneCallScreen({
         <AddToCallSheet
           alreadyInCall={[myUsername, ...remotes.map(r => r.username)]}
           onClose={() => setAddSheetOpen(false)}
-          onAdd={(username) => { addMemberToCall(username); toast(`Ringing ${username}…`); }}
+          onAdd={(p) => { addMemberToCall(p.username, p.displayName, p.avatarUrl); setAddSheetOpen(false); }}
         />
       )}
     </div>

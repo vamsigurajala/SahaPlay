@@ -37,7 +37,7 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
   const handlePick = (p) => {
     if (added.has(p.username)) return;
     setAdded(prev => new Set(prev).add(p.username));
-    onAdd(p.username);
+    onAdd(p);
   };
 
   return (
