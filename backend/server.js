@@ -824,7 +824,7 @@ class SupabaseAdapter {
         'avatarPath', 'notifyApp', 'notifyJoin', 'notifyMessages', 
         'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'showCountry', 'pinnedRooms', 
         'lastSeen', 'firstJoined', 'senderAvatar', 'senderAvatarPath', 'senderMessage', 'myFollowStatus',
-        'mutedChats', 'notifyCalls', 'mutedCallChats'
+        'mutedChats', 'notifyCalls', 'mutedCallChats', 'ringtonePath', 'notifySound'
     ];
     
     const q = String.fromCharCode(34); // actual double-quote character
@@ -1526,6 +1526,7 @@ app.use('/api/upload', uploadLimiter);
 app.use('/api/upload/chat', uploadLimiter);    // A6-F18
 app.use('/api/profile/avatar', uploadLimiter); // A6-F18
 app.use('/api/rooms/thumbnail', uploadLimiter); // A6-F18
+app.use('/api/settings/ringtone', uploadLimiter);
 app.use('/api/chats/send', dmRestLimiter);      // A7-F5
 app.use('/api/stream/', streamLimiter);         // A7-F8
 app.use('/api/profile/check-username', checkUsernameLimiter); // A8-F9
@@ -1720,6 +1721,23 @@ const migrationsReady = (async () => {
   // enforcement point; group calls are out of scope.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "mutedCallChats" TEXT DEFAULT '[]'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] mutedCallChats:', e.message);
+  });
+  // Custom ringtone: a user-uploaded audio file (max ~1 minute, enforced
+  // client-side + a generous server-side size cap) that plays instead of
+  // the default synthesized ring chime when THIS user receives a call —
+  // it's the callee's own setting, not something the caller controls or
+  // even needs to know about, so it's never carried in the call:invite/push
+  // payload at all; each device just fetches its own logged-in user's
+  // current value via GET /api/settings and plays it locally.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "ringtonePath" TEXT`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] ringtonePath:', e.message);
+  });
+  // Which synthesized tone (see frontend/src/lib/notificationSounds.js)
+  // plays on a new message — an id like 'chime'/'ping'/'none', not an
+  // uploaded file the way ringtonePath is; there's no per-file storage
+  // here, just a preference key.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "notifySound" TEXT DEFAULT 'chime'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] notifySound:', e.message);
   });
   // Backfill country_code for existing users who have a country name but no code
   try {
@@ -3768,6 +3786,19 @@ const avatarImageFilter = (req, file, cb) => {
   else cb(Object.assign(new Error('Only image files are allowed for avatars'), { code: 'INVALID_MIME' }), false);
 };
 const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: avatarImageFilter });
+
+// Custom call ringtone — a short user-uploaded audio clip that plays
+// instead of the default ring chime when THIS user receives a call. Size
+// capped generously rather than strictly validating duration server-side
+// (parsing audio duration needs a real decoder, not worth the dependency
+// for a personal-settings upload); the frontend's own file picker enforces
+// the ~1-minute guidance via <audio> metadata before ever uploading.
+const ringtoneAudioFilter = (req, file, cb) => {
+  const allowed = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/webm', 'audio/x-m4a'];
+  if (allowed.includes(file.mimetype)) cb(null, true);
+  else cb(Object.assign(new Error('Only audio files are allowed for a ringtone'), { code: 'INVALID_MIME' }), false);
+};
+const ringtoneUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 }, fileFilter: ringtoneAudioFilter });
 
 // A6-F2: room thumbnail accepts only image types (frontend always sends image/jpeg from canvas crop)
 const thumbnailImageFilter = (req, file, cb) => {
@@ -6162,6 +6193,80 @@ app.post('/api/profile/avatar', authenticateToken, avatarUpload.single('avatar')
   }
 });
 
+// ─── Custom call ringtone upload — replaces the default ring chime for
+// THIS user's own incoming calls. Same single-file-per-user pattern as the
+// avatar upload above (upload new, delete old, store the URL), just backed
+// by the same Supabase bucket the chat media uploader already uses
+// (encrypted-media) rather than the image-only avatars bucket. ───
+app.post('/api/settings/ringtone', authenticateToken, (req, res) => {
+  ringtoneUpload.single('ringtone')(req, res, async (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Ringtone file is too large (8MB max).' });
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    try {
+      const row = await queryGet('SELECT ringtonePath FROM users WHERE id = ?', [req.user.id]);
+      const oldPath = row?.ringtonePath;
+
+      const ext = (path.extname(req.file.originalname) || '.mp3').toLowerCase();
+      const filePath = `ringtones/${req.user.id}-${Date.now()}${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('encrypted-media')
+        .upload(filePath, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+      if (upErr) {
+        console.error('[Ringtone Upload] Supabase upload error:', upErr.message);
+        return res.status(500).json({ error: 'Upload failed' });
+      }
+      const { data: urlData } = supabase.storage.from('encrypted-media').getPublicUrl(filePath);
+      const ringtoneUrl = urlData?.publicUrl;
+      if (!ringtoneUrl) return res.status(500).json({ error: 'Failed to generate public URL' });
+
+      if (oldPath) {
+        const oldFilePath = oldPath.split('/encrypted-media/').pop();
+        if (oldFilePath) {
+          await supabase.storage.from('encrypted-media').remove([oldFilePath]).catch(e2 => {
+            console.error('[Ringtone Upload] cleanup error:', e2.message);
+          });
+        }
+      }
+
+      db.run('UPDATE users SET ringtonePath = ? WHERE id = ?', [ringtoneUrl, req.user.id], (updateErr) => {
+        if (updateErr) return res.status(500).json({ error: 'Database error' });
+        invalidateCacheForUser(req.user.username);
+        res.json({ message: 'Ringtone updated', ringtonePath: ringtoneUrl });
+      });
+    } catch (e) {
+      console.error('[Ringtone Upload] Unexpected error:', e.message);
+      res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+});
+
+// Reverts to the default synthesized ring chime.
+app.post('/api/settings/ringtone/remove', authenticateToken, async (req, res) => {
+  try {
+    const row = await queryGet('SELECT ringtonePath FROM users WHERE id = ?', [req.user.id]);
+    const oldPath = row?.ringtonePath;
+    if (oldPath) {
+      const oldFilePath = oldPath.split('/encrypted-media/').pop();
+      if (oldFilePath) {
+        await supabase.storage.from('encrypted-media').remove([oldFilePath]).catch(e => {
+          console.error('[Ringtone Remove] cleanup error:', e.message);
+        });
+      }
+    }
+    db.run('UPDATE users SET ringtonePath = NULL WHERE id = ?', [req.user.id], (updateErr) => {
+      if (updateErr) return res.status(500).json({ error: 'Database error' });
+      invalidateCacheForUser(req.user.username);
+      res.json({ message: 'Ringtone reset to default' });
+    });
+  } catch (e) {
+    console.error('[Ringtone Remove] Unexpected error:', e.message);
+    res.status(500).json({ error: 'Failed to reset ringtone' });
+  }
+});
+
 // â"€â"€ Change Password â"€â"€
 app.post('/api/profile/change-password', authenticateToken, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -6199,10 +6304,11 @@ app.get('/api/settings', authenticateTokenOptional, (req, res) => {
       notifyFriendRequests: true,
       notifyLeave: true,
       notifyJoinRequests: true,
-      notifyCalls: true
+      notifyCalls: true,
+      notifySound: 'chime'
     });
   }
-  db.get('SELECT language, country, country_code, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests, notifyCalls FROM users WHERE id = ?', [req.user.id], (err, row) => {
+  db.get('SELECT language, country, country_code, showCountry, notifyApp, notifyJoin, notifyMessages, notifyFriendRequests, notifyLeave, notifyJoinRequests, notifyCalls, ringtonePath, notifySound FROM users WHERE id = ?', [req.user.id], (err, row) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);
@@ -6214,7 +6320,7 @@ app.put('/api/settings', authenticateTokenOptional, (req, res) => {
   if (!req.user || req.user.id === 0 || req.user.isGuest) {
     return res.json({ message: 'Guest settings updated locally' });
   }
-  const allowed = ['language', 'country', 'country_code', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'notifyCalls'];
+  const allowed = ['language', 'country', 'country_code', 'showCountry', 'notifyApp', 'notifyJoin', 'notifyMessages', 'notifyFriendRequests', 'notifyLeave', 'notifyJoinRequests', 'notifyCalls', 'notifySound'];
   const updates = [];
   const values = [];
   for (const key of allowed) {

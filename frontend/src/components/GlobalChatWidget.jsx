@@ -35,6 +35,7 @@ import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from '../utils/reactionPreviewsPersist';
 import MediaLightbox from './MediaLightbox';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
+import { playNotificationTone } from '../lib/notificationSounds';
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
@@ -3674,6 +3675,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
           if (!skipToast) {
             if (!isMuted) {
+              // User's chosen message tone (see AppSettings.jsx's Sound
+              // section) — mirrored into localStorage the same way
+              // notifyCalls already is, since this widget has no settings-
+              // fetch of its own. Defaults to 'chime' when never set.
+              try { playNotificationTone(localStorage.getItem('watch_notify_sound') || 'chime'); } catch {}
               // Robust Room Name Lookup from conversation cache if msg payload lacks it
               let groupName = msg.roomName || msg.displayName;
               if (isGroup && !groupName) {

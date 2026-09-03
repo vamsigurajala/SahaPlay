@@ -24,10 +24,24 @@ import { isAndroidApp } from '../lib/platform';
 // backend/server.js. That path only exists in a build that includes it —
 // dispatch "Android — Build Capacitor app (.aab)" and install the result to
 // pick it up.
-function useRingSound(active) {
+// isIncoming distinguishes "this is MY OWN phone ringing" (where a custom
+// uploaded ringtone — see AppSettings.jsx's Sound section — applies) from
+// the outgoing ringback tone (always the default chime, same as a real
+// phone call never plays YOUR ringtone back at yourself while dialing out).
+function useRingSound(active, isIncoming) {
   const stopRef = useRef(null);
   useEffect(() => {
     if (!active) { stopRef.current?.(); stopRef.current = null; return; }
+
+    const ringtoneUrl = isIncoming ? localStorage.getItem('watch_ringtone_url') : null;
+    if (ringtoneUrl) {
+      const el = new Audio(ringtoneUrl);
+      el.loop = true;
+      el.play().catch(() => {});
+      stopRef.current = () => { try { el.pause(); el.currentTime = 0; } catch {} };
+      return () => stopRef.current?.();
+    }
+
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
@@ -62,7 +76,7 @@ function useRingSound(active) {
     const interval = setInterval(playChime, 2000);
     stopRef.current = () => { stopped = true; clearInterval(interval); ctx.close().catch(() => {}); };
     return () => stopRef.current?.();
-  }, [active]);
+  }, [active, isIncoming]);
 }
 
 function Avatar({ url, name, size = 96, pulsing }) {
@@ -414,8 +428,8 @@ export default function GlobalCallOverlay() {
   // ringtone, full-screen even over a locked/foregrounded app) for every
   // incoming call — this Web Audio ringback would just double up on top of
   // it, so it's skipped there entirely rather than raced against.
-  useRingSound(callState?.phase === 'incoming' && !isAndroidApp());
-  useRingSound(callState?.phase === 'outgoing');
+  useRingSound(callState?.phase === 'incoming' && !isAndroidApp(), true);
+  useRingSound(callState?.phase === 'outgoing', false);
 
   // Every phase of this overlay (ringing or active) paints a permanently
   // dark background regardless of the user's own light/dark app theme

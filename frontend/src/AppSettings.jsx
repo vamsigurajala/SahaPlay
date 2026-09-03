@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip, Phone } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip, Phone, Music, Upload, Trash2, Pause } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -16,6 +16,7 @@ import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA, isCapacitorApp } from './lib/platform';
 import { requestMediaAccess } from './lib/mediaPermissionGate';
 import { ensureWebPushSubscription } from './lib/webPushSubscribe';
+import { NOTIFICATION_TONE_LIST, playNotificationTone } from './lib/notificationSounds';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -427,6 +428,11 @@ const AppSettings = () => {
   const [notifyLeave, setNotifyLeave] = useState(true);
   const [notifyJoinRequests, setNotifyJoinRequests] = useState(true);
   const [notifyCalls, setNotifyCalls] = useState(true);
+  const [notifySound, setNotifySound] = useState('chime');
+  const [ringtonePath, setRingtonePath] = useState(null);
+  const [ringtoneUploading, setRingtoneUploading] = useState(false);
+  const [previewingTone, setPreviewingTone] = useState(null);
+  const ringtonePreviewRef = useRef(null);
   const [browserNotifPermission, setBrowserNotifPermission] = useState(
     (typeof window !== 'undefined' && 'Notification' in window) ? Notification.permission : 'unsupported'
   );
@@ -667,6 +673,17 @@ const AppSettings = () => {
           // Mirrored into localStorage so CallContext.jsx (which has no
           // settings-fetch of its own) can read this synchronously.
           try { localStorage.setItem('notifyCalls', String(callsEnabled)); } catch {}
+          setRingtonePath(data.ringtonePath || null);
+          setNotifySound(data.notifySound || 'chime');
+          // Same mirroring as notifyCalls above — CallContext.jsx (custom
+          // ringtone on incoming calls) and GlobalChatWidget.jsx (message
+          // tone) both read these synchronously off localStorage rather
+          // than doing their own settings fetch.
+          try {
+            if (data.ringtonePath) localStorage.setItem('watch_ringtone_url', data.ringtonePath);
+            else localStorage.removeItem('watch_ringtone_url');
+            localStorage.setItem('watch_notify_sound', data.notifySound || 'chime');
+          } catch {}
         };
         const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
         if (remaining > 0) setTimeout(apply, remaining);
@@ -869,6 +886,81 @@ const AppSettings = () => {
     // work — browsers silently suppress permission requests that aren't
     // tied to a user gesture like this one).
     if (next) requestBrowserCallAlerts({ silent: true });
+  };
+
+  const handleToneSelect = (toneId) => {
+    setNotifySound(toneId);
+    saveSetting('notifySound', toneId);
+    try { localStorage.setItem('watch_notify_sound', toneId); } catch {}
+  };
+
+  const previewTone = (toneId) => {
+    setPreviewingTone(toneId);
+    playNotificationTone(toneId);
+    setTimeout(() => setPreviewingTone(null), 700);
+  };
+
+  const ringtoneInputRef = useRef(null);
+  const handleRingtoneUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // lets picking the same file again re-fire onChange
+    if (!file) return;
+    // Soft duration guidance rather than a hard server-side check (parsing
+    // real audio duration needs a decoder, not worth it for a personal
+    // settings upload) — reads the file's own metadata via a throwaway
+    // <audio> element before ever uploading it.
+    const durationOk = await new Promise((resolve) => {
+      const probe = document.createElement('audio');
+      probe.preload = 'metadata';
+      probe.onloadedmetadata = () => resolve(!probe.duration || probe.duration <= 75);
+      probe.onerror = () => resolve(true); // can't tell — let the server's size cap be the real gate
+      probe.src = URL.createObjectURL(file);
+    });
+    if (!durationOk) {
+      toast.error(t('ringtoneTooLong', 'Please choose a clip around a minute or shorter'));
+      return;
+    }
+    setRingtoneUploading(true);
+    try {
+      const form = new FormData();
+      form.append('ringtone', file);
+      const res = await fetch(`${API}/api/settings/ringtone`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      setRingtonePath(data.ringtonePath);
+      try { localStorage.setItem('watch_ringtone_url', data.ringtonePath); } catch {}
+      toast.success(t('ringtoneSaved', 'Ringtone saved'));
+    } catch (err) {
+      toast.error(err.message || t('ringtoneUploadFailed', 'Could not upload that file'));
+    } finally {
+      setRingtoneUploading(false);
+    }
+  };
+
+  const handleRingtoneRemove = async () => {
+    try {
+      await fetch(`${API}/api/settings/ringtone/remove`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+    } catch {}
+    setRingtonePath(null);
+    try { localStorage.removeItem('watch_ringtone_url'); } catch {}
+  };
+
+  const previewRingtone = () => {
+    if (!ringtonePath) return;
+    if (!ringtonePreviewRef.current) ringtonePreviewRef.current = new Audio();
+    const el = ringtonePreviewRef.current;
+    if (!el.paused) { el.pause(); el.currentTime = 0; setPreviewingTone(null); return; }
+    el.src = ringtonePath;
+    el.play().catch(() => {});
+    setPreviewingTone('__ringtone__');
+    el.onended = () => setPreviewingTone(null);
   };
 
   // Real, gesture-backed request for OS-level call notifications on the
@@ -1755,6 +1847,104 @@ const AppSettings = () => {
 
               {/* Fully isolated — parent re-renders never affect this component */}
               <CameraPreview selectedCam={selectedCam} t={t} isLight={theme === 'light'} micDevices={micDevices} onStaleDevice={() => { setSelectedCam(''); localStorage.removeItem('watch_selected_cam'); }} />
+            </div>
+          )}
+        </div>
+
+        {/* Sound */}
+        <div className="settings-card">
+          <div className="acc-header" onClick={() => toggleSection('sound')}>
+            <h3><Music size={18} color="#a855f7" /> {t('sound', 'Sound')}</h3>
+            <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'sound' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+          </div>
+          {openSection === 'sound' && (
+            <div className="acc-body">
+              <p style={{ color: '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('messageSound', 'Message notification sound')}</p>
+              <p style={{ color: '#666', fontSize: 12, margin: '0 0 12px' }}>{t('messageSoundDesc', 'Plays when a new message arrives')}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+                {[{ id: 'none', name: t('soundNone', 'None') }, ...NOTIFICATION_TONE_LIST].map(tone => (
+                  <div
+                    key={tone.id}
+                    onClick={() => handleToneSelect(tone.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                      background: notifySound === tone.id ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                      border: notifySound === tone.id ? '1px solid rgba(var(--brand-1-rgb),0.4)' : '1px solid transparent',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%', border: '2px solid',
+                        borderColor: notifySound === tone.id ? 'var(--brand-1)' : '#555',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        {notifySound === tone.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--brand-1)' }} />}
+                      </div>
+                      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{tone.name}</span>
+                    </div>
+                    {tone.id !== 'none' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); previewTone(tone.id); }}
+                        style={{
+                          width: 30, height: 30, borderRadius: '50%', border: 'none',
+                          background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', flexShrink: 0,
+                        }}
+                        aria-label={`Preview ${tone.name}`}
+                      >
+                        {previewingTone === tone.id ? <Volume2 size={14} color="var(--brand-1)" /> : <Play size={13} color="#ccc" />}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 18 }}>
+                <p style={{ color: '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('callRingtone', 'Call ringtone')}</p>
+                <p style={{ color: '#666', fontSize: 12, margin: '0 0 12px' }}>{t('callRingtoneDesc', 'Upload your own clip (about a minute or shorter) to play when you get a call, instead of the default ring')}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Music size={16} color="#a855f7" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: '#fff', fontSize: 13.5, fontWeight: 700 }}>
+                      {ringtonePath ? t('customRingtoneSet', 'Custom ringtone set') : t('defaultRingtone', 'Default ring')}
+                    </div>
+                    {ringtoneUploading && <div style={{ color: '#888', fontSize: 12 }}>{t('uploading', 'Uploading…')}</div>}
+                  </div>
+                  {ringtonePath && (
+                    <button
+                      onClick={previewRingtone}
+                      style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      aria-label="Preview ringtone"
+                    >
+                      {previewingTone === '__ringtone__' ? <Pause size={14} color="var(--brand-1)" /> : <Play size={13} color="#ccc" />}
+                    </button>
+                  )}
+                  {ringtonePath && (
+                    <button
+                      onClick={handleRingtoneRemove}
+                      style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      aria-label="Remove custom ringtone"
+                    >
+                      <Trash2 size={14} color="#f87171" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => ringtoneInputRef.current?.click()}
+                    disabled={ringtoneUploading}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none',
+                      background: 'rgba(var(--brand-1-rgb),0.15)', color: 'var(--brand-1-light)', fontSize: 12.5, fontWeight: 700,
+                      cursor: ringtoneUploading ? 'default' : 'pointer', opacity: ringtoneUploading ? 0.6 : 1, flexShrink: 0,
+                    }}
+                  >
+                    <Upload size={13} /> {ringtonePath ? t('replace', 'Replace') : t('upload', 'Upload')}
+                  </button>
+                  <input ref={ringtoneInputRef} type="file" accept="audio/*" onChange={handleRingtoneUpload} style={{ display: 'none' }} />
+                </div>
+              </div>
             </div>
           )}
         </div>
