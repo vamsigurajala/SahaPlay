@@ -7284,6 +7284,88 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 </>
                               )}
                             </button>
+                            {/* Mute / Unmute calls — only offered once at least one
+                                selected chat is private (DM); calls have no group-
+                                chat concept, so a selection that's entirely rooms
+                                never shows this. Any room keys among the selection
+                                are simply skipped when applying it. */}
+                            {selectedChats.some(k => {
+                              const c = conversations.find(cv => (cv.partner || cv.id || '').toLowerCase() === k);
+                              return c && c.type !== 'room';
+                            }) && (
+                              <button
+                                onClick={() => {
+                                  const privateSelected = selectedChats.filter(k => {
+                                    const c = conversations.find(cv => (cv.partner || cv.id || '').toLowerCase() === k);
+                                    return c && c.type !== 'room';
+                                  });
+                                  const allMuted = privateSelected.every(k => mutedCallChats.includes(k));
+                                  setMutedCallChats(prev => {
+                                    let next = [...prev];
+                                    if (allMuted) {
+                                      next = next.filter(k => !privateSelected.includes(k));
+                                    } else {
+                                      privateSelected.forEach(k => {
+                                        if (!next.includes(k)) next.push(k);
+                                      });
+                                    }
+                                    localStorage.setItem(`muted_call_chats_${myUsername}`, JSON.stringify(next));
+                                    window.dispatchEvent(new Event('muted_call_chats_updated'));
+                                    return next;
+                                  });
+                                  setShowSelectionMenu(false);
+                                  toast.success(`${allMuted ? 'Unmuted' : 'Muted'} calls for ${privateSelected.length} chat${privateSelected.length > 1 ? 's' : ''}`);
+                                  setSelectedChats([]);
+                                  setSelectMode(false);
+                                }}
+                                className="chat-menu-item"
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
+                              >
+                                {selectedChats.filter(k => {
+                                  const c = conversations.find(cv => (cv.partner || cv.id || '').toLowerCase() === k);
+                                  return c && c.type !== 'room';
+                                }).every(k => mutedCallChats.includes(k)) ? (
+                                  <>
+                                    <Phone size={16} color="var(--menu-icon)" />
+                                    Unmute calls
+                                  </>
+                                ) : (
+                                  <>
+                                    <PhoneOff size={16} color="var(--menu-icon)" />
+                                    Mute calls
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            {/* Lock chats — moves selected chats into the locked
+                                vault, same as the per-row "Lock chat" action, just
+                                applied to every selection at once. Only offered
+                                outside the vault view itself, which already has its
+                                own "Unlock selected" below. */}
+                            {!showLockedChats && (
+                              <button
+                                onClick={() => {
+                                  setLockedChats(prev => {
+                                    const next = [...prev];
+                                    selectedChats.forEach(k => {
+                                      if (!next.includes(k)) next.push(k);
+                                    });
+                                    localStorage.setItem(`locked_chats_${myUsername}`, JSON.stringify(next));
+                                    window.dispatchEvent(new Event('locked_chats_updated'));
+                                    return next;
+                                  });
+                                  setShowSelectionMenu(false);
+                                  toast.success(`Locked ${selectedChats.length} chat${selectedChats.length > 1 ? 's' : ''}`);
+                                  setSelectedChats([]);
+                                  setSelectMode(false);
+                                }}
+                                className="chat-menu-item"
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
+                              >
+                                <Lock size={16} color="var(--menu-icon)" />
+                                Lock selected
+                              </button>
+                            )}
                             {/* Unlock chats — only in locked vault */}
                             {showLockedChats && (
                               <button
