@@ -9804,11 +9804,11 @@ io.on('connection', (socket) => {
   // else's UI can show an accurate mute/camera-off indicator for you.
   // Broadcast to every other active participant (was: the single other
   // party in a pair) so this scales to a mesh call unchanged.
-  socket.on('call:state', ({ callId, micOn, camOn }) => {
+  socket.on('call:state', ({ callId, micOn, camOn, sharingScreen }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
     if (!call || !isActiveCallParticipant(call, me)) return;
-    getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToActiveSocket(call, u, 'call:state', { callId, fromUsername: me, micOn, camOn }));
+    getCallActiveUsernames(call).filter(u => u !== me).forEach(u => emitToActiveSocket(call, u, 'call:state', { callId, fromUsername: me, micOn, camOn, sharingScreen: !!sharingScreen }));
   });
 
   // Anyone currently in the call — original caller, original callee, or

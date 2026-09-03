@@ -54,7 +54,12 @@ function AudioRenderer({ stream }) {
   return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />;
 }
 
-function VideoTile({ stream, muted }) {
+// fit: 'cover' (default, fills the tile — right for a face-cam, where
+// cropping the edges is normal/expected) or 'contain' (letterboxed, shows
+// the whole frame uncropped — right for a shared screen, where cropping
+// cuts off content the sharer actually meant to show, especially a
+// portrait phone screen shared into a landscape-ish grid tile).
+function VideoTile({ stream, muted, fit = 'cover' }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!ref.current || !stream) return;
@@ -67,7 +72,7 @@ function VideoTile({ stream, muted }) {
       autoPlay
       playsInline
       muted={muted}
-      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      style={{ width: '100%', height: '100%', objectFit: fit, background: '#000' }}
     />
   );
 }
@@ -100,6 +105,7 @@ function getRemoteParticipants(callState, remoteStreams, participantMeta) {
       micOn: meta.micOn !== false,
       camOn: !!meta.camOn,
       hasVideo: !!meta.camOn && !!stream?.getVideoTracks().length,
+      sharingScreen: !!meta.sharingScreen,
     };
   });
 }
@@ -494,7 +500,7 @@ export default function OneOnOneCallScreen({
             return (
               <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
                 {r.hasVideo ? (
-                  <VideoTile stream={r.stream} muted={false} />
+                  <VideoTile stream={r.stream} muted={false} fit={r.sharingScreen ? 'contain' : 'cover'} />
                 ) : (
                   <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={!isRinging && r.micOn} />
                 )}
@@ -511,7 +517,7 @@ export default function OneOnOneCallScreen({
           })}
           <div className={`ooc-tile${speakingKeys.has('__me__') ? ' ooc-tile-speaking' : ''}`}>
             {isVideo && (isCamOn || isScreenSharing) && localDisplayStream ? (
-              <VideoTile stream={localDisplayStream} muted />
+              <VideoTile stream={localDisplayStream} muted fit={isScreenSharing ? 'contain' : 'cover'} />
             ) : (
               <Avatar url={myAvatarUrl} name={myUsername} size={64} pulsing={isMicOn} />
             )}
@@ -728,6 +734,8 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
   const mainName = mainIsLocal ? 'You' : remote.displayName;
   const pipHasVideo = mainIsLocal ? remote.hasVideo : localHasVideo;
   const pipAvatarUrl = mainIsLocal ? remote.avatarUrl : myAvatarUrl;
+  const mainFit = (mainIsLocal ? isScreenSharing : remote.sharingScreen) ? 'contain' : 'cover';
+  const pipFit = (mainIsLocal ? remote.sharingScreen : isScreenSharing) ? 'contain' : 'cover';
 
   // ── Freely draggable PiP, WhatsApp-style edge "peek" ──
   // null = the original default top-right spot. Once dragged, {x, y} is the
@@ -804,7 +812,7 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
     <>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {mainHasVideo ? (
-          <VideoTile stream={mainIsLocal ? localStream : remote.stream} muted={mainIsLocal} />
+          <VideoTile stream={mainIsLocal ? localStream : remote.stream} muted={mainIsLocal} fit={mainFit} />
         ) : (
           <Avatar url={mainAvatarUrl} name={mainName} size={132} pulsing={mainIsLocal ? isMicOn : remote.micOn} />
         )}
@@ -837,7 +845,7 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
           onClick={(e) => e.stopPropagation()}
         >
           {pipHasVideo ? (
-            <VideoTile stream={mainIsLocal ? remote.stream : localStream} muted={!mainIsLocal} />
+            <VideoTile stream={mainIsLocal ? remote.stream : localStream} muted={!mainIsLocal} fit={pipFit} />
           ) : (
             <Avatar url={pipAvatarUrl} name={mainIsLocal ? remote.displayName : 'You'} size={56} />
           )}

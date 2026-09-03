@@ -567,9 +567,9 @@ export function CallProvider({ children }) {
       }
     });
 
-    sock.on('call:state', ({ callId, fromUsername, micOn, camOn }) => {
+    sock.on('call:state', ({ callId, fromUsername, micOn, camOn, sharingScreen }) => {
       if (callStateRef.current?.callId !== callId || !fromUsername) return;
-      setParticipantMeta(prev => ({ ...prev, [fromUsername]: { micOn: !!micOn, camOn: !!camOn } }));
+      setParticipantMeta(prev => ({ ...prev, [fromUsername]: { micOn: !!micOn, camOn: !!camOn, sharingScreen: !!sharingScreen } }));
     });
 
     sock.on('call:ended', ({ callId, reason }) => {
@@ -970,6 +970,12 @@ export function CallProvider({ children }) {
       callId,
       micOn: localStreamRef.current?.getAudioTracks().some(t => t.enabled) ?? false,
       camOn: sharingScreen ? true : (localStreamRef.current?.getVideoTracks().some(t => t.enabled) ?? false),
+      // Lets a remote viewer render this tile with object-fit: contain
+      // instead of cover — cropping a shared screen (especially a portrait
+      // phone screen into a landscape-ish grid tile) cuts off content the
+      // sharer actually meant to show, unlike a face-cam where cropping is
+      // normal/expected. See OneOnOneCallScreen.jsx's VideoTile.
+      sharingScreen,
     });
   }
 
