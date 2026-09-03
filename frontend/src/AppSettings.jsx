@@ -1859,8 +1859,8 @@ const AppSettings = () => {
           </div>
           {openSection === 'sound' && (
             <div className="acc-body">
-              <p style={{ color: '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('messageSound', 'Message notification sound')}</p>
-              <p style={{ color: '#666', fontSize: 12, margin: '0 0 12px' }}>{t('messageSoundDesc', 'Plays when a new message arrives')}</p>
+              <p style={{ color: isLight ? '#4b5563' : '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('messageSound', 'Message notification sound')}</p>
+              <p style={{ color: isLight ? '#6b7280' : '#666', fontSize: 12, margin: '0 0 12px' }}>{t('messageSoundDesc', 'Plays when a new message arrives')}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
                 {[{ id: 'none', name: t('soundNone', 'None') }, ...NOTIFICATION_TONE_LIST].map(tone => (
                   <div
@@ -1869,66 +1869,66 @@ const AppSettings = () => {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                      background: notifySound === tone.id ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+                      background: notifySound === tone.id ? 'rgba(var(--brand-1-rgb),0.12)' : (isLight ? 'rgba(0,0,0,0.025)' : 'rgba(255,255,255,0.03)'),
                       border: notifySound === tone.id ? '1px solid rgba(var(--brand-1-rgb),0.4)' : '1px solid transparent',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{
                         width: 20, height: 20, borderRadius: '50%', border: '2px solid',
-                        borderColor: notifySound === tone.id ? 'var(--brand-1)' : '#555',
+                        borderColor: notifySound === tone.id ? 'var(--brand-1)' : (isLight ? '#cbd5e1' : '#555'),
                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                       }}>
                         {notifySound === tone.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--brand-1)' }} />}
                       </div>
-                      <span style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{tone.name}</span>
+                      <span style={{ color: isLight ? '#111' : '#fff', fontSize: 14, fontWeight: 600 }}>{tone.name}</span>
                     </div>
                     {tone.id !== 'none' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); previewTone(tone.id); }}
                         style={{
-                          width: 30, height: 30, borderRadius: '50%', border: 'none',
-                          background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer', flexShrink: 0,
+                          width: 30, height: 30, borderRadius: '50%', border: isLight ? '1px solid rgba(0,0,0,0.12)' : 'none',
+                          background: isLight ? '#fff' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', flexShrink: 0, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                         }}
                         aria-label={`Preview ${tone.name}`}
                       >
-                        {previewingTone === tone.id ? <Volume2 size={14} color="var(--brand-1)" /> : <Play size={13} color="#ccc" />}
+                        {previewingTone === tone.id ? <Volume2 size={14} color="var(--brand-1)" /> : <Play size={13} color={isLight ? '#374151' : '#ccc'} />}
                       </button>
                     )}
                   </div>
                 ))}
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 18 }}>
-                <p style={{ color: '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('callRingtone', 'Call ringtone')}</p>
-                <p style={{ color: '#666', fontSize: 12, margin: '0 0 12px' }}>{t('callRingtoneDesc', 'Upload your own clip (about a minute or shorter) to play when you get a call, instead of the default ring')}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ borderTop: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.08)', paddingTop: 18 }}>
+                <p style={{ color: isLight ? '#4b5563' : '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('callRingtone', 'Call ringtone')}</p>
+                <p style={{ color: isLight ? '#6b7280' : '#666', fontSize: 12, margin: '0 0 12px' }}>{t('callRingtoneDesc', 'Upload your own clip (about a minute or shorter) to play when you get a call, instead of the default ring')}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: isLight ? 'rgba(0,0,0,0.025)' : 'rgba(255,255,255,0.03)', borderRadius: 12, border: isLight ? '1px solid rgba(0,0,0,0.07)' : '1px solid rgba(255,255,255,0.06)' }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168,85,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Music size={16} color="#a855f7" />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: '#fff', fontSize: 13.5, fontWeight: 700 }}>
+                    <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13.5, fontWeight: 700 }}>
                       {ringtonePath ? t('customRingtoneSet', 'Custom ringtone set') : t('defaultRingtone', 'Default ring')}
                     </div>
-                    {ringtoneUploading && <div style={{ color: '#888', fontSize: 12 }}>{t('uploading', 'Uploading…')}</div>}
+                    {ringtoneUploading && <div style={{ color: isLight ? '#6b7280' : '#888', fontSize: 12 }}>{t('uploading', 'Uploading…')}</div>}
                   </div>
                   {ringtonePath && (
                     <button
                       onClick={previewRingtone}
-                      style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      style={{ width: 32, height: 32, borderRadius: '50%', border: isLight ? '1px solid rgba(0,0,0,0.12)' : 'none', background: isLight ? '#fff' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}
                       aria-label="Preview ringtone"
                     >
-                      {previewingTone === '__ringtone__' ? <Pause size={14} color="var(--brand-1)" /> : <Play size={13} color="#ccc" />}
+                      {previewingTone === '__ringtone__' ? <Pause size={14} color="var(--brand-1)" /> : <Play size={13} color={isLight ? '#374151' : '#ccc'} />}
                     </button>
                   )}
                   {ringtonePath && (
                     <button
                       onClick={handleRingtoneRemove}
-                      style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                      style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: isLight ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
                       aria-label="Remove custom ringtone"
                     >
-                      <Trash2 size={14} color="#f87171" />
+                      <Trash2 size={14} color={isLight ? '#dc2626' : '#f87171'} />
                     </button>
                   )}
                   <button
@@ -1936,7 +1936,7 @@ const AppSettings = () => {
                     disabled={ringtoneUploading}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: 'none',
-                      background: 'rgba(var(--brand-1-rgb),0.15)', color: 'var(--brand-1-light)', fontSize: 12.5, fontWeight: 700,
+                      background: 'rgba(var(--brand-1-rgb),0.15)', color: isLight ? '#000000' : 'var(--brand-1-light)', fontSize: 12.5, fontWeight: 700,
                       cursor: ringtoneUploading ? 'default' : 'pointer', opacity: ringtoneUploading ? 0.6 : 1, flexShrink: 0,
                     }}
                   >
