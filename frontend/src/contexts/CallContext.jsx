@@ -361,6 +361,59 @@ export function CallProvider({ children }) {
       teardownCall();
     });
 
+    // The app just (re)connected — killed/backgrounded and reopened, or a
+    // full page reload — while a call it's part of is still going for the
+    // other side(s). This JS runtime never saw that call start, so there's
+    // no local callState, no RTCPeerConnection, nothing; the server tells us
+    // it exists (see the matching resync block in server.js's connection
+    // handler) so the UI can come back instead of silently showing nothing
+    // while the other party is still actually on a live call with us.
+    // Deliberately restores MINIMIZED (see GlobalCallOverlay's
+    // restoredMinimized handling) rather than yanking the user into a full
+    // call screen the moment the app happens to open on some other page —
+    // same "tap to return" bar as manually minimizing via Send Message.
+    sock.on('call:resync', async ({ callId, type, answeredAt, participants }) => {
+      if (callStateRef.current) return;
+      const others = Array.isArray(participants) ? participants.filter(Boolean) : [];
+      if (others.length === 0) return;
+      peerPublicKeysRef.current = new Map();
+      peerGoneRef.current = false;
+      const groupMembers = await Promise.all(others.map(async (u) => {
+        const b = await fetchUserBrief(u);
+        return { username: u, displayName: b?.displayName || u, avatarUrl: b?.avatarUrl || null };
+      }));
+      const primary = groupMembers[0];
+      setCallState({
+        phase: 'active',
+        callId,
+        type,
+        peerUsername: primary.username,
+        peerDisplayName: primary.displayName,
+        peerAvatar: primary.avatarUrl,
+        startedAt: answeredAt || Date.now(),
+        answeredAt: answeredAt || Date.now(),
+        isGroupJoin: groupMembers.length > 1,
+        groupMembers,
+        restoredMinimized: true,
+      });
+      // No connectToPeer here on purpose — every other active participant is
+      // being told (call:renegotiate-with) to send THIS side a fresh offer,
+      // since our previous RTCPeerConnection(s) died with the old page. The
+      // existing 'call:offer' handler below already covers "receive an offer
+      // for a call I'm tracking, answer it" — that's all this needs.
+    });
+
+    // The counterpart to call:resync above, received by whoever is STILL
+    // actively connected: a specific peer's own side just reconnected fresh
+    // (see server.js) and needs a brand-new RTCPeerConnection/offer from us —
+    // our old one to them is talking to a socket that no longer exists.
+    sock.on('call:renegotiate-with', ({ callId, targetUsername }) => {
+      const cs = callStateRef.current;
+      if (!cs || cs.callId !== callId || cs.phase !== 'active' || !targetUsername) return;
+      closePeerConnection(targetUsername);
+      connectToPeer(targetUsername, { isCaller: true, callId, type: cs.type });
+    });
+
     sock.on('call:answered', async ({ callId, answeredAt }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId || cs.phase !== 'outgoing') return;

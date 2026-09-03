@@ -7266,6 +7266,26 @@ io.on('connection', (socket) => {
         groupParticipants: getCallActiveUsernames(existingCall),
       });
     }
+    // Resync for a call that's already ACTIVE (post-accept) when this socket
+    // connects — covers the app being backgrounded-and-killed, or fully
+    // reloaded, while a call it's part of keeps going for the other side(s).
+    // Without this, that user came back to no visible trace of the call at
+    // all (userActiveCallId still had them marked busy, but nothing ever told
+    // their new socket the call existed), and the other party's signaling
+    // kept targeting a socket id that no longer exists.
+    if (existingCall && existingCall.status === 'active' && isActiveCallParticipant(existingCall, meLower)) {
+      existingCall.activeSocketId.set(meLower, socket.id);
+      const others = getCallActiveUsernames(existingCall).filter(u => u !== meLower);
+      if (others.length > 0) {
+        socket.emit('call:resync', { callId: existingCallId, type: existingCall.type, answeredAt: existingCall.answeredAt, participants: others });
+        // My previous RTCPeerConnection(s) died with whatever page/process
+        // held them — tell everyone else still active in this call to treat
+        // me as a fresh connection and send a brand-new offer, the same way
+        // they would for someone just joining. See CallContext.jsx's
+        // 'call:renegotiate-with' handler.
+        others.forEach(u => emitToActiveSocket(existingCall, u, 'call:renegotiate-with', { callId: existingCallId, targetUsername: meLower }));
+      }
+    }
   }
 
   // Delivered-tick catch-up: this user just came online — flip any of their pending

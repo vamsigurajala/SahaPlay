@@ -208,7 +208,23 @@ export default function GlobalCallOverlay() {
   // there's no call to minimize, so a NEW call never starts already
   // minimized because of a stale flag from a previous one.
   const [minimized, setMinimized] = useState(false);
-  useEffect(() => { if (!callState) setMinimized(false); }, [callState]);
+  // Tracks which callId this effect has already reacted to, so it only
+  // decides the starting minimized/full state ONCE per call — every other
+  // callState update (mic toggle, remote stream arriving, etc.) re-runs this
+  // effect too since callState is a new object each time, but must never
+  // re-force minimized back on after the user has manually restored the
+  // full screen mid-call.
+  const seenCallIdRef = useRef(null);
+  useEffect(() => {
+    if (!callState) { setMinimized(false); seenCallIdRef.current = null; return; }
+    if (callState.callId === seenCallIdRef.current) return;
+    seenCallIdRef.current = callState.callId;
+    // A call resynced after the app reopened/reloaded (see CallContext.jsx's
+    // call:resync handler) starts minimized — surfacing a "tap to return"
+    // bar rather than yanking the user into a full call screen the instant
+    // the app happens to open on some unrelated page.
+    setMinimized(!!callState.restoredMinimized);
+  }, [callState]);
   const handleSendMessage = (peerUsername) => {
     if (!peerUsername) return;
     setMinimized(true);
