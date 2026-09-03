@@ -15,7 +15,7 @@
 // mesh model (CallContext.jsx) means every tile here really is a direct,
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff, ArrowLeft, Maximize2 } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 import { isCapacitorApp } from '../lib/platform';
@@ -74,6 +74,56 @@ function VideoTile({ stream, muted, fit = 'cover' }) {
       muted={muted}
       style={{ width: '100%', height: '100%', objectFit: fit, background: '#000' }}
     />
+  );
+}
+
+// Per-tile "..." button in the group-call grid — opens a tiny one-item menu
+// with "View full screen". A plain button rather than the whole tile being
+// clickable, since a tap on the tile itself is already meaningful in some
+// call UIs (and consistency with the rest of this screen's own tap-to-
+// toggle-chrome gesture elsewhere) — this keeps "make this one full screen"
+// an explicit, discoverable action instead of an accidental one.
+function TileMenuButton({ isOpen, onOpen, onFullscreen, visible = true }) {
+  return (
+    <div style={{
+      position: 'absolute', top: 6, right: 6, zIndex: 2,
+      opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none', transition: 'opacity 0.3s ease',
+    }}>
+      <button
+        className="ooc-tile-menu-btn"
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        style={{
+          width: 26, height: 26, borderRadius: '50%', border: 'none',
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', padding: 0,
+        }}
+        aria-label="Tile options"
+      >
+        <MoreVertical size={15} color="#fff" />
+      </button>
+      {isOpen && (
+        <div
+          className="ooc-tile-menu"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute', top: 30, right: 0, background: '#1c1e2a', borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.08)',
+            overflow: 'hidden', minWidth: 168,
+          }}
+        >
+          <button
+            onClick={onFullscreen}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px',
+              background: 'transparent', border: 'none', color: '#fff', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <Maximize2 size={15} color="#fff" /> View full screen
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -227,6 +277,21 @@ export default function OneOnOneCallScreen({
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // Which group-grid tile's own "..." menu is open, and which tile (if any)
+  // is currently blown up to fill the whole call view — usernames, or
+  // '__me__' for the local tile, matching the keys already used for
+  // speaking-detection above. Only one of each at a time; a new call
+  // resets both automatically since this state doesn't survive an unmount.
+  const [tileMenuFor, setTileMenuFor] = useState(null);
+  const [fullscreenTile, setFullscreenTile] = useState(null);
+  // The fullscreened person leaving mid-view (or their video ending, e.g.
+  // toggling their camera off) shouldn't leave a frozen/blank fullscreen
+  // overlay stuck open with no obvious way out beyond guessing to tap it.
+  useEffect(() => {
+    if (!fullscreenTile || fullscreenTile === '__me__') return;
+    if (!remotes.some(r => r.username === fullscreenTile)) setFullscreenTile(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remotes.map(r => r.username).join(',')]);
   // Both menus below used to anchor via a hardcoded CSS offset (More: a flat
   // left:40px; the route picker: left:calc(50% + 30px)) — close enough on a
   // narrow phone, where the dock spans nearly the full width and its buttons
@@ -255,7 +320,7 @@ export default function OneOnOneCallScreen({
   const routeMenuRef = useRef(null);
   const routeBtnRef = useRef(null);
   useEffect(() => {
-    if (!moreMenuOpen && !routePickerOpen) return;
+    if (!moreMenuOpen && !routePickerOpen && !tileMenuFor) return;
     const handleOutside = (e) => {
       if (moreMenuOpen && !moreMenuRef.current?.contains(e.target) && !moreBtnRef.current?.contains(e.target)) {
         setMoreMenuOpen(false);
@@ -263,10 +328,15 @@ export default function OneOnOneCallScreen({
       if (routePickerOpen && !routeMenuRef.current?.contains(e.target) && !routeBtnRef.current?.contains(e.target)) {
         setRoutePickerOpen(false);
       }
+      // A dynamic list of tiles each get their own "..." button/menu rather
+      // than one shared ref pair — tagged by class instead, same effect.
+      if (tileMenuFor && !e.target.closest?.('.ooc-tile-menu') && !e.target.closest?.('.ooc-tile-menu-btn')) {
+        setTileMenuFor(null);
+      }
     };
     document.addEventListener('pointerdown', handleOutside, true);
     return () => document.removeEventListener('pointerdown', handleOutside, true);
-  }, [moreMenuOpen, routePickerOpen]);
+  }, [moreMenuOpen, routePickerOpen, tileMenuFor]);
 
   // Short tap = instantly toggle speaker on/off (the common case, no menu in
   // the way). Long press = open the full route picker (Normal/Speaker/
@@ -460,6 +530,20 @@ export default function OneOnOneCallScreen({
           animation: ooc-ringing-pulse 1s infinite ease-in-out;
         }
         @keyframes ooc-ringing-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .ooc-fullscreen-tile {
+          position: absolute; inset: 0; z-index: 30; background: #000;
+          display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        .ooc-fullscreen-tile-bar {
+          position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 10px;
+          padding: 16px 16px calc(16px + env(safe-area-inset-top, 0px));
+          background: linear-gradient(180deg, rgba(0,0,0,0.6), transparent);
+          color: #fff; font-weight: 700; font-size: 15px;
+        }
+        .ooc-fullscreen-tile-back {
+          width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255,255,255,0.12);
+          display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;
+        }
         .ooc-tile-label {
           position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px;
           background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 700;
@@ -500,11 +584,29 @@ export default function OneOnOneCallScreen({
             return (
               <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
                 {r.hasVideo ? (
-                  <VideoTile stream={r.stream} muted={false} fit={r.sharingScreen ? 'contain' : 'cover'} />
+                  // Muted while this same person's fullscreen overlay is
+                  // showing (see below) — that overlay plays their audio
+                  // itself via its own <video>; leaving this one unmuted
+                  // too would double it up, both playing the same stream.
+                  <VideoTile stream={r.stream} muted={fullscreenTile === r.username} fit={r.sharingScreen ? 'contain' : 'cover'} />
                 ) : (
                   <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={!isRinging && r.micOn} />
                 )}
                 {!r.hasVideo && <AudioRenderer stream={r.stream} />}
+                {/* Restricted to tiles that actually have video — an
+                    audio-only tile's sound already plays via the grid's own
+                    AudioRenderer below; full-screening it would mount a
+                    SECOND <video> element playing the same stream's audio
+                    at the same time (a video element isn't muted just for
+                    lacking visible video), doubling it up. */}
+                {r.hasVideo && (
+                  <TileMenuButton
+                    visible={chromeVisible}
+                    isOpen={tileMenuFor === r.username}
+                    onOpen={() => setTileMenuFor(t => (t === r.username ? null : r.username))}
+                    onFullscreen={() => { setFullscreenTile(r.username); setTileMenuFor(null); }}
+                  />
+                )}
                 <div className="ooc-tile-label">
                   {isRinging ? (
                     <span className="ooc-tile-ringing-dot" />
@@ -521,6 +623,14 @@ export default function OneOnOneCallScreen({
             ) : (
               <Avatar url={myAvatarUrl} name={myUsername} size={64} pulsing={isMicOn} />
             )}
+            {isVideo && (isCamOn || isScreenSharing) && localDisplayStream && (
+              <TileMenuButton
+                visible={chromeVisible}
+                isOpen={tileMenuFor === '__me__'}
+                onOpen={() => setTileMenuFor(t => (t === '__me__' ? null : '__me__'))}
+                onFullscreen={() => { setFullscreenTile('__me__'); setTileMenuFor(null); }}
+              />
+            )}
             <div className="ooc-tile-label">
               {!isMicOn && <MicOff size={11} color="#f87171" />}
               You
@@ -528,6 +638,30 @@ export default function OneOnOneCallScreen({
           </div>
         </div>
       )}
+
+      {fullscreenTile && (() => {
+        const isMe = fullscreenTile === '__me__';
+        const target = isMe ? null : remotes.find(x => x.username === fullscreenTile);
+        if (!isMe && !target) return null; // they left — see the cleanup effect below
+        const stream = isMe ? localDisplayStream : target.stream;
+        const sharingScreen = isMe ? isScreenSharing : target.sharingScreen;
+        const name = isMe ? 'You' : target.displayName;
+        return (
+          <div className="ooc-fullscreen-tile" onClick={() => setFullscreenTile(null)}>
+            <VideoTile stream={stream} muted={isMe} fit={sharingScreen ? 'contain' : 'cover'} />
+            <div className="ooc-fullscreen-tile-bar">
+              <button
+                className="ooc-fullscreen-tile-back"
+                onClick={(e) => { e.stopPropagation(); setFullscreenTile(null); }}
+                aria-label="Exit full screen"
+              >
+                <ArrowLeft size={18} color="#fff" />
+              </button>
+              <span>{name}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Top bar: name(s) + duration/mute status (centered) + add-person ── */}
       <div className={`ooc-topbar ${chromeVisible ? '' : 'ooc-hidden'}`} onClick={(e) => e.stopPropagation()}>
