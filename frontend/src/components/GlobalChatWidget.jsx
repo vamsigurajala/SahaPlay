@@ -2446,6 +2446,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // the desktop app instead of ever calling call.startCall from there.
   const canMakeCalls = isMobileOrTablet || isTauriApp() || isCapacitorApp();
   const [showCallInstallPrompt, setShowCallInstallPrompt] = useState(false);
+  // This widget stays MOUNTED while visually hidden (`if (!isOpen) return
+  // null` further down just skips rendering, it doesn't unmount — see
+  // hiddenByProfileRoute's own comment above for why that's deliberate), so
+  // this state would otherwise survive a close/reopen untouched — reopening
+  // the widget showed this prompt again immediately, with no call button
+  // ever clicked, because it was still sitting at `true` from before.
+  useEffect(() => { if (!isOpen) setShowCallInstallPrompt(false); }, [isOpen]);
   // Viewport-anchored stable height for the wallpaper backdrop below — see
   // its usage for why this replaced the old CSS-only position:fixed +
   // height:100lvh media-query approach.

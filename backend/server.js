@@ -9625,7 +9625,14 @@ io.on('connection', (socket) => {
   socket.on('call:accept', ({ callId }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (!call || call.callee !== me || call.status !== 'ringing') { socket.emit('call:invalid', { callId }); return; }
+    // A distinct reason for each rejection case (rather than one bare
+    // call:invalid) — acceptCall() in CallContext.jsx flips its UI to
+    // "active" the instant Answer is tapped, before this round trip; if the
+    // server actually rejects it, that optimistic screen has to be replaced
+    // with something that tells the user why, not just silently vanish back
+    // to nothing (which read as "I tapped Answer and nothing happened").
+    if (!call || call.callee !== me) { socket.emit('call:invalid', { callId, reason: 'call_gone' }); return; }
+    if (call.status !== 'ringing') { socket.emit('call:invalid', { callId, reason: 'already_active' }); return; }
     clearTimeout(call.timeoutHandle);
     call.status = 'active';
     call.answeredAt = Date.now();
@@ -9810,7 +9817,8 @@ io.on('connection', (socket) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
     const entry = call?.members.get(me);
-    if (!call || !entry || entry.status !== 'ringing') { socket.emit('call:invalid', { callId }); return; }
+    if (!call || !entry) { socket.emit('call:invalid', { callId, reason: 'call_gone' }); return; }
+    if (entry.status !== 'ringing') { socket.emit('call:invalid', { callId, reason: 'already_active' }); return; }
     clearTimeout(entry.timeoutHandle);
     entry.status = 'active';
     entry.joinedAt = Date.now();

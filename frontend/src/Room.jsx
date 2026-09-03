@@ -2929,7 +2929,15 @@ const Room = () => {
         // Lightbox is portalled to document.body — don't treat those clicks as "outside"
         const inLightbox = !!e.target.closest?.('.media-lightbox-overlay');
         const inReportModal = !!e.target.closest?.('.report-modal-overlay');
-        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox && !inReportModal) setShowRecentChats(false);
+        // Same reason — the chat's "Customize" theme sheet and the "install
+        // the app to call" prompt both render outside chatWidgetRef's own
+        // .chat-widget-main-panel DOM node (siblings of it, not descendants),
+        // so closing just one of those was falling through here and closing
+        // the whole chat widget underneath it too. Matches Navbar.jsx's own
+        // version of this same check.
+        const inThemeSheet = !!e.target.closest?.('.chat-theme-sheet-overlay');
+        const inInstallPrompt = !!e.target.closest?.('.download-app-modal-overlay');
+        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox && !inReportModal && !inThemeSheet && !inInstallPrompt) setShowRecentChats(false);
       }
       // Close room menus if clicking outside
       if (showGroupMenu && groupMenuRef.current && !groupMenuRef.current.contains(e.target)) {

@@ -189,6 +189,16 @@ export default function OneOnOneCallScreen({
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  // Both menus below used to anchor via a hardcoded CSS offset (More: a flat
+  // left:40px; the route picker: left:calc(50% + 30px)) — close enough on a
+  // narrow phone, where the dock spans nearly the full width and its buttons
+  // sit near those same positions, but .ooc-dock centers its (fixed-width)
+  // .ooc-dock-box on any wider screen, so on a laptop the actual More/
+  // Speaker buttons end up well to the right of where either menu opened.
+  // Measuring the real trigger button's position when the menu opens keeps
+  // it correctly anchored regardless of viewport width.
+  const [moreMenuLeft, setMoreMenuLeft] = useState(40);
+  const [routeMenuLeft, setRouteMenuLeft] = useState(null);
   const primaryRemote = remotes[0];
 
   const routeIcon = audioRoute === 'bluetooth' ? Bluetooth : audioRoute === 'speaker' ? Volume2 : Ear;
@@ -232,6 +242,8 @@ export default function OneOnOneCallScreen({
     speakerLongPressedRef.current = false;
     speakerPressTimerRef.current = setTimeout(() => {
       speakerLongPressedRef.current = true;
+      const rect = routeBtnRef.current?.getBoundingClientRect();
+      if (rect) setRouteMenuLeft(rect.left + rect.width / 2 + 30);
       setRoutePickerOpen(true);
     }, 450);
   };
@@ -498,7 +510,7 @@ export default function OneOnOneCallScreen({
       {/* ── Normal/Speaker/Bluetooth picker sheet (opened by long-pressing
           the speaker dock button — a short tap toggles speaker directly) ── */}
       {routePickerOpen && (
-        <div className="ooc-route-sheet" ref={routeMenuRef} onClick={(e) => e.stopPropagation()}>
+        <div className="ooc-route-sheet" ref={routeMenuRef} onClick={(e) => e.stopPropagation()} style={routeMenuLeft != null ? { left: routeMenuLeft, transform: 'translateX(-50%)' } : undefined}>
           <button className={`ooc-route-opt ${audioRoute === 'earpiece' ? 'active' : ''}`} style={{ color: '#fff' }} onClick={() => { setAudioRoute('earpiece'); setRoutePickerOpen(false); }}>
             <Ear size={17} color="#fff" /> <span style={{ color: audioRoute === 'earpiece' ? 'var(--brand-1-light)' : '#fff' }}>Normal</span>
           </button>
@@ -515,7 +527,7 @@ export default function OneOnOneCallScreen({
 
       {/* ── More options: screen share / send message ── */}
       {moreMenuOpen && (
-        <div className="ooc-more-menu" ref={moreMenuRef} onClick={(e) => e.stopPropagation()}>
+        <div className="ooc-more-menu" ref={moreMenuRef} onClick={(e) => e.stopPropagation()} style={{ left: moreMenuLeft }}>
           {canScreenShare && (
             <button
               className="ooc-more-opt"
@@ -544,7 +556,13 @@ export default function OneOnOneCallScreen({
             <button
               ref={moreBtnRef}
               className="ooc-ctrl-btn"
-              onClick={() => setMoreMenuOpen(v => !v)}
+              onClick={() => {
+                if (!moreMenuOpen) {
+                  const rect = moreBtnRef.current?.getBoundingClientRect();
+                  if (rect) setMoreMenuLeft(Math.max(12, Math.min(rect.left, window.innerWidth - 210)));
+                }
+                setMoreMenuOpen(v => !v);
+              }}
               style={{ width: 46, height: 46, background: moreMenuOpen ? 'rgba(var(--brand-1-rgb),0.3)' : 'rgba(255,255,255,0.14)' }}
             >
               <MoreVertical size={20} color="#fff" />

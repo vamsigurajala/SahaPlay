@@ -305,6 +305,14 @@ export function CallProvider({ children }) {
       if (reason === 'not_friends') toast('You can only add mutual friends to a call');
       else if (reason === 'blocked') toast('Could not add that person to the call');
       else if (reason === 'already_in_call') toast('They’re already in this call');
+      // These two are specifically an Answer/Join tap getting rejected after
+      // acceptCall() already optimistically flipped the UI to "active" — see
+      // the matching comment in server.js's call:accept. Without a message
+      // here, that screen just silently vanished with no explanation, which
+      // read as "I tapped Answer and nothing happened" (most often: a
+      // different device of the same account answered first).
+      else if (reason === 'already_active') toast.error('This call was already answered on another device');
+      else if (reason === 'call_gone') toast.error('This call has ended');
       teardownCall();
     });
 
@@ -401,6 +409,29 @@ export function CallProvider({ children }) {
       // since our previous RTCPeerConnection(s) died with the old page. The
       // existing 'call:offer' handler below already covers "receive an offer
       // for a call I'm tracking, answer it" — that's all this needs.
+      //
+      // Safety net: the renegotiation above depends on every other
+      // participant's own client actually being alive and acting on
+      // call:renegotiate-with. If it never does (their app is also gone, a
+      // stuck reload, a lost message) this side would otherwise sit showing
+      // a "connected" call forever with no real media flowing — and since
+      // the server keeps this call "active" the whole time, BOTH accounts
+      // would show as permanently busy on any future call attempt with each
+      // other. Give it a reasonable window to actually connect for real;
+      // if it hasn't by then, end the call properly instead of leaving it
+      // stuck for good.
+      const watchdogCallId = callId;
+      setTimeout(() => {
+        if (callStateRef.current?.callId !== watchdogCallId) return;
+        const connected = others.every(u => {
+          const pc = pcsRef.current.get(u.username);
+          return pc && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed');
+        });
+        if (!connected) {
+          console.warn('[Call] resync never reconnected — ending stale call', watchdogCallId);
+          endCall();
+        }
+      }, 20000);
     });
 
     // The counterpart to call:resync above, received by whoever is STILL

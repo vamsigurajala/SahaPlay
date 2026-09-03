@@ -181,6 +181,11 @@ const Navbar = () => {
       // through to here and closing the whole chat widget underneath it
       // too.
       if (e.target.closest?.('.chat-theme-sheet-overlay')) return;
+      // Same reason again — the "install the app to call" prompt shown from
+      // inside the chat widget is also portalled outside chatWidgetRef's DOM
+      // tree, so closing just that prompt (its own X, or its backdrop) was
+      // falling through here and closing the whole chat widget underneath it.
+      if (e.target.closest?.('.download-app-modal-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         setShowSearch(false);
         setShowRecentChats(false);
