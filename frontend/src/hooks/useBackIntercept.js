@@ -73,20 +73,48 @@ export function useBackIntercept(level, onPop) {
   // entries alone) apart from "this component was simply removed in place"
   // (safe to physically pop them).
   const pathAtOpenRef = useRef(null);
+  // True only through this instance's very first level-effect run. Some
+  // callers (GlobalChatWidget, restoring isOpen from sessionStorage) can
+  // mount already at level > 0 — that's restored UI state from a page the
+  // user already navigated away from, not a fresh in-page action, so it
+  // must not push a real history entry. Without this guard, landing on a
+  // brand-new page with Recent Chats persisted open pushed one extra
+  // history entry right on top of the real route-change entry, so a single
+  // click on that page's own "Back" button only consumed the phantom
+  // restored-open entry (silently closing the widget, no visible
+  // navigation) and required a second click to actually leave the page.
+  const isFirstRunRef = useRef(true);
+  // How many real history entries THIS instance currently has outstanding.
+  // Distinct from currentLevelRef, which also counts the adopted-on-mount
+  // baseline (never pushed) — consume/unmount cleanup below must only ever
+  // pop/go(-n) for entries actually pushed, or it would eat a real,
+  // unrelated history entry that this instance never put there.
+  const pushedCountRef = useRef(0);
 
   useEffect(() => {
     ensureListener();
   }, []);
 
   useEffect(() => {
+    const isFirstRun = isFirstRunRef.current;
+    isFirstRunRef.current = false;
+    if (isFirstRun && level > currentLevelRef.current) {
+      // Adopt the already-open level as the baseline without touching real
+      // browser history — see isFirstRunRef's comment above.
+      currentLevelRef.current = level;
+      pathAtOpenRef.current = window.location.pathname;
+      return;
+    }
     if (level > currentLevelRef.current) {
       if (currentLevelRef.current === 0) pathAtOpenRef.current = window.location.pathname;
       for (let i = currentLevelRef.current; i < level; i++) {
         const depthAtPush = i + 1;
         window.history.pushState({ __backLevel: depthAtPush }, '');
+        pushedCountRef.current += 1;
         sharedStack.push({
           onPop: () => {
             currentLevelRef.current = depthAtPush - 1;
+            pushedCountRef.current = Math.max(0, pushedCountRef.current - 1);
             onPopRef.current(currentLevelRef.current);
           }
         });
@@ -104,17 +132,23 @@ export function useBackIntercept(level, onPop) {
       } else {
         // Closed via an in-app control (X button, back arrow) rather than a
         // swipe/back gesture — consume the now-unused history entries so a
-        // future swipe doesn't land on a stale level.
-        for (let i = 0; i < diff; i++) sharedStack.pop();
+        // future swipe doesn't land on a stale level. Only the portion
+        // actually backed by a real pushed entry (never the adopted
+        // baseline) gets popped/gone-back-through.
+        const realToConsume = Math.min(diff, pushedCountRef.current);
         currentLevelRef.current = level;
-        suppressCount += 1; // history.go coalesces into a single popstate
-        window.history.go(-diff);
+        if (realToConsume > 0) {
+          for (let i = 0; i < realToConsume; i++) sharedStack.pop();
+          pushedCountRef.current -= realToConsume;
+          suppressCount += 1; // history.go coalesces into a single popstate
+          window.history.go(-realToConsume);
+        }
       }
     }
   }, [level]);
 
   useEffect(() => () => {
-    const diff = currentLevelRef.current;
+    const diff = pushedCountRef.current;
     if (diff > 0) {
       if (skipConsumeRef.current) {
         // Unmounted because of an in-app action fired in this same tick
