@@ -327,8 +327,14 @@ export function CallProvider({ children }) {
     // leaving a call don't have a group chat to log into, so those events
     // (call:member-*) intentionally never call writeCallLog.
     sock.on('call:busy', ({ callId }) => {
-      if (callStateRef.current?.callId !== callId) return;
-      writeCallLog(callStateRef.current, 'busy');
+      const cs = callStateRef.current;
+      if (cs?.callId !== callId) return;
+      // The chat-log "busy" bubble is only visible once you go look at that
+      // conversation — this is the immediate, on-screen "why did my call
+      // just end" answer, shown right on the calling screen itself before
+      // it disappears.
+      toast.error(`${cs.peerDisplayName || cs.peerUsername} is on another call`);
+      writeCallLog(cs, 'busy');
       teardownCall();
     });
 

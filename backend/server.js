@@ -9616,14 +9616,32 @@ io.on('connection', (socket) => {
         socket.emit('call:busy', { callId });
         return;
       }
+      // Reserved SYNCHRONOUSLY, before any `await` below — every check from
+      // here on is async (DB round trips), and Node processes another
+      // socket event in between just fine. Without reserving first, two
+      // call:invite events landing close together (e.g. a rapid double-tap
+      // of the call button) could BOTH read userActiveCallId as empty above
+      // — neither had reserved anything yet — and both sail through to
+      // create separate ringing calls to the same callee: the exact "called
+      // someone, they answered, then rang again a second time while already
+      // on the first call" report. Rolled back below on any path that turns
+      // out invalid.
+      userActiveCallId.set(caller, callId);
+      userActiveCallId.set(callee, callId);
 
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [caller, callee]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [callee, caller]);
       const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
-      if (!areFriends) { socket.emit('call:invalid', { callId, reason: 'not_friends' }); return; }
+      if (!areFriends) {
+        userActiveCallId.delete(caller); userActiveCallId.delete(callee);
+        socket.emit('call:invalid', { callId, reason: 'not_friends' }); return;
+      }
 
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
-      if (blockCheck) { socket.emit('call:invalid', { callId, reason: 'blocked' }); return; }
+      if (blockCheck) {
+        userActiveCallId.delete(caller); userActiveCallId.delete(callee);
+        socket.emit('call:invalid', { callId, reason: 'blocked' }); return;
+      }
 
       // Has the callee muted CALLS specifically from this caller (a private-
       // chat-only setting, distinct from muting their messages)? If so, the
@@ -9647,9 +9665,9 @@ io.on('connection', (socket) => {
         }
       }, CALL_RING_TIMEOUT_MS);
 
+      // userActiveCallId for both was already reserved above, before the
+      // awaits.
       activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map(), calleeMutedCaller, activeSocketId: new Map([[caller, socket.id]]) });
-      userActiveCallId.set(caller, callId);
-      userActiveCallId.set(callee, callId);
 
       if (calleeMutedCaller) return;
 
@@ -9843,15 +9861,25 @@ io.on('connection', (socket) => {
         socket.emit('call:member-busy', { callId, username: target });
         return;
       }
+      // Reserved synchronously, same TOCTOU reasoning as call:invite above —
+      // everything from here down is awaited DB work, and two add-member
+      // calls for the same target landing close together would otherwise
+      // both pass the busy-check before either had reserved anything.
+      // Rolled back below if the invite turns out invalid.
+      userActiveCallId.set(target, callId);
 
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [me, target]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [target, me]);
       if (!((rel1?.status === 'accepted') && (rel2?.status === 'accepted'))) {
+        userActiveCallId.delete(target);
         socket.emit('call:invalid', { callId, reason: 'not_friends' });
         return;
       }
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [me, target, target, me]);
-      if (blockCheck) { socket.emit('call:invalid', { callId, reason: 'blocked' }); return; }
+      if (blockCheck) {
+        userActiveCallId.delete(target);
+        socket.emit('call:invalid', { callId, reason: 'blocked' }); return;
+      }
 
       const timeoutHandle = setTimeout(() => {
         const c = activeCalls.get(callId);
@@ -9862,7 +9890,6 @@ io.on('connection', (socket) => {
       }, CALL_RING_TIMEOUT_MS);
 
       call.members.set(target, { status: 'ringing', joinedAt: null, timeoutHandle, invitedBy: me });
-      userActiveCallId.set(target, callId);
 
       const activeParticipants = getCallActiveUsernames(call);
       emitToUser(target, 'call:incoming', { callId, callerUsername: me, callType: call.type, groupParticipants: activeParticipants });

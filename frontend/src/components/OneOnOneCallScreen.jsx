@@ -144,8 +144,18 @@ export default function OneOnOneCallScreen({
   // share stream carries no mic audio to measure).
   const speakingStreams = {};
   if (isGroup) {
-    remotes.forEach(r => { if (r.stream) speakingStreams[r.username] = r.stream; });
-    if (localStream) speakingStreams.__me__ = localStream;
+    remotes.forEach(r => { if (r.stream && r.micOn) speakingStreams[r.username] = r.stream; });
+    // Web Audio's MediaStreamAudioSourceNode taps a track's raw capture
+    // data and, on Chromium, keeps doing so even once track.enabled is
+    // false — unlike RTCPeerConnection senders/media playback, which do
+    // correctly go silent. Analyzing (and therefore visually "speaking"-
+    // highlighting) your own muted mic showed a pulsing/speaking ring
+    // directly contradicting the mic-off badge right next to it. Skipping
+    // it outright while muted fixes the visual contradiction; it has no
+    // bearing on what's actually SENT to anyone else, which is already
+    // fully cut off via replaceTrack(null) in CallContext.jsx's toggleMic
+    // regardless of what this local analysis does.
+    if (localStream && isMicOn) speakingStreams.__me__ = localStream;
   }
   const speakingKeys = useSpeakingDetection(speakingStreams);
   // Screen share only actually works from the installed app — most mobile
