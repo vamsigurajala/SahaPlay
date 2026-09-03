@@ -176,6 +176,12 @@ public class SahaplayCallService extends Service {
             .setSmallIcon(getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            // Same reasoning as IncomingCallActivity's incoming-call
+            // notification — without this the Hang Up action can get
+            // redacted away on a locked secure lock screen on some OEM
+            // skins, matching the "tapped Decline/Hang Up while locked, it
+            // did nothing" report.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setStyle(callStyle)
             .setOngoing(true)
             .setUsesChronometer(!isRinging)

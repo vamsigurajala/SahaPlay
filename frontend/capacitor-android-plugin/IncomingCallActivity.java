@@ -209,6 +209,16 @@ public class IncomingCallActivity extends android.app.Activity {
             .setSmallIcon(ctx.getApplicationInfo().icon)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            // Without this, NotificationCompat defaults to VISIBILITY_PRIVATE
+            // — on a secure lock screen with "hide sensitive content"
+            // enabled (a common default on many OEM skins, e.g. MIUI), that
+            // redacts this notification down to a bare "New notification"
+            // with NO action buttons at all while locked, so tapping where
+            // Decline should be does nothing. A ringing call's actions need
+            // to work from the lock screen the same way WhatsApp/Telegram's
+            // do, so this is forced public regardless of that setting — the
+            // notification body (caller name) is the only thing it exposes.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .setContentIntent(fullScreenPendingIntent)
             .setStyle(callStyle)
