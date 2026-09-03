@@ -61,18 +61,29 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
             color-scheme: dark;
           }
           .atc-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
-          .atc-title { color: #fff; font-weight: 800; font-size: 16px; }
-          .atc-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+          /* Every text/icon color below is forced with !important (plus
+             -webkit-text-fill-color alongside it) for the same reason
+             OneOnOneCallScreen.jsx's own text has to be: the app's global
+             light-theme rule (html[data-theme='light'] body { color: ...
+             !important }) otherwise wins the cascade over a plain, non-
+             !important color here — color is inherited, and !important on a
+             LESS specific ancestor selector still beats a MORE specific but
+             non-!important descendant rule. This sheet is deliberately
+             always-dark regardless of the app's own theme, so its own colors
+             need to out-rank that global rule, not just declare a color. */
+          .atc-title { color: #fff !important; -webkit-text-fill-color: #fff !important; font-weight: 800; font-size: 16px; }
+          .atc-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: #fff !important; -webkit-text-fill-color: #fff !important; display: flex; align-items: center; justify-content: center; cursor: pointer; }
           .atc-search-wrap { display: flex; align-items: center; gap: 8px; margin: 4px 18px 12px; padding: 10px 12px; background: rgba(255,255,255,0.08); border-radius: 12px; }
-          .atc-search-input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 14px; }
+          .atc-search-input { flex: 1; background: transparent; border: none; outline: none; color: #fff !important; -webkit-text-fill-color: #fff !important; font-size: 14px; }
+          .atc-search-input::placeholder { color: rgba(255,255,255,0.5) !important; -webkit-text-fill-color: rgba(255,255,255,0.5) !important; }
           .atc-list { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
           .atc-row { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; cursor: pointer; }
           .atc-row:active { background: rgba(255,255,255,0.06); }
-          .atc-avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); color: #fff; font-weight: 700; font-size: 14px; }
+          .atc-avatar { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); color: #fff !important; -webkit-text-fill-color: #fff !important; font-weight: 700; font-size: 14px; }
           .atc-avatar img { width: 100%; height: 100%; object-fit: cover; }
-          .atc-name { color: #fff; font-weight: 700; font-size: 14px; }
-          .atc-username { color: rgba(255,255,255,0.5); font-size: 12px; }
-          .atc-empty { color: rgba(255,255,255,0.5); text-align: center; padding: 40px 20px; font-size: 13px; }
+          .atc-name { color: #fff !important; -webkit-text-fill-color: #fff !important; font-weight: 700; font-size: 14px; }
+          .atc-username { color: rgba(255,255,255,0.5) !important; -webkit-text-fill-color: rgba(255,255,255,0.5) !important; font-size: 12px; }
+          .atc-empty { color: rgba(255,255,255,0.5) !important; -webkit-text-fill-color: rgba(255,255,255,0.5) !important; text-align: center; padding: 40px 20px; font-size: 13px; }
           .atc-add-btn { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
           /* Desktop web: a bottom sheet stretched across a full monitor width
              doesn't read as intentional — center it as a normal modal card
@@ -84,7 +95,7 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
         `}</style>
         <div className="atc-header">
           <span className="atc-title">Add to call</span>
-          <button className="atc-close" onClick={onClose}><X size={16} /></button>
+          <button className="atc-close" onClick={onClose}><X size={16} color="#fff" /></button>
         </div>
         <div className="atc-search-wrap">
           <Search size={15} color="rgba(255,255,255,0.5)" />
@@ -117,9 +128,15 @@ export default function AddToCallSheet({ onClose, onAdd, alreadyInCall }) {
                     className="atc-add-btn"
                     disabled={isAdded}
                     onClick={(e) => { e.stopPropagation(); handlePick(p); }}
-                    style={{ background: isAdded ? 'rgba(16,185,129,0.25)' : 'rgba(var(--brand-1-rgb),0.25)', color: isAdded ? '#10b981' : 'var(--brand-1-light)' }}
+                    style={{ background: isAdded ? 'rgba(16,185,129,0.25)' : 'rgba(var(--brand-1-rgb),0.25)' }}
                   >
-                    <UserPlus size={15} />
+                    {/* Explicit color prop (sets the SVG stroke directly)
+                        rather than relying on the button's own CSS color and
+                        currentColor — see the comment above .atc-title for
+                        why an inherited/currentColor value here is exactly
+                        what the global light-theme !important rule can
+                        override into invisibility. */}
+                    <UserPlus size={15} color={isAdded ? '#10b981' : 'var(--brand-1-light)'} />
                   </button>
                 </div>
               );

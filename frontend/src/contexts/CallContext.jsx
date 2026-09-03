@@ -166,6 +166,9 @@ export function CallProvider({ children }) {
   // user-visible "poor connection" if it's STILL disconnected once this
   // timer fires; cleared immediately if it recovers first.
   const disconnectTimersRef = useRef(new Map());
+  // Longer-horizon "give up on this peer for real" timers — see their use
+  // in doConnect's oniceconnectionstatechange below.
+  const peerGiveUpTimersRef = useRef(new Map());
   const [networkStatus, setNetworkStatus] = useState(null); // null (good) | 'poor'
   function recomputeNetworkStatus() {
     let poor = false;
@@ -179,6 +182,9 @@ export function CallProvider({ children }) {
     if (timer) clearTimeout(timer);
     disconnectTimersRef.current.delete(username);
     peerNetworkRef.current.delete(username);
+    const giveUpTimer = peerGiveUpTimersRef.current.get(username);
+    if (giveUpTimer) clearTimeout(giveUpTimer);
+    peerGiveUpTimersRef.current.delete(username);
   }
   const iceBuffersRef = useRef(new Map()); // username -> buffered candidates until that peer's remoteDescription is set
   const peerPublicKeysRef = useRef(new Map());
@@ -729,6 +735,18 @@ export function CallProvider({ children }) {
     return connectPromisesRef.current.get(targetUsername);
   }
 
+  // Everyone this call's own state currently thinks is on it besides me —
+  // mirrors OneOnOneCallScreen.jsx's getRemoteParticipants base-list logic
+  // (same two shapes: isGroupJoin means groupMembers IS the full other-
+  // participant list; otherwise it's peerUsername plus anyone added since).
+  // Used only by the give-up watchdog below to decide "was that the last
+  // person left" vs. "just drop this one from the mesh."
+  function getOtherActiveUsernames(cs) {
+    const members = cs.groupMembers || [];
+    if (cs.isGroupJoin) return members.map(m => m.username);
+    return [cs.peerUsername, ...members.filter(m => m.username !== cs.peerUsername).map(m => m.username)];
+  }
+
   async function doConnect(targetUsername, { isCaller, callId, type }) {
     const iceServers = await fetchIceServers();
     const pc = new RTCPeerConnection({ iceServers });
@@ -778,6 +796,41 @@ export function CallProvider({ children }) {
         // connected; a 'failed' during initial setup means it never
         // connected at all (bad TURN/firewall), which a restart can't fix.
         if (hasConnectedOnce) { try { pc.restartIce(); } catch {} }
+      }
+      // Give-up watchdog: if the OTHER side ends the call while THIS side's
+      // socket happens to be disconnected at that exact moment (backgrounded
+      // heavily, brief network blip), the server's call:ended/call:member-
+      // left emit simply has nowhere to go — a server-side emit to an
+      // already-disconnected socket isn't queued for delivery on reconnect
+      // the way a client-side emit would be. Without this, a call that
+      // genuinely ended on the other side could keep showing as "connected"
+      // here indefinitely, with nothing left to actually talk to. Bounds
+      // that to a fixed window instead of forever: still 'disconnected' or
+      // 'failed' (restartIce already had its chance above) this long after
+      // first going bad, and it's treated as really gone.
+      if (state === 'disconnected' || state === 'failed') {
+        if (hasConnectedOnce && !peerGiveUpTimersRef.current.has(targetUsername)) {
+          const giveUpTimer = setTimeout(() => {
+            peerGiveUpTimersRef.current.delete(targetUsername);
+            const st = pc.iceConnectionState;
+            if (st !== 'disconnected' && st !== 'failed') return; // recovered in the meantime
+            const cs = callStateRef.current;
+            if (!cs) return;
+            const others = getOtherActiveUsernames(cs);
+            if (others.length <= 1) {
+              // This was the only person left — nothing to keep the call
+              // open for.
+              endCall();
+            } else {
+              closePeerConnection(targetUsername);
+              setCallState(prev => (prev ? { ...prev, groupMembers: (prev.groupMembers || []).filter(m => m.username !== targetUsername) } : prev));
+            }
+          }, 20000);
+          peerGiveUpTimersRef.current.set(targetUsername, giveUpTimer);
+        }
+      } else if (state === 'connected' || state === 'completed') {
+        const t = peerGiveUpTimersRef.current.get(targetUsername);
+        if (t) { clearTimeout(t); peerGiveUpTimersRef.current.delete(targetUsername); }
       }
     };
 

@@ -159,19 +159,32 @@ export default function OneOnOneCallScreen({
 
   // Tap-anywhere-to-toggle chrome — top bar + bottom dock (and, per the
   // product ask, the Add-to-call button that lives in the top bar) fade
-  // together.
+  // together. Stays up a bit longer (6s) than the original 4s — reported as
+  // disappearing too quickly to actually use on some devices.
   const [chromeVisible, setChromeVisible] = useState(true);
   const hideTimerRef = useRef(null);
   const resetHideTimer = () => {
     setChromeVisible(true);
     clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => setChromeVisible(false), 4000);
+    hideTimerRef.current = setTimeout(() => setChromeVisible(false), 6000);
   };
   useEffect(() => {
     resetHideTimer();
     return () => clearTimeout(hideTimerRef.current);
   }, []);
+  // Some mobile browsers/WebViews fire a second, near-instant synthetic
+  // click for a single physical tap (a known quirk on certain OEM builds) —
+  // this toggle handler treated that as two real taps: the first correctly
+  // showed the chrome, the second (arriving milliseconds later, while it's
+  // now visible) immediately hid it again, reading as "it shows then
+  // disappears right away." Ignoring a repeat tap within a short window
+  // fixes that without weakening the real toggle-on-a-genuine-second-tap
+  // behavior at all (a deliberate second tap is never that fast).
+  const lastTapAtRef = useRef(0);
   const handleStageTap = () => {
+    const now = Date.now();
+    if (now - lastTapAtRef.current < 300) return;
+    lastTapAtRef.current = now;
     if (chromeVisible) { clearTimeout(hideTimerRef.current); setChromeVisible(false); }
     else resetHideTimer();
   };
