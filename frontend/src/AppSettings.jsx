@@ -1862,7 +1862,16 @@ const AppSettings = () => {
               <p style={{ color: isLight ? '#4b5563' : '#888', fontSize: 13, margin: '0 0 4px', fontWeight: 700 }}>{t('messageSound', 'Message notification sound')}</p>
               <p style={{ color: isLight ? '#6b7280' : '#666', fontSize: 12, margin: '0 0 12px' }}>{t('messageSoundDesc', 'Plays when a new message arrives')}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-                {[{ id: 'none', name: t('soundNone', 'None') }, ...NOTIFICATION_TONE_LIST].map(tone => (
+                {[{ id: 'none', name: t('soundNone', 'None') }, ...NOTIFICATION_TONE_LIST].map(tone => {
+                  // Tone names come from notificationSounds.js in English only
+                  // (that module just synthesizes audio, it has no i18n of its
+                  // own) — translate the display label here via a per-tone key,
+                  // falling back to the English name if a language hasn't got
+                  // around to translating it yet.
+                  const label = tone.id === 'none'
+                    ? tone.name
+                    : t(`tone${tone.id.charAt(0).toUpperCase()}${tone.id.slice(1)}`, tone.name);
+                  return (
                   <div
                     key={tone.id}
                     onClick={() => handleToneSelect(tone.id)}
@@ -1881,7 +1890,7 @@ const AppSettings = () => {
                       }}>
                         {notifySound === tone.id && <div style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--brand-1)' }} />}
                       </div>
-                      <span style={{ color: isLight ? '#111' : '#fff', fontSize: 14, fontWeight: 600 }}>{tone.name}</span>
+                      <span style={{ color: isLight ? '#111' : '#fff', fontSize: 14, fontWeight: 600 }}>{label}</span>
                     </div>
                     {tone.id !== 'none' && (
                       <button
@@ -1891,13 +1900,14 @@ const AppSettings = () => {
                           background: isLight ? '#fff' : 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', flexShrink: 0, boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                         }}
-                        aria-label={`Preview ${tone.name}`}
+                        aria-label={`Preview ${label}`}
                       >
                         {previewingTone === tone.id ? <Volume2 size={14} color="var(--brand-1)" /> : <Play size={13} color={isLight ? '#374151' : '#ccc'} />}
                       </button>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div style={{ borderTop: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.08)', paddingTop: 18 }}>
