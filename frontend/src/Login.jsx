@@ -94,13 +94,26 @@ const Login = () => {
     const abortTimer = setTimeout(() => controller.abort(), 70000);
 
     try {
-      const response = await fetch(`${API}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-        signal: controller.signal
-      });
-      const data = await response.json();
+      // Right after a Render cold boot, the Node process itself answers
+      // requests before its DB connection pool has actually finished
+      // establishing — so the very first request can come back FAST with a
+      // real 500 "Database error", not a slow timeout (that case is what
+      // the AbortController below is for). A silent one-time retry here is
+      // what "just click login again and it works" was actually doing
+      // manually; a genuine 4xx (wrong password, banned, etc.) still
+      // surfaces immediately without waiting on a pointless retry.
+      let response, data;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        response = await fetch(`${API}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+          signal: controller.signal
+        });
+        data = await response.json();
+        if (response.ok || response.status !== 500 || attempt === 2) break;
+        await new Promise(r => setTimeout(r, 1200));
+      }
 
       if (!response.ok) {
         const code   = data.code;
