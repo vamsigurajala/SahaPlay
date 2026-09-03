@@ -4530,15 +4530,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // Server timestamp is equal-or-newer. Use server data as base but rescue any good
           // local decryption / media label that the server response can't provide.
           //
-          // mediaType/Duration: always fall back to local state regardless of timestamp.
-          // Rationale: if the server sends the same message but without mediaType (legacy
-          // rows where mediaType was never stored, or the DB field is null), we should keep
-          // whatever the real-time socket update gave us. We only clear them when the SERVER
-          // returned a genuinely NEWER message — but in that case finalC would have the new
-          // message's own mediaType set, so the fallback never fires anyway.
-          const betterMediaType     = finalC.lastMediaType || existing?.lastMediaType || null;
-          const betterMediaFileName = finalC.lastMediaFileName || existing?.lastMediaFileName || null;
-          const betterMediaDuration = finalC.lastMediaDuration || existing?.lastMediaDuration || null;
+          // mediaType/Duration: fall back to local state ONLY when server and local are
+          // describing the SAME message (equal timestamp) — e.g. legacy rows where mediaType
+          // was never stored server-side but a real-time socket update already had it.
+          // A genuinely newer message (serverTs > existingTs) must NOT fall back: a plain-text
+          // message (a call-log bubble, a normal chat message) legitimately has no mediaType at
+          // all, and resurrecting the OLD cached mediaType here previously made a brand-new
+          // call-log/text message render as whatever media type the PREVIOUS message happened
+          // to be (e.g. a call showing up as "Photo" because the prior message was an image).
+          const sameMsgAsLocal = existingTs > 0 && serverTs === existingTs;
+          const betterMediaType     = finalC.lastMediaType || (sameMsgAsLocal ? existing?.lastMediaType : null) || null;
+          const betterMediaFileName = finalC.lastMediaFileName || (sameMsgAsLocal ? existing?.lastMediaFileName : null) || null;
+          const betterMediaDuration = finalC.lastMediaDuration || (sameMsgAsLocal ? existing?.lastMediaDuration : null) || null;
 
           // betterDecryptedText: server wins if available, then local (regardless of timestamp).
           const betterDecryptedText = finalC.decryptedText || existing?.decryptedText || null;

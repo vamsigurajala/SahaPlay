@@ -106,39 +106,71 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
     return () => clearInterval(id);
   }, [callState.answeredAt]);
 
+  const isPoor = networkStatus === 'poor';
+  const statusColor = isPoor ? '#f59e0b' : '#22c55e';
+
   return (
-    <div
+    <>
+      {/* Standalone copy of the ringing-screen's pulse keyframes — that
+          <style> tag only mounts on the incoming/outgoing branch below, which
+          isn't rendered while minimized, so the status dot needs its own. */}
+      <style>{`
+        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.75; } }
+        .gco-avatar-pulse { animation: gco-pulse-mini 1.6s infinite ease-in-out; }
+      `}</style>
+      <div
       onClick={onRestore}
       style={{
         position: 'fixed', left: 12, right: 12,
         top: 'calc(10px + var(--sp-status-bar-inset, env(safe-area-inset-top, 0px)))',
         zIndex: 2147483500, display: 'flex', alignItems: 'center', gap: 10,
-        background: 'rgba(20,20,20,0.92)', borderRadius: 20, padding: '10px 14px',
-        boxShadow: '0 10px 24px rgba(0,0,0,0.5)', cursor: 'pointer',
-        fontFamily: "'Outfit', 'Inter', sans-serif",
+        background: 'linear-gradient(160deg, rgba(38,40,54,0.94), rgba(16,17,26,0.94))',
+        border: '1px solid rgba(255,255,255,0.08)',
+        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        borderRadius: 999, padding: '8px 14px 8px 8px',
+        boxShadow: '0 10px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)',
+        cursor: 'pointer', fontFamily: "'Outfit', 'Inter', sans-serif",
+        // Pin this permanently-dark bar's own color scheme — without this, a
+        // WebView's algorithmic dark/light re-coloring (only relevant when the
+        // app's OWN theme is light, since that's what tells the OS/WebView the
+        // page "wants" light colors) can recompute this bar's near-white text
+        // against its own dark background and make it unreadable. Same fix as
+        // OneOnOneCallScreen.jsx's overlayStyle for the same reason.
+        colorScheme: 'dark',
       }}
     >
-      <div className="gco-avatar-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: networkStatus === 'poor' ? '#f59e0b' : '#22c55e', flexShrink: 0 }} />
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <Avatar url={callState.peerAvatar} name={callState.peerDisplayName || callState.peerUsername} size={38} />
+        <div style={{
+          position: 'absolute', bottom: -1, right: -1, width: 12, height: 12, borderRadius: '50%',
+          background: statusColor, border: '2px solid #171821', boxShadow: `0 0 6px ${statusColor}`,
+        }} className={isPoor ? '' : 'gco-avatar-pulse'} />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {callState.peerDisplayName || callState.peerUsername}
         </div>
-        <div style={{ color: networkStatus === 'poor' ? '#f59e0b' : 'rgba(255,255,255,0.6)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-          {networkStatus === 'poor' && <WifiOff size={11} color="#f59e0b" />}
-          {networkStatus === 'poor' ? 'Poor connection' : (callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…')} — tap to return
+        <div style={{ color: isPoor ? '#f59e0b' : 'rgba(255,255,255,0.68)', fontSize: 11.5, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+          {isPoor && <WifiOff size={11} color="#f59e0b" />}
+          <span>{isPoor ? 'Poor connection' : (callState.answeredAt ? fmtDuration(durationSecs) : 'Connecting…')}</span>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <span style={{ opacity: 0.85 }}>Tap to return</span>
         </div>
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onEndCall(); }}
         title="End call"
         style={{
-          width: 32, height: 32, borderRadius: '50%', border: 'none', background: '#ef4444',
+          width: 34, height: 34, borderRadius: '50%', border: 'none',
+          background: 'linear-gradient(160deg, #f87171, #ef4444)',
+          boxShadow: '0 2px 8px rgba(239,68,68,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
         }}
       >
-        <PhoneOff size={15} color="#fff" />
+        <PhoneOff size={16} color="#fff" />
       </button>
-    </div>
+      </div>
+    </>
   );
 }
 

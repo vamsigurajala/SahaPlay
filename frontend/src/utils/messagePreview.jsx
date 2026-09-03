@@ -76,7 +76,7 @@ function mediaContent(mediaType, fileName, mediaDuration) {
   return <><PreviewIcon Icon={FileText} color={color} />{fileName || 'File'}</>
 }
 
-function callLogContent(text, isMe, myUsername) {
+function callLogContent(text, myUsername) {
   const raw = text.slice(CALL_LOG_PREFIX.length)
   let data
   try { data = JSON.parse(raw) } catch { return null }
@@ -86,9 +86,13 @@ function callLogContent(text, isMe, myUsername) {
   const iWasCaller = !!(initiatedBy && myUsername && initiatedBy.toLowerCase() === myUsername.toLowerCase())
   const missedForMe = status === 'missed' && !iWasCaller
   const label = isVideo ? 'Video call' : 'Voice call'
+  // Fixed brand colors (not theme-derived) so the call type/outcome reads at a
+  // glance regardless of light/dark mode: red always means "you missed this",
+  // purple = video, green = voice — same color-coding as the in-bubble version.
+  const color = missedForMe ? '#ef4444' : (isVideo ? '#8b5cf6' : '#10b981')
   return (
     <>
-      <PreviewIcon Icon={missedForMe ? PhoneMissed : Icon} color={missedForMe ? '#ef4444' : (isMe ? undefined : '#10b981')} />
+      <PreviewIcon Icon={missedForMe ? PhoneMissed : Icon} color={color} />
       {label}
     </>
   )
@@ -113,7 +117,7 @@ export function getMessagePreview(chat, myUsername) {
   } else {
     const text = chat.decryptedText || chat.message || ''
     if (text && text.startsWith(CALL_LOG_PREFIX)) {
-      content = callLogContent(text, isMe, myUsername) || 'Call'
+      content = callLogContent(text, myUsername) || 'Call'
     } else if (isPollJSON(text)) {
       content = <><PreviewIcon Icon={BarChart2} color="#f59e0b" />Poll</>
     } else if (!text || looksLikeCiphertext(text)) {
