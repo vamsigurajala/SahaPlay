@@ -7224,7 +7224,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     </button>
 
                     <span style={{ fontWeight: 600, fontSize: '1.05rem', color: '#fff' }}>
-                      {selectedChats.length} selected
+                      {selectedChats.length} {t('selected', 'selected')}
                     </span>
                   </div>
 
@@ -7279,7 +7279,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
                             >
                               <CheckCheck size={16} color="var(--menu-icon)" />
-                              Mark as read
+                              {t('markAsRead', 'Mark as read')}
                             </button>
                             {/* Mute / Unmute notifications */}
                             <button
@@ -7311,12 +7311,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               {selectedChats.every(k => mutedChats.includes(k)) ? (
                                 <>
                                   <Bell size={16} color="var(--menu-icon)" />
-                                  Unmute notifications
+                                  {t('unmuteNotifications', 'Unmute notifications')}
                                 </>
                               ) : (
                                 <>
                                   <BellOff size={16} color="var(--menu-icon)" />
-                                  Mute notifications
+                                  {t('muteNotifications', 'Mute notifications')}
                                 </>
                               )}
                             </button>
@@ -7363,12 +7363,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 }).every(k => mutedCallChats.includes(k)) ? (
                                   <>
                                     <Phone size={16} color="var(--menu-icon)" />
-                                    Unmute calls
+                                    {t('unmuteCalls', 'Unmute calls')}
                                   </>
                                 ) : (
                                   <>
                                     <PhoneOff size={16} color="var(--menu-icon)" />
-                                    Mute calls
+                                    {t('muteCalls', 'Mute calls')}
                                   </>
                                 )}
                               </button>
@@ -7399,7 +7399,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
                               >
                                 <Lock size={16} color="var(--menu-icon)" />
-                                Lock selected
+                                {t('lockSelected', 'Lock selected')}
                               </button>
                             )}
                             {/* Unlock chats — only in locked vault */}
@@ -7413,7 +7413,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
                               >
                                 <Unlock size={16} color="var(--menu-icon)" />
-                                Unlock selected
+                                {t('unlockSelected', 'Unlock selected')}
                               </button>
                             )}
                             {/* Hide / Unhide chats */}
@@ -7441,7 +7441,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', transition: 'background 0.18s' }}
                             >
                               {showHiddenChats ? <Eye size={16} color="var(--menu-icon)" /> : <EyeOff size={16} color="var(--menu-icon)" />}
-                              {showHiddenChats ? 'Unhide chats' : 'Hide chats'}
+                              {showHiddenChats ? t('unhideChats', 'Unhide chats') : t('hideChats', 'Hide chats')}
                             </button>
                         </div>
                       )}
@@ -7507,7 +7507,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
               </button>
               <Lock size={14} color="#ef4444" />
               <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#ef4444', flex: 1 }}>
-                Locked Vault {lockedChats.length > 0 ? `(${lockedChats.length})` : ''}
+                {t('lockedVault', 'Locked Vault')} {lockedChats.length > 0 ? `(${lockedChats.length})` : ''}
               </span>
               <div style={{ position: 'relative' }} ref={vaultMenuRef}>
                 <button
@@ -7541,14 +7541,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     animation: 'scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                     display: 'flex', flexDirection: 'column', gap: 4
                   }}>
-                    <div style={{ padding: '4px 8px 12px', fontSize: '0.7rem', fontWeight: 800, color: isLight ? 'var(--brand-2-darker)' : 'var(--brand-1-light)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Vault Security</div>
-                    
+                    <div style={{ padding: '4px 8px 12px', fontSize: '0.7rem', fontWeight: 800, color: isLight ? 'var(--brand-2-darker)' : 'var(--brand-1-light)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('vaultSecurity', 'Vault Security')}</div>
+
                     <button
                       onClick={() => {
                         const next = !autoLockOnClose;
                         setAutoLockOnClose(next);
                         localStorage.setItem('chat_lock_auto_on_close', next.toString());
-                        toast.success(`Auto-lock on close ${next ? 'enabled' : 'disabled'}`);
+                        toast.success(next ? t('autoLockOnCloseEnabled', 'Auto-lock on close enabled') : t('autoLockOnCloseDisabled', 'Auto-lock on close disabled'));
                       }}
                       className="chat-menu-item"
                       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.03)', width: '100%', textAlign: 'left', fontSize: '0.85rem', color: 'var(--menu-item-text)', cursor: 'pointer', marginBottom: 6, transition: 'all 0.2s' }}
@@ -7556,7 +7556,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(129,140,248,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Lock size={16} color={autoLockOnClose ? 'var(--brand-1-light)' : 'var(--menu-icon)'} />
                       </div>
-                      <div style={{ flex: 1, fontWeight: 500 }}>Auto-lock on close</div>
+                      <div style={{ flex: 1, fontWeight: 500 }}>{t('autoLockOnClose', 'Auto-lock on close')}</div>
                       <div style={{ width: 32, height: 18, borderRadius: 20, background: autoLockOnClose ? 'var(--brand-2)' : (isLight ? '#d1d5db' : 'rgba(255,255,255,0.15)'), position: 'relative', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                         <div style={{ position: 'absolute', top: 3, left: autoLockOnClose ? 17 : 3, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' }} />
                       </div>
@@ -7566,14 +7566,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-2-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <TimerIcon size={16} color="var(--brand-2)" />
                       </div>
-                      <div style={{ flex: 1, fontSize: '0.85rem', color: isLight ? '#374151' : '#e2e8f0', fontWeight: 500 }}>Auto-lock idle</div>
+                      <div style={{ flex: 1, fontSize: '0.85rem', color: isLight ? '#374151' : '#e2e8f0', fontWeight: 500 }}>{t('autoLockIdle', 'Auto-lock idle')}</div>
                       <select
                         value={autoLockMinutes}
                         onChange={(e) => {
                           const val = parseInt(e.target.value);
                           setAutoLockMinutes(val);
                           localStorage.setItem('chat_lock_auto_minutes', val.toString());
-                          toast.success(`Idle lock set to ${val === 0 ? 'Immediate' : val === -1 ? 'Never' : val + ' mins'}`);
+                          const labels = { 0: t('idleLockImmediate', 'Immediate'), 1: t('idleLock1Min', '1 min'), 5: t('idleLock5Mins', '5 mins'), 15: t('idleLock15Mins', '15 mins'), '-1': t('idleLockNever', 'Never') };
+                          toast.success(t('idleLockSetTo', 'Idle lock set to {{label}}', { label: labels[val] }));
                         }}
                         style={{
                           background: isLight ? '#f3f4f6' : 'rgba(255,255,255,0.06)',
@@ -7596,11 +7597,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           transition: 'border-color 0.2s ease, background 0.2s ease'
                         }}
                       >
-                        <option value="0">Immediate</option>
-                        <option value="1">1 min</option>
-                        <option value="5">5 mins</option>
-                        <option value="15">15 mins</option>
-                        <option value="-1">Never</option>
+                        <option value="0">{t('idleLockImmediate', 'Immediate')}</option>
+                        <option value="1">{t('idleLock1Min', '1 min')}</option>
+                        <option value="5">{t('idleLock5Mins', '5 mins')}</option>
+                        <option value="15">{t('idleLock15Mins', '15 mins')}</option>
+                        <option value="-1">{t('idleLockNever', 'Never')}</option>
                       </select>
                     </div>
 
@@ -7614,7 +7615,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Pin size={16} color="var(--brand-1)" />
                       </div>
-                      <span style={{ fontWeight: 500 }}>Change Vault PIN</span>
+                      <span style={{ fontWeight: 500 }}>{t('changeVaultPin', 'Change Vault PIN')}</span>
                     </button>
 
                     <button
@@ -7622,7 +7623,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         unlockedSessionsRef.current = {};
                         setShowVaultMenu(false);
                         setShowLockedChats(false);
-                        toast.success('Vault locked immediately');
+                        toast.success(t('vaultLockedImmediately', 'Vault locked immediately'));
                         window.dispatchEvent(new Event('locked_chats_updated'));
                       }}
                       className="chat-menu-item menu-btn-destructive"
@@ -7631,7 +7632,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <ShieldAlert size={16} />
                       </div>
-                      <span style={{ fontWeight: 600 }}>Lock Vault Now</span>
+                      <span style={{ fontWeight: 600 }}>{t('lockVaultNow', 'Lock Vault Now')}</span>
                     </button>
                   </div>
                 )}
@@ -7715,8 +7716,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
               {showLockedChats ? (
                 <>
                   <Lock size={28} color="var(--header-btn)" />
-                  <div style={{ fontSize: 14, color: 'var(--header-btn)' }}>Vault is empty</div>
-                  <div style={{ fontSize: 12, color: 'var(--menu-icon)' }}>Lock a chat to move it to the vault</div>
+                  <div style={{ fontSize: 14, color: 'var(--header-btn)' }}>{t('vaultEmpty', 'Vault is empty')}</div>
+                  <div style={{ fontSize: 12, color: 'var(--menu-icon)' }}>{t('vaultEmptyDesc', 'Lock a chat to move it to the vault')}</div>
                 </>
               ) : showHiddenChats ? (
                 <>

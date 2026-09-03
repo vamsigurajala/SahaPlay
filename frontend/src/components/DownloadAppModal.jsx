@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Monitor, Apple, Download } from 'lucide-react';
+import { X, Monitor, Download } from 'lucide-react';
 
 // Published via .github/workflows/desktop-build.yml -> GitHub Releases.
 const WINDOWS_INSTALLER_URL = 'https://github.com/vamsigurajala/SahaPlay/releases/download/desktop-v0.1.0/SahaPlay_0.1.0_x64-setup.exe';
@@ -31,9 +31,18 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
   // GlobalChatWidget, etc).
   useEffect(() => {
     if (!isOpen) return;
-    const original = document.body.style.overflow;
+    const originalBody = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    // Locking body alone wasn't enough — this app's page scroll happens on
+    // <html>, not <body>, so both need to be held for the wheel to actually
+    // stop reaching the page behind the overlay (same two-element lock
+    // Safety.jsx already uses for its own modals).
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalBody;
+      document.documentElement.style.overflow = originalHtml;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -46,14 +55,6 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
       Icon: Monitor,
       color: '#38bdf8',
       href: WINDOWS_INSTALLER_URL || null,
-    },
-    {
-      key: 'mac',
-      label: t('downloadAppMac', 'Mac'),
-      sub: t('downloadAppComingSoon', 'Coming soon'),
-      Icon: Apple,
-      color: '#a1a1aa',
-      href: null,
     },
   ];
 
@@ -72,7 +73,7 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
+        <div className="download-app-modal-body" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <p style={{ fontSize: 14, color: isLight ? '#475569' : '#9ca3af', lineHeight: 1.6, margin: 0 }}>
             {t('downloadAppSubtitle', 'Install SahaPlay as a native desktop app — same account, same rooms, its own window.')}
           </p>
@@ -124,25 +125,23 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
             </p>
 
             {/* Mock of the actual Windows SmartScreen dialog, so the user
-                recognizes it instead of being alarmed by it. */}
-            <div style={{ borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)', marginBottom: 12, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' }}>
-              {/* Every text node here gets its OWN explicit inline color
-                  (rather than relying on inheriting the box's color:'#fff')
-                  — the app's light-mode stylesheet forces most un-colored
-                  text dark for readability elsewhere in the app, and this
-                  box's blue background is fixed regardless of app theme, so
-                  nothing here can rely on inheritance to stay legible. */}
-              <div style={{ background: 'linear-gradient(180deg, #1877d9, #0f5fc0)', color: '#fff', padding: '16px 18px', position: 'relative', fontFamily: 'Segoe UI, Outfit, sans-serif' }}>
-                <div style={{ position: 'absolute', top: 8, right: 10, width: 22, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, background: 'rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff' }}>✕</div>
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8, color: '#fff' }}>Windows protected your PC</div>
-                <div style={{ fontSize: 11.5, lineHeight: 1.5, opacity: 0.92, marginBottom: 10, maxWidth: 340, color: '#fff' }}>
+                recognizes it instead of being alarmed by it. Every text node
+                is forced white via the !important rules below (not just
+                inline color) — this box's blue background is fixed
+                regardless of app theme, and nothing in it should ever be
+                readable as anything but the real dialog's white-on-blue. */}
+            <div className="sp-smartscreen-mock" style={{ borderRadius: 8, overflow: 'hidden', border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.1)', marginBottom: 12, boxShadow: '0 4px 14px rgba(0,0,0,0.12)' }}>
+              <div style={{ background: 'linear-gradient(180deg, #1877d9, #0f5fc0)', padding: '16px 18px', position: 'relative', fontFamily: 'Segoe UI, Outfit, sans-serif' }}>
+                <div style={{ position: 'absolute', top: 8, right: 10, width: 22, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>✕</div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Windows protected your PC</div>
+                <div style={{ fontSize: 11.5, lineHeight: 1.5, opacity: 0.92, marginBottom: 10, maxWidth: 340 }}>
                   Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 2, color: '#fff' }}><b style={{ color: '#fff' }}>App:</b>&nbsp;&nbsp;SahaPlay_0.1.0_x64-setup.exe</div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 14, color: '#fff' }}><b style={{ color: '#fff' }}>Publisher:</b>&nbsp;&nbsp;Unknown publisher</div>
+                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 2 }}><b>App:</b>&nbsp;&nbsp;SahaPlay_0.1.0_x64-setup.exe</div>
+                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 14 }}><b>Publisher:</b>&nbsp;&nbsp;Unknown publisher</div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                  <div style={{ padding: '5px 14px', borderRadius: 2, background: '#fff', color: '#111', fontSize: 11.5, fontWeight: 700 }}>Run anyway</div>
-                  <div style={{ padding: '5px 14px', borderRadius: 2, background: 'transparent', border: '1px solid rgba(255,255,255,0.55)', color: '#fff', fontSize: 11.5, fontWeight: 700 }}>Don't run</div>
+                  <div className="sp-smartscreen-mock-runanyway" style={{ padding: '5px 14px', borderRadius: 2, background: '#fff', fontSize: 11.5, fontWeight: 700 }}>Run anyway</div>
+                  <div style={{ padding: '5px 14px', borderRadius: 2, background: 'transparent', border: '1px solid rgba(255,255,255,0.55)', fontSize: 11.5, fontWeight: 700 }}>Don't run</div>
                 </div>
               </div>
             </div>
@@ -196,6 +195,17 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
           border: 1px solid rgba(226, 232, 240, 0.8) !important;
           box-shadow: 0 24px 64px rgba(15, 23, 42, 0.15) !important;
         }
+        .download-app-modal-body {
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* old Edge */
+        }
+        .download-app-modal-body::-webkit-scrollbar { display: none; } /* Chrome/Safari/new Edge */
+        /* !important here (not just inline color) because the app's
+           light-mode stylesheet forces most un-colored text dark elsewhere
+           in the app — this box's background is permanently blue regardless
+           of theme, so every one of its own rules needs to win outright. */
+        .sp-smartscreen-mock, .sp-smartscreen-mock * { color: #ffffff !important; }
+        .sp-smartscreen-mock-runanyway, .sp-smartscreen-mock-runanyway * { color: #111111 !important; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
       `}</style>
