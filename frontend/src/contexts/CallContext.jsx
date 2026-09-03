@@ -1005,6 +1005,7 @@ export function CallProvider({ children }) {
     }
     for (const pc of pcsRef.current.values()) { try { pc.close(); } catch {} }
     pcsRef.current.clear();
+    audioSendersRef.current.clear();
     remoteStreamsRef.current.clear();
     iceBuffersRef.current.clear();
     connectPromisesRef.current.clear();
@@ -1176,28 +1177,38 @@ export function CallProvider({ children }) {
     socketRef.current.emit('call:add-member', { callId: cs.callId, newMemberUsername: username.toLowerCase() });
   }, []);
 
-  const toggleMic = useCallback(async () => {
+  const toggleMic = useCallback(() => {
     const stream = localStreamRef.current;
     const cs = callStateRef.current;
     const audioTrack = stream?.getAudioTracks()[0];
     if (!stream || !audioTrack) return;
     const nowOn = !audioTrack.enabled;
+    // State first, network second: the button/icon flips and the server
+    // gets told immediately, in the same tick — none of it waits on the
+    // replaceTrack round trips below. Muting used to await each peer's
+    // replaceTrack sequentially before the button even changed state, which
+    // is exactly what made it feel like it was "slowly doing the action" in
+    // a 3+ person mesh (one network round trip per peer, one after another).
     audioTrack.enabled = nowOn;
+    setIsMicOn(nowOn);
+    if (cs) broadcastState(cs.callId);
     // Real enforcement beyond track.enabled=false: on some Android WebView/
     // chipset combinations, a track that's merely disabled hasn't reliably
     // kept sending silence through an already-established sender, especially
     // right after an unrelated renegotiation on the same peer connection
-    // (e.g. toggleCamera adding a video track) — reported as "muted but the
-    // other person could still hear me" specifically after turning video on.
+    // (e.g. toggleCamera adding a video track, or another member joining the
+    // mesh) — reported as "muted but everyone else could still hear me,"
+    // including specifically a 3rd person's mic in a group call.
     // replaceTrack(null) detaches the RTP sender from producing ANY audio
     // packets at all while muted, which nothing else on the connection can
     // silently undo; replaceTrack(audioTrack) re-attaches the SAME track
-    // object on unmute so echo-cancellation/AGC state isn't reset.
+    // object on unmute so echo-cancellation/AGC state isn't reset. Fired in
+    // parallel (not one peer awaited at a time) and never blocks the UI
+    // update above — a slow/dropped one only delays silencing that ONE
+    // peer's copy, never the button or the other peers.
     for (const sender of audioSendersRef.current.values()) {
-      try { await sender.replaceTrack(nowOn ? audioTrack : null); } catch {}
+      sender.replaceTrack(nowOn ? audioTrack : null).catch(() => {});
     }
-    setIsMicOn(nowOn);
-    if (cs) broadcastState(cs.callId);
   }, []);
 
   // Adds a video track (voice → video upgrade, WhatsApp-style) the first
@@ -1230,12 +1241,18 @@ export function CallProvider({ children }) {
       // (call:joined-call) is handed the stale 'voice' type from invite
       // time and joins audio-only by default. See call:mark-video.
       socketRef.current?.emit('call:mark-video', { callId: cs.callId });
-      for (const [username, pc] of pcsRef.current) {
+      // In parallel, not one peer renegotiated after another — with 3+
+      // people in the mesh, awaiting each peer's createOffer/
+      // setLocalDescription/signal round trip in sequence meant the last
+      // person in the mesh saw your video several round trips later than
+      // the first. Each peer's own connection is independent, so there's no
+      // reason for one to wait on another.
+      await Promise.all(Array.from(pcsRef.current.entries()).map(async ([username, pc]) => {
         pc.addTrack(videoTrack, stream);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await sendSignal('call:offer', cs.callId, username, { type: 'offer', sdp: offer.sdp });
-      }
+      }));
       broadcastState(cs.callId);
     } catch (e) {
       console.error('[Call] toggleCamera (add video) failed:', e);
