@@ -62,6 +62,21 @@ public class CallActionReceiver extends BroadcastReceiver {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(callId.hashCode());
 
+        // Without this, postJson()'s network call runs on a bare background
+        // Thread with nothing telling Android this broadcast isn't done yet —
+        // onReceive() returns almost instantly (right after Thread.start()),
+        // and a process woken up ONLY to handle this one broadcast (the
+        // common case: declining/ending a call while the app is fully
+        // killed) can be deprioritized or killed before that Thread's HTTP
+        // request actually completes. That's the likely cause of "I tapped
+        // Decline, my own ring stopped, but the other person kept ringing" —
+        // the local UI teardown above (nm.cancel) already happened
+        // synchronously, so it LOOKED like it worked even though the network
+        // call never got to finish. goAsync() extends this broadcast's
+        // execution priority window (~10s) until finish() is called, which
+        // every postJson() completion path below now does.
+        final PendingResult pendingResult = goAsync();
+
         String action = intent.getAction();
 
         // Answer is fundamentally different from Decline/End: it can't
@@ -83,7 +98,7 @@ public class CallActionReceiver extends BroadcastReceiver {
         // this Activity instead shows its native "Connecting…" state
         // immediately, with no blank gap.
         if (ACTION_ANSWER_PING.equals(action)) {
-            postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/extend-ring", "{}");
+            postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/extend-ring", "{}", pendingResult);
             Intent activityIntent = new Intent(context, IncomingCallActivity.class);
             activityIntent.putExtra(IncomingCallActivity.EXTRA_CALL_ID, callId);
             activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER));
@@ -98,11 +113,14 @@ public class CallActionReceiver extends BroadcastReceiver {
         }
 
         String username = intent.getStringExtra(EXTRA_USERNAME);
-        if (username == null) return;
+        if (username == null) {
+            pendingResult.finish();
+            return;
+        }
 
         if (ACTION_DECLINE.equals(action)) {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/decline",
-                "{\"calleeUsername\":\"" + escapeJson(username) + "\"}");
+                "{\"calleeUsername\":\"" + escapeJson(username) + "\"}", pendingResult);
         } else if (ACTION_END.equals(action)) {
             // Stops the persistent ongoing-call foreground service/
             // notification on THIS device immediately — same ACTION_STOP
@@ -112,7 +130,9 @@ public class CallActionReceiver extends BroadcastReceiver {
             stopIntent.setAction(SahaplayCallService.ACTION_STOP);
             try { context.startService(stopIntent); } catch (Exception ignored) {}
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/end",
-                "{\"username\":\"" + escapeJson(username) + "\"}");
+                "{\"username\":\"" + escapeJson(username) + "\"}", pendingResult);
+        } else {
+            pendingResult.finish();
         }
         // The HTTP calls above only tell the OTHER person the call is over —
         // they do nothing for THIS device's own call screen/WebRTC state.
@@ -133,10 +153,13 @@ public class CallActionReceiver extends BroadcastReceiver {
         return s == null ? "" : s.replace("\"", "");
     }
 
-    private static void postJson(String urlStr, String body) {
+    private static void postJson(String urlStr, String body, PendingResult pendingResult) {
         // A BroadcastReceiver's onReceive() must return quickly and can't
         // block — same "fire the network call on its own thread" approach
-        // IncomingCallActivity's postDecline already uses.
+        // IncomingCallActivity's postDecline already uses. goAsync()'s
+        // pendingResult.finish() runs in a finally block so Android's
+        // extended-priority window for this broadcast is always released,
+        // success or failure, instead of just sitting until its own timeout.
         new Thread(() -> {
             try {
                 URL url = new URL(urlStr);
@@ -151,7 +174,10 @@ public class CallActionReceiver extends BroadcastReceiver {
                 }
                 conn.getResponseCode(); // force the request to actually execute
                 conn.disconnect();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            } finally {
+                pendingResult.finish();
+            }
         }).start();
     }
 }

@@ -1086,7 +1086,18 @@ export function CallProvider({ children }) {
 
   // ─── Public API ───
   const startCall = useCallback(async (peerUsername, type, peerDisplayName, peerAvatar) => {
-    if (callStateRef.current || !socketRef.current) return;
+    if (callStateRef.current) return;
+    // socketRef.current is only ever null before this file's own socket-
+    // lifecycle effect has run at all (no token yet, or cryptoReady still
+    // false) — tapping Call in that window used to silently do nothing, no
+    // toast, no outgoing-ringing UI, nothing to explain why. Surfacing this
+    // explicitly turns "the call button doesn't work" into "try again in a
+    // second," which is also the fix for it: the effect finishes shortly
+    // after and every call attempt after that works normally.
+    if (!socketRef.current) {
+      toast.error('Still connecting — try again in a moment');
+      return;
+    }
     // Resolved BEFORE any call state exists yet — see the matching comment
     // on ensureNativeMediaPermissions in nativeMedia.js for why this has to
     // happen ahead of the 'outgoing' phase transition below, not reactively

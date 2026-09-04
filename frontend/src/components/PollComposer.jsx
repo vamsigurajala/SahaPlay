@@ -201,11 +201,19 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
     onSend({ question: question.trim(), options: finalOptions, allowMultiple });
   };
 
-  const cardBg = isLight ? '#ffffff' : '#0e0e14';
-  const inputBg = isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)';
-  const inputBorder = isLight ? '#e2e8f0' : 'rgba(255,255,255,0.12)';
+  const cardBg = isLight ? '#f8fafc' : '#0e0e14';
+  const inputBg = isLight ? '#ffffff' : 'rgba(255,255,255,0.06)';
+  const inputBorder = isLight ? '#cbd5e1' : 'rgba(255,255,255,0.12)';
   const textColor = isLight ? '#0f172a' : '#fff';
-  const subColor = isLight ? 'rgba(15,23,42,0.5)' : 'rgba(255,255,255,0.45)';
+  const subColor = isLight ? '#64748b' : 'rgba(255,255,255,0.45)';
+  const iconColor = isLight ? '#94a3b8' : subColor;
+  // Light mode's cardBg/inputBg are close in value (a soft page background
+  // with white cards on top) rather than near-identical (both were '#fff'-ish
+  // before) — without an actual shadow the option rows read as barely-there
+  // outlines floating on an equally-white page, which is what looked "not
+  // good" here specifically (the same borders read fine in dark mode, where
+  // the card is much darker than the page behind it).
+  const optionShadow = isLight ? '0 1px 3px rgba(15,23,42,0.08)' : 'none';
 
   return (
     <div style={{
@@ -235,7 +243,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
           style={{
             width: '100%', boxSizing: 'border-box', background: inputBg, border: `1px solid ${inputBorder}`,
             borderRadius: 12, padding: '12px 14px', color: textColor, fontSize: 15, outline: 'none',
-            resize: 'none', fontFamily: 'inherit',
+            resize: 'none', fontFamily: 'inherit', boxShadow: optionShadow,
           }}
         />
         <div style={{ textAlign: 'right', fontSize: 11, color: subColor, marginTop: 4, marginBottom: 22 }}>
@@ -254,7 +262,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
                 display: 'flex', alignItems: 'center', gap: 8,
                 border: `1.5px solid ${dragId === opt.id ? 'var(--brand-1)' : inputBorder}`,
                 borderRadius: 12, padding: '4px 6px 4px 14px', background: inputBg,
-                boxShadow: dragId === opt.id ? '0 8px 20px rgba(0,0,0,0.25)' : 'none',
+                boxShadow: dragId === opt.id ? '0 8px 20px rgba(0,0,0,0.25)' : optionShadow,
                 position: 'relative',
               }}
             >
@@ -273,7 +281,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
                   <button
                     onClick={() => removeOption(opt.id)}
                     aria-label="Remove option"
-                    style={{ background: 'transparent', border: 'none', color: subColor, cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}
+                    style={{ background: 'transparent', border: 'none', color: iconColor, cursor: 'pointer', display: 'flex', padding: 4, flexShrink: 0 }}
                   >
                     <X size={16} />
                   </button>
@@ -285,7 +293,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
                 onPointerUp={endDrag}
                 onPointerCancel={endDrag}
                 onLostPointerCapture={endDrag}
-                style={{ cursor: 'grab', color: subColor, display: 'flex', padding: '4px 2px', touchAction: 'none', flexShrink: 0 }}
+                style={{ cursor: 'grab', color: iconColor, display: 'flex', padding: '4px 2px', touchAction: 'none', flexShrink: 0 }}
                 aria-label="Reorder option"
               >
                 <GripVertical size={18} />
@@ -300,6 +308,7 @@ export default function PollComposer({ onSend, onClose, isLight, initialPoll, ti
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginTop: 26, padding: '14px 16px', borderRadius: 14,
             border: `1px solid ${inputBorder}`, background: inputBg, cursor: 'pointer',
+            boxShadow: optionShadow,
           }}
         >
           <span style={{ fontSize: 14, fontWeight: 600 }}>Allow multiple answers</span>
