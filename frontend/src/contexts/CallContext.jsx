@@ -216,6 +216,16 @@ export function CallProvider({ children }) {
   // immediately after they declined).
   const busyRetriedRef = useRef(new Set());
 
+  // Re-entrancy guard for acceptCall() — see that function's own comment.
+  // Without this, a double-tap on the Answer button (easy to do while
+  // waiting on the socket-ready/media-permission awaits it now has) fires
+  // two concurrent 'call:accept' emits for the same call; the server
+  // processes the first one fine and rejects the second with
+  // reason:'already_active', which surfaced client-side as "This call was
+  // already answered on another device" — confusing and simply wrong, no
+  // other device was ever involved.
+  const acceptInFlightRef = useRef(false);
+
   const [callState, setCallState] = useState(null);
   // { phase: 'outgoing'|'incoming'|'active', callId, type, peerUsername,
   //   peerDisplayName, peerAvatar, startedAt, answeredAt,
@@ -247,6 +257,28 @@ export function CallProvider({ children }) {
     if (!myUsername) return;
     fetchUserBrief(myUsername).then(brief => { if (brief?.avatarUrl) setMyAvatarUrl(brief.avatarUrl); });
   }, [myUsername]);
+
+  // CallProvider wraps every route, including /login and /signup (see
+  // App.jsx) — so this whole file mounts and the socket-lifecycle effect
+  // below runs its FIRST pass well before a fresh sign-in, at a point where
+  // `token` is still null. Login.jsx/Signup.jsx navigate with React
+  // Router's navigate() afterward, not a full page reload, so nothing
+  // remounts this component — the effect below (previously keyed only on
+  // [cryptoReady], which was already true on the login page) would then
+  // never run again for the rest of that session, since its only dependency
+  // never changes again. That's the actual cause of "signed in, clicked
+  // Call, permanently stuck on 'Still connecting' no matter how many times
+  // I try, only a hard refresh fixes it" — there was no socket at all to
+  // connect, ever, until a full reload remounted everything with the token
+  // already present. Bumping this on 'login_success' (dispatched by both
+  // Login.jsx and Signup.jsx right after storing the token) forces the
+  // effect below to re-run and pick it up, no reload needed.
+  const [authVersion, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setAuthVersion(v => v + 1);
+    window.addEventListener('login_success', bump);
+    return () => window.removeEventListener('login_success', bump);
+  }, []);
 
   // ─── Socket lifecycle ───
   useEffect(() => {
@@ -725,7 +757,7 @@ export function CallProvider({ children }) {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cryptoReady]);
+  }, [cryptoReady, authVersion]);
 
   // Drives the call:roster self-heal above — asks the server "who's
   // actually still on this call?" every 12s while active. Deliberately a
@@ -1165,6 +1197,13 @@ export function CallProvider({ children }) {
   const acceptCall = useCallback(async () => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming') return;
+    // Synchronous re-entrancy guard — see acceptInFlightRef's own comment.
+    // Must be checked/set before any `await` below, not just the phase
+    // check above: phase doesn't flip to 'active' until after those awaits
+    // resolve, so a second tap landing in that window would otherwise sail
+    // straight past the phase check too.
+    if (acceptInFlightRef.current) return;
+    acceptInFlightRef.current = true;
     // Wrapped in try/catch — this used to have no error handling at all, so
     // any rejected/thrown step below (socket not ready, requestMediaAccess
     // throwing, connectToPeer throwing) left an unhandled promise rejection:
@@ -1222,6 +1261,8 @@ export function CallProvider({ children }) {
       console.error('[Call] acceptCall failed:', err);
       toast.error('Could not answer the call — please try again');
       if (callStateRef.current?.callId === cs.callId) declineCall();
+    } finally {
+      acceptInFlightRef.current = false;
     }
   }, []);
 
