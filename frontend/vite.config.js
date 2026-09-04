@@ -13,6 +13,10 @@ export default defineConfig({
     allowedHosts: true, // Allow all hosts so localtunnel works
   },
   plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: false,
+  },
   resolve: {
     alias: {
       // Explicitly point to the module distribution to fix resolution failures in Rolldown/Vite 6+

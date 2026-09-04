@@ -40,16 +40,8 @@ import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
 import { ensureWebPushSubscription } from '../lib/webPushSubscribe';
+import { isNotifyCategoryEnabled } from '../lib/notifyGating';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
-
-// Mirrors notifyCalls and the notifyApp master toggle into localStorage (see
-// AppSettings.jsx) so this check is synchronous — this file has no
-// settings-fetch of its own and isn't worth adding one just for two boolean
-// gates. Master toggle off must silence calls the same as every other
-// category, same reasoning as Room.jsx's notifSettingsRef.current.app checks.
-function callNotificationsEnabled() {
-  return localStorage.getItem('notifyApp') !== 'false' && localStorage.getItem('notifyCalls') !== 'false';
-}
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
 // user-typed text — a control character sequence a human could never type,
@@ -338,7 +330,7 @@ export function CallProvider({ children }) {
       peerPublicKeysRef.current = new Map();
       peerGoneRef.current = false;
       const brief = await fetchUserBrief(callerUsername);
-      if (callNotificationsEnabled()) {
+      if (isNotifyCategoryEnabled('calls')) {
         showDesktopNotification(
           callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
           `${brief?.displayName || callerUsername} is calling…`,
@@ -442,7 +434,7 @@ export function CallProvider({ children }) {
       // is already written by whichever side took the action (see the
       // comment above this handler block) — this only adds the notification,
       // not a second log entry.
-      if (cs.phase === 'incoming' && callNotificationsEnabled()) {
+      if (cs.phase === 'incoming' && isNotifyCategoryEnabled('calls')) {
         showDesktopNotification('Missed call', `You missed a call from ${cs.peerDisplayName || cs.peerUsername}`, `call-missed-${callId}`);
       }
       teardownCall();
@@ -462,7 +454,7 @@ export function CallProvider({ children }) {
       if (!cs || cs.callId !== callId) return;
       if (cs.phase === 'outgoing') {
         writeCallLog(cs, 'missed');
-      } else if (cs.phase === 'incoming' && callNotificationsEnabled()) {
+      } else if (cs.phase === 'incoming' && isNotifyCategoryEnabled('calls')) {
         // The ring simply expired unanswered on my end — the caller's own
         // client (which also gets this same event) is what writes the
         // shared chat-log bubble; this just adds the notification.

@@ -5,6 +5,7 @@ import { clearUserSession } from './lib/authUtils.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, resetNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
 import { requestMediaAccess } from './lib/mediaPermissionGate.js';
+import { evaluateRoomMediaAccess } from './lib/roomMediaAccess.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
@@ -10881,11 +10882,9 @@ const Room = () => {
           {/* Mobile cam/mic/⋮ buttons (Part 1) */}
           {isMobile && (() => {
             const camPerm = room?.permissions?.cam || 'all';
-            const canUseCam = camPerm === 'all' || (camPerm === 'host' && isEffectiveHost);
-            const camReason = camPerm === 'none' ? 'Webcam is disabled' : (camPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use webcam' : '');
+            const { canUse: canUseCam, reason: camReason } = evaluateRoomMediaAccess(camPerm, isEffectiveHost, 'cam');
             const micPerm = room?.permissions?.mic || 'all';
-            const canUseMic = micPerm === 'all' || (micPerm === 'host' && isEffectiveHost);
-            const micReason = micPerm === 'none' ? 'Microphone is disabled' : (micPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use microphone' : '');
+            const { canUse: canUseMic, reason: micReason } = evaluateRoomMediaAccess(micPerm, isEffectiveHost, 'mic');
             return (
               <>
                 <button
@@ -14151,8 +14150,7 @@ const Room = () => {
                 <div style={{ display: 'flex', gap: 10 }}>
                   {(() => {
                     const camPerm = room?.permissions?.cam || 'all';
-                    const canUseCam = camPerm === 'all' || (camPerm === 'host' && isEffectiveHost);
-                    const camReason = camPerm === 'none' ? 'Webcam is disabled' : (camPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use webcam' : '');
+                    const { canUse: canUseCam, reason: camReason } = evaluateRoomMediaAccess(camPerm, isEffectiveHost, 'cam');
 
                     return (
                       <button
@@ -14177,8 +14175,7 @@ const Room = () => {
 
                   {(() => {
                     const micPerm = room?.permissions?.mic || 'all';
-                    const canUseMic = micPerm === 'all' || (micPerm === 'host' && isEffectiveHost);
-                    const micReason = micPerm === 'none' ? 'Microphone is disabled' : (micPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use microphone' : '');
+                    const { canUse: canUseMic, reason: micReason } = evaluateRoomMediaAccess(micPerm, isEffectiveHost, 'mic');
 
                     return (
                       <button
