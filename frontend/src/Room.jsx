@@ -6,6 +6,7 @@ import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, resetNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
 import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { evaluateRoomMediaAccess } from './lib/roomMediaAccess.js';
+import { getCenterFeedbackType } from './lib/playbackFeedback.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
@@ -8569,15 +8570,9 @@ const Room = () => {
       if (hasPlayerPrivileges) {
         togglePlayPause();
         clearTimeout(centerFeedbackTimerRef.current);
-        // isPlaying is still the pre-toggle value here (closure) — the video is
-        // transitioning to its opposite, which is also what the bottom control
-        // bar's own play/pause button (isPlaying ? Pause : Play, using the NEW
-        // state once it re-renders) is about to show. Matching that exactly —
-        // NOT just showing the icon for isPlaying's current value — is what
-        // this flash needs to agree with, or the two visibly contradict each
-        // other for a moment (this used to show Pause while pausing, i.e. the
-        // icon for the state being LEFT, not entered).
-        setCenterFeedback({ type: isPlaying ? 'play' : 'pause', key: Date.now() });
+        // isPlaying is still the pre-toggle value here (closure) — see
+        // getCenterFeedbackType's own comment for why this must invert it.
+        setCenterFeedback({ type: getCenterFeedbackType(isPlaying), key: Date.now() });
         centerFeedbackTimerRef.current = setTimeout(() => setCenterFeedback(null), 550);
       }
       toggleControlsVisibility();
