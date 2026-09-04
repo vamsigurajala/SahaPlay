@@ -3,6 +3,9 @@ name: Desktop — Build Windows Installer
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: write # needed so the publish step below can create/update the "desktop-latest" GitHub Release
+
 jobs:
   build-windows:
     name: Build Windows installer (Tauri)
@@ -46,3 +49,32 @@ jobs:
           path: |
             frontend/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      # Publishes the just-built installer to a GitHub Release under a fixed,
+      # never-changing tag ("desktop-latest") — DownloadAppModal.jsx's "Get
+      # Desktop App" button links straight to this exact URL. Before this,
+      # running this workflow only produced a downloadable Actions artifact;
+      # nobody ever manually re-uploaded it to the actual public download
+      # link, so it kept serving whatever build was first uploaded (dated
+      # months ago, missing every native fix since). Deleting-then-recreating
+      # the release (rather than trying to update an existing one in place)
+      # sidesteps any "asset already exists"/stale-tag ambiguity — this
+      # always ends up a clean, single release pointing at the current build.
+      # Renaming to a version-independent filename means the frontend's
+      # hardcoded URL never has to change even if tauri.conf.json's version
+      # number is bumped later.
+      - name: Publish to GitHub Release (stable "desktop-latest" tag)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          SRC=$(ls frontend/src-tauri/target/release/bundle/nsis/*.exe | head -n 1)
+          STABLE_NAME="SahaPlay-Windows-Setup.exe"
+          cp "$SRC" "$STABLE_NAME"
+          gh release delete desktop-latest --yes --cleanup-tag --repo "${{ github.repository }}" || true
+          gh release create desktop-latest "$STABLE_NAME" \
+            --repo "${{ github.repository }}" \
+            --title "SahaPlay Desktop (latest build)" \
+            --notes "Automatically published by the Desktop build workflow on every run — this is always the current Windows build. The in-app \"Get Desktop App\" link points directly here." \
+            --latest

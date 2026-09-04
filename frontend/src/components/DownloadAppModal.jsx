@@ -2,8 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Monitor, Download } from 'lucide-react';
 
-// Published via .github/workflows/desktop-build.yml -> GitHub Releases.
-const WINDOWS_INSTALLER_URL = 'https://github.com/vamsigurajala/SahaPlay/releases/download/desktop-v0.1.0/SahaPlay_0.1.0_x64-setup.exe';
+// "desktop-latest" is a fixed tag the build workflow deletes and recreates
+// on every run (see desktop-build.yml's "Publish to GitHub Release" step) —
+// this URL itself never needs to change, even across app version bumps,
+// since the workflow renames the installer to this exact filename before
+// publishing. Running that workflow is now the entire update process for
+// this link; no manual upload step exists anymore.
+const WINDOWS_INSTALLER_URL = 'https://github.com/vamsigurajala/SahaPlay/releases/download/desktop-latest/SahaPlay-Windows-Setup.exe';
 
 const DownloadAppModal = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
@@ -142,7 +147,7 @@ const DownloadAppModal = ({ isOpen, onClose }) => {
                 <div style={{ fontSize: 11.5, lineHeight: 1.5, opacity: 0.92, marginBottom: 10, maxWidth: 340 }}>
                   Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.
                 </div>
-                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 2 }}><b>App:</b>&nbsp;&nbsp;SahaPlay_0.1.0_x64-setup.exe</div>
+                <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 2 }}><b>App:</b>&nbsp;&nbsp;SahaPlay-Windows-Setup.exe</div>
                 <div style={{ fontSize: 11, opacity: 0.85, marginBottom: 14 }}><b>Publisher:</b>&nbsp;&nbsp;Unknown publisher</div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <div className="sp-smartscreen-mock-runanyway" style={{ padding: '5px 14px', borderRadius: 2, background: '#fff', fontSize: 11.5, fontWeight: 700 }}>Run anyway</div>
