@@ -8,6 +8,10 @@ const {
   evaluateCallAccept,
   evaluateCallDecline,
   evaluateCallCancel,
+  isValidAddMemberRequest,
+  isTargetAlreadyInCall,
+  evaluateMemberJoin,
+  evaluateMemberDecline,
 } = require('../lib/callStateMachine');
 
 describe('isValidCallInviteRequest', () => {
@@ -144,5 +148,82 @@ describe('evaluateCallCancel', () => {
 
   test('rejects when the call no longer exists', () => {
     assert.strictEqual(evaluateCallCancel(undefined, 'alice').allowed, false);
+  });
+});
+
+describe('isValidAddMemberRequest', () => {
+  const activeCall = { status: 'active', caller: 'alice', callee: 'bob', members: new Map() };
+
+  test('allows an active participant to add someone to an active call', () => {
+    assert.strictEqual(isValidAddMemberRequest({ call: activeCall, me: 'alice', target: 'carol' }), true);
+  });
+
+  test('rejects adding yourself', () => {
+    assert.strictEqual(isValidAddMemberRequest({ call: activeCall, me: 'alice', target: 'alice' }), false);
+  });
+
+  test('rejects when the call no longer exists', () => {
+    assert.strictEqual(isValidAddMemberRequest({ call: undefined, me: 'alice', target: 'carol' }), false);
+  });
+
+  // A call still ringing (not yet accepted) has nobody to add a member to
+  // yet — members can only be added once the base 1:1 call is connected.
+  test('rejects adding a member before the call is active', () => {
+    const ringingCall = { status: 'ringing', caller: 'alice', callee: 'bob', members: new Map() };
+    assert.strictEqual(isValidAddMemberRequest({ call: ringingCall, me: 'alice', target: 'carol' }), false);
+  });
+
+  test('rejects when the requester is not actually an active participant of this call', () => {
+    assert.strictEqual(isValidAddMemberRequest({ call: activeCall, me: 'mallory', target: 'carol' }), false);
+  });
+});
+
+describe('isTargetAlreadyInCall', () => {
+  test('true if the target is the original caller or callee', () => {
+    const call = { caller: 'alice', callee: 'bob', members: new Map() };
+    assert.strictEqual(isTargetAlreadyInCall(call, 'alice'), true);
+    assert.strictEqual(isTargetAlreadyInCall(call, 'bob'), true);
+  });
+
+  test('true if the target is already an added member (ringing or active)', () => {
+    const call = { caller: 'alice', callee: 'bob', members: new Map([['carol', { status: 'ringing' }]]) };
+    assert.strictEqual(isTargetAlreadyInCall(call, 'carol'), true);
+  });
+
+  test('false for someone genuinely not yet part of the call', () => {
+    const call = { caller: 'alice', callee: 'bob', members: new Map() };
+    assert.strictEqual(isTargetAlreadyInCall(call, 'dave'), false);
+  });
+});
+
+describe('evaluateMemberJoin', () => {
+  test('allows joining while the invite is still ringing', () => {
+    assert.deepStrictEqual(evaluateMemberJoin({ status: 'ringing' }), { allowed: true });
+  });
+
+  test('rejects when there is no such invite (call/member entry gone)', () => {
+    const result = evaluateMemberJoin(undefined);
+    assert.strictEqual(result.allowed, false);
+    assert.strictEqual(result.reason, 'call_gone');
+  });
+
+  test('rejects re-joining an already-active membership (the group-call double-accept race)', () => {
+    const result = evaluateMemberJoin({ status: 'active' });
+    assert.strictEqual(result.allowed, false);
+    assert.strictEqual(result.reason, 'already_active');
+  });
+});
+
+describe('evaluateMemberDecline', () => {
+  test('allows declining a still-ringing invite', () => {
+    assert.deepStrictEqual(evaluateMemberDecline({ status: 'ringing' }), { allowed: true });
+  });
+
+  test('rejects when there is no such invite', () => {
+    assert.strictEqual(evaluateMemberDecline(undefined).allowed, false);
+  });
+
+  test('rejects declining an already-active membership', () => {
+    assert.strictEqual(evaluateMemberDecline({ status: 'active' }).allowed, false);
   });
 });

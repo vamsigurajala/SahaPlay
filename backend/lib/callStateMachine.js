@@ -21,7 +21,11 @@
 // and reserve userActiveCallId synchronously, before the friends/blocked
 // checks (both DB round-trips) ever await — see server.js's own comment on
 // why. Collapsing all three into one function would hide that ordering
-// requirement instead of preserving it.
+// requirement instead of preserving it. call:add-member (below) reuses this
+// same eligibility function, since it runs the identical friends/blocked
+// check against the same 'call:invalid' reasons.
+
+const { isActiveCallParticipant } = require('./callRoster');
 
 // Phase 1 — is this even a well-formed request? A malformed request is
 // silently ignored today (no event emitted at all), which this preserves.
@@ -72,6 +76,41 @@ function evaluateCallCancel(call, me) {
   return { allowed: true };
 }
 
+// ─── Group/mesh call additions ──────────────────────────────────────────
+
+// call:add-member's first, silent-reject phase — malformed request, the
+// caller not actually being on the call, or the call not yet being active
+// (members can only be added to an already-connected call) all result in
+// nothing happening today, no event emitted. `target` already-in-the-call
+// and target-busy are distinct, event-emitting outcomes handled separately
+// below since the real handler needs to tell the difference.
+function isValidAddMemberRequest({ call, me, target }) {
+  if (!call || !me || !target || me === target) return false;
+  if (call.status !== 'active') return false;
+  if (!isActiveCallParticipant(call, me)) return false;
+  return true;
+}
+
+function isTargetAlreadyInCall(call, target) {
+  return call.caller === target || call.callee === target || !!call.members?.has(target);
+}
+
+// `entry` is call.members.get(username) for the invitee being asked to
+// actually join (the group-call equivalent of evaluateCallAccept above) —
+// same two rejection reasons, same reasoning: CallContext.jsx's accept flow
+// flips its UI optimistically before this round-trip completes.
+function evaluateMemberJoin(entry) {
+  if (!entry) return { allowed: false, reason: 'call_gone' };
+  if (entry.status !== 'ringing') return { allowed: false, reason: 'already_active' };
+  return { allowed: true };
+}
+
+// No distinct rejection reason needed — declining an invite that's already
+// resolved one way or another is just a silent no-op today.
+function evaluateMemberDecline(entry) {
+  return { allowed: entry?.status === 'ringing' };
+}
+
 module.exports = {
   isValidCallInviteRequest,
   isCallInviteBusy,
@@ -79,4 +118,8 @@ module.exports = {
   evaluateCallAccept,
   evaluateCallDecline,
   evaluateCallCancel,
+  isValidAddMemberRequest,
+  isTargetAlreadyInCall,
+  evaluateMemberJoin,
+  evaluateMemberDecline,
 };

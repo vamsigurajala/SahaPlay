@@ -28,7 +28,12 @@ const emailTranslations = require('./email-translations');
 const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
-const { evaluateCallInvite, evaluateCallAccept, evaluateCallDecline, evaluateCallCancel } = require('./lib/callStateMachine');
+const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
+const {
+  isValidCallInviteRequest, isCallInviteBusy, evaluateCallInviteEligibility,
+  evaluateCallAccept, evaluateCallDecline, evaluateCallCancel,
+  isValidAddMemberRequest, isTargetAlreadyInCall, evaluateMemberJoin, evaluateMemberDecline,
+} = require('./lib/callStateMachine');
 
 // ─── Email — Resend (migrated from Gmail SMTP) ──────────────────────────────
 const { sendEmail, EMAILS } = require('./utils/email');
@@ -1102,32 +1107,6 @@ const activeCalls = new Map(); // callId -> { caller, callee, type, status, star
 const userActiveCallId = new Map(); // usernameLower -> callId (busy lookup + reconnect resync)
 
 const CALL_RING_TIMEOUT_MS = 45000;
-
-// All usernames currently actually connected to the call — the core pair
-// (only once the call itself is 'active', i.e. post-accept) plus any
-// members whose own status has flipped to 'active'. Ringing/not-yet-joined
-// members are deliberately excluded — signaling should never be routed to
-// someone who hasn't joined yet.
-function getCallActiveUsernames(call) {
-  const list = [];
-  // caller/callee can be null once vacated by leaveActiveCall — filtered
-  // out rather than pushed, since a departed core participant leaves no
-  // trace here once they're gone (same as a departed member).
-  if (call.status === 'active') {
-    if (call.caller) list.push(call.caller);
-    if (call.callee) list.push(call.callee);
-  }
-  if (call.members) {
-    for (const [u, entry] of call.members) { if (entry.status === 'active') list.push(u); }
-  }
-  return list;
-}
-
-function isActiveCallParticipant(call, username) {
-  if (!call || !username) return false;
-  if (call.caller === username || call.callee === username) return call.status === 'active';
-  return call.members?.get(username)?.status === 'active';
-}
 
 // Full teardown — used for the PRE-ACCEPT flows only (call:cancel,
 // call:decline, the original invite's ring timeout, the native decline
@@ -10018,11 +9997,9 @@ io.on('connection', (socket) => {
       const call = activeCalls.get(callId);
       const me = socket.username?.toLowerCase();
       const target = (newMemberUsername || '').toLowerCase();
-      if (!call || !me || !target || me === target) return;
-      if (call.status !== 'active') return;
-      if (!isActiveCallParticipant(call, me)) return;
+      if (!isValidAddMemberRequest({ call, me, target })) return;
 
-      if (call.caller === target || call.callee === target || call.members.has(target)) {
+      if (isTargetAlreadyInCall(call, target)) {
         socket.emit('call:invalid', { callId, reason: 'already_in_call' });
         return;
       }
@@ -10039,15 +10016,15 @@ io.on('connection', (socket) => {
 
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [me, target]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [target, me]);
-      if (!((rel1?.status === 'accepted') && (rel2?.status === 'accepted'))) {
-        userActiveCallId.delete(target);
-        socket.emit('call:invalid', { callId, reason: 'not_friends' });
-        return;
-      }
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [me, target, target, me]);
-      if (blockCheck) {
+      const eligibility = evaluateCallInviteEligibility({
+        areFriends: (rel1?.status === 'accepted') && (rel2?.status === 'accepted'),
+        isBlocked: !!blockCheck,
+      });
+      if (eligibility.result !== 'ok') {
         userActiveCallId.delete(target);
-        socket.emit('call:invalid', { callId, reason: 'blocked' }); return;
+        socket.emit('call:invalid', { callId, reason: eligibility.reason });
+        return;
       }
 
       const timeoutHandle = setTimeout(() => {
@@ -10119,8 +10096,8 @@ io.on('connection', (socket) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
     const entry = call?.members.get(me);
-    if (!call || !entry) { socket.emit('call:invalid', { callId, reason: 'call_gone' }); return; }
-    if (entry.status !== 'ringing') { socket.emit('call:invalid', { callId, reason: 'already_active' }); return; }
+    const joinCheck = evaluateMemberJoin(entry);
+    if (!joinCheck.allowed) { socket.emit('call:invalid', { callId, reason: joinCheck.reason }); return; }
     clearTimeout(entry.timeoutHandle);
     entry.status = 'active';
     entry.joinedAt = Date.now();
@@ -10145,7 +10122,7 @@ io.on('connection', (socket) => {
   socket.on('call:member-decline', ({ callId }) => {
     const call = activeCalls.get(callId);
     const me = socket.username?.toLowerCase();
-    if (call?.members.get(me)?.status !== 'ringing') return;
+    if (!evaluateMemberDecline(call?.members.get(me)).allowed) return;
     leaveActiveCall(callId, me, { reason: 'declined' });
   });
 
