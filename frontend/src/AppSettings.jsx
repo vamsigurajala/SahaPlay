@@ -1051,7 +1051,12 @@ const AppSettings = () => {
       const r = await fetch(`${API}/api/push/test`, { method: 'POST', headers });
       const data = await r.json().catch(() => ({}));
       if (data.error) toast.error(data.error);
-      else toast.success(t('testNotifSent', 'Test notification sent — check your notification tray'));
+      // No success toast here on Capacitor — the real push notification IS
+      // the confirmation, arriving moments later. Showing both read as two
+      // separate, slightly confusing signals for what's meant to be one
+      // test. Plain browser/Tauri still get the toast since that path's
+      // "test" already happens via a synchronous in-page Notification call
+      // (sendTestDesktopNotification), not a round-tripped push.
     } catch {
       toast.error(t('testNotifFailed', 'Could not send test notification'));
     }

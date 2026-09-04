@@ -4089,7 +4089,15 @@ const Room = () => {
     });
 
     sock.on('error_notification', (msg) => {
-      toast.error(msg);
+      // id: msg — reuses the same toast for repeat-identical errors instead
+      // of stacking a new one (e.g. someone mashing the Mic button while
+      // it's Host Only produced a wall of "Only the host or admins can use
+      // microphone" toasts, one per click). react-hot-toast dedupes by id:
+      // a matching id just refreshes/extends the existing toast rather than
+      // creating another, so it settles to one visible toast that clears a
+      // beat after the clicking stops. A genuinely different error message
+      // still gets its own toast since the id differs.
+      toast.error(msg, { id: msg });
     });
 
     sock.on('room_public_status', data => {
@@ -10859,14 +10867,14 @@ const Room = () => {
               <>
                 <button
                   className={`room-mob-icon-btn${isCamOn ? ' active-cam' : ''}`}
-                  onClick={canUseCam ? toggleCamera : () => toast.error(canUseCam ? '' : 'Camera not available')}
+                  onClick={canUseCam ? toggleCamera : () => toast.error(canUseCam ? '' : 'Camera not available', { id: 'cam-perm-denied' })}
                   title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
                 >
                   {isCamOn ? <Video size={18} /> : <VideoOff size={18} />}
                 </button>
                 <button
                   className={`room-mob-icon-btn${isMicOnCam ? ' active-mic' : ''}`}
-                  onClick={canUseMic ? toggleMic : () => toast.error('Mic not available')}
+                  onClick={canUseMic ? toggleMic : () => toast.error('Mic not available', { id: 'mic-perm-denied' })}
                   title={isMicOnCam ? 'Mute mic' : 'Unmute mic'}
                 >
                   {isMicOnCam ? <Mic size={18} /> : <MicOff size={18} />}
@@ -14125,7 +14133,7 @@ const Room = () => {
 
                     return (
                       <button
-                        onClick={canUseCam ? toggleCamera : () => toast.error(camReason)}
+                        onClick={canUseCam ? toggleCamera : () => toast.error(camReason, { id: 'cam-perm-denied' })}
                         title={canUseCam ? (isCamOn ? 'Turn off camera' : 'Turn on camera') : camReason}
                         style={{
                           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 8px', borderRadius: 12,
@@ -14151,7 +14159,7 @@ const Room = () => {
 
                     return (
                       <button
-                        onClick={canUseMic ? toggleMic : () => toast.error(micReason)}
+                        onClick={canUseMic ? toggleMic : () => toast.error(micReason, { id: 'mic-perm-denied' })}
                         title={canUseMic ? (isMicOnCam ? 'Mute mic' : 'Unmute mic') : micReason}
                         style={{
                           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 8px', borderRadius: 12,
