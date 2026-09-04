@@ -63,7 +63,17 @@ export function useCall() {
   return ctx;
 }
 
-const CAM_CONSTRAINTS = { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } };
+// Was capped at a 640x480 "ideal" — every camera on any laptop or phone in
+// real use comfortably exceeds that, but an "ideal" constraint is a strong
+// preference browsers/WebRTC track closely rather than a floor, so calls
+// were shot at VGA resolution even on a great connection with a much better
+// camera available. Raised to 720p ideal (Full HD as an allowed ceiling, not
+// a target) — this only raises what quality is POSSIBLE; WebRTC's own
+// bandwidth estimation still adapts the actual encoded bitrate/resolution
+// down in real time on a weak connection, exactly the same mechanism that
+// already governed the old 640x480 stream, so this doesn't cost anything on
+// a bad network, it just stops throttling everyone else down to it too.
+const CAM_CONSTRAINTS = { width: { ideal: 1280, max: 1920 }, height: { ideal: 720, max: 1080 }, frameRate: { ideal: 30, max: 30 } };
 
 async function fetchIceServers() {
   const isLocalhost = /localhost|127\.0\.0\.1|^192\.168\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|local$/i.test(window.location.hostname);
