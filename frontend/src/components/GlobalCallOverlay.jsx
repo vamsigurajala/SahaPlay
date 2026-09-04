@@ -11,6 +11,7 @@ import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 import { syncStatusBarTheme } from '../lib/nativeShell';
 import { isAndroidApp } from '../lib/platform';
+import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
 // app can get to a real ringtone without native code. This only plays while
@@ -265,11 +266,22 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
     try { localStorage.setItem(BUBBLE_POS_KEY, JSON.stringify(next)); } catch {}
   };
 
+  // Pointer capture (not window-level move/up listeners, which this used
+  // to rely on) — capturing the pointer on the element itself guarantees
+  // every subsequent move/up event for this exact drag gesture reaches this
+  // element directly, regardless of what else is on screen or which
+  // element the OS/WebView would otherwise route events to. That's the
+  // likely cause of "the first attempt to drag doesn't move it, only works
+  // after clicking it once first": a window-level listener depends on
+  // nothing else claiming the pointer first, and a freshly-focused desktop
+  // window's very first click can behave differently at the OS/WebView
+  // level (focusing the window) than every click after it — pointer
+  // capture sidesteps that class of issue entirely since the browser
+  // itself guarantees delivery to the capturing element.
   const handlePointerDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return; // left click / primary touch only
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: posRef.current.x, originY: posRef.current.y, moved: false };
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e) => {
@@ -281,16 +293,16 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
     if (d.moved) setPos(clampBubblePos({ x: d.originX + dx, y: d.originY + dy }));
   };
 
-  const handlePointerUp = () => {
-    window.removeEventListener('pointermove', handlePointerMove);
-    window.removeEventListener('pointerup', handlePointerUp);
+  const endDrag = (e, { restoreIfClick }) => {
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
     const d = dragRef.current;
     dragRef.current = null;
     setIsDragging(false);
     if (!d) return;
     if (!d.moved) {
       // A real click/tap, not a drag — go back to the full call screen.
-      onRestore();
+      // Not done for a pointercancel (an interrupted gesture, not a click).
+      if (restoreIfClick) onRestore();
       return;
     }
     // Chat-head style: settle against whichever side of the window it ended
@@ -304,6 +316,8 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
       return snapped;
     });
   };
+  const handlePointerUp = (e) => endDrag(e, { restoreIfClick: true });
+  const handlePointerCancel = (e) => endDrag(e, { restoreIfClick: false });
 
   const isPoor = networkStatus === 'poor';
   const statusColor = isPoor ? '#f59e0b' : '#22c55e';
@@ -313,12 +327,15 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
   return (
     <>
       <style>{`
-        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.75; } }
+        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
         .gco-avatar-pulse { animation: gco-pulse-mini 1.6s infinite ease-in-out; }
         .gco-bubble:hover .gco-bubble-tooltip { opacity: 1; transform: translateY(0); }
       `}</style>
       <div
         onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         title={`${label} — tap to return, drag to move`}
         className="gco-bubble"
         style={{
@@ -465,6 +482,21 @@ export default function GlobalCallOverlay() {
       const savedTheme = localStorage.getItem('watch_theme') || 'dark';
       syncStatusBarTheme(savedTheme);
     };
+  }, [showingCallSurface]);
+
+  // This overlay sits on top of Home/PublicRooms/etc. without unmounting
+  // them, exactly the same situation GlobalChatWidget's own PullToRefresh
+  // fix already documents (see pullToRefreshGate.js): the page behind never
+  // actually scrolls while this is open on top of it, so its own
+  // PullToRefresh drag-tracking (window.scrollY stays 0 throughout)
+  // misreads any downward touch-scroll happening INSIDE the call screen —
+  // scrolling the in-call chat, or just a stray swipe during a video call —
+  // as "pull to refresh" and reloads the whole app out from under the live
+  // call. That's exactly the "app reloads mid-call when I scroll" report.
+  useEffect(() => {
+    if (!showingCallSurface) return undefined;
+    blockPullToRefresh();
+    return () => unblockPullToRefresh();
   }, [showingCallSurface]);
 
   if (!callState) return null;
