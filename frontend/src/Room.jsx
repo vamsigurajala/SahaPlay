@@ -10861,20 +10861,22 @@ const Room = () => {
           {isMobile && (() => {
             const camPerm = room?.permissions?.cam || 'all';
             const canUseCam = camPerm === 'all' || (camPerm === 'host' && isEffectiveHost);
+            const camReason = camPerm === 'none' ? 'Webcam is disabled' : (camPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use webcam' : '');
             const micPerm = room?.permissions?.mic || 'all';
             const canUseMic = micPerm === 'all' || (micPerm === 'host' && isEffectiveHost);
+            const micReason = micPerm === 'none' ? 'Microphone is disabled' : (micPerm === 'host' && !isEffectiveHost ? 'Only the host or admins can use microphone' : '');
             return (
               <>
                 <button
                   className={`room-mob-icon-btn${isCamOn ? ' active-cam' : ''}`}
-                  onClick={canUseCam ? toggleCamera : () => toast.error(canUseCam ? '' : 'Camera not available', { id: 'cam-perm-denied' })}
+                  onClick={canUseCam ? toggleCamera : () => toast.error(camReason, { id: 'cam-perm-denied' })}
                   title={isCamOn ? 'Turn off camera' : 'Turn on camera'}
                 >
                   {isCamOn ? <Video size={18} /> : <VideoOff size={18} />}
                 </button>
                 <button
                   className={`room-mob-icon-btn${isMicOnCam ? ' active-mic' : ''}`}
-                  onClick={canUseMic ? toggleMic : () => toast.error('Mic not available', { id: 'mic-perm-denied' })}
+                  onClick={canUseMic ? toggleMic : () => toast.error(micReason, { id: 'mic-perm-denied' })}
                   title={isMicOnCam ? 'Mute mic' : 'Unmute mic'}
                 >
                   {isMicOnCam ? <Mic size={18} /> : <MicOff size={18} />}
