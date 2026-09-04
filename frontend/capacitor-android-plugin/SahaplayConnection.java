@@ -98,7 +98,18 @@ public class SahaplayConnection extends Connection {
     }
 
     public void declineFromUi() {
-        CallEngineService.get(appContext).declineIncomingCall(callId);
+        declineFromUi(() -> {});
+    }
+
+    // Takes a completion callback — see IncomingCallActivity.decline()'s own
+    // comment for why: the caller (the ring screen's Decline button) must
+    // not tear itself down until CallEngineService's REST decline call has
+    // actually had a chance to complete, not just been kicked off.
+    // safeDisconnect() (Telecom teardown) still happens immediately/
+    // synchronously here regardless — that part was never the unreliable
+    // half; only the network call needed to be waited on.
+    public void declineFromUi(Runnable onComplete) {
+        CallEngineService.get(appContext).declineIncomingCall(callId, onComplete);
         safeDisconnect(DisconnectCause.REJECTED);
     }
 

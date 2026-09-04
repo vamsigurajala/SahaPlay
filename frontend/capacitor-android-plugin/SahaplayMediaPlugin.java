@@ -15,6 +15,11 @@ import android.view.WindowManager;
 
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.ContextCompat;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Map;
 
 import com.getcapacitor.JSObject;
@@ -581,15 +586,78 @@ public class SahaplayMediaPlugin extends Plugin {
     // instead of always falling back to the phone's system default ringtone.
     // Called from JS whenever the setting loads or changes; an empty string
     // means "no custom ringtone, use the default."
+    //
+    // This USED TO store the raw remote URL and let IncomingCallActivity
+    // stream it live over the network at ring time. That was the actual bug
+    // behind "I hear my ringtone only if I toggle the screen, never if the
+    // screen's already on" — a call notification's process only gets a
+    // brief, OEM-dependent window of guaranteed network access (many OEM
+    // battery managers, e.g. MIUI, throttle background data far more
+    // aggressively than stock Android's Doze, and only relax it around an
+    // explicit screen-on event), so MediaPlayer.prepareAsync() on a network
+    // source could stall indefinitely depending on exactly when/how the
+    // ring screen happened to launch. Downloading the file ONCE here —
+    // right when the user picks it, with the app foregrounded and a normal
+    // network connection guaranteed — and caching it to local storage
+    // removes that network dependency from the ring path entirely: ring-time
+    // playback is then just opening a local file, which is fast and
+    // deterministic regardless of screen/Doze state. RINGTONE_PREFS_KEY now
+    // holds the cached LOCAL FILE PATH, not the URL.
     @PluginMethod
     public void setRingtonePreference(PluginCall call) {
         String url = call.getString("url", "");
-        getContext().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(RINGTONE_PREFS_KEY, url).apply();
+        Context ctx = getContext().getApplicationContext();
+        // Resolve immediately — JS doesn't need to wait on the download,
+        // and a slow/failed download must never block the settings UI.
         call.resolve();
+        if (url == null || url.isEmpty()) {
+            ctx.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().remove(RINGTONE_PREFS_KEY).apply();
+            new File(ctx.getFilesDir(), RINGTONE_CACHE_FILENAME).delete();
+            return;
+        }
+        new Thread(() -> downloadRingtoneToCache(ctx, url)).start();
+    }
+
+    // Downloads to a temp file first and renames over the real cache file
+    // only once the download fully succeeds — so a ring that happens to
+    // fire mid-download (re-picking a ringtone while already on a call
+    // elsewhere, or a retry after a network blip) never plays a truncated/
+    // corrupt partial file. The SharedPreferences entry is only written
+    // after that rename, so IncomingCallActivity never sees a path pointing
+    // at a file that isn't fully there yet.
+    private static void downloadRingtoneToCache(Context ctx, String url) {
+        File tmp = new File(ctx.getFilesDir(), RINGTONE_CACHE_FILENAME + ".tmp");
+        File dest = new File(ctx.getFilesDir(), RINGTONE_CACHE_FILENAME);
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(15000);
+            int code = conn.getResponseCode();
+            if (code != 200) {
+                android.util.Log.w("SahaplayMedia", "downloadRingtoneToCache: GET " + url + " -> " + code);
+                return;
+            }
+            try (InputStream is = conn.getInputStream(); FileOutputStream os = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+            }
+            if (!tmp.renameTo(dest)) {
+                android.util.Log.w("SahaplayMedia", "downloadRingtoneToCache: rename failed for " + url);
+                return;
+            }
+            ctx.getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putString(RINGTONE_PREFS_KEY, dest.getAbsolutePath()).apply();
+        } catch (Exception e) {
+            android.util.Log.w("SahaplayMedia", "downloadRingtoneToCache failed for " + url, e);
+        } finally {
+            tmp.delete();
+        }
     }
 
     static final String RINGTONE_PREFS_KEY = "ringtoneUrl";
+    private static final String RINGTONE_CACHE_FILENAME = "custom_ringtone_cache";
 
     // Same mirroring approach again, for the message-notification tone (see
     // AppSettings.jsx's Sound section) — a preset id ('chime'/'bird'/'none'/

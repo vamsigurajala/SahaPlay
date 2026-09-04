@@ -216,15 +216,30 @@ public class CallEngineService {
     // file's class comment): a Telecom onReject() can fire before
     // ensureSelfInitialized()'s socket has finished connecting, and REST
     // needs nothing but a token.
-    public synchronized void declineIncomingCall(String callId) {
+    //
+    // Takes a completion callback (always invoked exactly once) so the
+    // caller (IncomingCallActivity, via SahaplayConnection.declineFromUi)
+    // can hold its ring screen open until the POST below has actually had a
+    // chance to land — previously this fired the request on a bare Thread
+    // with nothing waiting on it, and the ring screen finish()ed right
+    // after kicking it off; if the process got deprioritized/killed in that
+    // gap (the common case: this call chain only runs because the app was
+    // just woken from fully backgrounded/killed), the request never
+    // completed, the LOCAL screen/notification already looked declined, and
+    // the caller kept ringing. That's the exact bug this fixes.
+    public synchronized void declineIncomingCall(String callId, Runnable onComplete) {
         ensureSelfInitialized();
         String username = myUsername != null ? myUsername : (keyStore != null ? keyStore.loadUsername() : null);
-        if (username != null) postDeclineRest(callId, username);
-        else Log.w(TAG, "declineIncomingCall: no known username to decline as");
+        if (username != null) {
+            postDeclineRest(callId, username, onComplete);
+        } else {
+            Log.w(TAG, "declineIncomingCall: no known username to decline as");
+            onComplete.run();
+        }
         if (session != null && session.callId.equals(callId)) teardown();
     }
 
-    private void postDeclineRest(String callId, String username) {
+    private void postDeclineRest(String callId, String username, Runnable onComplete) {
         new Thread(() -> {
             try {
                 URL url = new URL(API_BASE + "/api/calls/" + URLEncoder.encode(callId, "UTF-8") + "/decline");
@@ -240,7 +255,10 @@ public class CallEngineService {
                 }
                 conn.getResponseCode();
                 conn.disconnect();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            } finally {
+                onComplete.run();
+            }
         }).start();
     }
 

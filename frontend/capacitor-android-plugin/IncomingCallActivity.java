@@ -604,7 +604,7 @@ public class IncomingCallActivity extends android.app.Activity {
         buttonRow.setGravity(Gravity.CENTER);
         root.addView(buttonRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        View declineCol = ringButtonColumn(R.drawable.ic_call_decline, "Decline", "#EF4444", labelColor, v -> { decline(); finish(); });
+        View declineCol = ringButtonColumn(R.drawable.ic_call_decline, "Decline", "#EF4444", labelColor, v -> onDeclineTapped());
         View answerCol = ringButtonColumn(R.drawable.ic_call_answer, "Answer", "#22C55E", labelColor, v -> onAnswerTapped());
 
         LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -801,24 +801,33 @@ public class IncomingCallActivity extends android.app.Activity {
     // section) over the phone's system default — mirrored into plain
     // SharedPreferences by SahaplayMediaPlugin.setRingtonePreference, same
     // pattern as the theme preference above, so this native screen can read
-    // it without the WebView/JS layer having ever run. Streamed directly
-    // from its HTTPS URL (Supabase storage) — MediaPlayer supports a remote
-    // data source natively, no local download/caching needed. Returns false
-    // when there's no custom ringtone configured, or the very first
-    // setDataSource() call fails synchronously (a malformed URL); a failure
-    // that only surfaces once the async prepare actually runs (dead link,
-    // network error, unsupported format) is instead caught by
-    // setOnErrorListener below, since by then this method has already
-    // returned true.
+    // it without the WebView/JS layer having ever run.
+    //
+    // Reads a LOCAL FILE PATH here, not a remote URL — this used to stream
+    // straight from the HTTPS URL at ring time, which is exactly why the
+    // ringtone only played inconsistently (worked after toggling the
+    // screen, never when the screen was already on): a just-woken call
+    // process only gets a brief, OEM-dependent window of real network
+    // access, and prepareAsync() on a network source could stall past that
+    // window depending on exactly how the ring screen got launched.
+    // SahaplayMediaPlugin now downloads the file ONCE, when the user picks
+    // it in Settings (app foregrounded, normal connectivity guaranteed), and
+    // stores the cached local path here instead — so this is just a local
+    // file open, fast and deterministic regardless of screen/Doze state.
+    // Returns false when there's no cached ringtone file, or the very first
+    // setDataSource() call fails synchronously; a failure that only
+    // surfaces once the async prepare actually runs (corrupt file,
+    // unsupported format) is instead caught by setOnErrorListener below,
+    // since by then this method has already returned true.
     private boolean startCustomRingtoneIfConfigured() {
-        String url;
+        String path;
         try {
-            url = getSharedPreferences(SahaplayMediaPlugin.THEME_PREFS_NAME, Context.MODE_PRIVATE)
+            path = getSharedPreferences(SahaplayMediaPlugin.THEME_PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(SahaplayMediaPlugin.RINGTONE_PREFS_KEY, "");
         } catch (Exception e) {
             return false;
         }
-        if (url == null || url.isEmpty()) return false;
+        if (path == null || path.isEmpty() || !new java.io.File(path).exists()) return false;
 
         try {
             MediaPlayer mp = new MediaPlayer();
@@ -827,7 +836,7 @@ public class IncomingCallActivity extends android.app.Activity {
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build());
-            mp.setDataSource(url);
+            mp.setDataSource(path);
             mp.setLooping(true);
             // `ringtonePlayer != player` below guards against this callback
             // firing after stopRinging()/onDestroy() already moved on (e.g.
@@ -930,6 +939,28 @@ public class IncomingCallActivity extends android.app.Activity {
         if (buttonRow != null) buttonRow.setVisibility(View.GONE);
     }
 
+    // Decline's click handler used to call finish() synchronously right
+    // after kicking off decline()'s network POST — the exact same class of
+    // bug goAsync() fixed for CallActionReceiver's background Decline
+    // button (see that file's class comment), just unfixed here: decline()
+    // only *starts* a bare background Thread and returns immediately, so
+    // finish()ing this screen right after left nothing keeping the process
+    // alive long enough for that POST to actually complete. The local UI
+    // (ring screen, notification) already tore down by then, so it LOOKED
+    // like declining worked even when the server never heard about it and
+    // the caller kept ringing — reported as "decline reflects for me only."
+    // Now this screen stays up (silently, ringing already stopped) until
+    // decline()'s callback actually fires, with a safety-net timeout so a
+    // hung network call can't leave the screen stuck forever.
+    private boolean declineInProgress = false;
+
+    private void onDeclineTapped() {
+        if (declineInProgress) return;
+        declineInProgress = true;
+        decline(() -> handler.post(this::finish));
+        handler.postDelayed(this::finish, 4000);
+    }
+
     // Phase 3: this Activity is now only ever launched via a live
     // SahaplayConnection's onShowIncomingCallUi() (see
     // SahaplayConnectionService), so answering routes straight through it —
@@ -965,14 +996,20 @@ public class IncomingCallActivity extends android.app.Activity {
     // falling back to the direct REST decline (calleeUsername is THIS
     // device's own username — see the EXTRA_CALLEE comment above for why
     // this must not be callerUsername) if no Connection is found.
-    private void decline() {
+    //
+    // Takes a completion callback (always invoked exactly once, success or
+    // failure) instead of firing-and-forgetting — see onDeclineTapped()'s
+    // own comment for why: this screen must not finish() until the network
+    // decline has actually had a chance to land.
+    private void decline(Runnable onComplete) {
         stopRinging();
         SahaplayConnection conn = SahaplayConnection.getCurrent(callId);
         if (conn != null) {
-            conn.declineFromUi();
+            conn.declineFromUi(onComplete);
             return;
         }
-        if (calleeUsername != null) postDecline(callId, calleeUsername);
+        if (calleeUsername != null) postDecline(callId, calleeUsername, onComplete);
+        else onComplete.run();
     }
 
     private void finishAsMissed() {
@@ -985,7 +1022,7 @@ public class IncomingCallActivity extends android.app.Activity {
         finish();
     }
 
-    private static void postDecline(String callId, String calleeUsername) {
+    private static void postDecline(String callId, String calleeUsername, Runnable onComplete) {
         new Thread(() -> {
             try {
                 URL url = new URL(API_BASE + "/api/calls/" + Uri.encode(callId) + "/decline");
@@ -1001,7 +1038,10 @@ public class IncomingCallActivity extends android.app.Activity {
                 }
                 conn.getResponseCode(); // force the request to actually execute
                 conn.disconnect();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            } finally {
+                onComplete.run();
+            }
         }).start();
     }
 
