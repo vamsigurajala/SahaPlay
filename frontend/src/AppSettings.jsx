@@ -18,6 +18,7 @@ import { getTauriNotifyPermissionStatus, openWindowsNotificationSettings, sendTe
 import { requestMediaAccess } from './lib/mediaPermissionGate';
 import { ensureWebPushSubscription } from './lib/webPushSubscribe';
 import { NOTIFICATION_TONE_LIST, playNotificationTone } from './lib/notificationSounds';
+import { setNativeRingtonePreference } from './lib/nativeMedia';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -695,6 +696,10 @@ const AppSettings = () => {
             else localStorage.removeItem('watch_ringtone_url');
             localStorage.setItem('watch_notify_sound', data.notifySound || 'chime');
           } catch {}
+          // Also mirrors into native SharedPreferences on Android (no-op
+          // elsewhere) — see setNativeRingtonePreference's own comment for
+          // why IncomingCallActivity.java needs its own copy of this.
+          setNativeRingtonePreference(data.ringtonePath || '');
         };
         const remaining = isInitialLoad ? MIN_SKELETON_MS - (Date.now() - startedAt) : 0;
         if (remaining > 0) setTimeout(apply, remaining);
@@ -944,6 +949,7 @@ const AppSettings = () => {
       if (!res.ok) throw new Error(data?.error || 'Upload failed');
       setRingtonePath(data.ringtonePath);
       try { localStorage.setItem('watch_ringtone_url', data.ringtonePath); } catch {}
+      setNativeRingtonePreference(data.ringtonePath);
       toast.success(t('ringtoneSaved', 'Ringtone saved'));
     } catch (err) {
       toast.error(err.message || t('ringtoneUploadFailed', 'Could not upload that file'));
@@ -961,6 +967,7 @@ const AppSettings = () => {
     } catch {}
     setRingtonePath(null);
     try { localStorage.removeItem('watch_ringtone_url'); } catch {}
+    setNativeRingtonePreference('');
   };
 
   const previewRingtone = () => {

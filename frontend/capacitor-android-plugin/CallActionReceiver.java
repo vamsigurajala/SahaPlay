@@ -4,7 +4,6 @@ import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -68,21 +67,33 @@ public class CallActionReceiver extends BroadcastReceiver {
         // Answer is fundamentally different from Decline/End: it can't
         // happen over REST at all (real getUserMedia/RTCPeerConnection only
         // exists once the JS/WebView layer is alive), so this can't just
-        // stay backgrounded the way Decline/End do. It still needs to launch
-        // the app via the same sahaplay://call-answer deep link the old
-        // getActivity() PendingIntent used directly — the difference is this
-        // fires the extend-ring ping FIRST, in the background, before that
-        // launch even starts, buying the cold-starting app some runway
-        // against CALL_RING_TIMEOUT_MS. Returns immediately after — none of
-        // the Decline/End bookkeeping below (call-log username requirement,
+        // stay backgrounded the way Decline/End do. This fires the
+        // extend-ring ping FIRST, in the background, before anything else
+        // happens, buying the cold-starting app some runway against
+        // CALL_RING_TIMEOUT_MS. Returns immediately after — none of the
+        // Decline/End bookkeeping below (call-log username requirement,
         // notifyNativeCallEnded) applies to answering.
+        //
+        // Launches IncomingCallActivity in its auto-answer mode rather than
+        // firing the sahaplay://call-answer deep link straight from this
+        // BroadcastReceiver — that used to go straight from "notification
+        // tapped" to a cold-starting MainActivity with nothing shown in
+        // between until its WebView finished loading over the network (see
+        // IncomingCallActivity.EXTRA_AUTO_ANSWER's own comment). Launching
+        // this Activity instead shows its native "Connecting…" state
+        // immediately, with no blank gap.
         if (ACTION_ANSWER_PING.equals(action)) {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/extend-ring", "{}");
-            Uri uri = Uri.parse("sahaplay://call-answer?callId=" + Uri.encode(callId));
-            Intent viewIntent = new Intent(Intent.ACTION_VIEW, uri);
-            viewIntent.setPackage(context.getPackageName());
-            viewIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try { context.startActivity(viewIntent); } catch (Exception ignored) {}
+            Intent activityIntent = new Intent(context, IncomingCallActivity.class);
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALL_ID, callId);
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER));
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALL_TYPE, intent.getStringExtra(IncomingCallActivity.EXTRA_CALL_TYPE));
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLEE, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLEE));
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_DISPLAY_NAME, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER_DISPLAY_NAME));
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_AVATAR_PATH, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER_AVATAR_PATH));
+            activityIntent.putExtra(IncomingCallActivity.EXTRA_AUTO_ANSWER, true);
+            activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            try { context.startActivity(activityIntent); } catch (Exception ignored) {}
             return;
         }
 

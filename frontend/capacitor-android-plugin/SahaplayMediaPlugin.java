@@ -574,6 +574,23 @@ public class SahaplayMediaPlugin extends Plugin {
     static final String THEME_PREFS_NAME = "sahaplay_native_prefs";
     static final String THEME_PREFS_KEY = "theme";
 
+    // Same mirroring approach as setThemePreference above, for the user's
+    // custom call ringtone (see AppSettings.jsx's Sound section) —
+    // IncomingCallActivity.java reads this directly (same rationale: it can
+    // be showing the ring screen before the WebView/JS layer has ever run)
+    // instead of always falling back to the phone's system default ringtone.
+    // Called from JS whenever the setting loads or changes; an empty string
+    // means "no custom ringtone, use the default."
+    @PluginMethod
+    public void setRingtonePreference(PluginCall call) {
+        String url = call.getString("url", "");
+        getContext().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(RINGTONE_PREFS_KEY, url).apply();
+        call.resolve();
+    }
+
+    static final String RINGTONE_PREFS_KEY = "ringtoneUrl";
+
     private static void stopBluetoothScoQuietly(AudioManager am) {
         try {
             am.setBluetoothScoOn(false);

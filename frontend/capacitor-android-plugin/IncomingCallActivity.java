@@ -107,6 +107,16 @@ public class IncomingCallActivity extends android.app.Activity {
     // sent with the push was stale.
     public static final String EXTRA_CALLER_DISPLAY_NAME = "callerDisplayName";
     public static final String EXTRA_CALLER_AVATAR_PATH = "callerAvatarPath";
+    // Set by CallActionReceiver's ACTION_ANSWER_PING branch when the user
+    // tapped "Answer" directly on the compact notification/lock-screen
+    // action (not this Activity's own full ring screen) — the more common
+    // real-world tap target. Launching this Activity in that case (instead
+    // of firing the sahaplay://call-answer deep link straight from the
+    // BroadcastReceiver) means the user sees this screen's native
+    // "Connecting…" state immediately, with no blank gap while the
+    // WebView-based MainActivity cold-starts underneath — see
+    // onAnswerTapped's own comment for the full reasoning.
+    public static final String EXTRA_AUTO_ANSWER = "autoAnswer";
 
     private MediaPlayer ringtonePlayer;
     private Vibrator vibrator;
@@ -163,7 +173,7 @@ public class IncomingCallActivity extends android.app.Activity {
         declineIntent.putExtra(CallActionReceiver.EXTRA_USERNAME, calleeUsername);
         PendingIntent declinePendingIntent = PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
 
-        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags);
+        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath, piFlags);
 
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -356,20 +366,28 @@ public class IncomingCallActivity extends android.app.Activity {
         return bitmap;
     }
 
-    // Same sahaplay://call-answer hand-off the in-Activity Answer button
-    // uses (see the instance answer() method below) — factored out so the
-    // notification's own Answer action can go straight there too, with no
-    // intermediate ring-screen prompt.
     // Routed through CallActionReceiver (a background BroadcastReceiver, not
     // a direct getActivity() PendingIntent) so the /extend-ring ping fires
     // BEFORE the app launch even starts — see ACTION_ANSWER_PING there and
     // the matching comment on backend/server.js's /extend-ring route. The
-    // receiver itself does the actual sahaplay://call-answer launch right
-    // after firing that ping.
-    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags) {
+    // receiver itself then launches THIS Activity in its auto-answer mode
+    // (EXTRA_AUTO_ANSWER) rather than firing the sahaplay://call-answer deep
+    // link directly — that used to leave a blank gap between "notification
+    // tapped" and "MainActivity's cold-started WebView finally paints
+    // something," with nothing native shown in between. Carrying
+    // caller/type/callee/display-name/avatar here (not just callId) is what
+    // lets the receiver reconstruct this Activity's full extras without a
+    // network round-trip of its own.
+    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, String callerUsername, String callType,
+            String calleeUsername, String callerDisplayName, String callerAvatarPath, int piFlags) {
         Intent intent = new Intent(ctx, CallActionReceiver.class);
         intent.setAction(CallActionReceiver.ACTION_ANSWER_PING);
         intent.putExtra(CallActionReceiver.EXTRA_CALL_ID, callId);
+        intent.putExtra(EXTRA_CALLER, callerUsername);
+        intent.putExtra(EXTRA_CALL_TYPE, callType);
+        intent.putExtra(EXTRA_CALLEE, calleeUsername);
+        intent.putExtra(EXTRA_CALLER_DISPLAY_NAME, callerDisplayName);
+        intent.putExtra(EXTRA_CALLER_AVATAR_PATH, callerAvatarPath);
         return PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 2, intent, piFlags);
     }
 
@@ -437,7 +455,6 @@ public class IncomingCallActivity extends android.app.Activity {
 
         showOverLockScreen();
         buildUi(callerUsername, isVideo);
-        startRinging();
         // Seed the name/avatar immediately from what the FCM push already
         // carried (see showIncomingCall's own comment on
         // EXTRA_CALLER_DISPLAY_NAME/EXTRA_CALLER_AVATAR_PATH) — no need to
@@ -455,6 +472,18 @@ public class IncomingCallActivity extends android.app.Activity {
         }
         fetchCallerDetails();
 
+        // Launched from the notification/lock-screen Answer action itself
+        // (see CallActionReceiver's ACTION_ANSWER_PING) rather than opened to
+        // let the user choose — the user already answered, so skip straight
+        // to the same "Connecting…" state the in-screen Answer button
+        // produces, with no ring/timeout in between (there's nothing left to
+        // ring for or time out — this call is already being answered).
+        if (getIntent().getBooleanExtra(EXTRA_AUTO_ANSWER, false)) {
+            onAnswerTapped();
+            return;
+        }
+
+        startRinging();
         handler.postDelayed(this::finishAsMissed, RING_TIMEOUT_MS);
     }
 
@@ -477,6 +506,11 @@ public class IncomingCallActivity extends android.app.Activity {
 
     private TextView nameLabel;
     private ImageView avatarImage;
+    private TextView subLabel;
+    private LinearLayout buttonRow;
+    // True from the moment Answer is tapped until this screen is actually
+    // torn down — see onAnswerTapped/onStop below.
+    private boolean answerInProgress = false;
 
     // Reads the theme SahaplayMediaPlugin.setThemePreference last mirrored
     // from the web app (see App.jsx's applyTheme()) — a plain native
@@ -545,7 +579,7 @@ public class IncomingCallActivity extends android.app.Activity {
         nameParams.topMargin = dp(20);
         root.addView(nameLabel, nameParams);
 
-        TextView subLabel = new TextView(this);
+        subLabel = new TextView(this);
         subLabel.setText(isVideo ? "Incoming video call" : "Incoming voice call");
         subLabel.setTextColor(Color.parseColor(subColor));
         subLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
@@ -565,13 +599,13 @@ public class IncomingCallActivity extends android.app.Activity {
         // (same layout, same red/green, same icon-above-label shape) so the
         // native and web incoming-call screens read as the same design
         // instead of two different UIs.
-        LinearLayout buttonRow = new LinearLayout(this);
+        buttonRow = new LinearLayout(this);
         buttonRow.setOrientation(LinearLayout.HORIZONTAL);
         buttonRow.setGravity(Gravity.CENTER);
         root.addView(buttonRow, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         View declineCol = ringButtonColumn(R.drawable.ic_call_decline, "Decline", "#EF4444", labelColor, v -> { decline(); finish(); });
-        View answerCol = ringButtonColumn(R.drawable.ic_call_answer, "Answer", "#22C55E", labelColor, v -> { answer(); finish(); });
+        View answerCol = ringButtonColumn(R.drawable.ic_call_answer, "Answer", "#22C55E", labelColor, v -> onAnswerTapped());
 
         LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         colParams.setMargins(dp(28), 0, dp(28), 0);
@@ -757,21 +791,92 @@ public class IncomingCallActivity extends android.app.Activity {
     }
 
     private void startRinging() {
+        if (!startCustomRingtoneIfConfigured()) {
+            startDefaultRingtone();
+        }
+        startVibrating();
+    }
+
+    // Prefers the user's own uploaded ringtone (AppSettings.jsx's Sound
+    // section) over the phone's system default — mirrored into plain
+    // SharedPreferences by SahaplayMediaPlugin.setRingtonePreference, same
+    // pattern as the theme preference above, so this native screen can read
+    // it without the WebView/JS layer having ever run. Streamed directly
+    // from its HTTPS URL (Supabase storage) — MediaPlayer supports a remote
+    // data source natively, no local download/caching needed. Returns false
+    // when there's no custom ringtone configured, or the very first
+    // setDataSource() call fails synchronously (a malformed URL); a failure
+    // that only surfaces once the async prepare actually runs (dead link,
+    // network error, unsupported format) is instead caught by
+    // setOnErrorListener below, since by then this method has already
+    // returned true.
+    private boolean startCustomRingtoneIfConfigured() {
+        String url;
+        try {
+            url = getSharedPreferences(SahaplayMediaPlugin.THEME_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(SahaplayMediaPlugin.RINGTONE_PREFS_KEY, "");
+        } catch (Exception e) {
+            return false;
+        }
+        if (url == null || url.isEmpty()) return false;
+
+        try {
+            MediaPlayer mp = new MediaPlayer();
+            ringtonePlayer = mp;
+            mp.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+            mp.setDataSource(url);
+            mp.setLooping(true);
+            // `ringtonePlayer != player` below guards against this callback
+            // firing after stopRinging()/onDestroy() already moved on (e.g.
+            // the user tapped Decline while the custom clip was still
+            // buffering) — touching an already-released MediaPlayer throws.
+            mp.setOnErrorListener((player, what, extra) -> {
+                if (ringtonePlayer != player) return true;
+                try { player.release(); } catch (Exception ignored) {}
+                ringtonePlayer = null;
+                startDefaultRingtone();
+                return true;
+            });
+            mp.setOnPreparedListener(player -> {
+                if (ringtonePlayer == player) {
+                    try { player.start(); } catch (Exception ignored) {}
+                }
+            });
+            // Network data source — prepare() would block the main thread
+            // and throw; prepareAsync() + the listeners above handle it.
+            mp.prepareAsync();
+            return true;
+        } catch (Exception e) {
+            if (ringtonePlayer != null) {
+                try { ringtonePlayer.release(); } catch (Exception ignored) {}
+                ringtonePlayer = null;
+            }
+            return false;
+        }
+    }
+
+    private void startDefaultRingtone() {
         try {
             Uri ringtoneUri = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_RINGTONE);
             if (ringtoneUri != null) {
-                ringtonePlayer = new MediaPlayer();
-                ringtonePlayer.setAudioAttributes(new AudioAttributes.Builder()
+                MediaPlayer mp = new MediaPlayer();
+                ringtonePlayer = mp;
+                mp.setAudioAttributes(new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build());
-                ringtonePlayer.setDataSource(this, ringtoneUri);
-                ringtonePlayer.setLooping(true);
-                ringtonePlayer.prepare();
-                ringtonePlayer.start();
+                mp.setDataSource(this, ringtoneUri);
+                mp.setLooping(true);
+                mp.prepare();
+                mp.start();
             }
         } catch (Exception ignored) {}
+    }
 
+    private void startVibrating() {
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (vibrator != null && vibrator.hasVibrator()) {
             long[] pattern = {0, 800, 500};
@@ -799,6 +904,30 @@ public class IncomingCallActivity extends android.app.Activity {
         if (callId == null) return;
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         nm.cancel(callId.hashCode());
+    }
+
+    // Answer's click handler used to call finish() synchronously in the same
+    // click as answer() — destroying this screen the instant Answer was
+    // tapped, before the separate WebView-based MainActivity had even started
+    // loading. A cold launch fetches the whole site over the network (no
+    // local bundling — Capacitor's own remote-URL config), which is
+    // genuinely slow; finishing this screen immediately left a blank gap —
+    // this screen gone, MainActivity's window not yet painted anything —
+    // where it looked like tapping Answer had done nothing. Now this screen
+    // stays up, morphed into its own native "Connecting…" state (see
+    // showConnectingState below), until Android actually brings MainActivity
+    // to the foreground — which happens naturally via onStop() further down,
+    // so there's no frame where neither screen is showing anything.
+    private void onAnswerTapped() {
+        answerInProgress = true;
+        stopRinging();
+        answer();
+        showConnectingState();
+    }
+
+    private void showConnectingState() {
+        if (subLabel != null) subLabel.setText("Connecting…");
+        if (buttonRow != null) buttonRow.setVisibility(View.GONE);
     }
 
     // Phase 3: this Activity is now only ever launched via a live
@@ -893,6 +1022,19 @@ public class IncomingCallActivity extends android.app.Activity {
                 conn.disconnect();
             } catch (Exception ignored) {}
         }).start();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Only auto-finish the "Connecting…" state onAnswerTapped() left up —
+        // MainActivity (or the launcher, if the user backed out some other
+        // way) has taken the foreground either way, so this screen has
+        // finished its job. Guarded to the post-Answer state specifically:
+        // this Activity going to the background while still just ringing
+        // (e.g. the user briefly switches apps) must NOT finish it — the
+        // 45s ring timeout / notification tray entry still need it alive.
+        if (answerInProgress && !isFinishing()) finish();
     }
 
     @Override

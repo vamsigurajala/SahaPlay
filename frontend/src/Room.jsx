@@ -3060,23 +3060,12 @@ const Room = () => {
   const handleNewMessage = useCallback((partner, msg) => {
     if (showRecentChats && chatWidgetRef.current?.activeChat?.partner === partner) return;
 
-    // Play notification sound (only place audio plays in Room.jsx for incoming messages)
-    const myUsername = localStorage.getItem('watch_username') || '';
-    let isMuted = false;
-    try {
-      const m = JSON.parse(localStorage.getItem(`muted_chats_${myUsername}`) || '[]');
-      if (m.some(u => u.toLowerCase() === partner.toLowerCase())) isMuted = true;
-    } catch {}
-    if (!isMuted) {
-      try {
-        const soundMutedGlobal = localStorage.getItem(`mute_notif_sounds_${myUsername}`) === 'true';
-        if (!soundMutedGlobal) {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
-          audio.volume = 0.5;
-          audio.play().catch(()=>{});
-        }
-      } catch(e){}
-    }
+    // Sound itself is handled once, inside GlobalChatWidget.jsx's own
+    // new-message handling (the user's selected tone from AppSettings' Sound
+    // section) — this used to ALSO play a hardcoded default chime here,
+    // which meant every message played two overlapping sounds (the fixed
+    // default one from here, plus the user's actually-selected one from
+    // GlobalChatWidget).
 
     // Room.jsx's own socket already counts:
     //   (1) current room's group messages (via new_chat_message handler)

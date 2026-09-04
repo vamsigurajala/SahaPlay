@@ -110,6 +110,19 @@ export function setNativeThemePreference(theme) {
   plugin()?.setThemePreference({ theme }).catch(() => {});
 }
 
+// Same mirroring pattern as setNativeThemePreference above, for the user's
+// custom call ringtone (see AppSettings.jsx's Sound section) — without this,
+// IncomingCallActivity.java (which can be showing the lock-screen ring
+// before the WebView/JS layer has ever run) had no way to know the user has
+// a custom clip configured at all, so it always fell back to the phone's
+// system default ringtone regardless of what was uploaded. Pass an empty
+// string/null to clear back to the default. Fire-and-forget, same as
+// setNativeThemePreference — a stale/missing value just means the next
+// incoming call still rings with the system default until this catches up.
+export function setNativeRingtonePreference(url) {
+  plugin()?.setRingtonePreference({ url: url || '' }).catch(() => {});
+}
+
 // Resolves CAMERA + RECORD_AUDIO runtime permissions BEFORE any call setup
 // begins — see CallContext.jsx's startCall/acceptCall, which await this
 // first thing now. Without it, the WebView's own reactive getUserMedia()
