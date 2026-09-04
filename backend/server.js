@@ -10500,7 +10500,15 @@ io.on('connection', (socket) => {
 
     // A6-F15 (settings): whitelist known permission/setting keys to prevent payload pollution
     if (permissions && typeof permissions === 'object') {
-       const ALLOWED_PERM_KEYS = new Set(['chat','media','screen','join','allowLinks','allowMedia','lobby','password']);
+       // 'cam'/'mic' back RoomSettingsModal.jsx's "Who can use webcam?"/
+       // "Who can use microphone?" toggles (enforced at cam_started/mic
+       // permission checks below); 'changeMedia' backs the same allow-list
+       // pattern for who can change the shared video. All three were
+       // missing here, so every save silently stripped them back out —
+       // room.permissions.cam/mic/changeMedia read as undefined afterward
+       // and fell back to the 'all' default, making "Host Only" look like
+       // it reverted the instant you saved it.
+       const ALLOWED_PERM_KEYS = new Set(['chat','media','screen','join','allowLinks','allowMedia','lobby','password','cam','mic','changeMedia']);
        const safePerms = {};
        for (const k of ALLOWED_PERM_KEYS) { if (k in permissions) safePerms[k] = permissions[k]; }
        room.permissions = safePerms;
