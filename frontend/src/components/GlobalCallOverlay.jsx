@@ -143,10 +143,15 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
     <>
       {/* Standalone copy of the ringing-screen's pulse keyframes — that
           <style> tag only mounts on the incoming/outgoing branch below, which
-          isn't rendered while minimized, so the status dot needs its own. */}
+          isn't rendered while minimized, so the status dot needs its own.
+          The wave ring is the thing that fades as it expands — the dot
+          itself stays a constant, fully-opaque color (see the dot markup
+          below for why: an opacity dip on the dot itself used to wash a
+          saturated green toward pale/whitish over this bar's own light-mode
+          background). */}
       <style>{`
-        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.75; } }
-        .gco-avatar-pulse { animation: gco-pulse-mini 1.6s infinite ease-in-out; }
+        @keyframes gco-status-wave { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
+        .gco-status-wave { animation: gco-status-wave 1.6s infinite ease-out; }
       `}</style>
       <div
       onClick={onRestore}
@@ -174,10 +179,18 @@ function MinimizedCallBar({ callState, networkStatus, onRestore, onEndCall }) {
     >
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <Avatar url={callState.peerAvatar} name={callState.peerDisplayName || callState.peerUsername} size={38} />
-        <div style={{
-          position: 'absolute', bottom: -1, right: -1, width: 12, height: 12, borderRadius: '50%',
-          background: statusColor, border: `2px solid ${isLight ? '#fff' : '#171821'}`, boxShadow: `0 0 6px ${statusColor}`,
-        }} className={isPoor ? '' : 'gco-avatar-pulse'} />
+        <div style={{ position: 'absolute', bottom: -1, right: -1, width: 12, height: 12 }}>
+          {!isPoor && (
+            <div
+              className="gco-status-wave"
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1.5px solid ${statusColor}` }}
+            />
+          )}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: statusColor, border: `2px solid ${isLight ? '#fff' : '#171821'}`, boxShadow: `0 0 6px ${statusColor}`,
+          }} />
+        </div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: textPrimary, fontWeight: 700, fontSize: 13.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -327,8 +340,8 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
   return (
     <>
       <style>{`
-        @keyframes gco-pulse-mini { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
-        .gco-avatar-pulse { animation: gco-pulse-mini 1.6s infinite ease-in-out; }
+        @keyframes gco-status-wave { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
+        .gco-status-wave { animation: gco-status-wave 1.6s infinite ease-out; }
         .gco-bubble:hover .gco-bubble-tooltip { opacity: 1; transform: translateY(0); }
       `}</style>
       <div
@@ -351,10 +364,28 @@ function DraggableCallBubble({ callState, networkStatus, onRestore, onEndCall })
         }}
       >
         <Avatar url={callState.peerAvatar} name={label} size={BUBBLE_SIZE} />
-        <div style={{
-          position: 'absolute', top: -3, right: -3, width: 13, height: 13, borderRadius: '50%',
-          background: statusColor, border: '2.5px solid #171821', boxShadow: `0 0 6px ${statusColor}`,
-        }} className={isPoor ? '' : 'gco-avatar-pulse'} />
+        {/* Status dot: a real expanding "wave" ring around a solid dot, not
+            just the dot itself pulsing — the dot's own fill/border never
+            animates now, so it stays fully opaque green (or amber) at all
+            times. It used to pulse via an opacity dip on the dot itself,
+            which over a light-mode background blends the saturated color
+            toward a washed-out pale shade easily misread as white — a
+            problem a dark background doesn't have, which is why it only
+            ever showed up in light mode. The ring is the thing allowed to
+            fade toward transparent as it expands; the dot underneath it
+            never does. */}
+        <div style={{ position: 'absolute', top: -3, right: -3, width: 13, height: 13 }}>
+          {!isPoor && (
+            <div
+              className="gco-status-wave"
+              style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1.5px solid ${statusColor}` }}
+            />
+          )}
+          <div style={{
+            position: 'absolute', inset: 0, borderRadius: '50%',
+            background: statusColor, border: '2.5px solid #171821', boxShadow: `0 0 6px ${statusColor}`,
+          }} />
+        </div>
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onEndCall(); }}
