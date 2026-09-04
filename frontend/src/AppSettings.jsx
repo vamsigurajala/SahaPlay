@@ -674,17 +674,25 @@ const AppSettings = () => {
           setCountry(data.country || '');
           setCountryCode(data.country_code || '');
           setShowCountry(data.showCountry === 1 || data.showCountry === true);
-          setNotifyApp(data.notifyApp === 1 || data.notifyApp === true);
+          const appEnabled = data.notifyApp === 1 || data.notifyApp === true;
+          setNotifyApp(appEnabled);
           setNotifyJoin(data.notifyJoin === 1 || data.notifyJoin === true);
-          setNotifyMessages(data.notifyMessages === 1 || data.notifyMessages === true);
+          const messagesEnabled = data.notifyMessages === 1 || data.notifyMessages === true;
+          setNotifyMessages(messagesEnabled);
           setNotifyFriendRequests(data.notifyFriendRequests === 1 || data.notifyFriendRequests === true);
           setNotifyLeave(data.notifyLeave === 1 || data.notifyLeave === true);
           setNotifyJoinRequests(data.notifyJoinRequests === 1 || data.notifyJoinRequests === true);
           const callsEnabled = data.notifyCalls === 1 || data.notifyCalls === true;
           setNotifyCalls(callsEnabled);
-          // Mirrored into localStorage so CallContext.jsx (which has no
-          // settings-fetch of its own) can read this synchronously.
-          try { localStorage.setItem('notifyCalls', String(callsEnabled)); } catch {}
+          // Mirrored into localStorage so CallContext.jsx/GlobalChatWidget.jsx
+          // (neither has a settings-fetch of its own) can read these
+          // synchronously — notifyApp is the master switch both of them also
+          // check alongside their own specific category.
+          try {
+            localStorage.setItem('notifyApp', String(appEnabled));
+            localStorage.setItem('notifyMessages', String(messagesEnabled));
+            localStorage.setItem('notifyCalls', String(callsEnabled));
+          } catch {}
           setRingtonePath(data.ringtonePath || null);
           setNotifySound(data.notifySound || 'chime');
           // Same mirroring as notifyCalls above — CallContext.jsx (custom
@@ -885,6 +893,13 @@ const AppSettings = () => {
     const next = !current;
     setter(next);
     saveSetting(key, next ? 1 : 0);
+    // notifyApp/notifyMessages are mirrored into localStorage (same as
+    // notifyCalls below) so CallContext.jsx/GlobalChatWidget.jsx — neither
+    // has a settings-fetch of its own — see the change immediately, without
+    // needing a reload. Harmless no-op write for every other key.
+    if (key === 'notifyApp' || key === 'notifyMessages') {
+      try { localStorage.setItem(key, String(next)); } catch {}
+    }
   };
 
   // Same as toggleNotifSetting, plus mirroring into localStorage — calls are
@@ -1015,6 +1030,64 @@ const AppSettings = () => {
     } else if (!silent) {
       toast.error(t('browserAlertsDismissed', "Browser alerts weren't enabled"));
     }
+  };
+
+  // Native app (Android/tablet) equivalent of sendTestDesktopNotification —
+  // a local in-page Notification there wouldn't prove anything (FCM/system
+  // tray is the actual delivery path a real call/message push uses), so this
+  // round-trips through the backend's POST /api/push/test, which sends a
+  // real push to whatever device tokens are registered for this account.
+  const sendTestPushNotification = async () => {
+    try {
+      const headers = (!isGuest && token) ? { 'Authorization': `Bearer ${token}` } : {};
+      const r = await fetch(`${API}/api/push/test`, { method: 'POST', headers });
+      const data = await r.json().catch(() => ({}));
+      if (data.error) toast.error(data.error);
+      else toast.success(t('testNotifSent', 'Test notification sent — check your notification tray'));
+    } catch {
+      toast.error(t('testNotifFailed', 'Could not send test notification'));
+    }
+  };
+
+  const testNotifBtnStyle = {
+    marginTop: 6, background: 'none', border: 'none', padding: 0,
+    color: 'var(--brand-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    textDecoration: 'underline',
+  };
+
+  // Shared by the Call and Message notification rows below — platform
+  // decides whether "test" means a real backend push (Capacitor: the only
+  // way to actually confirm FCM + OS notification permission work) or a
+  // local in-page Notification (plain browser/Tauri, where that IS the real
+  // delivery mechanism for a foreground tab).
+  const renderTestNotifButton = () => {
+    if (isCapacitorApp()) {
+      return (
+        <button onClick={sendTestPushNotification} style={testNotifBtnStyle}>
+          {t('sendTestNotif', 'Send a test notification')}
+        </button>
+      );
+    }
+    if (isDesktopApp) {
+      if (desktopNotifyStatus !== 'granted') return null;
+      return (
+        <button
+          onClick={() => sendTestDesktopNotification(t('testNotifTitle', 'Test notification'), t('testNotifBody', 'This is what call and message alerts look like'))}
+          style={testNotifBtnStyle}
+        >
+          {t('sendTestNotif', 'Send a test notification')}
+        </button>
+      );
+    }
+    if (browserNotifPermission !== 'granted') return null;
+    return (
+      <button
+        onClick={() => sendTestDesktopNotification(t('testNotifTitle', 'Test notification'), t('testNotifBody', 'This is what call and message alerts look like'))}
+        style={testNotifBtnStyle}
+      >
+        {t('sendTestNotif', 'Send a test notification')}
+      </button>
+    );
   };
 
   // Mic test
@@ -2034,7 +2107,10 @@ const AppSettings = () => {
                   <div className="notif-icon" style={{ background: 'rgba(var(--brand-1-rgb),0.15)', width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <MessageSquare size={16} color="var(--brand-1)" />
                   </div>
-                  <NotifRowText id="msg" title={t('msgNotifications', 'Message Notifications')} desc={t('whenSomeoneSendsChat', 'When someone sends a chat message')} />
+                  <div style={{ minWidth: 0 }}>
+                    <NotifRowText id="msg" title={t('msgNotifications', 'Message Notifications')} desc={t('whenSomeoneSendsChat', 'When someone sends a chat message')} />
+                    {renderTestNotifButton()}
+                  </div>
                 </div>
                 <Toggle on={notifyMessages} onToggle={() => toggleNotifSetting('notifyMessages', notifyMessages, setNotifyMessages)} disabled={!notifyApp} />
               </div>
@@ -2083,18 +2159,7 @@ const AppSettings = () => {
                         {t('desktopNotifsBlockedHint', 'Windows notifications are off for SahaPlay — tap to open Settings')}
                       </button>
                     )}
-                    {isDesktopApp && desktopNotifyStatus === 'granted' && (
-                      <button
-                        onClick={() => sendTestDesktopNotification(t('testNotifTitle', 'Test notification'), t('testNotifBody', 'This is what call and message alerts look like'))}
-                        style={{
-                          marginTop: 6, background: 'none', border: 'none', padding: 0,
-                          color: 'var(--brand-2)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                          textDecoration: 'underline',
-                        }}
-                      >
-                        {t('sendTestNotif', 'Send a test notification')}
-                      </button>
-                    )}
+                    {renderTestNotifButton()}
                   </div>
                 </div>
                 <Toggle on={notifyCalls} onToggle={toggleCallNotifSetting} disabled={!notifyApp} />

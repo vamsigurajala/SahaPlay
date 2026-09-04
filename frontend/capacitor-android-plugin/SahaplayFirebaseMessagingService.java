@@ -237,6 +237,41 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
 
             if (nm != null) nm.notify(notificationId, builder.build());
             playMessageTone();
+        } else if ("test".equals(data.get("type"))) {
+            // AppSettings.jsx's "Send a test notification" button (see
+            // POST /api/push/test in backend/server.js) — routed through a
+            // real backend push rather than anything built purely in JS, so
+            // it actually exercises FCM token registration + this device's
+            // notification permission, foreground or not. Deliberately its
+            // own branch rather than reusing the "call"/"dm" cases above:
+            // those trigger the full ringing UI / deep-linked chat-open,
+            // neither of which makes sense for a plain connectivity test.
+            String title = data.get("title");
+            String body = data.get("body");
+            if (title == null) title = "Test notification";
+            if (body == null) body = "";
+
+            final String testChannelId = "sahaplay_messages";
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(testChannelId, "Messages", NotificationManager.IMPORTANCE_HIGH);
+                nm.createNotificationChannel(channel);
+            }
+
+            Intent openIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
+            PendingIntent contentPendingIntent = (openIntent != null)
+                ? PendingIntent.getActivity(this, 0, openIntent, piFlags)
+                : null;
+
+            NotificationCompat.Builder testBuilder = new NotificationCompat.Builder(this, testChannelId)
+                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
+            if (contentPendingIntent != null) testBuilder.setContentIntent(contentPendingIntent);
+            if (nm != null) nm.notify(("sahaplay_test_" + System.currentTimeMillis()).hashCode(), testBuilder.build());
         }
     }
 

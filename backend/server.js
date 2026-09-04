@@ -416,8 +416,43 @@ async function sendWebPushToTokens(subscriptions, payload) {
   }
 }
 
-async function sendPushToUser(username, payload) {
+// Maps a push's "what kind of thing is this" to the exact notify-toggle
+// column AppSettings.jsx's per-category switches write to (see the
+// camelCols list a few hundred lines up, which is what lets these unquoted
+// camelCase names round-trip through Postgres correctly). One central place
+// so a toggle switched off in Settings has the same effect whether the
+// recipient's app is open, backgrounded, or fully closed — client-side
+// (Room.jsx/CallContext.jsx/GlobalChatWidget.jsx) only ever gates toasts
+// shown to an already-open app; this is what also stops the push itself.
+const NOTIFY_COLUMN_BY_CATEGORY = {
+  calls: 'notifyCalls',
+  messages: 'notifyMessages',
+  friendRequests: 'notifyFriendRequests',
+};
+
+async function isNotifyEnabled(username, category) {
+  const column = NOTIFY_COLUMN_BY_CATEGORY[category];
+  if (!column) return true;
+  try {
+    const row = await queryGet(`SELECT notifyApp, ${column} FROM users WHERE LOWER(username) = LOWER(?)`, [username]);
+    if (!row) return true; // unknown/deleted user — nothing to block
+    const appOn = row.notifyApp !== 0 && row.notifyApp !== false;
+    const catOn = row[column] !== 0 && row[column] !== false;
+    return appOn && catOn;
+  } catch (e) {
+    console.error('[Notify] isNotifyEnabled error:', e.message);
+    return true; // fail open — a DB hiccup shouldn't silently kill all pushes
+  }
+}
+
+// `category` is optional and deliberately omitted by call sites that should
+// always go through regardless of preference — the test-notification button
+// (POST /api/push/test) and the call-cancel dismiss signal (nothing to
+// suppress there; it only tells a device to stop showing a ring that's
+// already over).
+async function sendPushToUser(username, payload, category) {
   if (!username) return;
+  if (category && !(await isNotifyEnabled(username, category))) return;
   const tasks = [];
   if (firebaseAdmin) {
     tasks.push(
@@ -469,7 +504,7 @@ async function sendMissedCallPush(calleeUsername, callId, callerUsername) {
       body: `${callerDisplayName} called`,
       data: { type: 'call-missed', callId, callerUsername, callerDisplayName },
       dataOnly: true,
-    });
+    }, 'calls');
   } catch (e) {
     console.error('[Call] sendMissedCallPush error:', e.message);
   }
@@ -518,6 +553,11 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
       let muted = [];
       try { muted = JSON.parse(muteRow?.mutedChats || '[]'); } catch { muted = []; }
       if (muted.some(m => String(m).toLowerCase() === String(chatId).toLowerCase())) continue;
+
+      // Recipient turned off Message Notifications (or the App Notifications
+      // master toggle) in Settings — same treatment as a muted chat above:
+      // no push, and no point tracking it in pending_notifications either.
+      if (!(await isNotifyEnabled(recipient, 'messages'))) continue;
 
       // pending_notifications is Postgres-only (no SQLite mirror), so this
       // uses `pool` directly rather than the queryGet() helper other code
@@ -5090,6 +5130,29 @@ app.post('/api/push/unregister', authenticateToken, async (req, res) => {
   }
 });
 
+// AppSettings.jsx's "Send a test notification" button, for platforms where a
+// local, in-page notification isn't a real test of anything (the native
+// Android/iOS app, where the whole point is confirming FCM delivery + the
+// OS's own notification permission actually work on this device). Routed
+// through sendPushToUser with NO category argument — deliberately bypasses
+// every notifyCalls/notifyMessages/notifyApp gate above, since this is a
+// device/permission diagnostic, not a real call or message the user's own
+// preference should be able to suppress.
+app.post('/api/push/test', authenticateToken, async (req, res) => {
+  try {
+    await sendPushToUser(req.user.username, {
+      title: 'Test notification',
+      body: 'This is what SahaPlay notifications look like on this device',
+      data: { type: 'test' },
+      dataOnly: true,
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Push] test error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Public by design — a VAPID public key is meant to be exposed to any client
 // that wants to subscribe, same as the private key is meant to never leave
 // this server. authenticateToken isn't needed here.
@@ -5880,7 +5943,7 @@ app.post('/api/follow/:username', authenticateTokenOptional, async (req, res) =>
       title: 'New Friend Request',
       body: `${follower} sent you a friend request`,
       data: { type: 'friend_request', username: follower },
-    });
+    }, 'friendRequests');
 
     res.json({ success: true, status: 'pending' });
   } catch (err) {
@@ -5916,7 +5979,7 @@ app.post('/api/follow/:username/accept', authenticateTokenOptional, async (req, 
       title: 'Friend Request Accepted',
       body: `${accepter} accepted your friend request`,
       data: { type: 'friend_accept', username: accepter },
-    });
+    }, 'friendRequests');
 
     res.json({ success: true, status: 'accepted' });
   } catch (err) {
@@ -9811,7 +9874,7 @@ io.on('connection', (socket) => {
         },
         tag: `call-${callId}`,
         dataOnly: true,
-      }).catch(() => {});
+      }, 'calls').catch(() => {});
     } catch (err) {
       console.error('[SOCKET] call:invite error:', err.message, 'user:', socket.username);
     }
@@ -10018,7 +10081,7 @@ io.on('connection', (socket) => {
         data: { type: 'call', callId, callerUsername: me, calleeUsername: target, callType: call.type },
         tag: `call-${callId}`,
         dataOnly: true,
-      }).catch(() => {});
+      }, 'calls').catch(() => {});
     } catch (err) {
       console.error('[SOCKET] call:add-member error:', err.message, 'user:', socket.username);
       // The busy reservation above (userActiveCallId.set(target, callId))

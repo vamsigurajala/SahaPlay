@@ -42,6 +42,17 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 
+// Mirrors notifyApp/notifyMessages into localStorage (see AppSettings.jsx),
+// same pattern as CallContext.jsx's callNotificationsEnabled() — this widget
+// has no settings-fetch of its own, so this is the only synchronous way it
+// can see a toggle flipped in Settings without a page reload. Gates the
+// message toast + desktop Notification popup below; it does not affect
+// whether the message itself is stored/rendered/counted as unread, same as
+// Room.jsx's own notifSettingsRef checks for in-room chat.
+function messageNotificationsEnabled() {
+  return localStorage.getItem('notifyApp') !== 'false' && localStorage.getItem('notifyMessages') !== 'false';
+}
+
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
 const getMessageCopyText = (msg) => {
@@ -3674,7 +3685,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           }
 
           if (!skipToast) {
-            if (!isMuted) {
+            if (!isMuted && messageNotificationsEnabled()) {
               // User's chosen message tone (see AppSettings.jsx's Sound
               // section) — mirrored into localStorage the same way
               // notifyCalls already is, since this widget has no settings-

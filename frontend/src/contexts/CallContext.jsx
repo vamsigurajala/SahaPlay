@@ -42,11 +42,13 @@ import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/d
 import { ensureWebPushSubscription } from '../lib/webPushSubscribe';
 import GlobalCallOverlay from '../components/GlobalCallOverlay';
 
-// Mirrors the notifyCalls setting into localStorage (see AppSettings.jsx) so
-// this check is synchronous — this file has no settings-fetch of its own and
-// isn't worth adding one just for a single boolean gate.
+// Mirrors notifyCalls and the notifyApp master toggle into localStorage (see
+// AppSettings.jsx) so this check is synchronous — this file has no
+// settings-fetch of its own and isn't worth adding one just for two boolean
+// gates. Master toggle off must silence calls the same as every other
+// category, same reasoning as Room.jsx's notifSettingsRef.current.app checks.
 function callNotificationsEnabled() {
-  return localStorage.getItem('notifyCalls') !== 'false';
+  return localStorage.getItem('notifyApp') !== 'false' && localStorage.getItem('notifyCalls') !== 'false';
 }
 
 // Marks a plain encrypted DM text message as a call-summary log rather than
