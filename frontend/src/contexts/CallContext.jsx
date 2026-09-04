@@ -226,6 +226,11 @@ export function CallProvider({ children }) {
   // immediately after they declined).
   const busyRetriedRef = useRef(new Set());
 
+  // Consecutive "this call looks gone" replies from the call:roster
+  // self-heal poll below, per callId — see that handler's own comment for
+  // why a single reply isn't trusted on its own before ending a call.
+  const rosterMissRef = useRef(new Map());
+
   // Re-entrancy guard for acceptCall() — see that function's own comment.
   // Without this, a double-tap on the Answer button (easy to do while
   // waiting on the socket-ready/media-permission awaits it now has) fires
@@ -751,14 +756,33 @@ export function CallProvider({ children }) {
     sock.on('call:roster', ({ callId, exists, participants }) => {
       const cs = callStateRef.current;
       if (!cs || cs.callId !== callId) return;
-      if (!exists) { endCall(); return; }
+      // A single "this call looks gone" reply used to end the call
+      // immediately — but this poll (or the server's authoritative state at
+      // that exact instant) can be wrong for a moment with no real network
+      // problem visible to either person: a brief, sub-second socket
+      // hiccup on either side that resolves on its own, or this poll's own
+      // reply racing a change that's still in flight server-side. That's
+      // the likely cause of "the call just ended, no dropped-connection
+      // warning, nothing seemed wrong" reports. Now requires it twice in a
+      // row (24s apart) before actually acting — a genuinely-ended call
+      // still fails every subsequent poll, not just one, so this only adds
+      // a short delay to the real case while protecting against a lone
+      // false negative ending a perfectly fine call.
+      const missCount = rosterMissRef.current.get(callId) || 0;
+      const bumpMissOrEnd = () => {
+        if (missCount + 1 < 2) { rosterMissRef.current.set(callId, missCount + 1); return; }
+        rosterMissRef.current.delete(callId);
+        endCall();
+      };
+      if (!exists) { bumpMissOrEnd(); return; }
       const authoritative = new Set(participants);
       const staleUsernames = [...pcsRef.current.keys()].filter(u => !authoritative.has(u));
-      if (staleUsernames.length === 0) return;
-      staleUsernames.forEach(u => closePeerConnection(u));
       const remainingMembers = (cs.groupMembers || []).filter(m => !staleUsernames.includes(m.username));
       const peerGone = !cs.isGroupJoin && cs.peerUsername && staleUsernames.includes(cs.peerUsername);
-      if (peerGone && remainingMembers.length === 0) { endCall(); return; }
+      if (peerGone && remainingMembers.length === 0) { bumpMissOrEnd(); return; }
+      rosterMissRef.current.delete(callId); // a healthy reply — reset any prior miss streak
+      if (staleUsernames.length === 0) return;
+      staleUsernames.forEach(u => closePeerConnection(u));
       setCallState(prev => (prev ? { ...prev, groupMembers: remainingMembers } : prev));
     });
 
