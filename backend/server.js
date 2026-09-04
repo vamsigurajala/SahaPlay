@@ -26,6 +26,8 @@ const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
 const emailTranslations = require('./email-translations');
 const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
+const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
+const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 
 // ─── Email — Resend (migrated from Gmail SMTP) ──────────────────────────────
 const { sendEmail, EMAILS } = require('./utils/email');
@@ -416,29 +418,19 @@ async function sendWebPushToTokens(subscriptions, payload) {
   }
 }
 
-// Maps a push's "what kind of thing is this" to the exact notify-toggle
-// column AppSettings.jsx's per-category switches write to (see the
-// camelCols list a few hundred lines up, which is what lets these unquoted
-// camelCase names round-trip through Postgres correctly). One central place
-// so a toggle switched off in Settings has the same effect whether the
-// recipient's app is open, backgrounded, or fully closed — client-side
-// (Room.jsx/CallContext.jsx/GlobalChatWidget.jsx) only ever gates toasts
-// shown to an already-open app; this is what also stops the push itself.
-const NOTIFY_COLUMN_BY_CATEGORY = {
-  calls: 'notifyCalls',
-  messages: 'notifyMessages',
-  friendRequests: 'notifyFriendRequests',
-};
-
+// One central place so a toggle switched off in Settings has the same effect
+// whether the recipient's app is open, backgrounded, or fully closed —
+// client-side (Room.jsx/CallContext.jsx/GlobalChatWidget.jsx) only ever
+// gates toasts shown to an already-open app; this is what also stops the
+// push itself. The category->column map and the actual on/off decision live
+// in lib/notifyPrefs.js (pure, unit-tested); this just does the DB fetch and
+// delegates.
 async function isNotifyEnabled(username, category) {
   const column = NOTIFY_COLUMN_BY_CATEGORY[category];
   if (!column) return true;
   try {
     const row = await queryGet(`SELECT notifyApp, ${column} FROM users WHERE LOWER(username) = LOWER(?)`, [username]);
-    if (!row) return true; // unknown/deleted user — nothing to block
-    const appOn = row.notifyApp !== 0 && row.notifyApp !== false;
-    const catOn = row[column] !== 0 && row[column] !== false;
-    return appOn && catOn;
+    return isNotifyEnabledFromRow(row, category);
   } catch (e) {
     console.error('[Notify] isNotifyEnabled error:', e.message);
     return true; // fail open — a DB hiccup shouldn't silently kill all pushes
@@ -10498,19 +10490,12 @@ io.on('connection', (socket) => {
        }
     }
 
-    // A6-F15 (settings): whitelist known permission/setting keys to prevent payload pollution
+    // A6-F15 (settings): whitelist known permission/setting keys to prevent
+    // payload pollution — see lib/roomPermissions.js (pure, unit-tested) for
+    // the actual whitelist and its own comment on the 'cam'/'mic' regression
+    // this exact spot caused.
     if (permissions && typeof permissions === 'object') {
-       // 'cam'/'mic' back RoomSettingsModal.jsx's "Who can use webcam?"/
-       // "Who can use microphone?" toggles (enforced at cam_started/mic
-       // permission checks below); 'changeMedia' backs the same allow-list
-       // pattern for who can change the shared video. All three were
-       // missing here, so every save silently stripped them back out —
-       // room.permissions.cam/mic/changeMedia read as undefined afterward
-       // and fell back to the 'all' default, making "Host Only" look like
-       // it reverted the instant you saved it.
-       const ALLOWED_PERM_KEYS = new Set(['chat','media','screen','join','allowLinks','allowMedia','lobby','password','cam','mic','changeMedia']);
-       const safePerms = {};
-       for (const k of ALLOWED_PERM_KEYS) { if (k in permissions) safePerms[k] = permissions[k]; }
+       const safePerms = sanitizeRoomPermissions(permissions);
        room.permissions = safePerms;
        db.run('UPDATE room_names SET permissions = ? WHERE roomId = ?', [JSON.stringify(safePerms), roomId]);
     }
