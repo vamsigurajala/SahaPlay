@@ -810,8 +810,16 @@ export default function OneOnOneCallScreen({
               swallowed by that gesture handling (see the PiP drag code
               above), so it never reliably fired. An ordinary dock button has
               no such conflict and just works. Only shown once the camera is
-              actually on — nothing to flip otherwise. */}
-          {isVideo && isCamOn && (
+              actually on — nothing to flip otherwise. Also gated on
+              isCoarsePointer (same signal CallingActivity.jsx's own Flip
+              button already uses): "flip" means switching between a
+              phone's/tablet's front/back camera (facingMode), a concept
+              that doesn't exist on a laptop/desktop with one built-in
+              webcam and a mouse — flipCamera would just silently re-request
+              the same camera there, so the button had no real effect on
+              desktop (Tauri .exe included, but also a plain desktop
+              browser tab). */}
+          {isVideo && isCamOn && isCoarsePointer && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <button className="ooc-ctrl-btn" onClick={flipCamera} style={{ background: 'rgba(255,255,255,0.14)' }}>
                 <SwitchCamera size={22} color="#fff" />
