@@ -445,7 +445,15 @@ const AppSettings = () => {
   const [desktopNotifyStatus, setDesktopNotifyStatus] = useState(null);
   useEffect(() => {
     if (!isTauriApp()) return;
-    getTauriNotifyPermissionStatus().then(setDesktopNotifyStatus).catch(() => {});
+    const checkStatus = () => { getTauriNotifyPermissionStatus().then(setDesktopNotifyStatus).catch(() => {}); };
+    checkStatus();
+    // "Open Settings" sends the user out to the Windows Settings app to flip
+    // the toggle there — there's no callback for that, so re-check on window
+    // focus (the user alt-tabbing/returning from Settings) instead of only
+    // ever checking once on mount, which would otherwise leave the "off"
+    // hint showing forever until the next full app restart.
+    window.addEventListener('focus', checkStatus);
+    return () => window.removeEventListener('focus', checkStatus);
   }, []);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [openSection, setOpenSection] = useState('general');
