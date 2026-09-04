@@ -1,7 +1,30 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
 
-const { isUserAdmin, buildUserList } = require('../lib/roomUsers');
+const { isUserAdmin, buildUserList, isRoomHostMatch } = require('../lib/roomUsers');
+
+describe('isRoomHostMatch', () => {
+  test('matches by the live socketId', () => {
+    const room = { hostId: 'sock-1', hostUsername: null };
+    assert.strictEqual(isRoomHostMatch(room, { socketId: 'sock-1', username: 'alice' }), true);
+  });
+
+  test('matches by the DB-recorded hostUsername, case-insensitively, even from a different socket', () => {
+    const room = { hostId: 'sock-OLD', hostUsername: 'Alice' };
+    assert.strictEqual(isRoomHostMatch(room, { socketId: 'sock-NEW', username: 'alice' }), true);
+  });
+
+  test('an ordinary member matches neither', () => {
+    const room = { hostId: 'sock-1', hostUsername: 'alice' };
+    assert.strictEqual(isRoomHostMatch(room, { socketId: 'sock-2', username: 'bob' }), false);
+  });
+
+  test('handles a missing room or missing socketId/username safely', () => {
+    assert.strictEqual(isRoomHostMatch(null, { socketId: 's', username: 'alice' }), false);
+    assert.strictEqual(isRoomHostMatch({ hostId: 's' }, {}), false);
+    assert.strictEqual(isRoomHostMatch({ hostId: 's' }), false);
+  });
+});
 
 describe('isUserAdmin', () => {
   test('the host is always admin, matched by socketId', () => {

@@ -29,7 +29,10 @@ const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-help
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
-const { isUserAdmin, buildUserList } = require('./lib/roomUsers');
+const { isUserAdmin, buildUserList, isRoomHostMatch } = require('./lib/roomUsers');
+const {
+  isGuestUsername, isMembersOnlyRejected, evaluateJoinGate, shouldAssignHost, shouldNotifyAutoAdmin, isBannedFromRoom,
+} = require('./lib/joinFlow');
 const {
   isValidCallInviteRequest, isCallInviteBusy, evaluateCallInviteEligibility,
   evaluateCallAccept, evaluateCallDecline, evaluateCallCancel,
@@ -7655,14 +7658,14 @@ io.on('connection', (socket) => {
     }
 
     const isDbHost = roomObj.hostUsername && username && roomObj.hostUsername.toLowerCase() === username.toLowerCase();
-    const isGuestStr = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+    const isGuestStr = isGuestUsername(username);
+    const roomIsEmpty = roomObj.users.length === 0;
 
-    if (roomObj.users.length === 0) {
-      // Only assign hostId to the first joiner if they are the true host, or if it's a new room and they are not a guest
-      if (isDbHost || (!roomObj.hostUsername && !isGuestStr)) {
-        roomObj.hostId = targetSocket.id;
-        roomObj.hostUsername = username;
-      }
+    if (shouldAssignHost({ roomIsEmpty, isDbHost, hostUsernameAlreadySet: !!roomObj.hostUsername, isGuestStr })) {
+      roomObj.hostId = targetSocket.id;
+      roomObj.hostUsername = username;
+    }
+    if (roomIsEmpty) {
       // Preserve media state on rejoin/reconnect
       if (roomObj.currentMedia === undefined) {
         roomObj.currentMedia = null;
@@ -7670,12 +7673,9 @@ io.on('connection', (socket) => {
         roomObj.isPlaying = false;
       }
       roomObj.timestampUpdatedAt = Date.now();
-    } else if (isDbHost) {
-      // True host rejoined while others are inside
-      roomObj.hostId = targetSocket.id;
     }
 
-    if (roomObj.bannedUsers.has(username)) {
+    if (isBannedFromRoom(roomObj.bannedUsers, username)) {
       targetSocket.emit('kicked_out', { reason: 'banned' });
       targetSocket.leave(roomId);
       return;
@@ -7716,9 +7716,8 @@ io.on('connection', (socket) => {
     }
 
     // If newMembersAdmins is on and user is a registered member (not guest/anonymous), notify them they have admin rights
-    const isAutoAdmin = roomObj.settings?.newMembersAdmins && !isGuestStr;
     const isRoomHost = (roomObj.hostId === targetSocket.id) || isDbHost;
-    if (isAutoAdmin && !isRoomHost) {
+    if (shouldNotifyAutoAdmin({ autoAdminEnabled: roomObj.settings?.newMembersAdmins, isGuestStr, isRoomHost })) {
       targetSocket.emit('you_are_now_admin');
     }
 
@@ -8011,10 +8010,10 @@ io.on('connection', (socket) => {
     // FAST TRACK: If room is already in memory, perform the Guest Block check INSTANTLY.
     if (rooms.has(roomId)) {
       const room = rooms.get(roomId);
-      const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+      const isGuestOrLocal = isGuestUsername(username);
       const isActuallyHost = (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
-      
-      if (room.settings?.onlyLoggedIn && isGuestOrLocal && !isActuallyHost) {
+
+      if (isMembersOnlyRejected({ onlyLoggedIn: room.settings?.onlyLoggedIn, isGuestOrLocal, isActuallyHost })) {
         console.log(`[Security] Fast-tracking rejection for ${username} in Members Only room ${roomId}`);
         socket.emit('join_rejected', { reason: 'members_only' });
         return;
@@ -8102,42 +8101,37 @@ io.on('connection', (socket) => {
     });
 
     Promise.all([loadMetadata, loadBans]).then(() => {
-      const isGuestOrLocal = username === 'Anonymous' || username.toLowerCase().startsWith('guest_');
+      const isGuestOrLocal = isGuestUsername(username);
       const isActuallyHost = (room.hostId === socket.id) || (room.hostUsername && room.hostUsername.toLowerCase() === username.toLowerCase());
+      const isApproved = (room.approvedUsers && username && username !== 'Anonymous' && room.approvedUsers.has(username.toLowerCase()))
+                      || room.approvedSockets?.has(socket.id);
 
-      console.log(`[JOIN_TRACE] Security check for ${username}: isActuallyHost=${isActuallyHost}, lockRoom=${room.settings.lockRoom}`);
-      if (!isActuallyHost) {
-        if (room.settings.onlyLoggedIn && isGuestOrLocal) {
-          console.log(`[JOIN_TRACE] Rejected: Members Only`);
-          socket.emit('join_rejected', { reason: 'members_only' });
-          return;
-        }
+      console.log(`[JOIN_TRACE] Security check for ${username}: isActuallyHost=${isActuallyHost}, lockRoom=${room.settings.lockRoom}, isApproved=${isApproved}`);
+      const gate = evaluateJoinGate({ isActuallyHost, onlyLoggedIn: room.settings.onlyLoggedIn, isGuestOrLocal, lockRoom: room.settings.lockRoom, isApproved });
 
-        if (room.settings.lockRoom) {
-          const isApproved = (room.approvedUsers && username && username !== 'Anonymous' && room.approvedUsers.has(username.toLowerCase()))
-                          || room.approvedSockets?.has(socket.id);
-          
-          console.log(`[JOIN_TRACE] Lock check for ${username}: isApproved=${isApproved}`);
-          
-          if (!isApproved) {
-            console.log(`[JOIN_TRACE] Sent waiting_for_approval to ${username}`);
-            room.pendingJoins.set(socket.id, { username, socket });
-            socket.emit('waiting_for_approval');
+      if (gate.result === 'rejected') {
+        console.log(`[JOIN_TRACE] Rejected: Members Only`);
+        socket.emit('join_rejected', { reason: 'members_only' });
+        return;
+      }
 
-            // Notify host/admins
-            db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
-              const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
-              room.users.forEach(u => {
-                const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
-                const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
-                if (uIsHost || uIsAutoAdmin) {
-                  io.to(u.socketId).emit('join_requested', { socketId: socket.id, username, avatarPath });
-                }
-              });
-            });
-            return;
-          }
-        }
+      if (gate.result === 'pending') {
+        console.log(`[JOIN_TRACE] Sent waiting_for_approval to ${username}`);
+        room.pendingJoins.set(socket.id, { username, socket });
+        socket.emit('waiting_for_approval');
+
+        // Notify host/admins
+        db.get('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [username], (err, row) => {
+          const avatarPath = (row && row.avatarPath) ? row.avatarPath : null;
+          room.users.forEach(u => {
+            const uIsHost = isRoomHostMatch(room, u);
+            const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && !isGuestUsername(u.username);
+            if (uIsHost || uIsAutoAdmin) {
+              io.to(u.socketId).emit('join_requested', { socketId: socket.id, username, avatarPath });
+            }
+          });
+        });
+        return;
       }
 
       console.log(`[JOIN_TRACE] Success! Joining ${username} to ${roomId}`);
@@ -10421,7 +10415,7 @@ io.on('connection', (socket) => {
        if (settings.onlyLoggedIn) {
          let listChanged = false;
          room.users.forEach(u => {
-           const isGuest = u.username === 'Anonymous' || (u.username && u.username.toLowerCase().startsWith('guest_'));
+           const isGuest = isGuestUsername(u.username);
            if (isGuest && u.socketId !== room.hostId) {
              io.to(u.socketId).emit('join_rejected', { reason: 'members_only' });
              const s = io.sockets.sockets.get(u.socketId);
@@ -10432,7 +10426,7 @@ io.on('connection', (socket) => {
          
          if (listChanged) {
            room.users = room.users.filter(u => {
-             const isGuest = u.username === 'Anonymous' || (u.username && u.username.toLowerCase().startsWith('guest_'));
+             const isGuest = isGuestUsername(u.username);
              return !(isGuest && u.socketId !== room.hostId);
            });
            io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
@@ -10799,8 +10793,8 @@ io.on('connection', (socket) => {
         room.pendingJoins.delete(socket.id);
         // Notify all admins in the room to dismiss the join request toast
         room.users.forEach(u => {
-          const uIsHost = (u.socketId === room.hostId) || (room.hostUsername && u.username && room.hostUsername.toLowerCase() === u.username.toLowerCase());
-          const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && u.username !== 'Anonymous' && !u.username.toLowerCase().startsWith('guest_');
+          const uIsHost = isRoomHostMatch(room, u);
+          const uIsAutoAdmin = room.settings?.newMembersAdmins && u.username && !isGuestUsername(u.username);
           if (uIsHost || uIsAutoAdmin) {
             io.to(u.socketId).emit('join_request_handled', { socketId: socket.id, username: pending.username });
           }
@@ -10845,7 +10839,7 @@ io.on('connection', (socket) => {
 
         if (room.hostId === socket.id && room.users.length > 0) {
           // Find the first non-guest user to transfer host privileges
-          const nextHost = room.users.find(u => (u.username && !u.username.toLowerCase().startsWith('guest_') && u.username !== 'Anonymous'));
+          const nextHost = room.users.find(u => (u.username && !isGuestUsername(u.username)));
           
           if (nextHost) {
             room.hostId = nextHost.socketId;

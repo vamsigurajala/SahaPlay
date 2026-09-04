@@ -4,6 +4,18 @@
 // (Maps/Sets/plain fields) and userOrSocket-shaped objects passed in —
 // no IO, no mutation.
 
+// Whether a socketId/username pair matches the room's current host — by
+// live socketId (the currently-connected host's own socket) OR by the DB-
+// recorded hostUsername (catches a reconnected host whose new socket.id
+// hasn't been assigned to room.hostId yet). Shared by isUserAdmin below and
+// by server.js's own join/leave admin-notification lookups, which used to
+// each carry a copy of this exact formula.
+function isRoomHostMatch(room, { socketId, username } = {}) {
+  if (!room) return false;
+  return (room.hostId === socketId) ||
+         !!(room.hostUsername && username && room.hostUsername.toLowerCase() === username.toLowerCase());
+}
+
 // Helper to check if a user has admin privileges in a room
 function isUserAdmin(room, userOrSocket) {
   if (!room || !userOrSocket) return false;
@@ -13,9 +25,7 @@ function isUserAdmin(room, userOrSocket) {
   const username = userOrSocket.username;
 
   // 1. Host is always admin
-  const isHost = (room.hostId === socketId) ||
-                 (room.hostUsername && username && room.hostUsername.toLowerCase() === username.toLowerCase());
-  if (isHost) return true;
+  if (isRoomHostMatch(room, { socketId, username })) return true;
 
   // 2. Manual Admin check
   if (room.admins && username && room.admins.has(username.toLowerCase())) {
@@ -66,4 +76,4 @@ function buildUserList(room) {
     });
 }
 
-module.exports = { isUserAdmin, buildUserList };
+module.exports = { isUserAdmin, buildUserList, isRoomHostMatch };
