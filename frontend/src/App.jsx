@@ -12,6 +12,8 @@ import { isTauriApp, isStandalonePWA } from './lib/platform';
 import { syncStatusBarTheme } from './lib/nativeShell';
 import { setNativeThemePreference } from './lib/nativeMedia';
 import { unlockAudio } from './lib/notificationSounds';
+import { initAppUpdateCheck } from './lib/appUpdateCheck';
+import { RefreshCw, X } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import BottomNav from './components/BottomNav';
 import AnimatedSplash from './components/AnimatedSplash';
@@ -320,6 +322,16 @@ if (roomMatch) {
 
 function App() {
   const { i18n } = useTranslation();
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // See appUpdateCheck.js — proactively detects a new deploy going live
+  // while this tab/window is still open, so the user gets a chance to
+  // refresh on their own terms instead of the app silently going stale
+  // until a lazy-loaded chunk 404s (the ErrorBoundary's reactive fallback
+  // below still exists as a safety net for exactly that case).
+  useEffect(() => {
+    return initAppUpdateCheck(() => setUpdateAvailable(true));
+  }, []);
 
   // Clear the ErrorBoundary's one-shot auto-reload guard once the app has been
   // running stably for a few seconds, so a future genuine chunk load failure
@@ -1289,6 +1301,54 @@ function App() {
               pointerEvents: 'none',
             }}
           />
+          {/* Non-disruptive — never auto-reloads on its own (that could land
+              mid-call or mid-typed-message, exactly the class of bug this
+              session spent a lot of time fixing for calls). Just offers a
+              refresh; the user decides when it's safe. */}
+          {updateAvailable && (
+            <div
+              style={{
+                position: 'fixed',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                bottom: 'max(16px, env(safe-area-inset-bottom))',
+                zIndex: 2147483001,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px 10px 16px',
+                borderRadius: 999,
+                background: '#18181f',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              <span>A new version of SahaPlay is available</span>
+              <button
+                onClick={() => window.location.reload()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--brand-1, #a855f7)', color: '#fff', border: 'none',
+                  borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <RefreshCw size={14} /> Refresh
+              </button>
+              <button
+                onClick={() => setUpdateAvailable(false)}
+                aria-label="Dismiss"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4,
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
           <ScrollToTop />
           <CallProvider>
           <Suspense fallback={<RouteLoadingFallback />}>
