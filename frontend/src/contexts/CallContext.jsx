@@ -209,6 +209,13 @@ export function CallProvider({ children }) {
   // left; see the call:member-left handler.
   const peerGoneRef = useRef(false);
 
+  // Which outgoing callIds have already been given one busy-retry — see
+  // the 'call:busy' handler below for why a single silent retry exists at
+  // all (a stale busy flag left by a decline whose native background POST
+  // hadn't finished landing yet, hit by calling the same person back
+  // immediately after they declined).
+  const busyRetriedRef = useRef(new Set());
+
   const [callState, setCallState] = useState(null);
   // { phase: 'outgoing'|'incoming'|'active', callId, type, peerUsername,
   //   peerDisplayName, peerAvatar, startedAt, answeredAt,
@@ -328,6 +335,26 @@ export function CallProvider({ children }) {
     sock.on('call:busy', ({ callId }) => {
       const cs = callStateRef.current;
       if (cs?.callId !== callId) return;
+      // One silent retry before actually giving up: userActiveCallId
+      // (server-side "is this person busy" tracking) is cleared the instant
+      // a call is declined/ended — but a decline reaching the server via a
+      // native background POST (see CallActionReceiver.java/
+      // CallEngineService.declineIncomingCall) has real network round-trip
+      // time. Calling the same person right back within that window — a
+      // real thing testers (and impatient users) do — can land this
+      // call:invite before that cleanup finishes, getting rejected as
+      // "busy" from a call that's already over. A genuinely-busy person is
+      // still busy 900ms later, so this costs one extra beat in that case
+      // and fixes the far more common "I already declined that, why does
+      // it say busy" report in the stale-flag case.
+      if (!busyRetriedRef.current.has(callId)) {
+        busyRetriedRef.current.add(callId);
+        setTimeout(() => {
+          if (callStateRef.current?.callId !== callId) return; // ended/changed while waiting
+          socketRef.current?.emit('call:invite', { callId, calleeUsername: cs.peerUsername, callType: cs.type });
+        }, 900);
+        return;
+      }
       // The chat-log "busy" bubble is only visible once you go look at that
       // conversation — this is the immediate, on-screen "why did my call
       // just end" answer, shown right on the calling screen itself before
@@ -733,6 +760,34 @@ export function CallProvider({ children }) {
   // wiring needed here anymore beyond letting 'call:incoming' arrive
   // normally once the socket connects.
 
+  // socketRef.current is set SYNCHRONOUSLY the moment the socket-lifecycle
+  // effect above runs `io(API, ...)` — but the actual transport handshake
+  // and auth are async, so a truthy ref does not mean the socket is actually
+  // connected yet. socket.io-client buffers emit() calls made before
+  // 'connect' fires and flushes them once it does, which is exactly why
+  // "Still connecting" was so rare to hit for startCall (the ref check only
+  // ever caught the brief pre-effect window) — but acceptCall/declineCall
+  // had NO wait/feedback at all for the "socket object exists, transport
+  // still connecting" case, which is the far more common one right after
+  // the app cold-starts from a notification tap: the user can see and tap
+  // the ring screen's Answer button well before the socket has finished
+  // connecting, and a bare emit() into a socket that never actually
+  // connects (bad network, server hiccup) would otherwise buffer forever
+  // with nothing telling the user why nothing happened. This waits, with a
+  // bounded timeout, for a real 'connect' — resolving immediately if
+  // already connected, and false (not a throw) on timeout so callers can
+  // decide their own fallback (toast + bail, in every caller below).
+  function waitForSocketConnected(timeoutMs = 6000) {
+    return new Promise((resolve) => {
+      const sock = socketRef.current;
+      if (sock?.connected) { resolve(true); return; }
+      if (!sock) { resolve(false); return; }
+      const timer = setTimeout(() => { sock.off('connect', onConnect); resolve(false); }, timeoutMs);
+      function onConnect() { clearTimeout(timer); resolve(true); }
+      sock.once('connect', onConnect);
+    });
+  }
+
   async function flushIceBuffer(username) {
     const buffered = iceBuffersRef.current.get(username);
     if (!buffered) return;
@@ -1064,14 +1119,16 @@ export function CallProvider({ children }) {
   // ─── Public API ───
   const startCall = useCallback(async (peerUsername, type, peerDisplayName, peerAvatar) => {
     if (callStateRef.current) return;
-    // socketRef.current is only ever null before this file's own socket-
-    // lifecycle effect has run at all (no token yet, or cryptoReady still
-    // false) — tapping Call in that window used to silently do nothing, no
-    // toast, no outgoing-ringing UI, nothing to explain why. Surfacing this
-    // explicitly turns "the call button doesn't work" into "try again in a
-    // second," which is also the fix for it: the effect finishes shortly
-    // after and every call attempt after that works normally.
-    if (!socketRef.current) {
+    // Waits for a real connected socket (not just a truthy ref — see
+    // waitForSocketConnected's own comment) instead of failing the instant
+    // the ref happens to be null/not-yet-connected. Resolves near-instantly
+    // in the overwhelmingly common case (socket's already up); only actually
+    // waits the couple hundred ms to a few seconds a fresh reconnect can take
+    // — which used to just fail outright with nothing but a "try again"
+    // toast, even though trying again a moment later always worked anyway.
+    const connected = await waitForSocketConnected();
+    if (callStateRef.current) return; // a call arrived/started while we were waiting
+    if (!connected) {
       toast.error('Still connecting — try again in a moment');
       return;
     }
@@ -1107,31 +1164,64 @@ export function CallProvider({ children }) {
 
   const acceptCall = useCallback(async () => {
     const cs = callStateRef.current;
-    if (!cs || cs.phase !== 'incoming' || !socketRef.current) return;
-    // Same reasoning as startCall above — resolved BEFORE the phase flips
-    // to 'active' below, which is what triggers SahaplayCallService to
-    // start with foregroundServiceType "microphone|camera". This was the
-    // actual cause of "app gets stuck and closes right after granting the
-    // permission": the grant itself worked fine, but the foreground service
-    // had already tried (and Android 14+ hard-crashed on) starting a moment
-    // earlier in the same race, before this awaited.
-    const granted = await requestMediaAccess();
-    if (callStateRef.current?.callId !== cs.callId) return; // call ended/changed while permission dialog was up
-    if (!granted) {
-      declineCall();
-      return;
-    }
-    if (cs.isGroupJoin) {
-      // Who to connect to is confirmed by the server's own reply
-      // (call:joined-call) rather than acted on here — the groupMembers
-      // snapshot on callState was taken at invite time and could be stale
-      // by the time I actually accept.
-      socketRef.current.emit('call:member-join', { callId: cs.callId });
-      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
-    } else {
-      socketRef.current.emit('call:accept', { callId: cs.callId });
-      setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
-      connectToPeer(cs.peerUsername, { isCaller: false, callId: cs.callId, type: cs.type });
+    if (!cs || cs.phase !== 'incoming') return;
+    // Wrapped in try/catch — this used to have no error handling at all, so
+    // any rejected/thrown step below (socket not ready, requestMediaAccess
+    // throwing, connectToPeer throwing) left an unhandled promise rejection:
+    // no toast, no console-visible crash to the user, and the phase stuck at
+    // 'incoming' forever with no further UI update — exactly what "tapping
+    // Answer shows nothing" looks like from the outside. Now every failure
+    // path shows a real toast and declines the call rather than leaving it
+    // stuck in limbo (a stuck 'incoming' phase server-side would also
+    // eventually strand the CALLER'S side too, showing "ringing" well past
+    // when the callee gave up).
+    try {
+      // Same "wait for a real connection, not just a truthy ref" fix as
+      // startCall above — this is actually the more likely place to hit it:
+      // the ring screen can be tapped within a second of the app cold-
+      // starting from a notification tap, well before the socket has
+      // finished connecting.
+      const connected = await waitForSocketConnected();
+      if (callStateRef.current?.callId !== cs.callId) return; // call ended/changed while waiting
+      if (!connected) {
+        toast.error('Still connecting — try again in a moment');
+        return;
+      }
+      // Same reasoning as startCall above — resolved BEFORE the phase flips
+      // to 'active' below, which is what triggers SahaplayCallService to
+      // start with foregroundServiceType "microphone|camera". This was the
+      // actual cause of "app gets stuck and closes right after granting the
+      // permission": the grant itself worked fine, but the foreground service
+      // had already tried (and Android 14+ hard-crashed on) starting a moment
+      // earlier in the same race, before this awaited.
+      const granted = await requestMediaAccess();
+      if (callStateRef.current?.callId !== cs.callId) return; // call ended/changed while permission dialog was up
+      if (!granted) {
+        // Previously silent — declineCall() below tears the overlay down
+        // with zero explanation, which reads as "I tapped Answer and
+        // literally nothing happened." Surfacing it turns that into a clear
+        // "here's why," even though the actual fix (granting the
+        // permission) still has to happen in system Settings.
+        toast.error('Camera/microphone permission is required to answer');
+        declineCall();
+        return;
+      }
+      if (cs.isGroupJoin) {
+        // Who to connect to is confirmed by the server's own reply
+        // (call:joined-call) rather than acted on here — the groupMembers
+        // snapshot on callState was taken at invite time and could be stale
+        // by the time I actually accept.
+        socketRef.current.emit('call:member-join', { callId: cs.callId });
+        setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+      } else {
+        socketRef.current.emit('call:accept', { callId: cs.callId });
+        setCallState(prev => (prev ? { ...prev, phase: 'active', answeredAt: Date.now() } : prev));
+        connectToPeer(cs.peerUsername, { isCaller: false, callId: cs.callId, type: cs.type });
+      }
+    } catch (err) {
+      console.error('[Call] acceptCall failed:', err);
+      toast.error('Could not answer the call — please try again');
+      if (callStateRef.current?.callId === cs.callId) declineCall();
     }
   }, []);
 
