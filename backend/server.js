@@ -28,6 +28,7 @@ const emailTranslations = require('./email-translations');
 const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
+const { evaluateCallInvite, evaluateCallAccept, evaluateCallDecline, evaluateCallCancel } = require('./lib/callStateMachine');
 
 // ─── Email — Resend (migrated from Gmail SMTP) ──────────────────────────────
 const { sendEmail, EMAILS } = require('./utils/email');
@@ -9782,9 +9783,9 @@ io.on('connection', (socket) => {
     try {
       const caller = socket.username?.toLowerCase();
       const callee = (calleeUsername || '').toLowerCase();
-      if (!caller || !callee || caller === callee || !callId || !['voice', 'video'].includes(callType)) return;
+      if (!callId || !isValidCallInviteRequest({ caller, callee, callType })) return;
 
-      if (userActiveCallId.has(caller) || userActiveCallId.has(callee)) {
+      if (isCallInviteBusy({ callerBusy: userActiveCallId.has(caller), calleeBusy: userActiveCallId.has(callee) })) {
         socket.emit('call:busy', { callId });
         return;
       }
@@ -9804,15 +9805,11 @@ io.on('connection', (socket) => {
       const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [caller, callee]);
       const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [callee, caller]);
       const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
-      if (!areFriends) {
-        userActiveCallId.delete(caller); userActiveCallId.delete(callee);
-        socket.emit('call:invalid', { callId, reason: 'not_friends' }); return;
-      }
-
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
-      if (blockCheck) {
+      const eligibility = evaluateCallInviteEligibility({ areFriends, isBlocked: !!blockCheck });
+      if (eligibility.result !== 'ok') {
         userActiveCallId.delete(caller); userActiveCallId.delete(callee);
-        socket.emit('call:invalid', { callId, reason: 'blocked' }); return;
+        socket.emit('call:invalid', { callId, reason: eligibility.reason }); return;
       }
 
       // Has the callee muted CALLS specifically from this caller (a private-
@@ -9874,7 +9871,7 @@ io.on('connection', (socket) => {
 
   socket.on('call:cancel', ({ callId }) => {
     const call = activeCalls.get(callId);
-    if (!call || call.caller !== socket.username?.toLowerCase() || call.status !== 'ringing') return;
+    if (!evaluateCallCancel(call, socket.username?.toLowerCase()).allowed) return;
     endCallInternal(callId);
     emitToUser(call.callee, 'call:cancelled', { callId });
     // The callee never got to answer — a missed call from their side too,
@@ -9895,8 +9892,8 @@ io.on('connection', (socket) => {
     // server actually rejects it, that optimistic screen has to be replaced
     // with something that tells the user why, not just silently vanish back
     // to nothing (which read as "I tapped Answer and nothing happened").
-    if (!call || call.callee !== me) { socket.emit('call:invalid', { callId, reason: 'call_gone' }); return; }
-    if (call.status !== 'ringing') { socket.emit('call:invalid', { callId, reason: 'already_active' }); return; }
+    const acceptCheck = evaluateCallAccept(call, me);
+    if (!acceptCheck.allowed) { socket.emit('call:invalid', { callId, reason: acceptCheck.reason }); return; }
     clearTimeout(call.timeoutHandle);
     call.status = 'active';
     call.answeredAt = Date.now();
@@ -9936,7 +9933,7 @@ io.on('connection', (socket) => {
 
   socket.on('call:decline', ({ callId }) => {
     const call = activeCalls.get(callId);
-    if (!call || call.callee !== socket.username?.toLowerCase()) return;
+    if (!evaluateCallDecline(call, socket.username?.toLowerCase()).allowed) return;
     endCallInternal(callId);
     emitToUser(call.caller, 'call:declined', { callId });
   });
