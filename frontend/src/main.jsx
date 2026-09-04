@@ -36,6 +36,7 @@ import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge 
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
 import { initNativeCallAnswerLink, initNativeCallEndLink } from './lib/nativeCallBridge.js';
+import { initNativeChatOpenLink } from './lib/nativeChatOpenBridge.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -55,6 +56,13 @@ if (isCapacitorApp()) {
   // standalone mode, which is the only mode push notifications fire in)
   // picks this up to open the specific chat the notification was for.
   initNativePush((data) => {
+    window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
+  });
+  // Same rebroadcast, for a message notification tapped via the
+  // sahaplay://chat-open deep link (see nativeChatOpenBridge.js's own
+  // comment for why message notifications now go through this path instead
+  // of Capacitor's own pushNotificationActionPerformed).
+  initNativeChatOpenLink((data) => {
     window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
   });
   // Rebroadcast the same way — CallContext.jsx (mounted globally, in every

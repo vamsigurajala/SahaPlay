@@ -5,6 +5,10 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.telecom.TelecomManager;
@@ -169,6 +173,127 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 int notificationId = (callId != null ? callId : String.valueOf(System.currentTimeMillis())).hashCode();
                 nm.notify(notificationId, builder.build());
             }
+        } else if ("dm".equals(data.get("type")) || "room".equals(data.get("type"))) {
+            // A chat message push. This USED TO be sent as a plain
+            // `notification`-block FCM message (not data-only like every
+            // branch above) — Android auto-displays that itself, using its
+            // own default channel/sound, and SKIPS onMessageReceived()
+            // ENTIRELY whenever the app is backgrounded or killed (see this
+            // class's own top-of-file comment on that exact behavior). That
+            // meant the message-tone picker in AppSettings.jsx's Sound
+            // section had literally no effect the moment the app wasn't
+            // already open — this code never even ran. Now that
+            // notifyChatMessage sends this data-only (see backend/server.js),
+            // this branch runs unconditionally and builds the notification
+            // itself, so the user's chosen tone (mirrored via
+            // SahaplayMediaPlugin.setMessageTonePreference) is what actually
+            // plays, foreground or not.
+            String title = data.get("title");
+            String body = data.get("body");
+            String tag = data.get("tag");
+            if (title == null) title = "New message";
+            if (body == null) body = "";
+
+            final String messageChannelId = "sahaplay_messages";
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // No channel sound at all — see playMessageTone() below,
+                // which plays the user's actual chosen tone explicitly via
+                // MediaPlayer instead. A channel's sound is immutable once
+                // created (recreating it on every preference change would be
+                // its own separate can of worms), so this sidesteps that
+                // entirely rather than fighting it.
+                NotificationChannel channel = new NotificationChannel(messageChannelId, "Messages", NotificationManager.IMPORTANCE_HIGH);
+                channel.setSound(null, null);
+                nm.createNotificationChannel(channel);
+            }
+
+            // Deep link (not getLaunchIntentForPackage) so the tap actually
+            // opens the specific chat, not just the app generically —
+            // Capacitor's own Push Notifications plugin only forwards a tap
+            // as pushNotificationActionPerformed for a notification IT
+            // built; since this one is built manually here (same reason the
+            // call notifications above are), that event never fires for it.
+            // See nativeChatOpenBridge.js, which listens for this exact link
+            // and rebroadcasts it into the same 'open_chat_from_notification'
+            // event the old path already used.
+            String chatId = data.get("chatId");
+            String chatType = data.get("type");
+            Uri deepLinkUri = Uri.parse("sahaplay://chat-open?type=" + Uri.encode(chatType) + "&chatId=" + Uri.encode(chatId));
+            Intent openIntent = new Intent(Intent.ACTION_VIEW, deepLinkUri);
+            openIntent.setPackage(getPackageName());
+            openIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? PendingIntent.FLAG_IMMUTABLE : 0);
+            int notificationId = (tag != null ? tag : title).hashCode();
+            PendingIntent contentPendingIntent = PendingIntent.getActivity(this, notificationId, openIntent, piFlags);
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, messageChannelId)
+                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
+            if (contentPendingIntent != null) builder.setContentIntent(contentPendingIntent);
+
+            if (nm != null) nm.notify(notificationId, builder.build());
+            playMessageTone();
+        }
+    }
+
+    private MediaPlayer messageTonePlayer;
+
+    // Plays the user's chosen message tone (one of the pre-rendered
+    // res/raw/tone_*.wav files matching frontend/src/lib/notificationSounds.js's
+    // TONES catalog) exactly once — not looped, this is a one-shot
+    // notification sound, not a ringtone. Reads the preference fresh every
+    // time (mirrored via SahaplayMediaPlugin.setMessageTonePreference)
+    // instead of baking it into the (immutable) notification channel, so a
+    // changed preference takes effect on the very next message with no
+    // channel-recreation dance needed. 'none' plays nothing, matching the
+    // in-app JS behavior for that same choice.
+    private void playMessageTone() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(SahaplayMediaPlugin.THEME_PREFS_NAME, Context.MODE_PRIVATE);
+            String toneId = prefs.getString(SahaplayMediaPlugin.MESSAGE_TONE_PREFS_KEY, "chime");
+            if ("none".equals(toneId)) return;
+            int resId = toneResourceFor(toneId);
+            if (resId == 0) return;
+
+            if (messageTonePlayer != null) {
+                try { messageTonePlayer.release(); } catch (Exception ignored) {}
+                messageTonePlayer = null;
+            }
+            MediaPlayer mp = MediaPlayer.create(this, resId);
+            if (mp == null) return;
+            messageTonePlayer = mp;
+            mp.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+            mp.setOnCompletionListener(player -> {
+                try { player.release(); } catch (Exception ignored) {}
+                if (messageTonePlayer == player) messageTonePlayer = null;
+            });
+            mp.start();
+        } catch (Exception e) {
+            android.util.Log.w("SahaplayFCM", "playMessageTone failed", e);
+        }
+    }
+
+    private static int toneResourceFor(String toneId) {
+        if (toneId == null) return R.raw.tone_chime;
+        switch (toneId) {
+            case "chime": return R.raw.tone_chime;
+            case "ping": return R.raw.tone_ping;
+            case "pop": return R.raw.tone_pop;
+            case "marimba": return R.raw.tone_marimba;
+            case "bell": return R.raw.tone_bell;
+            case "bird": return R.raw.tone_bird;
+            case "bubble": return R.raw.tone_bubble;
+            case "waterdrop": return R.raw.tone_waterdrop;
+            case "rain": return R.raw.tone_rain;
+            case "windchime": return R.raw.tone_windchime;
+            default: return R.raw.tone_chime;
         }
     }
 

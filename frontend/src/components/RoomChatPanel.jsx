@@ -4276,7 +4276,20 @@ export default function RoomChatPanel({ p }) {
                     const rowKey = msg.tempId || msg.id || i;
                     if (dmMediaRunsInfo.memberKeys.has(rowKey)) return null;
                     const mediaGroupItems = dmMediaRunsInfo.heads.get(rowKey) || null;
-                    const isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
+                    let isMe = msg.isMe || (msg.username && msg.username.toLowerCase() === p.username?.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === p.username?.toLowerCase());
+                    // Call-log bubbles: writeCallLog() (CallContext.jsx) is
+                    // always posted by whichever side's client happens to run
+                    // the code that writes it (e.g. the callee's own device on
+                    // decline) — regardless of who actually placed the call.
+                    // Override isMe using the logged initiatedBy (the real
+                    // caller) so the bubble lands on the actual caller's side
+                    // — same fix as GlobalChatWidget.jsx's copy of this bubble.
+                    if (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) {
+                      try {
+                        const callData = JSON.parse(msg.decryptedText.slice(CALL_LOG_PREFIX.length));
+                        if (callData?.initiatedBy) isMe = callData.initiatedBy.toLowerCase() === p.username?.toLowerCase();
+                      } catch {}
+                    }
                     const reactions = msg.reactions||{};
                     const prevMsg = i > 0 ? dmMessages[i - 1] : null;
                     const showDateSep = !prevMsg || getDateKey(prevMsg.timestamp) !== getDateKey(msg.timestamp);

@@ -8188,9 +8188,26 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       );
                     }
                     const mUserLower = myUsername?.toLowerCase();
-                    const isMe = msg.isMe ||
+                    let isMe = msg.isMe ||
                                  (msg.senderName && msg.senderName.toLowerCase() === mUserLower) ||
                                  (msg.username && msg.username.toLowerCase() === mUserLower);
+                    // Call-log bubbles: writeCallLog() (CallContext.jsx) is
+                    // always posted by whichever side's client happens to run
+                    // the code that writes it (e.g. the callee's own device on
+                    // decline) — regardless of who actually placed the call.
+                    // Rendering it on that sender's side would show the
+                    // person who declined a call as if THEY made it. Override
+                    // isMe using the logged initiatedBy (the real caller)
+                    // instead, so the bubble always lands on the actual
+                    // caller's side, the same way a phone's own call log
+                    // distinguishes outgoing vs incoming regardless of which
+                    // device technically wrote the entry.
+                    if (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) {
+                      try {
+                        const callData = JSON.parse(msg.decryptedText.slice(CALL_LOG_PREFIX.length));
+                        if (callData?.initiatedBy) isMe = callData.initiatedBy.toLowerCase() === mUserLower;
+                      } catch {}
+                    }
                   const rowKey = msg.tempId || msg.id || i;
                   if (mediaRuns.memberKeys.has(rowKey)) return null;
                   const mediaGroupItems = mediaRuns.heads.get(rowKey) || null;

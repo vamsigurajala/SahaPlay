@@ -405,6 +405,8 @@ jobs:
           mkdir -p android/app/src/main/res/drawable
           cp capacitor-android-plugin/res/drawable/ic_call_decline.xml android/app/src/main/res/drawable/ic_call_decline.xml
           cp capacitor-android-plugin/res/drawable/ic_call_answer.xml android/app/src/main/res/drawable/ic_call_answer.xml
+          mkdir -p android/app/src/main/res/raw
+          cp capacitor-android-plugin/res/raw/*.wav android/app/src/main/res/raw/
           cp capacitor-android-plugin/CallCrypto.java android/app/src/main/java/com/sahaplay/app/CallCrypto.java
           cp capacitor-android-plugin/SecretKeyStore.java android/app/src/main/java/com/sahaplay/app/SecretKeyStore.java
           cp capacitor-android-plugin/PublicKeyCache.java android/app/src/main/java/com/sahaplay/app/PublicKeyCache.java

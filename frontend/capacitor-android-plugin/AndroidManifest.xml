@@ -85,6 +85,24 @@
                 <data android:scheme="sahaplay" android:host="call-end" />
             </intent-filter>
 
+            <!-- A tapped message notification hands off here (see
+                 SahaplayFirebaseMessagingService.java's own message-handling
+                 branch) instead of relying on Capacitor's Push Notifications
+                 plugin to forward the tap — that plugin only ever fires
+                 pushNotificationActionPerformed for a notification it built
+                 itself, and this one is built manually in Java (same reason
+                 the call notifications above are). nativeChatOpenBridge.js
+                 listens for this and rebroadcasts it the same way
+                 initNativePush's existing chat-open handling already does,
+                 so BottomNav.jsx still opens the specific chat regardless of
+                 which path delivered the tap. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sahaplay" android:host="chat-open" />
+            </intent-filter>
+
         </activity>
 
         <!-- Full-screen, lock-screen-visible incoming call UI (see

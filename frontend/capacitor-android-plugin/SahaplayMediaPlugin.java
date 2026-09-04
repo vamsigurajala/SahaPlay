@@ -591,6 +591,27 @@ public class SahaplayMediaPlugin extends Plugin {
 
     static final String RINGTONE_PREFS_KEY = "ringtoneUrl";
 
+    // Same mirroring approach again, for the message-notification tone (see
+    // AppSettings.jsx's Sound section) — a preset id ('chime'/'bird'/'none'/
+    // etc, see frontend/src/lib/notificationSounds.js), not an uploaded file
+    // like the ringtone above, so SahaplayFirebaseMessagingService maps it to
+    // one of the pre-rendered res/raw/tone_*.wav files rather than streaming
+    // a URL. Needed because a plain chat-message push used to carry a
+    // `notification` block, which Android auto-displays using its own
+    // default channel/sound WITHOUT ever running our code at all whenever
+    // the app is backgrounded or killed — the message tone picker had no
+    // effect in exactly that case. Defaults to 'chime' (this app's own
+    // default) when never set.
+    @PluginMethod
+    public void setMessageTonePreference(PluginCall call) {
+        String toneId = call.getString("toneId", "chime");
+        getContext().getSharedPreferences(THEME_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(MESSAGE_TONE_PREFS_KEY, toneId).apply();
+        call.resolve();
+    }
+
+    static final String MESSAGE_TONE_PREFS_KEY = "messageTone";
+
     private static void stopBluetoothScoQuietly(AudioManager am) {
         try {
             am.setBluetoothScoOn(false);

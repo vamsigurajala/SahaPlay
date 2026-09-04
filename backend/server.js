@@ -351,6 +351,11 @@ async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly 
   if (dataOnly) {
     stringData.title = title || '';
     stringData.body = body || '';
+    // Carried in `data` (not `android.notification.tag`, which only exists
+    // on a `notification`-block message) so a data-only receiver — Java's
+    // onMessageReceived — can still dedupe/replace on the same tag the way
+    // the tray auto-display path already did.
+    if (tag) stringData.tag = tag;
   }
   const deadTokens = [];
   // FCM caps a single multicast call at 500 tokens.
@@ -550,7 +555,13 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
           : `${senderUsername} sent a message`;
       }
 
-      await sendPushToTokens(tokens, { title, body, data: { type: chatType, chatId }, tag: chatId });
+      // dataOnly: true — was a plain `notification`-block push, which
+      // Android auto-displays itself (system default channel/sound) and
+      // skips onMessageReceived() entirely whenever the app is backgrounded
+      // or killed, so SahaplayFirebaseMessagingService.java (and therefore
+      // the user's own chosen message tone) never even ran in exactly that
+      // case. See sendPushToTokens' own comment on this distinction.
+      await sendPushToTokens(tokens, { title, body, data: { type: chatType, chatId }, tag: chatId, dataOnly: true });
     } catch (e) {
       console.error('[FCM] notifyChatMessage error for', recipient, ':', e.message);
     }

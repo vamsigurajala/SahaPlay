@@ -123,6 +123,15 @@ export function setNativeRingtonePreference(url) {
   plugin()?.setRingtonePreference({ url: url || '' }).catch(() => {});
 }
 
+// Same mirroring pattern, for the message-notification tone (AppSettings.jsx's
+// Sound section) — SahaplayFirebaseMessagingService.java reads this to know
+// which pre-rendered res/raw/tone_*.wav to play for a message notification it
+// builds itself while the app is backgrounded/killed (see that class's own
+// comment for why it needs to build the notification at all now).
+export function setNativeMessageTonePreference(toneId) {
+  plugin()?.setMessageTonePreference({ toneId: toneId || 'chime' }).catch(() => {});
+}
+
 // Resolves CAMERA + RECORD_AUDIO runtime permissions BEFORE any call setup
 // begins — see CallContext.jsx's startCall/acceptCall, which await this
 // first thing now. Without it, the WebView's own reactive getUserMedia()
