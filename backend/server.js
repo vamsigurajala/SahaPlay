@@ -29,6 +29,7 @@ const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-help
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
+const { isUserAdmin, buildUserList } = require('./lib/roomUsers');
 const {
   isValidCallInviteRequest, isCallInviteBusy, evaluateCallInviteEligibility,
   evaluateCallAccept, evaluateCallDecline, evaluateCallCancel,
@@ -6685,36 +6686,6 @@ const COUNTRY_TO_CODE = {
   'Zimbabwe':'ZW'
 };
 
-function buildUserList(room) {
-  // Collect usernames that are currently pending approval so we can exclude them
-  // from the active member list. This handles the case where a user was in the room
-  // before it was locked and their old socket entry is still in room.users.
-  const pendingUsernames = new Set();
-  if (room.pendingJoins) {
-    room.pendingJoins.forEach(pending => {
-      if (pending.username) pendingUsernames.add(pending.username.toLowerCase());
-    });
-  }
-
-  return room.users
-    .filter(u => !pendingUsernames.has((u.username || '').toLowerCase()))
-    .map(u => {
-      const isModeratorMuted = room.mutedUsers.has(u.username);
-      return {
-        socketId: u.socketId,
-        username: u.username,
-        isMuted: !!(u.isMuted || isModeratorMuted),
-        isModMuted: isModeratorMuted,
-        isHost: u.socketId === room.hostId,
-        isAdmin: isUserAdmin(room, u),
-        publicKey: room.publicKeys?.[u.socketId] || u.publicKey || null,
-        avatarPath: u.avatarPath || null,
-        country: (u.showCountry !== false && u.showCountry !== 0 && u.showCountry !== '0') ? (u.country || null) : null,
-        countryCode: (u.showCountry !== false && u.showCountry !== 0 && u.showCountry !== '0') ? (u.countryCode || null) : null
-      };
-    });
-}
-
 function getSerializableRoom(room, roomId) {
   if (!room) return null;
   // Include the active Hyperbeam session (if any) so anyone receiving this
@@ -6796,38 +6767,6 @@ async function getOrInitFirstJoined(username, roomId) {
     console.error(`[getOrInitFirstJoined] error for ${username} in ${lowerRoom}:`, err.message);
     return null;
   }
-}
-
-// Helper to check if a user has admin privileges in a room
-function isUserAdmin(room, userOrSocket) {
-  if (!room || !userOrSocket) return false;
-  
-  // Normalized identifiers
-  const socketId = userOrSocket.socketId || userOrSocket.id;
-  const username = userOrSocket.username;
-
-  // 1. Host is always admin
-  const isHost = (room.hostId === socketId) || 
-                 (room.hostUsername && username && room.hostUsername.toLowerCase() === username.toLowerCase());
-  if (isHost) return true;
-  
-  // 2. Manual Admin check
-  if (room.admins && username && room.admins.has(username.toLowerCase())) {
-    return true;
-  }
-
-  // 3. Auto-Admin logic (Applies to all users if setting is enabled)
-  // Check if they are explicitly denied first
-  if (room.deniedAdmins && username && room.deniedAdmins.has(username.toLowerCase())) {
-    return false;
-  }
-
-  const isAutoAdminEnabled = room.settings?.newMembersAdmins === true || room.settings?.newMembersAdmins === 'true';
-  if (isAutoAdminEnabled && username) {
-    return true;
-  }
-  
-  return false;
 }
 
 // Socket.io middleware to handle JWT auth

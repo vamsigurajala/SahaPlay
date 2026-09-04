@@ -4386,6 +4386,27 @@ const Room = () => {
       if (notifSettingsRef.current.app && notifSettingsRef.current.leave && uname !== usernameRef.current && !muteRoomJoinLeaveRef.current) {
         toast(`${uname} left`, { icon: '👋' });
       }
+      // A real departure (unlike a cam/mic toggle-off, which the server already
+      // signals via cam_stopped/mic_stopped) never emits either of those events
+      // today — the peer's socket just disconnects. Without this, their last
+      // video frame stays frozen in remoteStreams/cameraPcRefs forever for
+      // everyone still in the room. Tear it down unconditionally here, keyed by
+      // username since that's all 'user_left' carries (unlike cam_stopped/
+      // mic_stopped, which carry the socketId directly).
+      setRemoteStreams(prev => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [sid, entry] of Object.entries(prev)) {
+          if (entry.username === uname) {
+            cameraPcRefs.current[sid]?.close();
+            delete cameraPcRefs.current[sid];
+            analyzersRef.current.delete(sid);
+            delete next[sid];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
     });
     sock.on('host_changed', ({ newHostName }) => {
       if (notifSettingsRef.current.app) {
