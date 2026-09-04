@@ -10,7 +10,6 @@ import { useCall } from '../contexts/CallContext';
 import OneOnOneCallScreen from './OneOnOneCallScreen';
 import { getInitials } from '../utils/avatarUtils';
 import { syncStatusBarTheme } from '../lib/nativeShell';
-import { isPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { isAndroidApp } from '../lib/platform';
 
 // Free, asset-free ring/ringback tone via Web Audio — the closest a pure web
@@ -442,28 +441,23 @@ export default function GlobalCallOverlay() {
   // theme's icons the moment it's gone, fixes that without touching the
   // theme-vs-icon mapping fix from before (that one was correct for every
   // normal page, just not for this permanently-dark surface).
-  // On Android, an incoming call is always presented by IncomingCallActivity
-  // first — either its own full-screen ring Activity (locked, backgrounded,
-  // or killed) or, when the app is already in the foreground, a system
-  // heads-up notification banner (Android deliberately does NOT auto-launch
-  // a full-screen-intent Activity over an app the user is actively looking
-  // at — it shows the notification instead and lets them tap it). Either
-  // way, real working Answer/Decline controls are already on screen from
-  // the OS itself. This overlay rendering its OWN "incoming" UI underneath
-  // that was always redundant when the full-screen Activity had already
-  // shown, and outright broken/confusing when only the heads-up banner had
-  // (previously rendered a bare pulsing dot with no way to answer from
-  // inside the app at all — the ONLY working Answer button was the one on
-  // the notification). Rendering nothing here for the whole 'incoming'
-  // phase on Android fixes both: nothing to show or hide, and once
-  // acceptCall() flips the phase to 'active' (whether triggered by the
-  // notification's own Answer action, the full-screen Activity's, or
-  // Telecom), the real call screen just appears directly — no intermediate
-  // screen, matching how WhatsApp goes straight from the system ring UI to
-  // the live call.
-  const hideForNativeIncoming = callState?.phase === 'incoming' && isAndroidApp();
-
-  const showingCallSurface = !!callState && !minimized && !hideForNativeIncoming;
+  // This used to render nothing for the whole 'incoming' phase on Android,
+  // trusting IncomingCallActivity's native full-screen ring Activity (or, if
+  // the app was already foregrounded, a system heads-up notification banner)
+  // to be the only Answer/Decline UI. That assumption broke down in practice:
+  // the notification's own Answer/Decline actions (and the native ring
+  // screen's Answer button) route through native code — Telecom, a
+  // background REST call, a native-to-WebView deep link handoff — that
+  // proved unreliable across real devices (OEM battery throttling, Telecom
+  // silently not cooperating on some skins, races between the app cold-
+  // starting and the action firing). Now every one of those actions just
+  // opens/foregrounds the app instead of trying to complete the action
+  // natively, and this overlay is what the user actually answers/declines
+  // from once it's open — the one Answer/Decline path that was already
+  // reliable all along (it's the same plain socket-based accept/decline this
+  // overlay has always used for a call that arrives while the app is already
+  // open). So this now always renders for 'incoming', Android included.
+  const showingCallSurface = !!callState && !minimized;
   useEffect(() => {
     if (!showingCallSurface) return;
     syncStatusBarTheme('dark');
@@ -473,7 +467,7 @@ export default function GlobalCallOverlay() {
     };
   }, [showingCallSurface]);
 
-  if (!callState || hideForNativeIncoming) return null;
+  if (!callState) return null;
 
   const isVideo = callState.type === 'video';
 
@@ -535,12 +529,7 @@ export default function GlobalCallOverlay() {
   }
 
   // ─── Incoming / Outgoing ringing screens ───
-  // Android incoming calls never reach this point at all — see
-  // hideForNativeIncoming above. This "incoming" branch below only still
-  // runs for web/PWA/iOS-someday, where there's no native ring screen and
-  // this IS the only way to answer/decline.
   const isIncoming = callState.phase === 'incoming';
-  const isAutoAnswering = isIncoming && isPendingNativeCallAnswer(callState.callId);
   return (
     <div style={overlayStyle}>
       <style>{`
@@ -560,15 +549,13 @@ export default function GlobalCallOverlay() {
           <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800 }}>{callState.peerDisplayName}</h2>
           <p style={{ margin: 0, fontSize: 13, color: 'rgba(255,255,255,0.55)', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
             {isVideo ? <Video size={14} /> : <Phone size={14} />}
-            {isAutoAnswering ? 'Connecting…' : isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call…` : `Calling ${isVideo ? '(video)' : '(voice)'}…`}
+            {isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call…` : `Calling ${isVideo ? '(video)' : '(voice)'}…`}
           </p>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isIncoming ? 56 : 0, paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))' }}>
-        {isAutoAnswering ? (
-          <div className="gco-avatar-pulse" style={{ width: 14, height: 14, borderRadius: '50%', background: '#22c55e' }} />
-        ) : isIncoming ? (
+        {isIncoming ? (
           <>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <button className="gco-ring-btn" onClick={call.declineCall} style={{ background: '#ef4444' }} aria-label="Decline">

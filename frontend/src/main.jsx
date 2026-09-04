@@ -35,7 +35,7 @@ import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
 import { initNativeBackButton, initNativeStatusBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
-import { initNativeCallAnswerLink, initNativeCallEndLink } from './lib/nativeCallBridge.js';
+import { initNativeCallEndLink } from './lib/nativeCallBridge.js';
 import { initNativeChatOpenLink } from './lib/nativeChatOpenBridge.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
@@ -65,12 +65,11 @@ if (isCapacitorApp()) {
   initNativeChatOpenLink((data) => {
     window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
   });
-  // Rebroadcast the same way — CallContext.jsx (mounted globally, in every
-  // mode, unlike BottomNav above) picks this up to auto-accept the matching
-  // call once its own socket confirms it's still ringing.
-  initNativeCallAnswerLink((data) => {
-    window.dispatchEvent(new CustomEvent('native_call_answer', { detail: data }));
-  });
+  // Note: there's deliberately no JS handling for the sahaplay://call-answer
+  // deep link anymore (see CallContext.jsx's own comment) — firing that
+  // Intent already opens/foregrounds the app on its own; the app no longer
+  // needs to do anything special once it lands, the user just answers via
+  // the normal GlobalCallOverlay Answer button once it's up.
   // Same rebroadcast pattern — the ongoing-call notification's End Call
   // button (see SahaplayCallService.java). CallContext.jsx picks this up
   // and calls its normal endCall().

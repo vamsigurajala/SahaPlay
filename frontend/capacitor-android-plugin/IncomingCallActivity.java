@@ -107,16 +107,6 @@ public class IncomingCallActivity extends android.app.Activity {
     // sent with the push was stale.
     public static final String EXTRA_CALLER_DISPLAY_NAME = "callerDisplayName";
     public static final String EXTRA_CALLER_AVATAR_PATH = "callerAvatarPath";
-    // Set by CallActionReceiver's ACTION_ANSWER_PING branch when the user
-    // tapped "Answer" directly on the compact notification/lock-screen
-    // action (not this Activity's own full ring screen) — the more common
-    // real-world tap target. Launching this Activity in that case (instead
-    // of firing the sahaplay://call-answer deep link straight from the
-    // BroadcastReceiver) means the user sees this screen's native
-    // "Connecting…" state immediately, with no blank gap while the
-    // WebView-based MainActivity cold-starts underneath — see
-    // onAnswerTapped's own comment for the full reasoning.
-    public static final String EXTRA_AUTO_ANSWER = "autoAnswer";
 
     private MediaPlayer ringtonePlayer;
     private Vibrator vibrator;
@@ -173,7 +163,7 @@ public class IncomingCallActivity extends android.app.Activity {
         declineIntent.putExtra(CallActionReceiver.EXTRA_USERNAME, calleeUsername);
         PendingIntent declinePendingIntent = PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 1, declineIntent, piFlags);
 
-        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath, piFlags);
+        PendingIntent answerPendingIntent = buildAnswerPendingIntent(ctx, callId, piFlags);
 
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -369,25 +359,14 @@ public class IncomingCallActivity extends android.app.Activity {
     // Routed through CallActionReceiver (a background BroadcastReceiver, not
     // a direct getActivity() PendingIntent) so the /extend-ring ping fires
     // BEFORE the app launch even starts — see ACTION_ANSWER_PING there and
-    // the matching comment on backend/server.js's /extend-ring route. The
-    // receiver itself then launches THIS Activity in its auto-answer mode
-    // (EXTRA_AUTO_ANSWER) rather than firing the sahaplay://call-answer deep
-    // link directly — that used to leave a blank gap between "notification
-    // tapped" and "MainActivity's cold-started WebView finally paints
-    // something," with nothing native shown in between. Carrying
-    // caller/type/callee/display-name/avatar here (not just callId) is what
-    // lets the receiver reconstruct this Activity's full extras without a
-    // network round-trip of its own.
-    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, String callerUsername, String callType,
-            String calleeUsername, String callerDisplayName, String callerAvatarPath, int piFlags) {
+    // the matching comment on backend/server.js's /extend-ring route. That
+    // receiver then just opens the app directly (no extras needed beyond
+    // callId — it no longer tries to reconstruct/auto-complete this
+    // Activity's own answer flow, see its own class comment for why).
+    private static PendingIntent buildAnswerPendingIntent(Context ctx, String callId, int piFlags) {
         Intent intent = new Intent(ctx, CallActionReceiver.class);
         intent.setAction(CallActionReceiver.ACTION_ANSWER_PING);
         intent.putExtra(CallActionReceiver.EXTRA_CALL_ID, callId);
-        intent.putExtra(EXTRA_CALLER, callerUsername);
-        intent.putExtra(EXTRA_CALL_TYPE, callType);
-        intent.putExtra(EXTRA_CALLEE, calleeUsername);
-        intent.putExtra(EXTRA_CALLER_DISPLAY_NAME, callerDisplayName);
-        intent.putExtra(EXTRA_CALLER_AVATAR_PATH, callerAvatarPath);
         return PendingIntent.getBroadcast(ctx, callId.hashCode() ^ 2, intent, piFlags);
     }
 
@@ -471,17 +450,6 @@ public class IncomingCallActivity extends android.app.Activity {
             new Thread(() -> fetchAndSetAvatarBitmap(avatarUrl)).start();
         }
         fetchCallerDetails();
-
-        // Launched from the notification/lock-screen Answer action itself
-        // (see CallActionReceiver's ACTION_ANSWER_PING) rather than opened to
-        // let the user choose — the user already answered, so skip straight
-        // to the same "Connecting…" state the in-screen Answer button
-        // produces, with no ring/timeout in between (there's nothing left to
-        // ring for or time out — this call is already being answered).
-        if (getIntent().getBooleanExtra(EXTRA_AUTO_ANSWER, false)) {
-            onAnswerTapped();
-            return;
-        }
 
         startRinging();
         handler.postDelayed(this::finishAsMissed, RING_TIMEOUT_MS);
@@ -923,10 +891,20 @@ public class IncomingCallActivity extends android.app.Activity {
     // genuinely slow; finishing this screen immediately left a blank gap —
     // this screen gone, MainActivity's window not yet painted anything —
     // where it looked like tapping Answer had done nothing. Now this screen
-    // stays up, morphed into its own native "Connecting…" state (see
+    // stays up, morphed into its own native "Opening…" state (see
     // showConnectingState below), until Android actually brings MainActivity
     // to the foreground — which happens naturally via onStop() further down,
     // so there's no frame where neither screen is showing anything.
+    //
+    // answer() hands off to the app via the sahaplay://call-answer deep link
+    // (see that method's own comment) — CallContext.jsx no longer auto-joins
+    // the call the instant that link arrives (see that file's own comment on
+    // why: it raced the app's own cold start and silently did nothing on a
+    // lost race, which is what "Answer doesn't work" reports actually were).
+    // The user now genuinely finishes answering inside the app, via the same
+    // GlobalCallOverlay Answer button every other incoming call already
+    // uses — so the label below says "Opening…", not "Connecting…": nothing
+    // is connected yet, the app is just coming to the foreground.
     private void onAnswerTapped() {
         answerInProgress = true;
         stopRinging();
@@ -935,7 +913,7 @@ public class IncomingCallActivity extends android.app.Activity {
     }
 
     private void showConnectingState() {
-        if (subLabel != null) subLabel.setText("Connecting…");
+        if (subLabel != null) subLabel.setText("Opening SahaPlay…");
         if (buttonRow != null) buttonRow.setVisibility(View.GONE);
     }
 
@@ -949,27 +927,62 @@ public class IncomingCallActivity extends android.app.Activity {
     // (ring screen, notification) already tore down by then, so it LOOKED
     // like declining worked even when the server never heard about it and
     // the caller kept ringing — reported as "decline reflects for me only."
-    // Now this screen stays up (silently, ringing already stopped) until
-    // decline()'s callback actually fires, with a safety-net timeout so a
-    // hung network call can't leave the screen stuck forever.
+    //
+    // Now ALSO opens the app once that background attempt finishes (success
+    // or failure) instead of just quietly closing this screen — per the
+    // same reasoning as Answer above: a purely-native background action has
+    // repeatedly proven unreliable across real devices, so the guaranteed
+    // fallback is the same one every other decline already trusts, the
+    // GlobalCallOverlay Decline button running over a real, connected
+    // socket. When the background attempt above DID succeed, the app opens
+    // to nothing special (the server's activeCalls entry is already gone,
+    // so the normal call:incoming reconnect-replay has nothing to resend) —
+    // so this costs nothing in the common case and is a real fallback in
+    // the uncommon one. The 4s timeout is a safety net for a hung network
+    // call; declineFinished guards against running the open-app+finish pair
+    // twice if both the callback and the timeout end up firing.
     private boolean declineInProgress = false;
+    private boolean declineFinished = false;
 
     private void onDeclineTapped() {
         if (declineInProgress) return;
         declineInProgress = true;
-        decline(() -> handler.post(this::finish));
-        handler.postDelayed(this::finish, 4000);
+        decline(() -> handler.post(this::finishDeclineToApp));
+        handler.postDelayed(this::finishDeclineToApp, 4000);
     }
 
-    // Phase 3: this Activity is now only ever launched via a live
-    // SahaplayConnection's onShowIncomingCallUi() (see
-    // SahaplayConnectionService), so answering routes straight through it —
-    // CallEngineService.acceptIncomingCall() does the real work (WebRTC
-    // answer, entirely native, no WebView involved at all), and setActive()
-    // tells Telecom the call is live (audio focus, Bluetooth routing).
-    // Falls back to the old WebView deep-link hand-off only in the
-    // unlikely case no live Connection is found (e.g. this Activity was
-    // somehow reached a different way) — degraded, but still answerable.
+    private void finishDeclineToApp() {
+        if (declineFinished) return;
+        declineFinished = true;
+        openApp(this);
+        finish();
+    }
+
+    // Plain "bring the app to the foreground" launch — no deep link/query
+    // param needed, the app picks up the still-ringing call (if any) via the
+    // ordinary call:incoming reconnect-replay once its socket connects (see
+    // backend/server.js) or already has it if it was merely backgrounded,
+    // not killed.
+    private static void openApp(Context ctx) {
+        Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        if (launch == null) return;
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try { ctx.startActivity(launch); } catch (Exception ignored) {}
+    }
+
+    // Deliberately does NOT route through CallEngineService.acceptIncomingCall()
+    // (a headless native accept over its own separate socket) — that path
+    // never opens the WebView, so on any device where Telecom's self-managed
+    // PhoneAccount actually cooperates, tapping Answer while backgrounded/
+    // locked would silently accept the call at the protocol level with
+    // nothing on screen. setActive() still tells Telecom the call is live
+    // (audio focus/Bluetooth routing, harmless regardless of what the app
+    // ends up doing); the actual answering always happens inside the app —
+    // this just opens it via the sahaplay://call-answer link (or, absent a
+    // live Connection, the same link directly). CallContext.jsx no longer
+    // auto-joins on that link (see its own comment on why an auto-accept
+    // race was the real "Answer doesn't work" bug) — the user finishes
+    // answering via GlobalCallOverlay's own Answer button once the app is up.
     private void answer() {
         // This Activity being on screen at all (via the full-screen intent)
         // doesn't mean the separate JS/WebView layer has finished cold-

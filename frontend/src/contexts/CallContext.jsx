@@ -36,7 +36,6 @@ import { API } from '../lib/api';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { setNativeAudioRoute, resetNativeAudioRoute, isNativeBluetoothAudioAvailable, startNativeCallService, stopNativeCallService } from '../lib/nativeMedia';
 import { requestMediaAccess } from '../lib/mediaPermissionGate';
-import { peekPendingNativeCallAnswer, clearPendingNativeCallAnswer } from '../lib/nativeCallBridge';
 import { getNativeScreenCaptureStream } from '../lib/nativeScreenShare';
 import { isCapacitorApp } from '../lib/platform';
 import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/desktopNotify';
@@ -717,43 +716,22 @@ export function CallProvider({ children }) {
   }, [callState?.callId, callState?.phase]);
 
   // ─── Native "Answer" deep link (see nativeCallBridge.js / IncomingCallActivity.java) ───
-  // Tapping Answer on the lock-screen call UI can't itself join the call (no
-  // getUserMedia/WebRTC outside a WebView) — it just hands off here via
-  // sahaplay://call-answer, and this auto-accepts the matching call once
-  // this socket has confirmed (live, or via the reconnect-resync in
-  // backend/server.js) that it's still actually ringing. Handles both
-  // orderings: the deep link can arrive before or after 'call:incoming'
-  // does, depending on how fast the app cold-starts vs. reconnects.
-  const pendingAutoAnswerCallIdRef = useRef(null);
-  useEffect(() => {
-    const handler = (e) => {
-      const callId = e.detail?.callId;
-      if (!callId) return;
-      pendingAutoAnswerCallIdRef.current = callId;
-      if (callStateRef.current?.callId === callId && callStateRef.current.phase === 'incoming') {
-        acceptCall();
-      }
-    };
-    window.addEventListener('native_call_answer', handler);
-    // Covers the cold-start race where nativeCallBridge.js's 'appUrlOpen'
-    // listener (registered in main.jsx, before React even mounts) fires and
-    // dispatches 'native_call_answer' before this effect has run to listen
-    // for it — the event itself would otherwise be lost with nothing
-    // attached yet. consumePendingNativeCallAnswer() reads (and clears) the
-    // same callId stashed on `window` at dispatch time, so it's picked up
-    // here regardless of which side won that race.
-    const pending = peekPendingNativeCallAnswer();
-    if (pending) handler({ detail: { callId: pending } });
-    return () => window.removeEventListener('native_call_answer', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (callState?.phase === 'incoming' && callState.callId === pendingAutoAnswerCallIdRef.current) {
-      acceptCall();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callState]);
+  // This USED TO auto-accept the matching call the instant sahaplay://call-
+  // answer arrived — tapping Answer natively (the notification action, or
+  // IncomingCallActivity's own button) opened the app and immediately joined
+  // the call with no further interaction. That auto-accept was the actual
+  // source of "Answer doesn't work" reports: it depended on this socket
+  // already being connected/authenticated by the time the deep link fired,
+  // which raced against the app's own cold-start — a fully-killed app has no
+  // guarantee this effect (or the socket) is ready the instant the deep link
+  // lands, and a lost race meant nothing happened at all, silently. Now the
+  // deep link's only job is what actually launching the Intent already does
+  // for free — open/foreground the app — and the user answers for real via
+  // this same GlobalCallOverlay Answer button every other incoming call
+  // already uses (see that component's own comment on why it no longer
+  // hides itself for a native-triggered incoming call on Android). No JS
+  // wiring needed here anymore beyond letting 'call:incoming' arrive
+  // normally once the socket connects.
 
   async function flushIceBuffer(username) {
     const buffered = iceBuffersRef.current.get(username);
@@ -1051,7 +1029,6 @@ export function CallProvider({ children }) {
   }
 
   function teardownCall() {
-    clearPendingNativeCallAnswer();
     stopNativeCallService();
     callServiceStateRef.current = { callId: null, phase: null };
     if (screenShareTrackRef.current) {
@@ -1131,7 +1108,6 @@ export function CallProvider({ children }) {
   const acceptCall = useCallback(async () => {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'incoming' || !socketRef.current) return;
-    clearPendingNativeCallAnswer();
     // Same reasoning as startCall above — resolved BEFORE the phase flips
     // to 'active' below, which is what triggers SahaplayCallService to
     // start with foregroundServiceType "microphone|camera". This was the

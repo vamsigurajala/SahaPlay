@@ -89,26 +89,19 @@ public class CallActionReceiver extends BroadcastReceiver {
         // Decline/End bookkeeping below (call-log username requirement,
         // notifyNativeCallEnded) applies to answering.
         //
-        // Launches IncomingCallActivity in its auto-answer mode rather than
-        // firing the sahaplay://call-answer deep link straight from this
-        // BroadcastReceiver — that used to go straight from "notification
-        // tapped" to a cold-starting MainActivity with nothing shown in
-        // between until its WebView finished loading over the network (see
-        // IncomingCallActivity.EXTRA_AUTO_ANSWER's own comment). Launching
-        // this Activity instead shows its native "Connecting…" state
-        // immediately, with no blank gap.
+        // This used to launch IncomingCallActivity in an auto-answer mode
+        // that tried to complete the accept natively (Telecom, or a
+        // sahaplay://call-answer deep link that auto-joined the call the
+        // instant it landed) before handing off to the app — a race against
+        // the app's own cold start that silently did nothing when lost,
+        // which is what "tapping Answer doesn't work" reports actually
+        // were. Now this just opens the app directly: the user finishes
+        // answering there, via the same GlobalCallOverlay Answer button
+        // every other incoming call already uses (a real, connected socket,
+        // not a race against one that might not exist yet).
         if (ACTION_ANSWER_PING.equals(action)) {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/extend-ring", "{}", pendingResult);
-            Intent activityIntent = new Intent(context, IncomingCallActivity.class);
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALL_ID, callId);
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER));
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALL_TYPE, intent.getStringExtra(IncomingCallActivity.EXTRA_CALL_TYPE));
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLEE, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLEE));
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_DISPLAY_NAME, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER_DISPLAY_NAME));
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_AVATAR_PATH, intent.getStringExtra(IncomingCallActivity.EXTRA_CALLER_AVATAR_PATH));
-            activityIntent.putExtra(IncomingCallActivity.EXTRA_AUTO_ANSWER, true);
-            activityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            try { context.startActivity(activityIntent); } catch (Exception ignored) {}
+            openApp(context);
             return;
         }
 
@@ -121,6 +114,15 @@ public class CallActionReceiver extends BroadcastReceiver {
         if (ACTION_DECLINE.equals(action)) {
             postJson(API_BASE + "/api/calls/" + urlEncode(callId) + "/decline",
                 "{\"calleeUsername\":\"" + escapeJson(username) + "\"}", pendingResult);
+            // Also open the app as a guaranteed fallback, same reasoning as
+            // the Answer branch above — a purely-native background decline
+            // has repeatedly proven unreliable across real devices. Costs
+            // nothing when the REST call above already succeeded (the
+            // server's activeCalls entry is already gone by the time the
+            // app's fresh socket connects, so there's nothing left to
+            // replay); is the real fallback when it didn't, via the same
+            // GlobalCallOverlay Decline button every other call uses.
+            openApp(context);
         } else if (ACTION_END.equals(action)) {
             // Stops the persistent ongoing-call foreground service/
             // notification on THIS device immediately — same ACTION_STOP
@@ -143,6 +145,18 @@ public class CallActionReceiver extends BroadcastReceiver {
         // reasoning — this is what fixes "I tapped Hang Up/Decline in the
         // notification but the call kept going on my end."
         SahaplayMediaPlugin.notifyNativeCallEnded();
+    }
+
+    // Plain "bring the app to the foreground" launch — no deep link/query
+    // param needed, the app picks up the still-ringing call (if any) via the
+    // ordinary call:incoming reconnect-replay once its socket connects (see
+    // backend/server.js), or already has it if it was merely backgrounded,
+    // not killed. Same helper as IncomingCallActivity's own openApp().
+    private static void openApp(Context ctx) {
+        Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        if (launch == null) return;
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try { ctx.startActivity(launch); } catch (Exception ignored) {}
     }
 
     private static String urlEncode(String s) {
