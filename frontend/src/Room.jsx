@@ -8521,7 +8521,18 @@ const Room = () => {
   }, []);
 
   useEffect(() => {
-    if (mediaUrl?.includes('twitch.tv') || mediaUrl?.includes('vimeo.com')) {
+    // Guarantees a fresh 3s-visible window for the on-screen controls (including
+    // the platform "Home" button) right after switching to a new embed — without
+    // it, uiVisible keeps whatever value it already had, which is very likely
+    // already false by the time a freshly-picked video finishes loading (the
+    // last real mouse movement over the player was probably several seconds
+    // earlier, back before the YouTube/Twitch/Vimeo browser modal was even
+    // opened). youtube.com/youtu.be were missing here — Twitch/Vimeo already
+    // got this reset, but YouTube didn't, so its "Home" button could already be
+    // invisible and unclickable (visibility:hidden blocks pointer events, not
+    // just opacity) the moment the video appeared, unless the mouse happened to
+    // still be moving over the player right then.
+    if (isEmbedPlatform(mediaUrl)) {
       resetInactivityTimer();
     }
     return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
@@ -12753,6 +12764,18 @@ const Room = () => {
                           {/* Top Navigation & Settings */}
                           <div style={{
                             position: 'absolute', top: 16, left: 16, right: 16, zIndex: 1000,
+                            // The sibling video wrapper applies a CSS filter for the quality
+                            // preset (QUALITY_PRESETS) — a non-'none' filter always creates a
+                            // new stacking context around its contents, which includes the
+                            // YouTube/Twitch/Vimeo iframe whenever it's the active media. That's
+                            // true even at the default quality (480p has always carried a real
+                            // filter, not just the tiers added this session), so this has been a
+                            // standing bug: the iframe can end up painted above this overlay's
+                            // buttons despite their higher z-index, silently swallowing clicks on
+                            // the YouTube/Twitch/Vimeo "Home" button. isolation:isolate forces
+                            // this overlay onto its own stacking context so it's reliably on top
+                            // regardless of what the iframe's own compositing does.
+                            isolation: 'isolate',
                             display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                             pointerEvents: 'none',
                             opacity: uiVisible ? 1 : 0,
@@ -12842,6 +12865,11 @@ const Room = () => {
                           { ((mediaUrl.includes('twitch.tv') && useCustomTwitchControls) || (mediaUrl.includes('vimeo.com') && useCustomVimeoControls)) && (
                             <div style={{
                               position: 'absolute', bottom: 0, left: 0, right: 0,
+                              // Same isolation:isolate reasoning as the Top Navigation overlay
+                              // above — this bar's buttons are a sibling of the filtered iframe
+                              // wrapper too, so without it the Twitch/Vimeo iframe could paint
+                              // above these controls despite the higher z-index.
+                              isolation: 'isolate',
                               background: 'linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
                               padding: '40px 24px 20px', zIndex: 10,
                               display: 'flex', alignItems: 'center', gap: 20,
