@@ -3109,7 +3109,24 @@ export default function RoomChatPanel({ p }) {
               // guarantees full coverage without touching the anti-shrink
               // behavior the explicit height exists for.
               minHeight: '100%',
-              ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+              // Mobile only: track the live container height instead of the
+              // ratcheted stableViewportHeight. On this panel specifically
+              // (unlike GlobalChatWidget's own wallpaper, which never shares
+              // the screen with anything else) the container's real height
+              // is ALSO squeezed by the video/game player's own fixed-pixel
+              // height (--peek-player-height) competing for space in the
+              // same flex row as the on-screen keyboard shrinks the page —
+              // a reported bug (switching the phone keyboard to its emoji
+              // panel specifically, which is taller than the normal text
+              // keyboard) had this backdrop sized to the largest height ever
+              // seen rather than what's actually available, then staying
+              // stuck oversized even after the keyboard closed. Tracking the
+              // live height removes that risk entirely, at the cost of
+              // bringing back a minor, purely cosmetic side effect this hook
+              // exists to avoid on desktop: the image's cover-crop
+              // recomputing as the container resizes. Kept for desktop
+              // (isMobileOrTablet false) since it isn't reported there.
+              ...(!isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -4042,9 +4059,10 @@ export default function RoomChatPanel({ p }) {
               <div className="room-chat-wallpaper-backdrop" style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
                 // See the identical comment on the group chat backdrop above —
-                // same gap-covering fix, same reason.
+                // same gap-covering fix, same reason, same mobile/tablet
+                // live-height tracking instead of the ratcheted max.
                 minHeight: '100%',
-                ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+                ...(!isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />
