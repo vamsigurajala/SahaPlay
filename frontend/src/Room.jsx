@@ -1121,13 +1121,23 @@ function toRotatedLocalRect(globalRect, viewportWidth) {
   };
 }
 
+// Purely cosmetic — a CSS filter applied to the video element, not a real
+// change in stream resolution/bitrate (this app has no per-tier encoding to
+// switch between). 1080p is the true, unmodified source (filter: 'none') —
+// every other tier is a visual simulation relative to it: lower tiers get
+// progressively more blur/desaturation, 4K gets a tasteful brightness/
+// saturation lift. Blur amounts must stay strictly decreasing from 240p up
+// through 720p so the ladder still reads as "sharper at each step" —
+// 720p's own blur is deliberately the smallest and lighter than 480p's,
+// not zero, since real 720p is visibly softer than 1080p but nowhere near
+// as soft as the lower tiers.
 const QUALITY_PRESETS = {
   '240p':  { label: '240p',       filter: 'blur(1.5px) brightness(0.85) saturate(0.6) contrast(0.9)',  description: 'Low quality' },
   '360p':  { label: '360p',       filter: 'blur(0.8px) brightness(0.9) saturate(0.75) contrast(0.95)', description: 'Standard quality' },
   '480p':  { label: '480p',       filter: 'blur(0.3px) brightness(0.95) saturate(0.9) contrast(0.98)', description: 'Good quality' },
-  '720p':  { label: '720p ✦',     filter: 'none',                                                      description: 'HD quality' },
-  '1080p': { label: '1080p ✦',    filter: 'brightness(1.05) saturate(1.15) contrast(1.08)',            description: 'Full HD' },
-  '4K':    { label: '4K Ultra ✦', filter: 'brightness(1.12) saturate(1.3) contrast(1.1)',              description: 'Ultra HD' },
+  '720p':  { label: '720p ✦',     filter: 'blur(0.15px)',                                              description: 'HD quality' },
+  '1080p': { label: '1080p ✦',    filter: 'none',                                                      description: 'Full HD' },
+  '4K':    { label: '4K Ultra ✦', filter: 'brightness(1.1) saturate(1.18) contrast(1.08)',             description: 'Ultra HD' },
 };
 
 const Room = () => {

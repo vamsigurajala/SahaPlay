@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, PlayCircle, MonitorUp, Info, ArrowRight, CheckCircle2, ChevronRight, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { isTauriApp } from '../lib/platform';
 
 export default function GuidedShareModal({ app, onClose, onScreenshare, isLight }) {
   const [step, setStep] = useState(1);
@@ -43,11 +44,26 @@ export default function GuidedShareModal({ app, onClose, onScreenshare, isLight 
   };
 
   const handleLaunch = () => {
-    const width = 1200;
-    const height = 800;
-    const left = (window.screen.width / 2) - (width / 2);
-    const top = (window.screen.height / 2) - (height / 2);
-    popupRef.current = window.open(app.url || `https://${app.id}.com`, app.name, `popup=yes,width=${width},height=${height},left=${left},top=${top}`);
+    const url = app.url || `https://${app.id}.com`;
+    if (isTauriApp()) {
+      // The Tauri desktop webview has no real window.open() support for a
+      // third-party origin like netflix.com — it silently no-ops instead of
+      // opening anything, which is exactly why Launch did nothing on the
+      // .exe build. Hand it to the OS's own default browser instead (same
+      // pattern desktopNotify.js's openWindowsNotificationSettings already
+      // uses). There's no window handle to keep afterward — popupRef stays
+      // null, which startScreenshare already treats as "no popup to auto-
+      // close later" via its own default appWindow = null.
+      import('@tauri-apps/plugin-opener')
+        .then((mod) => mod.openUrl(url))
+        .catch(() => {});
+    } else {
+      const width = 1200;
+      const height = 800;
+      const left = (window.screen.width / 2) - (width / 2);
+      const top = (window.screen.height / 2) - (height / 2);
+      popupRef.current = window.open(url, app.name, `popup=yes,width=${width},height=${height},left=${left},top=${top}`);
+    }
     setStep(2);
   };
 
