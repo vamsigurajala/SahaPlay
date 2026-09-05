@@ -1307,46 +1307,53 @@ function App() {
               refresh; the user decides when it's safe. */}
           {updateAvailable && (
             <div
+              className="stay-white"
               style={{
                 position: 'fixed',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 bottom: 'max(16px, env(safe-area-inset-bottom))',
                 zIndex: 2147483001,
+                width: 'min(360px, calc(100vw - 32px))',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px 10px 16px',
-                borderRadius: 999,
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 8,
+                padding: '10px 16px',
+                borderRadius: 16,
                 background: '#18181f',
                 border: '1px solid rgba(255,255,255,0.1)',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-                color: '#fff',
                 fontSize: 13,
                 fontWeight: 600,
               }}
             >
-              <span>A new version of SahaPlay is available</span>
-              <button
-                onClick={() => window.location.reload()}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'var(--brand-1, #a855f7)', color: '#fff', border: 'none',
-                  borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}
-              >
-                <RefreshCw size={14} /> Refresh
-              </button>
-              <button
-                onClick={() => setUpdateAvailable(false)}
-                aria-label="Dismiss"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4,
-                }}
-              >
-                <X size={16} />
-              </button>
+              <span className="stay-white" style={{ flex: '1 1 auto', minWidth: 0 }}>A new version of SahaPlay is available</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="stay-white"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'var(--brand-1, #a855f7)', border: 'none',
+                    borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <RefreshCw size={14} className="stay-white" /> Refresh
+                </button>
+                <button
+                  onClick={() => setUpdateAvailable(false)}
+                  aria-label="Dismiss"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4,
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
           )}
           <ScrollToTop />

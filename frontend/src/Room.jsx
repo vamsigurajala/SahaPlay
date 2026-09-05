@@ -13,7 +13,7 @@ import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_WALLPAPERS } from './lib/chatThemes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import io from 'socket.io-client';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -1145,6 +1145,7 @@ const QUALITY_PRESETS = {
 const Room = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   
   const urlParams = new URLSearchParams(window.location.search);
@@ -3737,8 +3738,15 @@ const Room = () => {
     // No need to manually emit leave_room here anymore as the useEffect cleanup handles it,
     // but keeping it for immediate server-side state reset before navigation completes.
     socket?.emit('leave_room', { roomId });
-    navigate('/');
-  }, [socket, roomId, navigate]);
+    // Return to whatever in-app page the user actually came from (Public
+    // Rooms, Pinned Rooms, a DM, etc.) instead of always dropping them on
+    // Home — location.key is react-router's own documented signal for "this
+    // is the first entry in the session, there's nothing to go back to"
+    // (e.g. a room link opened directly), which is the one case navigate(-1)
+    // can't handle safely.
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/');
+  }, [socket, roomId, navigate, location.key]);
 
   useEffect(() => {
     if (!roomId || !cryptoReady) return;
@@ -10586,7 +10594,7 @@ const Room = () => {
       <div className="room-header" style={{ height: 64, padding: '0 24px', paddingTop: 'var(--sp-status-bar-inset, 0px)', boxSizing: 'content-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--room-header-bg)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--room-border)', flexShrink: 0, position: 'relative', zIndex: 1000 }}>
         {/* Left: Navigation & Branding */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button className="back-btn-room" onClick={handleLeaveRoom} title="Back to Home" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, padding: '8px 14px', color: isLight ? '#475569' : '#888', cursor: 'pointer', transition: 'all 0.2s' }}>
+          <button className="back-btn-room" onClick={handleLeaveRoom} title="Back" style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--room-card-bg)', border: '1px solid var(--room-border)', borderRadius: 12, padding: '8px 14px', color: isLight ? '#475569' : '#888', cursor: 'pointer', transition: 'all 0.2s' }}>
             <ChevronLeft size={18} />
             <span className="back-btn-text" style={{ fontSize: 13, fontWeight: 700 }}>{t('back', 'Back')}</span>
           </button>
@@ -12950,7 +12958,16 @@ const Room = () => {
                   <MonitorPlay size={44} color={isLight ? 'var(--brand-1)' : '#fff'} strokeWidth={2} />
                 </div>
                 <h3 className={`no-media-title${(isFullscreen || isTvMode) ? ' stay-white' : ''}`} style={{ margin: '0 0 16px', color: (isFullscreen || isTvMode) ? '#fff' : (isLight ? '#0f172a' : '#fff'), fontWeight: 900, fontSize: 24, letterSpacing: '-0.5px' }}>{t('noMediaSelected', 'No Media Selected')}</h3>
-                {!isTvMode && hasPlayerPrivileges && (
+                {/* Matches the mobile pinned "Browse Media & Apps" bar's own
+                    gating (!isViewer, not hasPlayerPrivileges — isViewer here
+                    means "someone else is screensharing," unrelated to host
+                    status). hasPlayerPrivileges wrongly hid this on desktop
+                    for any non-host member, and for a host whose isHost check
+                    (tied to the current socket ID) hadn't caught up after a
+                    reconnect — leaving them with no way to reopen the
+                    selector at all. Any real host-only restriction still
+                    applies inside the modal/its actions, same as mobile. */}
+                {!isTvMode && !isViewer && (
                 <button
                   onClick={() => setShowMediaSelector(true)}
                   style={{

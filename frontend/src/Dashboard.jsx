@@ -40,6 +40,26 @@ const Dashboard = () => {
   const [previewMessages, setPreviewMessages] = useState([]);
   const previewTimerRef = useRef(null);
 
+  // This view's own height:100dvh + overflow:hidden below only clips overflow
+  // WITHIN this div — it can't stop the page (html/body) itself from
+  // scrolling if 100vh's viewport math comes out even a few px short of the
+  // real window (a real WebView2 quirk, not something either of those
+  // properties on a child div can fix). That residual page-level scroll is
+  // what let content slide under the sticky Navbar. Locking html/body here
+  // removes the scroll at its actual source; restored on unmount since other
+  // pages expect normal scrolling.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+
   // Cycles the decorative preview panel's chat bubbles in one at a time, then
   // loops — purely visual, gives the impression of an active conversation
   // instead of a static mockup.
@@ -85,7 +105,7 @@ const Dashboard = () => {
     // minHeight:100vh + page-scroll pattern. Without this, content taller
     // than the window scrolled the whole page including the sticky Navbar,
     // which reads wrong for what's meant to be a single static app screen.
-    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Toaster position="top-center" />
       <style>{`
         @keyframes dashOrbFloat1 {
