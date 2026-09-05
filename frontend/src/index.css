@@ -132,6 +132,16 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   outline-offset: 2px;
 }
 
+/* Every chat message row's shared "swipe left to peek timestamps" position
+   (see useTimestampPeek.js) — driven by a CSS variable written directly by
+   the gesture handler, not React state, so a drag never has to re-render
+   the whole message list to move. Global (not scoped to one page's own
+   <style> block) since GlobalChatWidget.jsx mounts .msg-row outside
+   Room.jsx too (Navbar/BottomNav/Profile). */
+.msg-row {
+  transform: translateX(var(--sp-ts-peek-x, 0px));
+}
+
 html, body {
   overflow-x: hidden;
   /* Ensure touch scrolling always works on iOS/iPad/Android */

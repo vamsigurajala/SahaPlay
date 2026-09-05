@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 
 const PEEK_WIDTH = 64;
 const H_THRESHOLD = 8;
+const CSS_VAR = '--sp-ts-peek-x';
 
 /**
  * Instagram-DM-style "swipe left to peek timestamps": a single shared drag
@@ -11,31 +12,45 @@ const H_THRESHOLD = 8;
  * an absolutely-positioned timestamp anchored just past each row's right
  * edge; releasing springs everything back and hides the timestamps again.
  *
+ * The live drag value is applied via a CSS custom property written directly
+ * to document.documentElement, NOT React state — a plain `transform:
+ * translateX(var(--sp-ts-peek-x, 0px))` rule on .msg-row (see index.css)
+ * picks it up automatically on every row, with the browser's own style
+ * engine doing the work. This used to be React state (setDragX) read by
+ * each row's own inline style, which meant every touchmove tick — even
+ * rAF-throttled to one commit per frame — still had to re-render every
+ * mounted row in the list to apply the new value. That re-render cost (not
+ * the throttling, which was already in place) is what read as the drag
+ * feeling sluggish on mid/low-end mobile hardware: the browser was doing a
+ * full React reconciliation pass across the whole message list, 60 times a
+ * second, just to move a translateX value it could have applied natively.
+ * Writing the CSS variable directly skips React (and any re-render) for
+ * the continuous part of the gesture entirely — only isPeeking, which
+ * changes twice per gesture (start/end), stays as real state, since it also
+ * drives the swap between "track instantly" and "spring back with a
+ * transition" and any other rare per-gesture UI reaction.
+ *
  * Deliberately independent of useLongPress's own gesture: that hook already
  * self-cancels its pending timer once movement exceeds its own threshold, so
  * both can listen to the same touch events without coordinating — starting
  * to drag left cancels the long-press automatically.
  */
 export function useTimestampPeek() {
-  const [dragX, setDragX] = useState(0);
   const [isPeeking, setIsPeeking] = useState(false);
   const stateRef = useRef({ startX: 0, startY: 0, active: false, peeking: false });
-  // dragX is applied to EVERY row's transform at once (see this hook's own
-  // top comment) — same reasoning as useSwipeToReply's identical rAF
-  // throttle: committing on every raw touchmove tick forced the whole message
-  // list to re-render that often, which is what read as this drag feeling
-  // slow. Coalescing to one commit per animation frame is visually the same
-  // (the browser only paints once per frame regardless) but caps the
-  // re-render rate to the frame budget instead of the raw touch-event rate.
   const rafRef = useRef(null);
   const pendingXRef = useRef(null);
+
+  const setCssX = useCallback((x) => {
+    document.documentElement.style.setProperty(CSS_VAR, `${x}px`);
+  }, []);
 
   const flushPending = useCallback(() => {
     rafRef.current = null;
     if (pendingXRef.current === null) return;
-    setDragX(pendingXRef.current);
+    setCssX(pendingXRef.current);
     pendingXRef.current = null;
-  }, []);
+  }, [setCssX]);
 
   const onTouchStart = useCallback((e) => {
     const touch = e.touches[0];
@@ -69,8 +84,8 @@ export function useTimestampPeek() {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     pendingXRef.current = null;
     setIsPeeking(false);
-    setDragX(0);
-  }, []);
+    setCssX(0);
+  }, [setCssX]);
 
-  return { dragX, isPeeking, onTouchStart, onTouchMove, onTouchEnd, PEEK_WIDTH };
+  return { isPeeking, onTouchStart, onTouchMove, onTouchEnd, PEEK_WIDTH };
 }
