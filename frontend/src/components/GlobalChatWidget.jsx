@@ -1746,6 +1746,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const [activeChat, setActiveChat] = useState(() => {
     try { const raw = sessionStorage.getItem('gcw_active_chat'); return raw ? JSON.parse(raw) : null; } catch { return null; }
   });
+  // usernames currently online — seeded by the server's presence_snapshot
+  // right after connect, kept live via presence_update deltas. Used for the
+  // green dot on DM avatars (list) and the "online" line under the header
+  // name in an open DM.
+  const [onlineUsers, setOnlineUsers] = useState(() => new Set());
   useEffect(() => {
     try { sessionStorage.setItem('gcw_view', view); } catch {}
   }, [view]);
@@ -2561,6 +2566,25 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // Keep refs in sync with state (for use inside socket closures)
   useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
   useEffect(() => { viewRef.current = view; }, [view]);
+
+  // Tells the server which chat (if any) this user is actively looking at
+  // right now, so notifyChatMessage (server.js) can skip a push notification
+  // for it — the in-app toast/desktop-notification suppression already
+  // existed (isViewingThis below), but a real push had no way to know the
+  // recipient's chat was open. chatId matches the identifier the server
+  // already uses per chat type: the other person's username for a DM, the
+  // room id for a group (see chat.id || chat.partner used the same way
+  // elsewhere in this file for muting/marking-read).
+  useEffect(() => {
+    const sock = socketRef.current;
+    if (!sock) return;
+    const chatId = (isOpen && view === 'chat' && activeChat) ? (activeChat.id || activeChat.partner) : null;
+    if (chatId) {
+      sock.emit('chat_active', { chatId });
+      return () => sock.emit('chat_inactive');
+    }
+    sock.emit('chat_inactive');
+  }, [isOpen, view, activeChat]);
   const activeRoomTabRef = useRef(activeRoomTab);
   const activeRoomPartnerRef = useRef(activeRoomPartner);
   useEffect(() => { activeRoomTabRef.current = activeRoomTab; }, [activeRoomTab]);
@@ -3084,6 +3108,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
           sock.emit('track_rooms', { roomIds });
         }
         return currentConvos;
+      });
+    });
+
+    sock.on('presence_snapshot', ({ online }) => {
+      setOnlineUsers(new Set((online || []).map(u => u.toLowerCase())));
+    });
+    sock.on('presence_update', ({ username: presenceUser, online }) => {
+      setOnlineUsers(prev => {
+        const next = new Set(prev);
+        const key = (presenceUser || '').toLowerCase();
+        if (online) next.add(key); else next.delete(key);
+        return next;
       });
     });
 
@@ -6726,6 +6762,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 <ArrowLeft size={20} />
               </button>
             )}
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
             <span
               className="chat-header-title"
               style={{
@@ -6785,6 +6822,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
             >
               {view === 'list' ? t('conversations', 'Conversations') : (activeChat?.type === 'private' && (blockingMe.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase()) || blockedChats.some(u => u.toLowerCase() === activeChat.partner?.toLowerCase())) ? t('user', 'User') : activeChat?.displayName)}
             </span>
+            {view === 'chat' && activeChat?.type === 'private' && onlineUsers.has((activeChat.partner || '').toLowerCase()) && (
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#22c55e' }}>{t('online', 'Online')}</span>
+            )}
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             {view === 'chat' && activeChat?.type === 'private' && (() => {
@@ -7819,6 +7860,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               <span className="stay-white" style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{getInitials(displayName || chat.partner)}</span>
                             </div>
                           )
+                        )}
+                        {chat.type !== 'room' && !eitherBlocked && onlineUsers.has((chat.partner || '').toLowerCase()) && (
+                          <span style={{
+                            position: 'absolute', bottom: 0, right: 0,
+                            width: 11, height: 11, borderRadius: '50%',
+                            background: '#22c55e', border: `2px solid ${isLight ? '#ffffff' : '#16161e'}`,
+                            boxSizing: 'content-box',
+                          }} />
                         )}
                       </div>
                       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>

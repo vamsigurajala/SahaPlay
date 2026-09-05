@@ -556,6 +556,11 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
       try { muted = JSON.parse(muteRow?.mutedChats || '[]'); } catch { muted = []; }
       if (muted.some(m => String(m).toLowerCase() === String(chatId).toLowerCase())) continue;
 
+      // Recipient has this exact chat open right now (see activeChatByUser
+      // above) — they're already seeing the message live over the socket,
+      // a push on top would just be a redundant/duplicate-feeling ping.
+      if (activeChatByUser.get(recipient.toLowerCase()) === String(chatId).toLowerCase()) continue;
+
       // Recipient turned off Message Notifications (or the App Notifications
       // master toggle) in Settings — same treatment as a muted chat above:
       // no push, and no point tracking it in pending_notifications either.
@@ -1066,6 +1071,15 @@ function emitToUser(username, event, data) {
   if (!sids) return;
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
+
+// usernameLower -> chatId (DM: the other person's username; group: the room
+// id) currently open in that user's chat widget/panel, used by
+// notifyChatMessage below to skip a push notification for a chat the
+// recipient is already actively looking at. Set/cleared by the client's own
+// 'chat_active'/'chat_inactive' emits (see GlobalChatWidget.jsx), and always
+// cleared on disconnect below so a stale entry can't survive past the tab
+// that set it.
+const activeChatByUser = new Map();
 
 // Routes mid-call signaling (offer/answer/ice/state) to the ONE specific
 // device that's actually a live participant in this call, instead of every
@@ -7398,7 +7412,20 @@ const lastTypingTime = new Map(); // socketId -> timestamp
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Authenticated: ${!!socket.username})`);
   // Register in global map if authenticated
-  if (socket.username) registerSocket(socket.username, socket.id);
+  if (socket.username) {
+    const wasOffline = !connectedSockets.has(socket.username.toLowerCase());
+    registerSocket(socket.username, socket.id);
+    // Only the FIRST socket for this user (not a second tab/device while
+    // already online) counts as "just came online" — broadcast to everyone
+    // so any open chat list can flip that user's dot green live, and give
+    // this new socket a full snapshot to seed its own initial state (a
+    // snapshot, not per-friend, since there's no cheap way to know who this
+    // user's friends/open conversations are without a DB round trip here).
+    if (wasOffline) {
+      io.emit('presence_update', { username: socket.username.toLowerCase(), online: true });
+    }
+    socket.emit('presence_snapshot', { online: [...connectedSockets.keys()] });
+  }
   // A token WAS supplied but jwt.verify rejected it (expired/invalid) — the
   // io.use middleware above lets the handshake through anyway (some socket
   // features intentionally allow anonymous/guest connections), so without
@@ -7612,6 +7639,8 @@ io.on('connection', (socket) => {
       const uname = socket.username.toLowerCase();
       const stillConnected = connectedSockets.has(uname);
       if (!stillConnected) {
+        activeChatByUser.delete(uname);
+        io.emit('presence_update', { username: uname, online: false });
         const callId = userActiveCallId.get(uname);
         const call = callId ? activeCalls.get(callId) : null;
         if (call) {
@@ -8528,6 +8557,17 @@ io.on('connection', (socket) => {
     } catch (err) {
       console.error('[SOCKET] chat_message error:', err.message, 'user:', socket.username);
     }
+  });
+
+  // ─── Active-chat tracking — lets notifyChatMessage skip a push for a chat
+  // the recipient is already looking at (see activeChatByUser above) ───
+  socket.on('chat_active', ({ chatId }) => {
+    if (!socket.username || !chatId) return;
+    activeChatByUser.set(socket.username.toLowerCase(), String(chatId).toLowerCase());
+  });
+  socket.on('chat_inactive', () => {
+    if (!socket.username) return;
+    activeChatByUser.delete(socket.username.toLowerCase());
   });
 
   // ─── Standardized Mark Read ───
