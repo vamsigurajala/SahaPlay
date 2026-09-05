@@ -1307,14 +1307,34 @@ function App() {
               refresh; the user decides when it's safe. */}
           {updateAvailable && (
             <div
-              className="stay-white"
+              // gcw-force-dark: this app's global light-mode CSS has a broad
+              // heuristic rule (further down this file) that flips ANY
+              // position:fixed element with an inline background to a light
+              // #f7f8fc card color — meant for modals/panels, but this toast
+              // matches both conditions too. That's what was silently
+              // overriding the intended #18181f background to a near-white
+              // one in light mode, leaving white (.stay-white) text
+              // unreadable against it. gcw-force-dark is the existing
+              // escape hatch already exempted from that rule (and its
+              // siblings) throughout this file — use it to keep this toast's
+              // own colors exactly as authored, in both themes.
+              className="stay-white gcw-force-dark"
               style={{
                 position: 'fixed',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 bottom: 'max(16px, env(safe-area-inset-bottom))',
                 zIndex: 2147483001,
-                width: 'min(360px, calc(100vw - 32px))',
+                // width (not maxWidth) with a fixed 360px cap forced a two-row
+                // wrap even on a spacious desktop window where the text +
+                // Refresh + X would happily fit on one line — width:max-content
+                // lets it size to its actual content, only clamping (and
+                // therefore wrapping, via flexWrap below) once maxWidth is
+                // genuinely too narrow to fit on one row, which is the real
+                // "adjust based on screen size" behavior rather than a fixed
+                // desktop-unfriendly width.
+                width: 'max-content',
+                maxWidth: 'calc(100vw - 32px)',
                 display: 'flex',
                 alignItems: 'center',
                 flexWrap: 'wrap',
