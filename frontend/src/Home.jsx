@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import SeoHead from './components/SeoHead';
 import PinnedRoomsGrid from './components/PinnedRoomsGrid';
+import RoomCardSkeleton from './components/RoomCardSkeleton';
 import HomeTab from './components/HomeTab';
 import PullToRefresh from './components/PullToRefresh';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
@@ -69,7 +70,7 @@ const Home = () => {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
   const standalone = isStandalonePWA();
-  const { pinnedRooms, unpinRoom } = usePinnedRooms({ limit: 6 });
+  const { pinnedRooms, unpinRoom, isLoading: isPinnedLoading } = usePinnedRooms({ limit: 6 });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -648,19 +649,25 @@ const Home = () => {
 
       {/* ─── PINNED ROOMS (if any) ─── */}
 
-      {(isLoggedIn || isGuest) && pinnedRooms && pinnedRooms.length > 0 && (
+      {(isLoggedIn || isGuest) && (isPinnedLoading || (pinnedRooms && pinnedRooms.length > 0)) && (
         <section className="pinned-rooms-section home-section-pad" style={{ padding: '80px 40px' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
               <div className="section-icon-badge"><Pin size={18} /></div>
               <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
             </div>
-            <PinnedRoomsGrid
-              rooms={pinnedRooms.slice(0, 6)}
-              onUnpin={unpinRoom}
-              gridClassName="pinned-grid"
-              gridStyle={{ display: 'grid', gap: 20 }}
-            />
+            {isPinnedLoading ? (
+              <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
+                <RoomCardSkeleton count={3} />
+              </div>
+            ) : (
+              <PinnedRoomsGrid
+                rooms={pinnedRooms.slice(0, 6)}
+                onUnpin={unpinRoom}
+                gridClassName="pinned-grid"
+                gridStyle={{ display: 'grid', gap: 20 }}
+              />
+            )}
           </div>
         </section>
       )}

@@ -11,6 +11,11 @@ export function usePinnedRooms({ limit } = {}) {
   const token = localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const [pinnedRooms, setPinnedRooms] = useState([]);
+  // True only while an actual fetch for previously-pinned room IDs is in
+  // flight — stays false when there's nothing stored to fetch, so callers
+  // can tell "still loading" apart from "genuinely no pinned rooms" instead
+  // of both looking identical (an empty pinnedRooms array either way).
+  const [isLoading, setIsLoading] = useState(false);
 
   // Unlike PublicRooms (4s poll) and useFollowRequests (3s poll), this had no
   // self-healing retry — a single failed/empty attempt (e.g. racing a Render
@@ -22,17 +27,23 @@ export function usePinnedRooms({ limit } = {}) {
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       if (stored.length > 0) {
+        if (!isRetry) setIsLoading(true);
         const ids = limit ? stored.slice(0, limit) : stored;
         fetch(`${API}/api/rooms/info?ids=${ids.join(',')}`)
           .then(r => { if (!r.ok) throw new Error('bad response'); return r.json(); })
-          .then(data => { if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]); })
+          .then(data => {
+            if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]);
+            setIsLoading(false);
+          })
           .catch(() => {
             if (isRetry !== true) setTimeout(() => fetchRooms(true), 4000);
+            else setIsLoading(false);
           });
       } else {
         setPinnedRooms([]);
+        setIsLoading(false);
       }
-    } catch (e) { }
+    } catch (e) { setIsLoading(false); }
   }, [limit]);
 
   useEffect(() => {
@@ -75,5 +86,5 @@ export function usePinnedRooms({ limit } = {}) {
     } catch (err) { }
   }, [token, isGuest, fetchRooms]);
 
-  return { pinnedRooms, unpinRoom, fetchRooms };
+  return { pinnedRooms, unpinRoom, fetchRooms, isLoading };
 }

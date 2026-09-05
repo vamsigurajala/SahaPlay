@@ -7,6 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import RoomThumbnail from './components/RoomThumbnail';
+import RoomCardSkeleton from './components/RoomCardSkeleton';
 import PullToRefresh from './components/PullToRefresh';
 import { API } from './lib/api';
 import { isStandalonePWA } from './lib/platform';
@@ -57,6 +58,13 @@ const PublicRooms = () => {
   const location = useLocation();
   const { t } = useTranslation();
   const [publicRooms, setPublicRooms] = useState([]);
+  // Only ever set true->false once, on the very first load — the 4s poll
+  // below must never flip it back to true, or the grid would flicker back
+  // to a skeleton on every refresh. Before this, an empty publicRooms array
+  // during the first (possibly Render-cold-start-delayed) fetch was
+  // indistinguishable from a genuinely empty result, so the page would
+  // confidently show "No Public Rooms Available" while still loading.
+  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedCategory, setSelectedCategory] = useState('other');
@@ -78,7 +86,8 @@ const PublicRooms = () => {
     return fetch(`${API}/api/rooms/public`)
       .then(r => r.json())
       .then(data => { if(Array.isArray(data)) setPublicRooms(data); })
-      .catch(err => console.error('Failed to load public rooms', err));
+      .catch(err => console.error('Failed to load public rooms', err))
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -461,7 +470,11 @@ const PublicRooms = () => {
 
         {(() => {
           const filteredRooms = publicRooms.filter(room => (room.category || 'other') === selectedCategory);
-          return filteredRooms.length === 0 ? (
+          return isLoading ? (
+          <div className="rooms-grid">
+            <RoomCardSkeleton count={6} />
+          </div>
+        ) : filteredRooms.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
             <h3 style={{ margin: '0 0 10px', color: '#fff', fontSize: '18px' }}>No Public Rooms Available</h3>
             <p style={{ color: '#888', margin: 0 }}>No rooms match the "{getCategoryLabel(selectedCategory, t)}" category. Try selecting another or create your own!</p>
