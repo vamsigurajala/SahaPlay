@@ -3469,8 +3469,18 @@ export default function RoomChatPanel({ p }) {
                           // cleanly at the rounded corners, showing as a faint gap/glow at the
                           // edges — only ever visible on received bubbles, since sent bubbles
                           // never get backdropFilter at all.
-                          backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                          // Disabled on mobile/tablet entirely (not just worked around) — this
+                          // element gets a fresh one of these per received bubble on a
+                          // wallpaper theme, and a live device report matches a second,
+                          // known failure mode of the same technique: backdrop-filter forces
+                          // its own GPU compositing layer, and a fast resize (the on-screen
+                          // keyboard opening) hitting a freshly-created layer is what this
+                          // codebase already blamed a now-reverted contain:'paint' layer for
+                          // elsewhere in this file — stale rasterization showing through as
+                          // the chat header's text getting cut/the composer shifting. Desktop
+                          // keeps the blur since it isn't driven by an on-screen keyboard.
+                          backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
                           ...(isMe && isGroupCustomTheme && !groupWallpaper && !isMediaOnly ? {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
@@ -4447,9 +4457,10 @@ export default function RoomChatPanel({ p }) {
                                       (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
                                     ))
                                 ),
-                                // See the identical comment on the group thread's bubble above.
-                                backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
-                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe) ? 'blur(12px)' : undefined,
+                                // See the identical comment on the group thread's bubble above
+                                // — same mobile/tablet disable, same reason.
+                                backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
                                 ...(isMe && isDMCustomTheme && !dmWallpaper && !isMediaOnly ? {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
