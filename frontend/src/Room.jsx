@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useState, useRef, useCallback, useMe
 import { createPortal } from 'react-dom';
 import Hyperbeam from '@hyperbeam/web';
 import { clearUserSession } from './lib/authUtils.js';
-import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
+import { isStandalonePWA, isCapacitorApp, isTauriApp } from './lib/platform.js';
 import { setNativeVolume, setNativeBrightness, resetNativeBrightness, getNativeVolume, setNativeOrientation, unlockNativeOrientation } from './lib/nativeMedia.js';
 import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { evaluateRoomMediaAccess } from './lib/roomMediaAccess.js';
@@ -6339,6 +6339,18 @@ const Room = () => {
     }
   }, [uploadState.isUploading, uploadState.canPlay]);
 
+  // On Tauri, the host no longer gets an instant blob preview (see
+  // handleFileUpload), so they need the same "Getting the video ready…"
+  // placeholder viewers see while waiting for stream_ready — but
+  // stream_started/stream_progress are emitted via socket.to() (excludes
+  // the sender), so the host never receives their own copy over the
+  // socket. Mirror the already-local uploadState into streamPending
+  // directly instead of round-tripping through the server.
+  useEffect(() => {
+    if (!isTauriApp() || !isEffectiveHost || !uploadState.isUploading) return;
+    setStreamPending({ streamKey: uploadState.streamKey, filename: uploadState.filename, progress: uploadState.progress });
+  }, [isEffectiveHost, uploadState.isUploading, uploadState.streamKey, uploadState.filename, uploadState.progress]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Sync isPlaying state → local <video> element for stream URLs
   useEffect(() => {
     if (!localVideoRef.current) return;
@@ -8444,11 +8456,22 @@ const Room = () => {
     setShowTwitchBrowser(false);
     setShowVimeoBrowser(false);
 
-    // Create a local blob URL so the host starts watching immediately
-    const localUrl = URL.createObjectURL(file);
-    setMediaUrl(localUrl);
-    setIsPlaying(true);
-    prepTargetTimeRef.current = 0;
+    // On the Tauri desktop shell (WebView2), a blob: URL's Range-request
+    // support is broken for anything beyond a small clip — the video looks
+    // like it's buffering forever past roughly the first chunk's worth of
+    // footage, even though the exact same file plays fine as a normal HTTP
+    // stream. Skip the instant local blob preview there; the host instead
+    // picks up playback the same way every other viewer already does, via
+    // stream_ready once the server has enough of the upload on disk (see
+    // the isTauriApp() effect below, which fills the same "Getting the
+    // video ready…" placeholder viewers see in the meantime).
+    if (!isTauriApp()) {
+      // Create a local blob URL so the host starts watching immediately
+      const localUrl = URL.createObjectURL(file);
+      setMediaUrl(localUrl);
+      setIsPlaying(true);
+      prepTargetTimeRef.current = 0;
+    }
 
     console.log('[FILE] Calling uploadFile, roomId:', roomId, 'socket:', !!socket);
     // Kick off chunked upload — progress tracked via uploadState
