@@ -1189,6 +1189,22 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// A poll message's decryptedText IS the raw poll definition JSON (see
+// sendPollMessage/submitPollEdit — JSON.stringify({question, options,
+// allowMultiple})). Neither the toast/notification preview nor replyTo
+// snapshots carry an isPoll flag, so it's detected by shape instead,
+// matching messagePreview.jsx's isPollJSON — otherwise a poll leaks as raw
+// JSON in toasts, desktop notifications, and reply previews.
+function isPollJSON(text) {
+  if (!text || typeof text !== 'string' || text[0] !== '{') return false;
+  try {
+    const obj = JSON.parse(text);
+    return !!(obj && typeof obj.question === 'string' && Array.isArray(obj.options));
+  } catch {
+    return false;
+  }
+}
+
 // WhatsApp-style call-summary bubble — renders in place of plain text
 // whenever a decrypted DM message starts with CALL_LOG_PREFIX (see
 // CallContext.writeCallLog). Tap to redial, mirroring WhatsApp.
@@ -3638,9 +3654,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
         : null;
 
       const finalizedPreview = finalizedMediaPreview ||
-        ((msg.decryptedText && !looksLikeCiphertext(msg.decryptedText))
-          ? truncateToFewWords(msg.decryptedText)
-          : (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : truncateToFewWords(msg.message || 'New message')));
+        ((msg.isPoll || isPollJSON(msg.decryptedText) || isPollJSON(msg.message))
+          ? '📊 Poll'
+          : ((msg.decryptedText && !looksLikeCiphertext(msg.decryptedText))
+            ? truncateToFewWords(msg.decryptedText)
+            : (msg.message && looksLikeCiphertext(msg.message) ? (isMine ? 'Message sent' : 'Message') : truncateToFewWords(msg.message || 'New message'))));
 
       // If this message belongs to the currently open chat, append it to the message list
       if (isViewingThis) {
@@ -8402,6 +8420,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           })()}: </span>{(() => {
                             const r = msg.replyTo;
                             if (r.mediaType) { const rmt6=r.mediaType; return rmt6.startsWith('video')?'Video':rmt6.startsWith('image')?'Photo':rmt6.startsWith('audio')?'Voice Note':(r.mediaFileName || r._fileName || 'File'); }
+                            if (isPollJSON(r.message)) return '📊 Poll';
                             const raw = r.message || '';
                             if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                             return raw.slice(0,60) || 'Media';
@@ -8964,6 +8983,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     <span style={{opacity:0.85}}>{(() => {
                       const r = replyToMsg;
                       if (r.mediaType) { const rmt5=r.mediaType; return rmt5.startsWith('video')?'Video':rmt5.startsWith('image')?'Photo':rmt5.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
+                      if (r.isPoll || isPollJSON(r.decryptedText) || isPollJSON(r.message)) return '📊 Poll';
                       if (r.decryptedText) return r.decryptedText.slice(0,50);
                       const raw = r.message || '';
                       if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
@@ -9202,11 +9222,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 {showAttachMenu && (
                                   <div
                                     className="chat-attach-menu-overlay"
-                                    onMouseDown={() => setShowAttachMenu(false)}
+                                    // onClick (not onMouseDown): closing on mousedown unmounts
+                                    // this full-screen overlay before the browser's mouseup/click
+                                    // for the SAME tap has fired, so that mouseup/click then
+                                    // falls through and lands on whatever element is now exposed
+                                    // underneath the pointer — on some layouts that's a nav
+                                    // control, which is what read as "tapping the paperclip
+                                    // again jumps to Home". Closing on click keeps the overlay
+                                    // mounted through the whole gesture, so nothing underneath
+                                    // ever receives a stray click. Also fixes outside-tap-to-
+                                    // close being unreliable on touch devices, since click is the
+                                    // event touch reliably synthesizes (mousedown isn't guaranteed).
+                                    onClick={() => setShowAttachMenu(false)}
                                     style={{ position: 'fixed', inset: 0, zIndex: 100020 }}
                                   >
                                     <div
-                                      onMouseDown={e => e.stopPropagation()}
+                                      onClick={e => e.stopPropagation()}
                                       style={{
                                         position: 'absolute', bottom: 46, right: 0, minWidth: 180,
                                         background: isLight ? '#fff' : '#1c1c22', borderRadius: 14,

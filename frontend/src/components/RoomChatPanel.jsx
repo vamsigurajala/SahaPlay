@@ -953,6 +953,21 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// A poll message's decryptedText/message field IS the raw poll definition
+// JSON (see sendGroupPoll/sendDmPoll — JSON.stringify({question, options,
+// allowMultiple})). replyTo snapshots don't carry an isPoll flag, so reply
+// previews detect it by shape instead, matching messagePreview.jsx's
+// isPollJSON — otherwise a reply-quote of a poll shows the raw JSON.
+function isPollJSON(text) {
+  if (!text || typeof text !== 'string' || text[0] !== '{') return false;
+  try {
+    const obj = JSON.parse(text);
+    return !!(obj && typeof obj.question === 'string' && Array.isArray(obj.options));
+  } catch {
+    return false;
+  }
+}
+
 function getInitials(name) { return (name||'?').slice(0,2).toUpperCase(); }
 function getAvatarColor(name) {
   const colors = ['#6366f1','#a855f7','#ec4899','#ef4444','#f97316','#10b981','#3b82f6','#06b6d4'];
@@ -3354,6 +3369,7 @@ export default function RoomChatPanel({ p }) {
                       })()}: </span>{(() => {
                         const raw = msg.replyTo.message || '';
                         if (msg.replyTo.mediaType) { const rmt=msg.replyTo.mediaType; return rmt.startsWith('video')?'Video':rmt.startsWith('image')?'Photo':rmt.startsWith('audio')?'Voice Note':(msg.replyTo.mediaFileName || msg.replyTo._fileName || 'File'); }
+                        if (isPollJSON(msg.replyTo.decryptedText) || isPollJSON(raw)) return '📊 Poll';
                         if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
                         if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                         return raw.slice(0,60) || 'Message';
@@ -3745,6 +3761,7 @@ export default function RoomChatPanel({ p }) {
               <span style={{opacity:0.85}}>{(() => {
                 const r = p.groupReplyTo;
                 if (r.mediaType) { const rmt3=r.mediaType; return rmt3.startsWith('video')?'Video':rmt3.startsWith('image')?'Photo':rmt3.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
+                if (isPollJSON(r.decryptedText) || isPollJSON(r.message)) return '📊 Poll';
                 if (r.decryptedText) return r.decryptedText.slice(0,50);
                 const raw = r.message || '';
                 if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
@@ -3914,8 +3931,14 @@ export default function RoomChatPanel({ p }) {
                                 <Paperclip size={18}/>
                               </button>
                               {showGroupAttachMenu && (
-                                <div className="chat-attach-menu-overlay" onMouseDown={() => setShowGroupAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
-                                  <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                // onClick (not onMouseDown) — see GlobalChatWidget.jsx's
+                                // identical attach-menu overlay for why: closing on mousedown
+                                // unmounts this full-screen overlay before the tap's own
+                                // mouseup/click fires, which then falls through onto whatever
+                                // sits underneath the pointer (e.g. a nav control), and also
+                                // makes outside-tap-to-close unreliable on touch devices.
+                                <div className="chat-attach-menu-overlay" onClick={() => setShowGroupAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
+                                  <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
                                     <button type="button" onClick={() => { setShowGroupAttachMenu(false); fileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
                                       <ImageIcon size={17} color="#3b82f6" /> Browse
                                     </button>
@@ -4374,6 +4397,7 @@ export default function RoomChatPanel({ p }) {
                             </span> {(() => {
                               const raw = msg.replyTo.message || '';
                               if (msg.replyTo.mediaType) { const rmt2=msg.replyTo.mediaType; return rmt2.startsWith('video')?'Video':rmt2.startsWith('image')?'Photo':rmt2.startsWith('audio')?'Voice Note':(msg.replyTo.mediaFileName || msg.replyTo._fileName || 'File'); }
+                              if (isPollJSON(msg.replyTo.decryptedText) || isPollJSON(raw)) return '📊 Poll';
                               if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
                               if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
                               return raw.slice(0,60) || 'Message';
@@ -4714,6 +4738,7 @@ export default function RoomChatPanel({ p }) {
                       <span style={{opacity:0.85}}>{(() => {
                         const r = p.dmReplyTo;
                         if (r.mediaType) { const rmt4=r.mediaType; return rmt4.startsWith('video')?'Video':rmt4.startsWith('image')?'Photo':rmt4.startsWith('audio')?'Voice Note':(r._fileName || r.mediaFileName || 'File'); }
+                        if (isPollJSON(r.decryptedText) || isPollJSON(r.message)) return '📊 Poll';
                         if (r.decryptedText) return r.decryptedText.slice(0,50);
                         return (r.message||'').slice(0,50) + ((r.message||'').length > 50 ? '...' : '');
                       })()}</span>
@@ -4908,8 +4933,10 @@ export default function RoomChatPanel({ p }) {
                                     <Paperclip size={18}/>
                                   </button>
                                   {showDmAttachMenu && (
-                                    <div className="chat-attach-menu-overlay" onMouseDown={() => setShowDmAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
-                                      <div onMouseDown={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                    // onClick (not onMouseDown) — see the group tab's identical
+                                    // attach-menu overlay above for why.
+                                    <div className="chat-attach-menu-overlay" onClick={() => setShowDmAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
+                                      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
                                         <button type="button" onClick={() => { setShowDmAttachMenu(false); dmFileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
                                           <ImageIcon size={17} color="#3b82f6" /> Browse
                                         </button>
