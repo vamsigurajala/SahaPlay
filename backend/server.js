@@ -559,7 +559,7 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
       // Recipient has this exact chat open right now (see activeChatByUser
       // above) — they're already seeing the message live over the socket,
       // a push on top would just be a redundant/duplicate-feeling ping.
-      if (activeChatByUser.get(recipient.toLowerCase()) === String(chatId).toLowerCase()) continue;
+      if (activeChatByUser.get(recipient.toLowerCase())?.has(String(chatId).toLowerCase())) continue;
 
       // Recipient turned off Message Notifications (or the App Notifications
       // master toggle) in Settings — same treatment as a muted chat above:
@@ -1072,13 +1072,18 @@ function emitToUser(username, event, data) {
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
 
-// usernameLower -> chatId (DM: the other person's username; group: the room
-// id) currently open in that user's chat widget/panel, used by
+// usernameLower -> Set<chatId> (DM: the other person's username; group: the
+// room id) currently open across that user's own chat surfaces, used by
 // notifyChatMessage below to skip a push notification for a chat the
-// recipient is already actively looking at. Set/cleared by the client's own
-// 'chat_active'/'chat_inactive' emits (see GlobalChatWidget.jsx), and always
-// cleared on disconnect below so a stale entry can't survive past the tab
-// that set it.
+// recipient is already actively looking at. A Set, not a single value,
+// because the same user can have more than one surface open at once (e.g.
+// GlobalChatWidget.jsx's floating widget AND Room.jsx's own in-room chat
+// panel, each on their own socket) — a single last-write-wins value let
+// whichever one emitted 'chat_inactive' most recently silently erase a
+// still-open chat's suppression from the OTHER surface. Set/cleared by the
+// client's own 'chat_active'/'chat_inactive' emits (both carry the specific
+// chatId), and the whole entry is always cleared on disconnect below so a
+// stale entry can't survive past the tab that set it.
 const activeChatByUser = new Map();
 
 // Routes mid-call signaling (offer/answer/ice/state) to the ONE specific
@@ -8563,11 +8568,23 @@ io.on('connection', (socket) => {
   // the recipient is already looking at (see activeChatByUser above) ───
   socket.on('chat_active', ({ chatId }) => {
     if (!socket.username || !chatId) return;
-    activeChatByUser.set(socket.username.toLowerCase(), String(chatId).toLowerCase());
+    const uname = socket.username.toLowerCase();
+    let set = activeChatByUser.get(uname);
+    if (!set) { set = new Set(); activeChatByUser.set(uname, set); }
+    set.add(String(chatId).toLowerCase());
   });
-  socket.on('chat_inactive', () => {
+  // chatId is optional only for backward compatibility with an older client
+  // build — every current emitter passes it. Without it, fall back to
+  // clearing the whole entry (the old, coarser behavior) rather than doing
+  // nothing, so a stale client still can't wedge a chat into "always active".
+  socket.on('chat_inactive', ({ chatId } = {}) => {
     if (!socket.username) return;
-    activeChatByUser.delete(socket.username.toLowerCase());
+    const uname = socket.username.toLowerCase();
+    if (!chatId) { activeChatByUser.delete(uname); return; }
+    const set = activeChatByUser.get(uname);
+    if (!set) return;
+    set.delete(String(chatId).toLowerCase());
+    if (set.size === 0) activeChatByUser.delete(uname);
   });
 
   // ─── Standardized Mark Read ───

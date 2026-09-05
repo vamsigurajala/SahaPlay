@@ -1617,6 +1617,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
   onNewMessage,
   activeRoomTab,
   activeRoomPartner,
+  // The roomId of whichever room hosts this GlobalChatWidget instance (see
+  // Room.jsx's own mount), if any — always set for that instance regardless
+  // of which chat tab is currently focused there, unlike activeRoomTab/
+  // activeRoomPartner below which only reflect the CURRENTLY FOCUSED tab.
+  // Room.jsx's own chat panel has its own dedicated toast for this room's
+  // group chat no matter what else is on screen, so this widget must never
+  // also toast for it — that gap (only suppressed on an exact tab-focus
+  // match) was producing a second, duplicate toast whenever the room's own
+  // chat panel wasn't the focused tab (e.g. desktop with the video tab up).
+  hostRoomId,
   transparentMode = false,
   roomPermissions,
   isRoomHost,
@@ -2595,16 +2605,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
     const sock = socketRef.current;
     if (!sock) return;
     const chatId = (isOpen && view === 'chat' && activeChat) ? (activeChat.id || activeChat.partner) : null;
-    if (chatId) {
-      sock.emit('chat_active', { chatId });
-      return () => sock.emit('chat_inactive');
-    }
-    sock.emit('chat_inactive');
+    // Nothing to mark active — no emit needed: if a PREVIOUS run of this
+    // effect had a real chatId, its own cleanup below (still holding that
+    // value in closure) already ran and deactivated it before this run. A
+    // bare, chatId-less 'chat_inactive' here would instead wipe this user's
+    // ENTIRE active-chat set on the backend, clobbering whatever Room.jsx's
+    // own in-room chat panel (a separate socket) may have marked active —
+    // exactly what the server's Set-based tracking exists to prevent.
+    if (!chatId) return;
+    sock.emit('chat_active', { chatId });
+    return () => sock.emit('chat_inactive', { chatId });
   }, [isOpen, view, activeChat]);
   const activeRoomTabRef = useRef(activeRoomTab);
   const activeRoomPartnerRef = useRef(activeRoomPartner);
+  const hostRoomIdRef = useRef(hostRoomId);
   useEffect(() => { activeRoomTabRef.current = activeRoomTab; }, [activeRoomTab]);
   useEffect(() => { activeRoomPartnerRef.current = activeRoomPartner; }, [activeRoomPartner]);
+  useEffect(() => { hostRoomIdRef.current = hostRoomId; }, [hostRoomId]);
 
   useLayoutEffect(() => {
     if (scrollAnchorRef.current && scrollContainerRef.current) {
@@ -3724,6 +3741,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const lowerActivePartner = (activeRoomPartnerRef.current || '').toLowerCase();
           if (isGroup) {
              if (activeRoomTabRef.current === 'group' && lowerPartner === lowerActivePartner) skipToast = true;
+             // 2b. This widget instance's own host room's group chat — always
+             // suppressed, not just when its tab happens to be focused (see
+             // hostRoomId's own comment above for why).
+             if (hostRoomIdRef.current && lowerPartner === hostRoomIdRef.current.toLowerCase()) skipToast = true;
           } else {
              if (activeRoomTabRef.current === 'dm' && lowerPartner === lowerActivePartner) skipToast = true;
           }

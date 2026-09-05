@@ -589,6 +589,21 @@ function looksLikeCiphertext(str) {
   return /^[A-Za-z0-9+/\-_=]{20,}$/.test(str.trim()) && !str.includes(' ');
 }
 
+// A poll message's decryptedText IS the raw poll definition JSON (see
+// sendGroupPoll/sendDmPoll — JSON.stringify({question, options,
+// allowMultiple})). Toast previews detect it by shape rather than an isPoll
+// flag, matching messagePreview.jsx's isPollJSON — otherwise a poll leaks as
+// raw JSON in the room's own toasts.
+function isPollJSON(text) {
+  if (!text || typeof text !== 'string' || text[0] !== '{') return false;
+  try {
+    const obj = JSON.parse(text);
+    return !!(obj && typeof obj.question === 'string' && Array.isArray(obj.options));
+  } catch {
+    return false;
+  }
+}
+
 // Snapshot of the message being replied to, sent alongside a reply so the
 // recipient can render a preview. Keeps mediaType/mediaFileName (rather than
 // collapsing every non-video media type to a hardcoded 'Photo' string) so a
@@ -2870,6 +2885,32 @@ const Room = () => {
     dmTargetRef.current = dmTarget;
   }, [dmTarget]);
 
+  // Tell the backend which chat this room session is actively looking at, so
+  // notifyChatMessage's push-suppression (see server.js's activeChatByUser)
+  // also covers a room's own chat panel — not just GlobalChatWidget's
+  // floating widget, which is the only thing that emitted this before.
+  // Without it, a real push notification could still fire for a chat this
+  // room session already has open on screen. Group tab -> chatId is roomId
+  // (matches the group push site's chatId convention); DM tab -> chatId is
+  // the other person's username.
+  useEffect(() => {
+    if (!socket) return;
+    const isViewingGroup = (isMobile || rightPanelTab === 'chat') && chatTab === 'group';
+    const isViewingDm = (isMobile || rightPanelTab === 'chat') && chatTab === 'dm' && !!dmTarget;
+    const chatId = isViewingGroup ? roomId : (isViewingDm ? dmTarget : null);
+    // Nothing to mark active — no emit needed here: if a PREVIOUS run of this
+    // effect had a real chatId, its own cleanup below (still holding that
+    // value in closure) already ran and deactivated it before this run.
+    // Emitting a bare, chatId-less 'chat_inactive' here would instead wipe
+    // this user's ENTIRE active-chat set on the backend (including whatever
+    // GlobalChatWidget's own, separately-socketed instance may have marked
+    // active), which is exactly the cross-surface clobbering this Set-based
+    // tracking exists to avoid.
+    if (!chatId) return;
+    socket.emit('chat_active', { chatId });
+    return () => socket.emit('chat_inactive', { chatId });
+  }, [socket, isMobile, rightPanelTab, chatTab, dmTarget, roomId]);
+
   const handleTypingStatus = (data, isStarting) => {
     const { partner, username, type, roomId: payloadRoomId, isTyping } = data;
     const isActuallyStarting = isStarting && isTyping !== false;
@@ -4574,7 +4615,16 @@ const Room = () => {
           
           if (!isViewingInGCW) {
              const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
-             const previewText = mediaPreview || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : truncateToFewWords(fixed.decryptedText || msg.message));
+             // BUG FIX: this used to check looksLikeCiphertext(msg.message) — the
+             // RAW, still-encrypted wire payload, which is base64-ish and so
+             // ALWAYS "looks like ciphertext" regardless of whether decryption
+             // actually succeeded. That made this show "Encrypted message" for
+             // every single group message, even ones fixed.decryptedText had
+             // already decrypted correctly a few lines above. Check the
+             // DECRYPTED text instead, matching GlobalChatWidget's own toast logic.
+             const previewText = mediaPreview
+               || (fixed.isPoll || isPollJSON(fixed.decryptedText) ? '📊 Poll'
+                 : ((fixed.decryptedText && !looksLikeCiphertext(fixed.decryptedText)) ? truncateToFewWords(fixed.decryptedText) : 'Encrypted message'));
              // ─── Mute Check: skip toast if this room chat is muted ───
              let isChatMuted = false;
              try {
@@ -5233,7 +5283,11 @@ const Room = () => {
 
             if (!isViewingInGCW) {
               const mediaPreview = (msg.mediaUrl || msg.mediaType) ? (msg.mediaType?.startsWith('video') ? 'Video' : 'Photo') : null;
-              const previewText = mediaPreview || (msg.message && looksLikeCiphertext(msg.message) ? 'Encrypted message' : truncateToFewWords(newMsg.decryptedText || msg.message));
+              // Same fix as the group toast above: check the DECRYPTED text,
+              // not the raw ciphertext (which always "looks like ciphertext").
+              const previewText = mediaPreview
+                || (newMsg.isPoll || isPollJSON(newMsg.decryptedText) ? '📊 Poll'
+                  : ((newMsg.decryptedText && !looksLikeCiphertext(newMsg.decryptedText)) ? truncateToFewWords(newMsg.decryptedText) : 'Encrypted message'));
               // ─── Mute Check: skip toast if this DM partner is muted ───
               let isDmMuted = false;
               try {
@@ -14090,6 +14144,11 @@ const Room = () => {
                 onNewMessage={handleNewMessage}
                 activeRoomTab={(isMobile || rightPanelTab === 'chat') ? chatTab : null}
                 activeRoomPartner={(isMobile || rightPanelTab === 'chat') ? (chatTab === 'dm' ? dmTarget : roomId) : null}
+                // Always set (not gated on tab focus) — this room's own chat
+                // panel exclusively owns the toast for its own group chat, no
+                // matter which tab is on screen. See GlobalChatWidget's own
+                // hostRoomId comment for why this needs to be unconditional.
+                hostRoomId={roomId}
                 transparentMode={isFullscreen || (isTouchPlayer && isMobileFsMode)}
                 roomPermissions={room?.permissions}
                 isRoomHost={isEffectiveHost}
