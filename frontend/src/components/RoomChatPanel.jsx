@@ -1095,7 +1095,13 @@ function Avatar({ name, size=36, isHost=false, isAdmin=false, isMuted=false, src
   }
 
   return (
-    <div style={{ position:'relative', display:'inline-flex', flexShrink:0, ...style }}>
+    // userSelect:none — this sits as a plain SIBLING of the message bubble
+    // in the row (not a descendant), so it never inherited the .msg-sent/
+    // .msg-received CSS rule that disables text selection there. Without
+    // it, a long-press landing on the avatar's initials (e.g. no profile
+    // photo set) fell through to the browser's native text-selection
+    // instead of registering as a long-press on the message row.
+    <div style={{ position:'relative', display:'inline-flex', flexShrink:0, userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', ...style }}>
       <div className="stay-white" style={{ width:size, height:size, borderRadius:'50%', background:bg,
         display:'flex', alignItems:'center', justifyContent:'center',
         fontSize:size*0.35, fontWeight:700, color:'#fff', flexShrink:0,
@@ -2734,7 +2740,30 @@ export default function RoomChatPanel({ p }) {
           longer has any explicit height larger than its own container (see
           that comment), which makes the leak structurally impossible rather
           than relying on the compositor to always clip correctly. */}
-      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      <div id="room-chat-panel" style={{
+        flex:1,display:'flex',flexDirection:'column',
+        // Mobile/tablet: paint the wallpaper directly as THIS element's own
+        // background instead of via the separate, specially-sized backdrop
+        // child used below (which stays desktop-only now) — this is exactly
+        // how the default theme's plain background already works on this
+        // same element, so wallpaper mode is now structurally identical to
+        // it instead of a different layering approach. A plain background
+        // naturally paints behind every child for free (no z-index needed,
+        // unlike a sibling element), and there's no separate height to
+        // size/track/get-stale here at all, which is what kept going wrong
+        // through a fast/larger-than-usual resize (like switching the phone
+        // keyboard to its emoji panel) on this panel specifically — it
+        // shares the screen with the video/game player, unlike
+        // GlobalChatWidget's own wallpaper, which is why that one never hit
+        // this. Trade-off, same one already accepted for the games/typing
+        // fix: the image's cover-crop recomputes as the keyboard resizes
+        // this panel, same as the plain default-theme background already
+        // visually "moves" with it — not a regression, just no longer a
+        // special case.
+        background: (isMobileOrTablet && activeTabWallpaper)
+          ? `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${activeTabWallpaper.image}") center/cover no-repeat`
+          : 'var(--room-sidebar-bg)',
+        borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{
@@ -3077,26 +3106,18 @@ export default function RoomChatPanel({ p }) {
            equivalent backdrop never hit this because that panel already has
            an explicit zIndex (10000) for unrelated reasons. */
         <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
-          {/* Shared wallpaper backdrop — one continuous image behind the
-              header, message list AND composer, same "single layer, both
-              scrollable content and composer go transparent" pattern
-              GlobalChatWidget.jsx uses for its DM chat — and now the SAME
-              sizing approach too (useStableViewportHeight), after a detour:
-              a plain inset:0 (matching this wrapper's live, keyboard-
-              shrinking box exactly, no possibility of being larger than it)
-              was tried to rule out the wallpaper as the source of a leak
-              report — the actual cause turned out to be a contain:paint +
-              compositing-layer promotion added to #room-chat-panel at the
-              same time (see that div's own comment), not this backdrop's
-              sizing. With that reverted, this goes back to matching
-              GlobalChatWidget's own backdrop exactly: an explicit height
-              from useStableViewportHeight (window.innerHeight, clamped to
-              the largest value ever seen, known synchronously on first
-              paint) instead of tracking this wrapper's live height, so the
-              background-size:cover crop has nothing to recompute as the
-              wrapper shrinks for the keyboard — which is what was reading
-              as the wallpaper visibly sliding under the chat's own header. */}
-          {groupWallpaper && (
+          {/* Shared wallpaper backdrop — DESKTOP ONLY now. Mobile/tablet
+              paints the wallpaper directly as #room-chat-panel's own
+              background instead (see that div's own comment) — matching
+              the default theme's structure exactly there turned out to be
+              the actual fix for a persistent report (message box jumping
+              and the header staying hidden after using the phone
+              keyboard's emoji panel) that surviving two earlier attempts
+              at just resizing THIS backdrop correctly. Desktop keeps this
+              separate, specially-sized layer since it isn't reported
+              broken there, and it avoids a real (if minor) trade-off: the
+              image's cover-crop recomputing as the container resizes. */}
+          {groupWallpaper && !isMobileOrTablet && (
             <div className="room-chat-wallpaper-backdrop" style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
               // minHeight:'100%' alongside the explicit height below — height
@@ -3109,24 +3130,7 @@ export default function RoomChatPanel({ p }) {
               // guarantees full coverage without touching the anti-shrink
               // behavior the explicit height exists for.
               minHeight: '100%',
-              // Mobile only: track the live container height instead of the
-              // ratcheted stableViewportHeight. On this panel specifically
-              // (unlike GlobalChatWidget's own wallpaper, which never shares
-              // the screen with anything else) the container's real height
-              // is ALSO squeezed by the video/game player's own fixed-pixel
-              // height (--peek-player-height) competing for space in the
-              // same flex row as the on-screen keyboard shrinks the page —
-              // a reported bug (switching the phone keyboard to its emoji
-              // panel specifically, which is taller than the normal text
-              // keyboard) had this backdrop sized to the largest height ever
-              // seen rather than what's actually available, then staying
-              // stuck oversized even after the keyboard closed. Tracking the
-              // live height removes that risk entirely, at the cost of
-              // bringing back a minor, purely cosmetic side effect this hook
-              // exists to avoid on desktop: the image's cover-crop
-              // recomputing as the container resizes. Kept for desktop
-              // (isMobileOrTablet false) since it isn't reported there.
-              ...(!isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
+              ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             }} />
@@ -3377,7 +3381,14 @@ export default function RoomChatPanel({ p }) {
                     // outer text color and the name span from the global
                     // light-mode "force white-ish text to black" rule (see
                     // App.jsx) that would otherwise undo this.
-                    <div className="stay-white" onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                    // userSelect:none — despite the comment above, this actually
+                    // renders as a SIBLING of the .msg-sent/.msg-received bubble
+                    // in the DOM (before it, not inside it), so it never
+                    // inherited that class's own user-select:none. A long-press
+                    // landing on this quoted-reply preview fell through to
+                    // native text selection instead of the message's long-press
+                    // menu.
+                    <div className="stay-white" onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
                       <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
                         const n = msg.replyTo.username || msg.replyTo.senderName; 
                         const partner = (n||'').toLowerCase();
@@ -3456,8 +3467,18 @@ export default function RoomChatPanel({ p }) {
                             chosen deliberately for contrast against a dark image.
                             Scoped to only the dark-wallpaper case (not applied
                             unconditionally like msg-sent) so the default/no-theme
-                            received bubble is untouched. */}
-                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? 'msg-sent stay-white' : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                            received bubble is untouched.
+                            msg-sent is NOT unconditional any more either: a light-
+                            toned wallpaper (e.g. Zen Interior) makes
+                            groupWallpaperTextColor compute BLACK for readability
+                            against its own light bubble background below, but
+                            stay-white's `color:#fff !important` was overriding
+                            that regardless — unreadable white-on-white on any
+                            wallpaper whose extracted/fallback color comes out
+                            light. Only force white here when there's no
+                            wallpaper (the default gradient background always
+                            wants white) or the wallpaper is dark-toned. */}
+                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!groupWallpaper || groupWallpaperIsDark) ? ' stay-white' : ''}` : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                           position: 'relative',
                           zIndex: 2,
                           // A poll or captioned image's caption row uses the wallpaper's own
@@ -4053,16 +4074,17 @@ export default function RoomChatPanel({ p }) {
            zIndex:0 load-bearing — see the identical comment on the group
            chat wrapper above; same fix, same reason. */
         <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
-            {/* Shared wallpaper backdrop — see the identical comment on the
-                group chat thread above; same fix, same reason. */}
-            {dmWallpaper && (
+            {/* Shared wallpaper backdrop — DESKTOP ONLY, see the identical
+                comment on the group chat thread above; same fix, same
+                reason. Mobile/tablet paints via #room-chat-panel's own
+                background instead. */}
+            {dmWallpaper && !isMobileOrTablet && (
               <div className="room-chat-wallpaper-backdrop" style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
                 // See the identical comment on the group chat backdrop above —
-                // same gap-covering fix, same reason, same mobile/tablet
-                // live-height tracking instead of the ratcheted max.
+                // same gap-covering fix, same reason.
                 minHeight: '100%',
-                ...(!isMobileOrTablet && stableViewportHeight ? { height: stableViewportHeight } : {}),
+                ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               }} />
@@ -4420,8 +4442,9 @@ export default function RoomChatPanel({ p }) {
                         {msg.replyTo && (
                           // Grey pill + white text, unconditionally — see the
                           // identical comment on the group thread's quoted-
-                          // reply block above; same fix, same reason.
-                          <div className="stay-white" onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                          // reply block above; same fix, same reason, same
+                          // userSelect:none (also a sibling of the bubble here).
+                          <div className="stay-white" onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
                             <span style={{color:'#fff',fontWeight:600}} className="reply-sender stay-white">
                               {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                             </span> {(() => {
@@ -4459,9 +4482,10 @@ export default function RoomChatPanel({ p }) {
                               }}>
                                 <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                               </div>
-                              {/* stay-white on the received bubble too — see the
-                                  identical comment on the group thread's bubble. */}
-                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? 'msg-sent stay-white' : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                              {/* stay-white on the received bubble too, and msg-sent's
+                                  own conditional stay-white — see the identical
+                                  comment on the group thread's bubble. */}
+                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!dmWallpaper || dmWallpaperIsDark) ? ' stay-white' : ''}` : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.

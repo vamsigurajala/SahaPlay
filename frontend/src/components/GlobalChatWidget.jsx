@@ -7882,7 +7882,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   const displayName = eitherBlocked ? 'User' : chat.displayName;
                   return (
                     <>
-                      <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                      {/* Outer wrapper carries no overflow:hidden of its own —
+                          only the inner circle does, to clip the avatar image
+                          itself. The online-dot badge below is a sibling of
+                          that inner circle (not a child of it), so it renders
+                          fully outside the avatar's own clip region instead of
+                          being cut off by it. */}
+                      <div style={{ width: 40, height: 40, minWidth: 40, position: 'relative' }}>
+                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {chat.type === 'room' ? (
                           <div style={{ width: '100%', height: '100%', background: displayAvatar ? 'none' : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
@@ -7900,9 +7907,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             </div>
                           )
                         )}
+                      </div>
                         {chat.type !== 'room' && !eitherBlocked && onlineUsers.has((chat.partner || '').toLowerCase()) && (
                           <span style={{
-                            position: 'absolute', bottom: 0, right: 0,
+                            position: 'absolute', bottom: -1, right: -1,
                             width: 11, height: 11, borderRadius: '50%',
                             background: '#22c55e', border: `2px solid ${isLight ? '#ffffff' : '#16161e'}`,
                             boxSizing: 'content-box',
@@ -8431,7 +8439,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         // reply block; same fix, same reason. stay-white
                         // exempts this from the global light-mode "force
                         // white-ish text to black" rule (see App.jsx).
-                        <div className="stay-white" onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer'}}>
+                        // userSelect:none — this renders as a SIBLING of the
+                        // .msg-sent/.msg-received bubble (before it in the
+                        // DOM), so it never inherited that class's own
+                        // user-select:none — a long-press landing here fell
+                        // through to native text selection instead of the
+                        // message's long-press menu.
+                        <div className="stay-white" onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
                           <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
                             const rName = msg.replyTo.username || msg.replyTo.senderName;
                             if (rName === myUsername) return 'You';
@@ -8476,7 +8490,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                  }
                                }}
                                title={isBlocked ? 'Blocked User' : `View ${sNameOriginal}'s profile`}
-                               style={{ flexShrink:0, cursor:isBlocked?'default':'pointer', width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:getAvatarColor(sNameOriginal), marginTop:2 }}
+                               // userSelect:none — a plain sibling of the message
+                               // bubble (not a descendant), so a long-press on the
+                               // initials fallback (no avatar photo) fell through
+                               // to native text selection instead of the
+                               // message's long-press menu.
+                               style={{ flexShrink:0, cursor:isBlocked?'default':'pointer', width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:getAvatarColor(sNameOriginal), marginTop:2, userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}
                              >
                                {aSrc ? (<img src={aSrc} alt={sName} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none'; if(e.target.nextSibling) e.target.nextSibling.style.display='flex';}}/>) : null}
                                <span className="stay-white" style={{display:aSrc?'none':'flex',color:'#fff',fontSize:11,fontWeight:700}}>{getInitials(sName)}</span>
