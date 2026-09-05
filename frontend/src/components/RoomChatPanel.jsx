@@ -2754,30 +2754,23 @@ export default function RoomChatPanel({ p }) {
           longer has any explicit height larger than its own container (see
           that comment), which makes the leak structurally impossible rather
           than relying on the compositor to always clip correctly. */}
-      <div id="room-chat-panel" style={{
-        flex:1,display:'flex',flexDirection:'column',
-        // Mobile/tablet: paint the wallpaper directly as THIS element's own
-        // background instead of via the separate, specially-sized backdrop
-        // child used below (which stays desktop-only now) — this is exactly
-        // how the default theme's plain background already works on this
-        // same element, so wallpaper mode is now structurally identical to
-        // it instead of a different layering approach. A plain background
-        // naturally paints behind every child for free (no z-index needed,
-        // unlike a sibling element), and there's no separate height to
-        // size/track/get-stale here at all, which is what kept going wrong
-        // through a fast/larger-than-usual resize (like switching the phone
-        // keyboard to its emoji panel) on this panel specifically — it
-        // shares the screen with the video/game player, unlike
-        // GlobalChatWidget's own wallpaper, which is why that one never hit
-        // this. Trade-off, same one already accepted for the games/typing
-        // fix: the image's cover-crop recomputes as the keyboard resizes
-        // this panel, same as the plain default-theme background already
-        // visually "moves" with it — not a regression, just no longer a
-        // special case.
-        background: (isMobileOrTablet && activeTabWallpaper)
-          ? `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${activeTabWallpaper.image}") center/cover no-repeat`
-          : 'var(--room-sidebar-bg)',
-        borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      {/* Tried painting the wallpaper directly as THIS element's own
+          background on mobile at one point (matching the default theme's
+          plain-background structure exactly) instead of the separate
+          backdrop child below — reverted. #room-chat-panel's own box
+          resizes on every composer-height change (a reply preview being
+          added, the on-screen keyboard opening/switching to its emoji
+          panel), and repainting a large cover-sized background image on
+          every one of those reflows is expensive enough on constrained
+          mobile WebViews to itself be a source of the same "header
+          disappears / composer jumps" glitch this was meant to fix — a
+          DIFFERENT mechanism than the one actually chased down and fixed
+          (see useStableViewportHeight's own comment for that). The
+          separate, fixed-size backdrop below avoids repainting entirely on
+          those reflows: only its overflow:hidden CLIP boundary changes,
+          which is cheap, while the underlying image layer never needs to
+          move or resize. */}
+      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{
@@ -3120,18 +3113,17 @@ export default function RoomChatPanel({ p }) {
            equivalent backdrop never hit this because that panel already has
            an explicit zIndex (10000) for unrelated reasons. */
         <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
-          {/* Shared wallpaper backdrop — DESKTOP ONLY now. Mobile/tablet
-              paints the wallpaper directly as #room-chat-panel's own
-              background instead (see that div's own comment) — matching
-              the default theme's structure exactly there turned out to be
-              the actual fix for a persistent report (message box jumping
-              and the header staying hidden after using the phone
-              keyboard's emoji panel) that surviving two earlier attempts
-              at just resizing THIS backdrop correctly. Desktop keeps this
-              separate, specially-sized layer since it isn't reported
-              broken there, and it avoids a real (if minor) trade-off: the
-              image's cover-crop recomputing as the container resizes. */}
-          {groupWallpaper && !isMobileOrTablet && (
+          {/* Shared wallpaper backdrop — mobile AND desktop again. Was
+              briefly mobile-disabled (painting the wallpaper as
+              #room-chat-panel's own background instead, matching the
+              default theme's structure) on the theory that this backdrop's
+              SIZING was the bug; that didn't hold up on retest, and the
+              direct-background alternative traded it for a worse problem
+              (see #room-chat-panel's own comment) — repainting a full
+              background image on every composer-height reflow. Restored,
+              with the actual fix now in useStableViewportHeight itself:
+              see that hook's comment for what was really wrong. */}
+          {groupWallpaper && (
             <div className="room-chat-wallpaper-backdrop" style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
               // minHeight:'100%' alongside the explicit height below — height
@@ -4088,11 +4080,9 @@ export default function RoomChatPanel({ p }) {
            zIndex:0 load-bearing — see the identical comment on the group
            chat wrapper above; same fix, same reason. */
         <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
-            {/* Shared wallpaper backdrop — DESKTOP ONLY, see the identical
-                comment on the group chat thread above; same fix, same
-                reason. Mobile/tablet paints via #room-chat-panel's own
-                background instead. */}
-            {dmWallpaper && !isMobileOrTablet && (
+            {/* Shared wallpaper backdrop — mobile and desktop, see the
+                identical comment on the group chat thread above. */}
+            {dmWallpaper && (
               <div className="room-chat-wallpaper-backdrop" style={{
                 position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1, pointerEvents: 'none',
                 // See the identical comment on the group chat backdrop above —
