@@ -370,6 +370,29 @@ function App() {
     };
   }, []);
 
+  // Belt-and-suspenders on top of `user-select: none` (e.g. the chat
+  // message bubbles, and the quoted-reply preview shown on a message that
+  // is itself a reply) — the CSS property alone is enough on most engines,
+  // but some Android WebView versions can still let a long-press start a
+  // native text selection despite it, since their selection handling
+  // doesn't purely defer to user-select in every case. The 'selectstart'
+  // event fires right as a selection is about to begin, independent of
+  // user-select support, and preventing it there is a well-established
+  // second line of defense for exactly this — reported as the quoted-reply
+  // preview still being selectable on long-press on some phones even after
+  // user-select:none was already in place. Delegated on document (checking
+  // computed style at the actual target) rather than one listener per
+  // element, so it automatically covers every current and future
+  // user-select:none element in the app with no per-component wiring.
+  useEffect(() => {
+    const onSelectStart = (e) => {
+      const el = e.target?.closest?.('[style*="user-select"], .msg-sent, .msg-received');
+      if (el && getComputedStyle(el).userSelect === 'none') e.preventDefault();
+    };
+    document.addEventListener('selectstart', onSelectStart);
+    return () => document.removeEventListener('selectstart', onSelectStart);
+  }, []);
+
   useEffect(() => {
     const fetchAndApplySettings = () => {
       const token = localStorage.getItem('watch_token');
