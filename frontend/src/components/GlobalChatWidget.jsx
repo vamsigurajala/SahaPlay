@@ -9147,7 +9147,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           style={{
                             flex: 1,
                             resize: 'none',
-                            maxHeight: 120,
+                            // Mirrors useAutoResizeTextarea's own default cap — this
+                            // CSS max-height is just a defensive ceiling (the hook
+                            // sets style.height directly, already capped), kept in
+                            // sync so it's never a higher, inactive number here.
+                            maxHeight: 68,
                             overflowY: 'auto',
                             lineHeight: 1.4,
                             fontFamily: 'inherit',

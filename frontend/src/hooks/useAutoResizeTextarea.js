@@ -4,6 +4,13 @@ import { useEffect, useRef } from 'react';
  * Grows a <textarea> to fit its content (up to maxHeight, then scrolls),
  * and shrinks it back down when the value is cleared/edited externally.
  *
+ * Default maxHeight caps growth at ~2 lines (measured against this app's
+ * actual composer padding/line-height/border-box, not a round guess) rather
+ * than the previous 120px (~5-6 lines) — growing across that many lines
+ * read as the box "just kept increasing" rather than a small, expected
+ * bump, even though it was always capped and scrollable past that point.
+ *
+
  * Deferred to a rAF (and cancels any pending one from the previous
  * keystroke) rather than measuring synchronously inside the effect: reading
  * `scrollHeight` right after writing `height:'auto'` forces the browser to
@@ -18,7 +25,7 @@ import { useEffect, useRef } from 'react';
  * first, and coalesces a fast burst of keystrokes into a single layout pass
  * instead of one per character.
  */
-export function useAutoResizeTextarea(ref, value, maxHeight = 120) {
+export function useAutoResizeTextarea(ref, value, maxHeight = 68) {
   const rafRef = useRef(null);
   useEffect(() => {
     const el = ref?.current;

@@ -3870,7 +3870,9 @@ export default function RoomChatPanel({ p }) {
                         style={{
                           flex:1,
                           resize:'none',
-                          maxHeight:120,
+                          // Mirrors useAutoResizeTextarea's own default cap — see
+                          // GlobalChatWidget.jsx's identical composer for why.
+                          maxHeight:68,
                           overflowY:'auto',
                           lineHeight:1.4,
                           fontFamily:'inherit',
@@ -4888,7 +4890,9 @@ export default function RoomChatPanel({ p }) {
                             style={{
                               flex:1,
                               resize:'none',
-                              maxHeight:120,
+                              // Mirrors useAutoResizeTextarea's own default cap — see
+                              // GlobalChatWidget.jsx's identical composer for why.
+                              maxHeight:68,
                               overflowY:'auto',
                               lineHeight:1.4,
                               fontFamily:'inherit',
