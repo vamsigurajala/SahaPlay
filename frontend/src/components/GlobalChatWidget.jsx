@@ -1208,7 +1208,15 @@ function isPollJSON(text) {
 // WhatsApp-style call-summary bubble — renders in place of plain text
 // whenever a decrypted DM message starts with CALL_LOG_PREFIX (see
 // CallContext.writeCallLog). Tap to redial, mirroring WhatsApp.
-function CallLogBubble({ data, isMe, myUsername, onRedial }) {
+// wallpaperTextColor: pass the SAME color already computed for the rest of
+// this bubble's text when a wallpaper theme is active ('#ffffff' or
+// '#111111' depending on the wallpaper's own darkness), null/undefined
+// otherwise. Without it, the icon circle always used a faint WHITE tint
+// with a WHITE icon for a sent call — invisible on a light-toned wallpaper
+// (e.g. Zen Interior) where the bubble itself renders light/white, since
+// that's white-icon-on-white-circle-on-white-bubble. Default (no wallpaper)
+// behavior is untouched.
+function CallLogBubble({ data, isMe, myUsername, onRedial, wallpaperTextColor }) {
   const { callType, status, durationSeconds, initiatedBy } = data || {};
   const isVideo = callType === 'video';
   const Icon = isVideo ? Video : Phone;
@@ -1228,10 +1236,16 @@ function CallLogBubble({ data, isMe, myUsername, onRedial }) {
   } else if (status === 'busy') {
     sub = 'Unavailable';
   }
+  const onWallpaper = !!wallpaperTextColor;
+  const wallpaperNeedsDarkIcon = wallpaperTextColor === '#111111';
+  const circleBg = missedForMe
+    ? 'rgba(239,68,68,0.18)'
+    : (onWallpaper ? (wallpaperNeedsDarkIcon ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.14)') : 'rgba(255,255,255,0.14)');
+  const iconColor = missedForMe ? '#ef4444' : (onWallpaper ? wallpaperTextColor : (isMe ? '#fff' : 'var(--brand-1-light)'));
   return (
     <div onClick={onRedial} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: onRedial ? 'pointer' : 'default', minWidth: 130 }}>
-      <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: missedForMe ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.14)' }}>
-        {missedForMe ? <PhoneMissed size={15} color="#ef4444" /> : <Icon size={15} color={isMe ? '#fff' : 'var(--brand-1-light)'} />}
+      <div style={{ width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: circleBg }}>
+        {missedForMe ? <PhoneMissed size={15} color="#ef4444" /> : <Icon size={15} color={iconColor} />}
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>{isVideo ? 'Video call' : 'Voice call'}</div>
@@ -8668,6 +8682,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                         data={callData}
                                         isMe={isMe}
                                         myUsername={myUsername}
+                                        wallpaperTextColor={activeWallpaper ? wallpaperTextColor : null}
                                         onRedial={activeChat?.type === 'private' && !call.callState ? () => { if (!canMakeCalls) { setShowCallInstallPrompt(true); return; } call.startCall(activeChat.partner, callData.callType, activeChat.displayName, activeChat.partnerAvatar); } : undefined}
                                       />
                                     );
