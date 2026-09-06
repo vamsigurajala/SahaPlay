@@ -141,7 +141,7 @@ function getFileIconBg(mimeType) {
   return 'var(--brand-1)';
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
@@ -181,7 +181,12 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   const cardBorder = wallpaperBg ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
   const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
   const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
-  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? 'rgba(255,255,255,0.8)' : 'var(--brand-1-light)');
+  // Zen Interior sent card: the download icon is an SVG `color` prop, not a
+  // CSS `color` style, so the .fc-name/.fc-sub class-based override (which
+  // uses !important to win the wallpaper-forces-white cascade war) can't
+  // reach it — it needs its own explicit dark value here instead of the
+  // white this branch normally picks for a dark-app-mode sent bubble.
+  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? (wallpaperForceBlack ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)') : 'var(--brand-1-light)');
   const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
   const iconColor = isLight ? iconBg : '#fff';
 
@@ -222,7 +227,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 
 const _vnReg_gcw = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -365,14 +370,20 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = 'var(--brand-2)';
+  // Waveform bars (a `background` fill) and the download icon (an SVG
+  // `color` prop) aren't reachable by the .rcp-vn-time-style class override
+  // — that only wins the cascade war for actual CSS `color` on classed text
+  // nodes — so Zen Interior's forced-black sent bubble needs these two
+  // computed explicitly instead of the white a dark-app-mode sent bubble
+  // normally gets.
   const unplayedColor = isMe
-    ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
+    ? ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
     : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
   const timeColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
   const dlColor = isMe
-    ? (isLight ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
+    ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)');
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
 
@@ -596,7 +607,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false, flush = false, wallpaperBg = null) => {
+const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, onOpenLightbox, isLight, msg, username, hideTick = false, flush = false, wallpaperBg = null, wallpaperForceBlack = false) => {
   if (!url && !type) return null;
   const isImg = type?.startsWith('image/');
   const isVid = type?.startsWith('video/');
@@ -612,9 +623,9 @@ const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, loading, on
   // surface in light mode only — dark mode keeps the original white tick unchanged.
   const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={username} isLight={isLight} onLightSurface={isLight} /> : null;
 
-  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
+  if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={isLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
 
-  if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
+  if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={isLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
 
   if (!url) {
     // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders a
@@ -1100,6 +1111,40 @@ const typingCss = `
   html[data-theme='light'] .msg-bubble.on-wallpaper.on-wallpaper .rcp-vn-expiry * {
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
+  }
+  /* Zen Interior override, sent side only: the blanket white-on-wallpaper
+     rules above assume every wallpaper needs white text for contrast, which
+     is wrong for a sent bubble on a light wallpaper like this one (it gets
+     its own light/white fill, not a dark glass overlay). wp-sent-black is
+     only added to isMe bubbles on this specific wallpaper (see className
+     below). Two variants, each with one more class than the rule it needs
+     to beat, so this wins regardless of app light/dark mode or source order
+     — same reasoning as the two blocks above. */
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-name,
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-name *,
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-sub,
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-sub *,
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-expiry,
+  .msg-bubble.on-wallpaper.wp-sent-black .fc-expiry *,
+  .msg-bubble.on-wallpaper.wp-sent-black .rcp-vn-time,
+  .msg-bubble.on-wallpaper.wp-sent-black .rcp-vn-time *,
+  .msg-bubble.on-wallpaper.wp-sent-black .rcp-vn-expiry,
+  .msg-bubble.on-wallpaper.wp-sent-black .rcp-vn-expiry * {
+    color: #111111 !important;
+    -webkit-text-fill-color: #111111 !important;
+  }
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-name,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-name *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-sub,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-sub *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-expiry,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .fc-expiry *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-time,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-time *,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-expiry,
+  html[data-theme='light'] .msg-bubble.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-expiry * {
+    color: #111111 !important;
+    -webkit-text-fill-color: #111111 !important;
   }
 
   /* ── Fullscreen Force-Dark: override every light-mode selector ── */
@@ -6376,7 +6421,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // attempt to match the image's color, WhatsApp doesn't do that either) but
   // picking dark-panel-vs-light-panel off the same signal keeps both bubbles
   // reading as one coherent "dark theme" or "light theme" pick per wallpaper.
-  const wallpaperIsDark = isRgbColorDark(wallpaperColor);
+  // Zen Interior's dominant-color sample sits right on the light/dark
+  // threshold and was occasionally coming out "dark", forcing white sent-
+  // message text onto this wallpaper's own light bubble fill — unreadable
+  // white-on-white. Forced to the light branch for this one wallpaper
+  // specifically: always black sent-message text on it, in both app
+  // light and dark mode, not a flaky per-image heuristic.
+  const activeWallpaperIsZen = activeWallpaper?.id === 'wp-zen-interior';
+  const wallpaperIsDark = activeWallpaperIsZen ? false : isRgbColorDark(wallpaperColor);
   const wallpaperTextColor = wallpaperIsDark ? '#ffffff' : '#111111';
   // Opaque enough to never look "transparent" over a busy/bright patch of the
   // photo, plus backdrop-blur (applied at the bubble itself, see below) so
@@ -8373,7 +8425,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       !isMediaOnly, // flush — caption row underneath handles its own rounding
                       // Opaque wallpaper color, same for sent and received — see the
                       // identical (msg.isPoll || msg.mediaType) background calc above.
-                      activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : null
+                      activeWallpaper ? (wallpaperColor || 'rgba(255,255,255,0.25)') : null,
+                      activeWallpaperIsZen
                     );
                   })();
                   const prevMsg = i > 0 ? messages[i - 1] : null;
@@ -8462,8 +8515,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         // user-select:none — a long-press landing here fell
                         // through to native text selection instead of the
                         // message's long-press menu.
-                        <div className="stay-white" onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
-                          <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
+                        <div className={(isMe && activeWallpaperIsZen) ? '' : 'stay-white'} onClick={() => { const el = document.getElementById(`gcw-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:(isMe && activeWallpaperIsZen) ? '#111111' : '#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
+                          <span className={(isMe && activeWallpaperIsZen) ? '' : 'stay-white'} style={{color:(isMe && activeWallpaperIsZen) ? '#111111' : '#fff',fontWeight:600}}>{(() => {
                             const rName = msg.replyTo.username || msg.replyTo.senderName;
                             if (rName === myUsername) return 'You';
                             const partner = (rName || '').toLowerCase();
@@ -8554,7 +8607,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             </div>
                             <div
                               className={`msg-bubble${activeWallpaper ? ' on-wallpaper' : ''} ${isMe
-                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
+                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}${activeWallpaperIsZen ? ' wp-sent-black' : ''}`
                                 : (activeWallpaper ? `msg-received${wallpaperIsDark ? ' stay-white' : ''}` : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}

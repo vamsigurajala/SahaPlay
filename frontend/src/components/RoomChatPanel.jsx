@@ -417,7 +417,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
@@ -458,7 +458,12 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   const cardBorder = wallpaperBg ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
   const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
   const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
-  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? 'rgba(255,255,255,0.8)' : 'var(--brand-1-light)');
+  // Zen Interior sent card: the download icon is an SVG `color` prop, not a
+  // CSS `color` style — the .fc-name/.fc-sub class-based override above
+  // (which uses !important to win the wallpaper-forces-white cascade war)
+  // can't reach it, so it needs its own explicit dark value here instead of
+  // the white this branch normally picks for a dark-app-mode sent bubble.
+  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? (wallpaperForceBlack ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)') : 'var(--brand-1-light)');
   const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
   const iconColor = isLight ? iconBg : '#fff';
 
@@ -500,7 +505,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 // One voice note plays at a time across the room chat panel
 const _vnReg_rcp = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -648,14 +653,20 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = 'var(--brand-2)';
+  // Waveform bars (a `background` fill) and the download icon (an SVG
+  // `color` prop) aren't reachable by the .rcp-vn-time-style class override
+  // — that only wins the cascade war for actual CSS `color` on classed text
+  // nodes — so Zen Interior's forced-black sent bubble needs these two
+  // computed explicitly instead of the white a dark-app-mode sent bubble
+  // normally gets.
   const unplayedColor = isMe
-    ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
+    ? ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
     : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
   const timeColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
   const dlColor = isMe
-    ? (isLight ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
+    ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)');
   // Before play: show total duration. While playing or paused mid-track: show elapsed.
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
@@ -780,6 +791,29 @@ const MenuStyles = () => (
     .on-wallpaper.on-wallpaper .rcp-vn-expiry, .on-wallpaper.on-wallpaper .rcp-vn-expiry * {
       color: #ffffff !important;
       -webkit-text-fill-color: #ffffff !important;
+    }
+    /* Zen Interior override, sent side only: the blanket white-on-wallpaper
+       rule above assumes every wallpaper needs white text for contrast, which
+       is wrong for a sent bubble on a light wallpaper like this one (it gets
+       its own light/white fill, not a dark glass overlay). wp-sent-black is
+       only added to isMe bubbles on this specific wallpaper (see className
+       below). The rule above wins on class-count alone (4 vs 3) in dark/no-
+       theme mode, but its light-mode variant adds html[data-theme='light']
+       (an extra specificity point) that a plain 4-class selector doesn't
+       clear — so the light-mode half here repeats wp-sent-black to match
+       specificity there too, same trick as that rule's own comment. */
+    .msg-sent.on-wallpaper.wp-sent-black .fc-name, .msg-sent.on-wallpaper.wp-sent-black .fc-name *,
+    .msg-sent.on-wallpaper.wp-sent-black .fc-sub, .msg-sent.on-wallpaper.wp-sent-black .fc-sub *,
+    .msg-sent.on-wallpaper.wp-sent-black .fc-expiry, .msg-sent.on-wallpaper.wp-sent-black .fc-expiry *,
+    .msg-sent.on-wallpaper.wp-sent-black .rcp-vn-time, .msg-sent.on-wallpaper.wp-sent-black .rcp-vn-time *,
+    .msg-sent.on-wallpaper.wp-sent-black .rcp-vn-expiry, .msg-sent.on-wallpaper.wp-sent-black .rcp-vn-expiry *,
+    html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-name, html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-name *,
+    html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-sub, html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-sub *,
+    html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-expiry, html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .fc-expiry *,
+    html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-time, html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-time *,
+    html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-expiry, html[data-theme='light'] .msg-sent.on-wallpaper.wp-sent-black.wp-sent-black .rcp-vn-expiry * {
+      color: #111111 !important;
+      -webkit-text-fill-color: #111111 !important;
     }
     .menu-dropdown {
       animation: menuFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -1463,11 +1497,20 @@ export default function RoomChatPanel({ p }) {
     return () => { cancelled = true; };
   }, [dmWallpaper]);
 
-  const groupWallpaperIsDark = isRgbColorDark(groupWallpaperColor);
+  // Zen Interior's dominant-color sample (a mix of dark wood tones and a
+  // bright window) sits right on the light/dark threshold — it was
+  // occasionally coming out "dark", forcing white sent-message text onto
+  // this wallpaper's own light bubble fill (unreadable white-on-white).
+  // Forcing it to the light branch here, specifically for this wallpaper,
+  // is what the user asked for directly: always black sent-message text on
+  // Zen Interior, in both light and dark app mode, not a flaky heuristic.
+  const groupWallpaperIsZen = groupWallpaper?.id === 'wp-zen-interior';
+  const groupWallpaperIsDark = groupWallpaperIsZen ? false : isRgbColorDark(groupWallpaperColor);
   const groupWallpaperTextColor = groupWallpaperIsDark ? '#ffffff' : '#111111';
   const groupWallpaperReceivedBg = groupWallpaperIsDark ? 'rgba(24,24,24,0.68)' : 'rgba(255,255,255,0.72)';
 
-  const dmWallpaperIsDark = isRgbColorDark(dmWallpaperColor);
+  const dmWallpaperIsZen = dmWallpaper?.id === 'wp-zen-interior';
+  const dmWallpaperIsDark = dmWallpaperIsZen ? false : isRgbColorDark(dmWallpaperColor);
   const dmWallpaperTextColor = dmWallpaperIsDark ? '#ffffff' : '#111111';
   const dmWallpaperReceivedBg = dmWallpaperIsDark ? 'rgba(24,24,24,0.68)' : 'rgba(255,255,255,0.72)';
 
@@ -2555,7 +2598,7 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperBg = null) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperBg = null, wallpaperForceBlack = false) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
@@ -2577,9 +2620,9 @@ export default function RoomChatPanel({ p }) {
     // surface in light mode only — dark mode keeps the original white tick unchanged.
     const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
 
     if (!url) {
       // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
@@ -3318,7 +3361,7 @@ export default function RoomChatPanel({ p }) {
                   resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                   onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                 />
-              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) : null);
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) : null, groupWallpaperIsZen);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3394,8 +3437,8 @@ export default function RoomChatPanel({ p }) {
                     // landing on this quoted-reply preview fell through to
                     // native text selection instead of the message's long-press
                     // menu.
-                    <div className="stay-white" onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
-                      <span className="stay-white" style={{color:'#fff',fontWeight:600}}>{(() => {
+                    <div className={(isMe && groupWallpaperIsZen) ? '' : 'stay-white'} onClick={() => { const el = document.getElementById(`group-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:'3px solid var(--brand-1)',borderRadius:6,padding:'4px 8px',fontSize:11,color:(isMe && groupWallpaperIsZen) ? '#111111' : '#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
+                      <span className={(isMe && groupWallpaperIsZen) ? '' : 'stay-white'} style={{color:(isMe && groupWallpaperIsZen) ? '#111111' : '#fff',fontWeight:600}}>{(() => {
                         const n = msg.replyTo.username || msg.replyTo.senderName; 
                         const partner = (n||'').toLowerCase();
                         const isRepBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner); 
@@ -3484,7 +3527,7 @@ export default function RoomChatPanel({ p }) {
                             light. Only force white here when there's no
                             wallpaper (the default gradient background always
                             wants white) or the wallpaper is dark-toned. */}
-                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!groupWallpaper || groupWallpaperIsDark) ? ' stay-white' : ''}` : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!groupWallpaper || groupWallpaperIsDark) ? ' stay-white' : ''}${(isMe && groupWallpaperIsZen) ? ' wp-sent-black' : ''}` : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                           position: 'relative',
                           zIndex: 2,
                           // A poll or captioned image's caption row uses the wallpaper's own
@@ -4391,7 +4434,7 @@ export default function RoomChatPanel({ p }) {
                         resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                         onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                       />
-                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) : null);
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) : null, dmWallpaperIsZen);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4448,8 +4491,8 @@ export default function RoomChatPanel({ p }) {
                           // identical comment on the group thread's quoted-
                           // reply block above; same fix, same reason, same
                           // userSelect:none (also a sibling of the bubble here).
-                          <div className="stay-white" onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:'#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
-                            <span style={{color:'#fff',fontWeight:600}} className="reply-sender stay-white">
+                          <div className={(isMe && dmWallpaperIsZen) ? '' : 'stay-white'} onClick={() => { const el = document.getElementById(`dm-msg-${msg.replyTo.id}`); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.style.transition='background 0.3s ease'; el.style.background='rgba(var(--brand-1-rgb),0.22)'; setTimeout(()=>{ el.style.background=''; el.style.transition=''; },1300); } }} style={{background:'rgba(120,120,128,0.45)',borderLeft:`3px solid ${isMe?'var(--brand-1)':'var(--brand-2)'}`,borderRadius:6,padding:'4px 8px',fontSize:11,color:(isMe && dmWallpaperIsZen) ? '#111111' : '#fff',maxWidth:'80%',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}>
+                            <span style={{color:(isMe && dmWallpaperIsZen) ? '#111111' : '#fff',fontWeight:600}} className={`reply-sender${(isMe && dmWallpaperIsZen) ? '' : ' stay-white'}`}>
                               {(() => { const n = msg.replyTo.username || msg.replyTo.senderName || msg.replyTo.targetName; const isRepBlocked = blockingMe.some(u => u.toLowerCase() === (n||'').toLowerCase()); return (n||'').toLowerCase() === (p.username||'').toLowerCase() ? 'You' : (isRepBlocked ? 'User' : n); })()}: 
                             </span> {(() => {
                               const raw = msg.replyTo.message || '';
@@ -4489,7 +4532,7 @@ export default function RoomChatPanel({ p }) {
                               {/* stay-white on the received bubble too, and msg-sent's
                                   own conditional stay-white — see the identical
                                   comment on the group thread's bubble. */}
-                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!dmWallpaper || dmWallpaperIsDark) ? ' stay-white' : ''}` : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!dmWallpaper || dmWallpaperIsDark) ? ' stay-white' : ''}${(isMe && dmWallpaperIsZen) ? ' wp-sent-black' : ''}` : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.
