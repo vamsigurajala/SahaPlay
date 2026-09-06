@@ -41,40 +41,40 @@ function getTauriNotify() {
 // navigate. Without this, clicking a desktop/Tauri toast only refocused the
 // window and left the user staring at whatever page happened to be open.
 function dispatchChatOpenFromNotification(data) {
-  if (!data || !data.chatId) return;
+  // Two shapes reach here: a chat tap ({ chatId, type: 'dm'|'room' },
+  // consumed by Navbar.jsx/BottomNav.jsx/Room.jsx) and a friend-request tap
+  // ({ type: 'friend_request'|'friend_accept', username }, consumed by
+  // Navbar.jsx's own isFriendTap listener) — both ride the same event, so
+  // this only needs to rule out "nothing to act on."
+  if (!data || (!data.chatId && !data.type)) return;
   try {
     window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
   } catch {}
 }
 
-// Brings the Tauri window to the front on a notification click — a
-// backgrounded/minimized window doesn't automatically come forward just
-// because its own JS ran an event handler. Dynamically imported (like
-// @tauri-apps/plugin-notification above) so this file still loads harmlessly
-// in a plain browser tab or the Capacitor app, neither of which ever takes
-// the isTauriApp() branch that calls this.
-function focusTauriWindow() {
-  import('@tauri-apps/api/window').then(async (mod) => {
-    try {
-      const win = mod.getCurrentWindow();
-      if (await win.isMinimized()) await win.unminimize();
-      await win.show();
-      await win.setFocus();
-    } catch {}
-  }).catch(() => {});
-}
-
-// Registered once (guarded by desktopNotifyPermissionRequested below) for
-// the lifetime of the app — Tauri's onAction fires for a click on the toast
-// itself (not just an explicit action button), carrying back whatever
-// `extra` payload sendNotification attached, so this is the one place a
-// click turns into "focus the window and open this chat."
-function registerTauriActionHandler() {
-  getTauriNotify().then((mod) => {
-    if (!mod) return;
-    mod.onAction((notification) => {
-      focusTauriWindow();
-      dispatchChatOpenFromNotification(notification?.extra);
+// Rebroadcasts main.rs's show_windows_toast command's own 'open_chat_from_
+// notification' Tauri event (emitted from its Toast::on_activated callback —
+// see that command's comment) into the same browser CustomEvent every other
+// notification-tap path here already dispatches, so Navbar.jsx/Room.jsx need
+// no Tauri-specific code to react to it. Registered once, for the app's
+// lifetime — a click can happen long after this page "loaded" in the usual
+// sense, since the window may have been hidden/backgrounded the whole time.
+//
+// This — not @tauri-apps/plugin-notification's JS-side onAction — is what
+// actually reacts to a Windows toast click. That plugin's own docs say its
+// click/Actions callback "is only available on mobile platforms": on
+// Windows a toast built through it shows fine but a click on it is never
+// relayed back to JS at all, which is why clicking previously did nothing —
+// not even focusing the window, let alone opening a chat. main.rs's window
+// focus/show calls run directly in Rust for the same reason: no JS callback
+// exists to do it from this side.
+let tauriEventListenerRegistered = false;
+function registerTauriEventBridge() {
+  if (tauriEventListenerRegistered) return;
+  tauriEventListenerRegistered = true;
+  import('@tauri-apps/api/event').then(({ listen }) => {
+    listen('open_chat_from_notification', (event) => {
+      dispatchChatOpenFromNotification(event.payload);
     }).catch(() => {});
   }).catch(() => {});
 }
@@ -88,7 +88,7 @@ export function ensureDesktopNotifyPermission() {
       const granted = await mod.isPermissionGranted();
       if (!granted) await mod.requestPermission();
     }).catch(() => {});
-    registerTauriActionHandler();
+    registerTauriEventBridge();
     return;
   }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -126,9 +126,21 @@ function sendTauriNotification(title, body, data) {
     if (!mod) return;
     const granted = await mod.isPermissionGranted();
     if (!granted) return;
-    // extra: round-tripped back on the onAction callback registered in
-    // registerTauriActionHandler above when the user clicks this toast.
-    mod.sendNotification(data ? { title, body, extra: data } : { title, body });
+    // Invokes main.rs's show_windows_toast command instead of this
+    // plugin's own sendNotification — see registerTauriEventBridge's
+    // comment above for why: this plugin's JS click callback never fires
+    // on Windows, so the actual toast has to be built through
+    // tauri-winrt-notification directly (in Rust) to get a working click
+    // handler at all. Still using this plugin for permission
+    // check/request just above, which works fine independent of that.
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      // data is passed through opaquely — main.rs's on_activated callback
+      // just re-emits whatever it is verbatim, same as the browser
+      // Notification path just holds onto it. Covers both the chat-tap
+      // shape ({chatId, type}) and the friend-request shape ({type,
+      // username}) without this file needing to know either one.
+      invoke('show_windows_toast', { title, body, data: data || null }).catch(() => {});
+    }).catch(() => {});
   }).catch(() => {});
 }
 

@@ -3,8 +3,54 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
+use tauri_winrt_notification::Toast;
+
+// Replaces @tauri-apps/plugin-notification's JS sendNotification for the
+// Windows desktop build specifically — see the long comment on the
+// tauri-winrt-notification dependency in Cargo.toml for why: that plugin's
+// own docs say its click/Actions callback only works on mobile, so a toast
+// built through it can never tell us it was clicked on Windows at all.
+// Toast::on_activated below fires for a plain body click too (not just an
+// explicit button), which is exactly what "bring the window forward and
+// open that chat" needs. `data` is passed through opaquely (not typed
+// here) — desktopNotify.js's own two notification shapes (a chat tap
+// carrying chatId/type, or a friend-request tap carrying type/username)
+// both just need to come back out exactly as they went in, so there's
+// nothing for this command to inspect or validate. None for a call
+// notification (see desktopNotify.js), which has nowhere specific to
+// navigate — GlobalCallOverlay is already always mounted and reactive.
+#[tauri::command]
+fn show_windows_toast(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    data: Option<serde_json::Value>,
+) -> Result<(), String> {
+    Toast::new("com.sahaplay.desktop")
+        .title(&title)
+        .text1(&body)
+        .on_activated(move |_action| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            if let Some(data) = data.clone() {
+                // Rebroadcast into the same 'open_chat_from_notification'
+                // browser CustomEvent the native Android app's own
+                // notification tap already produces — see desktopNotify.js's
+                // registerTauriEventBridge, which forwards this Tauri event
+                // into that exact DOM event so Navbar.jsx/Room.jsx need no
+                // Tauri-specific code of their own to react to it.
+                let _ = app.emit("open_chat_from_notification", data);
+            }
+            Ok(())
+        })
+        .show()
+        .map_err(|e| e.to_string())
+}
 
 fn main() {
     tauri::Builder::default()
@@ -31,6 +77,7 @@ fn main() {
         // its own OS notification permission, only Windows' own Settings UI
         // can flip that toggle).
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![show_windows_toast])
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
