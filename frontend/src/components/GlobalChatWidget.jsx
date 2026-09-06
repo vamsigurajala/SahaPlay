@@ -6436,6 +6436,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // through rectangle — this replaces the old flat rgba(255,255,255,0.14),
   // which was too faint to register as a bubble at all against a bright image.
   const wallpaperReceivedBg = wallpaperIsDark ? 'rgba(24,24,24,0.62)' : 'rgba(255,255,255,0.70)';
+  // User asked directly: on Zen Interior, a sent bubble should look like a
+  // received one (the soft frosted panel) instead of the bold opaque
+  // dominant-color fill sent bubbles normally get — this flag swaps just
+  // that bubble's background/blur over to the received branch's values
+  // wherever it's checked below, without touching which side it's aligned
+  // to or any other isMe-driven behavior.
+  const paintSentAsReceived = activeWallpaperIsZen;
 
   useEffect(() => {
     if (!activeWallpaper) { setWallpaperColor(null); return; }
@@ -6813,6 +6820,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
             ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+            // Promotes this into its own GPU compositor layer, rasterized once
+            // and then just repositioned — not re-rasterized — on every layout
+            // pass its ancestors go through. Real Android WebViews
+            // (adjustResize) genuinely shrink window.innerHeight when the
+            // on-screen keyboard opens, re-running layout on this whole
+            // subtree; without its own layer, a large cover-image + gradient
+            // like this is expensive enough to repaint on a mid/low-end
+            // device that a dropped frame mid-transition can read as the
+            // header/composer visibly glitching, even though this element's
+            // own box (per its fixed height above) never actually changes.
+            willChange: 'transform',
+            transform: 'translateZ(0)',
           }} />
         )}
         {/* Lightbox portal — fixed overlay above everything */}

@@ -661,7 +661,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   // normally gets.
   const unplayedColor = isMe
     ? ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
-    : (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
+    : ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
   const timeColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
@@ -1508,11 +1508,21 @@ export default function RoomChatPanel({ p }) {
   const groupWallpaperIsDark = groupWallpaperIsZen ? false : isRgbColorDark(groupWallpaperColor);
   const groupWallpaperTextColor = groupWallpaperIsDark ? '#ffffff' : '#111111';
   const groupWallpaperReceivedBg = groupWallpaperIsDark ? 'rgba(24,24,24,0.68)' : 'rgba(255,255,255,0.72)';
+  // User asked directly: on Zen Interior, a sent bubble should look like a
+  // received one (the soft frosted panel) instead of the bold opaque
+  // dominant-color fill sent bubbles normally get — this flag swaps just
+  // that one bubble's background/blur over to the received branch's values
+  // wherever it's checked below, without touching which side it's aligned
+  // to or any of its other isMe-driven behavior (tick marks, corner radius,
+  // reply-swipe direction, etc).
+  const paintGroupSentAsReceived = groupWallpaperIsZen;
 
   const dmWallpaperIsZen = dmWallpaper?.id === 'wp-zen-interior';
   const dmWallpaperIsDark = dmWallpaperIsZen ? false : isRgbColorDark(dmWallpaperColor);
   const dmWallpaperTextColor = dmWallpaperIsDark ? '#ffffff' : '#111111';
   const dmWallpaperReceivedBg = dmWallpaperIsDark ? 'rgba(24,24,24,0.68)' : 'rgba(255,255,255,0.72)';
+  // Same "sent looks like received" swap as paintGroupSentAsReceived above.
+  const paintDmSentAsReceived = dmWallpaperIsZen;
 
   // "Remind me later" on the expiry banner only suppresses it until this
   // chat is closed (switched away from group/dm/list, or unmounted) — clear
@@ -2620,9 +2630,9 @@ export default function RoomChatPanel({ p }) {
     // surface in light mode only — dark mode keeps the original white tick unchanged.
     const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={isMe && wallpaperForceBlack} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} />;
 
     if (!url) {
       // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
@@ -3182,6 +3192,19 @@ export default function RoomChatPanel({ p }) {
               ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+              // Promotes this into its own GPU compositor layer, pre-rasterized
+              // once and then just repositioned/clipped — not re-rasterized —
+              // on every layout pass its ancestors go through. Real Android
+              // WebViews (adjustResize) genuinely shrink window.innerHeight
+              // when the on-screen keyboard opens, re-running layout on this
+              // whole subtree; without its own layer, a large cover-image +
+              // gradient like this is expensive enough to repaint on a
+              // mid/low-end device that a dropped frame mid-transition can
+              // read as the header/composer visibly glitching, even though
+              // this element's own box (per its fixed height above) never
+              // actually changes size.
+              willChange: 'transform',
+              transform: 'translateZ(0)',
             }} />
           )}
           <div style={{
@@ -3527,7 +3550,7 @@ export default function RoomChatPanel({ p }) {
                             light. Only force white here when there's no
                             wallpaper (the default gradient background always
                             wants white) or the wallpaper is dark-toned. */}
-                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!groupWallpaper || groupWallpaperIsDark) ? ' stay-white' : ''}${(isMe && groupWallpaperIsZen) ? ' wp-sent-black' : ''}` : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                        <div className={`${groupWallpaper ? 'on-wallpaper ' : ''}${groupWallpaperIsZen ? 'wp-sent-black ' : ''}${(isMe && !paintGroupSentAsReceived) ? `msg-sent${(!groupWallpaper || groupWallpaperIsDark) ? ' stay-white' : ''}` : (groupWallpaper && groupWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                           position: 'relative',
                           zIndex: 2,
                           // A poll or captioned image's caption row uses the wallpaper's own
@@ -3538,9 +3561,14 @@ export default function RoomChatPanel({ p }) {
                           // the identical treatment via AudioPlayerBubble/FileCard's own
                           // wallpaperBg prop, computed the same way at the renderMedia call
                           // below.
+                          // paintGroupSentAsReceived (Zen Interior, isMe only): user asked for
+                          // sent bubbles to look like received bubbles on this wallpaper
+                          // specifically, rather than the bold opaque dominant-color fill sent
+                          // normally gets — so this one bubble gets the received branch's own
+                          // translucent frosted treatment instead.
                           background: isMediaOnly ? 'transparent' : (groupWallpaper && (msg.isPoll || msg.mediaType)
                             ? (groupWallpaperColor || groupWallpaper.brightColor)
-                            : (isMe ? (
+                            : ((isMe && !paintGroupSentAsReceived) ? (
                                 groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
                                 (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
                               ) : (
@@ -3566,8 +3594,8 @@ export default function RoomChatPanel({ p }) {
                           // elsewhere in this file — stale rasterization showing through as
                           // the chat header's text getting cut/the composer shifting. Desktop
                           // keeps the blur since it isn't driven by an on-screen keyboard.
-                          backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
-                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                          backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && (!isMe || paintGroupSentAsReceived) && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                          WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && groupWallpaper && (!isMe || paintGroupSentAsReceived) && !isMobileOrTablet) ? 'blur(12px)' : undefined,
                           ...(isMe && isGroupCustomTheme && !groupWallpaper && !isMediaOnly ? {
                             backgroundSize: `100% ${Math.max(p.groupMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                             backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
@@ -4134,6 +4162,10 @@ export default function RoomChatPanel({ p }) {
                 ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+                // See the identical comment on the group chat backdrop above —
+                // same GPU-layer-promotion reasoning.
+                willChange: 'transform',
+                transform: 'translateZ(0)',
               }} />
             )}
             {p.dmTarget ? (() => {
@@ -4532,13 +4564,13 @@ export default function RoomChatPanel({ p }) {
                               {/* stay-white on the received bubble too, and msg-sent's
                                   own conditional stay-white — see the identical
                                   comment on the group thread's bubble. */}
-                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${isMe ? `msg-sent${(!dmWallpaper || dmWallpaperIsDark) ? ' stay-white' : ''}${(isMe && dmWallpaperIsZen) ? ' wp-sent-black' : ''}` : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
+                              <div className={`${dmWallpaper ? 'on-wallpaper ' : ''}${dmWallpaperIsZen ? 'wp-sent-black ' : ''}${(isMe && !paintDmSentAsReceived) ? `msg-sent${(!dmWallpaper || dmWallpaperIsDark) ? ' stay-white' : ''}` : (dmWallpaper && dmWallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`} style={{
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.
                                 background: isMediaOnly ? 'transparent' : (dmWallpaper && (msg.isPoll || msg.mediaType)
                                   ? (dmWallpaperColor || dmWallpaper.brightColor)
-                                  : (isMe ? (
+                                  : ((isMe && !paintDmSentAsReceived) ? (
                                       dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
                                       (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
                                     ) : (
@@ -4548,8 +4580,8 @@ export default function RoomChatPanel({ p }) {
                                 ),
                                 // See the identical comment on the group thread's bubble above
                                 // — same mobile/tablet disable, same reason.
-                                backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
-                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && !isMe && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                                backdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && (!isMe || paintDmSentAsReceived) && !isMobileOrTablet) ? 'blur(12px)' : undefined,
+                                WebkitBackdropFilter: (!isMediaOnly && !msg.mediaType && !msg.isPoll && dmWallpaper && (!isMe || paintDmSentAsReceived) && !isMobileOrTablet) ? 'blur(12px)' : undefined,
                                 ...(isMe && isDMCustomTheme && !dmWallpaper && !isMediaOnly ? {
                                   backgroundSize: `100% ${Math.max(dmMessages.length, 1) * CHAT_THEME_BUBBLE_STRIDE}px`,
                                   backgroundPosition: `0 -${i * CHAT_THEME_BUBBLE_STRIDE}px`,
