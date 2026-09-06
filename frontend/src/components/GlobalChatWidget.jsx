@@ -3463,9 +3463,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
       }
     });
 
-    const handleFollowEvent = (data) => {
+    const handleFollowEvent = (data, eventType) => {
       const actor = data.requester || data.follower || data.actor;
       const target = data.accepter || data.following || data.target;
+      // Desktop/browser equivalent of the FCM push server.js already sends
+      // for this exact event (sendPushToUser(following, {... data: { type:
+      // 'friend_request', ... }}, 'friendRequests')) — nothing showed this
+      // on desktop at all before, since this handler previously only ever
+      // invalidated caches. Only for an incoming request addressed to ME,
+      // never the accepted/unfollow variants sharing this same handler.
+      // Clicking it dispatches the same 'open_chat_from_notification' event
+      // Navbar.jsx's own friend-tap listener already reacts to (opens the
+      // notifications bell dropdown), matching what tapping the mobile push
+      // already does.
+      if (eventType === 'follow_request' && target && target.toLowerCase() === myUsername && isNotifyCategoryEnabled('friendRequests')) {
+        showDesktopNotification('New Friend Request', `${actor} sent you a friend request`, `friend-request-${actor}`, { type: 'friend_request', username: actor });
+      }
       // A socket push is instant, but the refetch that
       // follow_status_updated's listeners (Profile.jsx, useFollowRequests)
       // trigger goes through the same cached window.fetch every other GET
@@ -3497,8 +3510,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
       }
     };
 
-    sock.on('follow_accepted', handleFollowEvent);
-    sock.on('follow_request', handleFollowEvent);
+    sock.on('follow_accepted', (data) => handleFollowEvent(data, 'follow_accepted'));
+    sock.on('follow_request', (data) => handleFollowEvent(data, 'follow_request'));
     sock.on('unfollow', handleFollowEvent);
 
 

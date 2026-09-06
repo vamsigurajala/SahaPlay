@@ -9,6 +9,7 @@
 const NOTIFY_KEY_BY_CATEGORY = {
   calls: 'notifyCalls',
   messages: 'notifyMessages',
+  friendRequests: 'notifyFriendRequests',
 };
 
 export function isNotifyCategoryEnabled(category) {

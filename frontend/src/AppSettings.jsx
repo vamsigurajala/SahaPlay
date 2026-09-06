@@ -692,7 +692,8 @@ const AppSettings = () => {
           setNotifyJoin(data.notifyJoin === 1 || data.notifyJoin === true);
           const messagesEnabled = data.notifyMessages === 1 || data.notifyMessages === true;
           setNotifyMessages(messagesEnabled);
-          setNotifyFriendRequests(data.notifyFriendRequests === 1 || data.notifyFriendRequests === true);
+          const friendRequestsEnabled = data.notifyFriendRequests === 1 || data.notifyFriendRequests === true;
+          setNotifyFriendRequests(friendRequestsEnabled);
           setNotifyLeave(data.notifyLeave === 1 || data.notifyLeave === true);
           setNotifyJoinRequests(data.notifyJoinRequests === 1 || data.notifyJoinRequests === true);
           const callsEnabled = data.notifyCalls === 1 || data.notifyCalls === true;
@@ -705,6 +706,7 @@ const AppSettings = () => {
             localStorage.setItem('notifyApp', String(appEnabled));
             localStorage.setItem('notifyMessages', String(messagesEnabled));
             localStorage.setItem('notifyCalls', String(callsEnabled));
+            localStorage.setItem('notifyFriendRequests', String(friendRequestsEnabled));
           } catch {}
           setRingtonePath(data.ringtonePath || null);
           setNotifySound(data.notifySound || 'chime');
@@ -924,11 +926,12 @@ const AppSettings = () => {
     const next = !current;
     setter(next);
     saveSetting(key, next ? 1 : 0);
-    // notifyApp/notifyMessages are mirrored into localStorage (same as
-    // notifyCalls below) so CallContext.jsx/GlobalChatWidget.jsx — neither
-    // has a settings-fetch of its own — see the change immediately, without
-    // needing a reload. Harmless no-op write for every other key.
-    if (key === 'notifyApp' || key === 'notifyMessages') {
+    // notifyApp/notifyMessages/notifyFriendRequests are mirrored into
+    // localStorage (same as notifyCalls below) so CallContext.jsx/
+    // GlobalChatWidget.jsx — neither has a settings-fetch of its own — see
+    // the change immediately, without needing a reload. Harmless no-op
+    // write for every other key.
+    if (key === 'notifyApp' || key === 'notifyMessages' || key === 'notifyFriendRequests') {
       try { localStorage.setItem(key, String(next)); } catch {}
     }
   };
