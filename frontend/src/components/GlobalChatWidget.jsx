@@ -8625,9 +8625,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               <Reply size={18} style={{ transform: isMe ? 'scaleX(-1)' : 'none' }} />
                             </div>
                             <div
-                              className={`msg-bubble${activeWallpaper ? ' on-wallpaper' : ''} ${isMe
-                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}${activeWallpaperIsZen ? ' wp-sent-black' : ''}`
-                                : (activeWallpaper ? `msg-received${wallpaperIsDark ? ' stay-white' : ''}` : 'msg-received')}`}
+                              // paintSentAsReceived (Zen Interior, isMe only): a sent bubble here
+                              // drops the "msg-sent" class entirely and picks up "msg-received"
+                              // instead — not just a cosmetic swap. App.jsx's global light-theme
+                              // stylesheet has an unconditional `.msg-sent, .msg-sent *{ color:
+                              // #fff !important }` rule with no wallpaper awareness at all, which
+                              // was silently white-texting every sent bubble's contents in light
+                              // mode (call-log cards, plain message text, everything without its
+                              // own narrower wp-sent-black override) — losing to nothing beats
+                              // !important short of not carrying the class at all. Actually
+                              // switching to msg-received sidesteps that rule completely instead of
+                              // trying to out-specificity it again.
+                              className={`msg-bubble${activeWallpaper ? ' on-wallpaper' : ''}${activeWallpaperIsZen ? ' wp-sent-black' : ''} ${(isMe && !paintSentAsReceived)
+                                ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
+                                : (activeWallpaper && wallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); handleReact(msg.id, '❤️'); }}
@@ -8647,7 +8658,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 background: isMediaOnly ? 'transparent' : (activeWallpaper ? (
                                   (msg.isPoll || msg.mediaType)
                                     ? (wallpaperColor || 'rgba(255,255,255,0.25)')
-                                    : (isMe ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg)
+                                    : ((isMe && !paintSentAsReceived) ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg)
                                 ) : (
                                   msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
                                     ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
@@ -8667,7 +8678,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 // blur backdrop isn't clipped cleanly at the rounded corners,
                                 // showing as a faint gap/glow at the edges — only ever visible on
                                 // received bubbles, since sent bubbles never get backdropFilter.
-                                ...(activeWallpaper && !isMe && !isMediaOnly && !msg.mediaType && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
+                                ...(activeWallpaper && (!isMe || paintSentAsReceived) && !isMediaOnly && !msg.mediaType && !msg.isPoll ? { backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' } : {}),
                                 // isMe + custom theme: every sent bubble reads its own slice of ONE
                                 // continuous gradient spanning the whole conversation (index-based
                                 // background-position/-size — see CHAT_THEME_BUBBLE_STRIDE), instead
