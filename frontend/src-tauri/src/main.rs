@@ -21,35 +21,49 @@ use tauri_winrt_notification::Toast;
 // nothing for this command to inspect or validate. None for a call
 // notification (see desktopNotify.js), which has nowhere specific to
 // navigate — GlobalCallOverlay is already always mounted and reactive.
+//
+// Deliberately fire-and-forget on tauri::async_runtime::spawn, mirroring
+// exactly how tauri-plugin-notification's OWN Windows backend calls the
+// underlying WinRT toast API (it goes through notify-rust, which internally
+// calls this exact same tauri-winrt-notification crate — confirmed by
+// reading its source — always from inside an async_runtime::spawn'd task,
+// never a plain synchronous call). A first version of this command called
+// Toast::show() directly and synchronously from the command handler itself,
+// which stopped notifications from appearing at all — Windows' WinRT toast
+// APIs are COM calls that need the calling thread's COM apartment already
+// initialized, which the async runtime's worker threads apparently have and
+// a synchronous command-dispatch thread apparently doesn't. Matching the
+// proven-working call site exactly, rather than guessing further, is the
+// fix.
 #[tauri::command]
-fn show_windows_toast(
-    app: tauri::AppHandle,
-    title: String,
-    body: String,
-    data: Option<serde_json::Value>,
-) -> Result<(), String> {
-    Toast::new("com.sahaplay.desktop")
-        .title(&title)
-        .text1(&body)
-        .on_activated(move |_action| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-            if let Some(data) = data.clone() {
-                // Rebroadcast into the same 'open_chat_from_notification'
-                // browser CustomEvent the native Android app's own
-                // notification tap already produces — see desktopNotify.js's
-                // registerTauriEventBridge, which forwards this Tauri event
-                // into that exact DOM event so Navbar.jsx/Room.jsx need no
-                // Tauri-specific code of their own to react to it.
-                let _ = app.emit("open_chat_from_notification", data);
-            }
-            Ok(())
-        })
-        .show()
-        .map_err(|e| e.to_string())
+fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, data: Option<serde_json::Value>) {
+    tauri::async_runtime::spawn(async move {
+        let result = Toast::new("com.sahaplay.desktop")
+            .title(&title)
+            .text1(&body)
+            .on_activated(move |_action| {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                if let Some(data) = data.clone() {
+                    // Rebroadcast into the same 'open_chat_from_notification'
+                    // browser CustomEvent the native Android app's own
+                    // notification tap already produces — see
+                    // desktopNotify.js's registerTauriEventBridge, which
+                    // forwards this Tauri event into that exact DOM event so
+                    // Navbar.jsx/Room.jsx need no Tauri-specific code of
+                    // their own to react to it.
+                    let _ = app.emit("open_chat_from_notification", data);
+                }
+                Ok(())
+            })
+            .show();
+        if let Err(err) = result {
+            eprintln!("[show_windows_toast] Toast::show failed: {err:?}");
+        }
+    });
 }
 
 fn main() {
