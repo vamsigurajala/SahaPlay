@@ -6901,18 +6901,23 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
 
   const rid = roomId.toLowerCase();
 
-  // A5-F4: Only the room host may create or retrieve a Hyperbeam session (admin_token is a full control credential)
+  // A5-F4: Only the room host (or a host-promoted admin) may create or retrieve a
+  // Hyperbeam session (admin_token is a full control credential). isUserAdmin already
+  // treats the host as admin too, so this one check covers both — matching the
+  // frontend's own isEffectiveHost (isHost || isAdmin) gating on this same feature.
   {
     const memRoom = rooms.get(rid);
-    let hostUsername = memRoom?.hostUsername || null;
-    if (!hostUsername) {
-      // Room not in memory (no one currently connected) — fall back to DB
-      hostUsername = await new Promise(resolve =>
+    let isAllowed = memRoom ? isUserAdmin(memRoom, { username: req.user.username }) : false;
+    if (!memRoom) {
+      // Room not in memory (no one currently connected) — room.admins only ever
+      // lives in memory, so fall back to the DB-persisted host only.
+      const hostUsername = await new Promise(resolve =>
         db.get('SELECT hostUsername FROM room_names WHERE roomId = ?', [rid], (err, row) => resolve(row?.hostUsername || null))
       );
+      isAllowed = !!hostUsername && hostUsername.toLowerCase() === (req.user.username || '').toLowerCase();
     }
-    if (!hostUsername || hostUsername.toLowerCase() !== (req.user.username || '').toLowerCase()) {
-      return res.status(403).json({ error: 'Only the room host can start or access a cloud browser session.' });
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Only the room host or an admin can start or access a cloud browser session.' });
     }
   }
 
