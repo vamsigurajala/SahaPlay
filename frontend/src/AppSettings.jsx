@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip, Phone, Music, Upload, Trash2, Pause } from 'lucide-react';
+import { Play, ArrowLeft, Globe2, Mic, Video, Bell, BellOff, ChevronDown, Eye, EyeOff, MessageSquare, UserPlus, LogIn, LogOut as LogOutIcon, Volume2, VolumeX, Languages, MapPin, User as UserIcon, HelpCircle, Search, Settings, Lock, ShieldCheck, Image, FileText, Smile, HardDrive, Sparkles, Download, Check, Palette, Paperclip, Phone, Music, Upload, Trash2, Pause, BatteryWarning } from 'lucide-react';
 import { APP_THEMES } from './data/appThemes';
 import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
@@ -18,7 +18,7 @@ import { getTauriNotifyPermissionStatus, openWindowsNotificationSettings, sendTe
 import { requestMediaAccess } from './lib/mediaPermissionGate';
 import { ensureWebPushSubscription } from './lib/webPushSubscribe';
 import { NOTIFICATION_TONE_LIST, playNotificationTone } from './lib/notificationSounds';
-import { setNativeRingtonePreference, setNativeMessageTonePreference } from './lib/nativeMedia';
+import { setNativeRingtonePreference, setNativeMessageTonePreference, isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations, openAutostartSettings } from './lib/nativeMedia';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -430,6 +430,11 @@ const AppSettings = () => {
   const [notifyLeave, setNotifyLeave] = useState(true);
   const [notifyJoinRequests, setNotifyJoinRequests] = useState(true);
   const [notifyCalls, setNotifyCalls] = useState(true);
+  // null = not checked yet (or not on Capacitor) — only render the fix-it
+  // banner once we actually know the device is exempting the app, since a
+  // "fix background notifications" nag would be pure noise for the many
+  // users the OEM already exempts by default.
+  const [batteryOptIgnoring, setBatteryOptIgnoring] = useState(null);
   const [notifySound, setNotifySound] = useState('chime');
   const [ringtonePath, setRingtonePath] = useState(null);
   const [ringtoneUploading, setRingtoneUploading] = useState(false);
@@ -736,6 +741,24 @@ const AppSettings = () => {
   }, [token, isGuest]);
 
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  // Checked once on mount, not re-checked reactively — the user has to leave
+  // this screen to go grant it via the system dialog anyway, so re-checking
+  // on window focus (App.jsx already tracks that elsewhere) would just be
+  // extra plumbing for a value that only realistically changes right after
+  // the user taps the banner's own button below.
+  useEffect(() => {
+    if (!isCapacitorApp()) return;
+    isIgnoringBatteryOptimizations().then(setBatteryOptIgnoring);
+  }, []);
+
+  const fixBackgroundNotifications = async () => {
+    await requestIgnoreBatteryOptimizations();
+    // Re-check shortly after returning from the system dialog — there's no
+    // callback/promise resolution tied to the user's actual choice, just the
+    // activity result of having shown it.
+    setTimeout(() => { isIgnoringBatteryOptimizations().then(setBatteryOptIgnoring); }, 1500);
+  };
 
   useEffect(() => {
     if (window.location.hash === '#privacy-storage') {
@@ -2082,6 +2105,38 @@ const AppSettings = () => {
           {openSection === 'notifications' && (
             <div className="acc-body">
               <p style={{ color: '#888', fontSize: 13, margin: '0 0 8px' }}>{t('notifDesc', 'Control which notifications you receive across the app')}</p>
+
+              {/* Only ever shown once we've actually confirmed the OS is
+                  throttling this app — the real reason notifications (calls,
+                  messages, everything) can arrive fine while the app sits in
+                  Recents but silently never show up once it's swiped away or
+                  fully closed. Many devices already exempt SahaPlay by
+                  default, so this is deliberately not a permanent fixture. */}
+              {isCapacitorApp() && batteryOptIgnoring === false && (
+                <div style={{
+                  display: 'flex', gap: 10, alignItems: 'flex-start',
+                  background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+                  borderRadius: 10, padding: '12px 14px', marginBottom: 14,
+                }}>
+                  <BatteryWarning size={18} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f59e0b' }}>
+                      {t('bgNotifWarningTitle', "Notifications may stop when the app isn't open")}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>
+                      {t('bgNotifWarningDesc', "Your phone's battery settings can block SahaPlay from waking up in the background. Allow it to run unrestricted so calls and messages always come through, even when the app is closed.")}
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+                      <button onClick={fixBackgroundNotifications} style={{ background: 'none', border: 'none', padding: 0, color: '#f59e0b', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                        {t('fixBgNotif', 'Fix background notifications')}
+                      </button>
+                      <button onClick={() => openAutostartSettings()} style={{ background: 'none', border: 'none', padding: 0, color: '#aaa', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+                        {t('openAutostart', 'Open autostart settings')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Master toggle */}
               <div className="notif-row" style={{ paddingBottom: 18, marginBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>

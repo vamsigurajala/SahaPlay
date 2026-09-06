@@ -234,6 +234,35 @@ export function openNativeAppSettings() {
   return plugin()?.openAppSettings().catch(() => {}) ?? Promise.resolve();
 }
 
+// Whether the OS currently exempts this app from Doze/App Standby battery
+// throttling — the actual reason a push can arrive fine while the app sits
+// in Recents but silently never show up once it's swiped away (see
+// SahaplayMediaPlugin.isIgnoringBatteryOptimizations). Resolves `true` (fail
+// open, no nag) on any error or on a non-Capacitor platform, since the
+// caller only uses this to decide whether to show a fix-it banner.
+export function isIgnoringBatteryOptimizations() {
+  return plugin()?.isIgnoringBatteryOptimizations().then(r => !!r?.ignoring).catch(() => true)
+    ?? Promise.resolve(true);
+}
+
+// Shows the system's direct "Allow SahaPlay to ignore battery
+// optimizations?" dialog. See AppSettings.jsx's notification section, which
+// surfaces this as "Fix background notifications" whenever the check above
+// comes back false.
+export function requestIgnoreBatteryOptimizations() {
+  return plugin()?.requestIgnoreBatteryOptimizations().catch(() => {}) ?? Promise.resolve();
+}
+
+// Best-effort deep link into the OEM's own Autostart/Startup-manager screen
+// (MIUI, ColorOS, FuntouchOS, EMUI, etc.) — a separate, OEM-only gate on top
+// of stock battery optimization that also blocks a swiped-away app from
+// relaunching itself for an incoming push. No public API to detect whether
+// this is even needed on the current device, so it's offered as its own
+// secondary action rather than auto-triggered.
+export function openAutostartSettings() {
+  return plugin()?.openAutostartSettings().catch(() => {}) ?? Promise.resolve();
+}
+
 // Starts/stops SahaplayCallService — the foreground service + persistent
 // notification that keeps a call's WebRTC connections (and JS/socket layer)
 // alive while the app is backgrounded. See CallContext.jsx, which calls this

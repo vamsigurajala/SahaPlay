@@ -204,6 +204,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the app ask the system directly ("Allow SahaPlay to ignore
+         battery optimizations?") instead of only being able to send the user
+         to the general Settings list — see SahaplayMediaPlugin.
+         requestIgnoreBatteryOptimizations. Normal protection level, granted
+         automatically at install, no runtime prompt of its own. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Required for a self-managed Telecom PhoneAccount (see
          PhoneAccountRegistrar/SahaplayConnectionService) — normal
          protection level, granted automatically at install, no runtime

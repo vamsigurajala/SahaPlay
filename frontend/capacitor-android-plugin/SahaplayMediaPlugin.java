@@ -560,6 +560,111 @@ public class SahaplayMediaPlugin extends Plugin {
         }
     }
 
+    // The actual root cause behind "push notifications only arrive while the
+    // app is in Recents": FCM delivers a data message by asking the OS to
+    // start SahaplayFirebaseMessagingService, but stock Android's Doze/App
+    // Standby (and every OEM's own, usually more aggressive, battery
+    // manager — MIUI/ColorOS/FuntouchOS/EMUI all do their own thing on top
+    // of stock Doze) can defer or altogether refuse that start once the app
+    // has been swiped away and the OS decides it's "idle". Being on this
+    // list is exactly what WhatsApp/Signal/Telegram prompt for on first run
+    // for the same reason. isIgnoringBatteryOptimizations lets JS decide
+    // whether to even show the fix-it banner (AppSettings.jsx) in the first
+    // place — most users are already exempted by the OEM's own "unrestricted
+    // for messaging apps" heuristics, and nagging those users would be pure
+    // noise.
+    @PluginMethod
+    public void isIgnoringBatteryOptimizations(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+            boolean ignoring = pm != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || pm.isIgnoringBatteryOptimizations(getContext().getPackageName()));
+            ret.put("ignoring", ignoring);
+        } catch (Exception e) {
+            ret.put("ignoring", true); // fail open — never show the nag banner over a query error
+        }
+        call.resolve(ret);
+    }
+
+    // Shows the system's own "Allow SahaPlay to ignore battery
+    // optimizations?" dialog — a direct Allow/Deny, no navigating Settings
+    // manually. REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (normal protection
+    // level, declared in AndroidManifest.xml) is required to fire this
+    // specific intent; a handful of OEM builds (some MIUI versions) block it
+    // anyway despite the permission being present, so this falls back to the
+    // general (non-package-specific) battery-optimization list screen rather
+    // than silently doing nothing.
+    @PluginMethod
+    public void requestIgnoreBatteryOptimizations(PluginCall call) {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(android.net.Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            try {
+                Intent fallback = new Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(fallback);
+                call.resolve();
+            } catch (Exception e2) {
+                call.reject("Could not open battery optimization settings");
+            }
+        }
+    }
+
+    // Best-effort deep link into the OEM-specific "Autostart"/"Startup
+    // manager" screen that stock Android has no equivalent for at all —
+    // MIUI, ColorOS (Oppo/Realme), FuntouchOS/OriginOS (Vivo), and EMUI/
+    // MagicUI (Huawei/Honor) each independently gate whether a background-
+    // killed app is allowed to relaunch itself in response to a broadcast
+    // (which is exactly what receiving an FCM push while swiped-from-recents
+    // requires), on top of and separately from stock Doze/battery-
+    // optimization above. There is no public API to query or request this
+    // directly (unlike ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS above) —
+    // every app in this situation (WhatsApp included, on these OEMs) resorts
+    // to the same pattern of deep-linking the OEM's own settings activity by
+    // package/class name, which differ by OEM and sometimes by OS version,
+    // and can be renamed or removed without notice. Tries each known
+    // component in turn; falls back to the plain app-info settings page
+    // (openAppSettings's destination) if none of them resolve on this
+    // device, which still gets the user one tap away from the right place.
+    @PluginMethod
+    public void openAutostartSettings(PluginCall call) {
+        String[][] candidates = {
+            {"com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"},
+            {"com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"},
+            {"com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"},
+            {"com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"},
+            {"com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"},
+            {"com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity"},
+            {"com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"},
+            {"com.huawei.systemmanager", "com.huawei.systemmanager.optimize.process.ProtectActivity"},
+            {"com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity"},
+            {"com.letv.android.letvsafe", "com.letv.android.letvsafe.AutobootManageActivity"},
+        };
+        PackageManager pm = getContext().getPackageManager();
+        for (String[] c : candidates) {
+            try {
+                Intent intent = new Intent();
+                intent.setComponent(new android.content.ComponentName(c[0], c[1]));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (intent.resolveActivity(pm) != null) {
+                    getContext().startActivity(intent);
+                    call.resolve();
+                    return;
+                }
+            } catch (Exception ignored) {}
+        }
+        // No known OEM autostart screen on this device (either a stock/
+        // Pixel-like build with no such concept, or an OEM/version this list
+        // doesn't cover yet) — land the user on the app-info page instead of
+        // silently no-op'ing.
+        openAppSettings(call);
+    }
+
     // Mirrors the web app's light/dark theme preference into a plain native
     // SharedPreferences file — IncomingCallActivity.java reads this directly
     // (NOT through this plugin; it may run with the WebView/JS layer never
