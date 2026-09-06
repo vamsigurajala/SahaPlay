@@ -1283,6 +1283,10 @@ const Room = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
+  // Set when a desktop/OS notification is tapped for a chat other than this
+  // room's own group chat (a DM, or a different room) — handed to
+  // GlobalChatWidget below the same way Navbar.jsx/BottomNav.jsx already do.
+  const [pendingOpenChat, setPendingOpenChat] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [followRequests, setFollowRequests] = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});
@@ -3188,6 +3192,32 @@ const Room = () => {
   // by itself defeat GlobalChatWidget's React.memo on every render this page
   // does for unrelated reasons (e.g. typing in RoomChatPanel's composer).
   const handleCloseRecentChats = useCallback(() => setShowRecentChats(false), []);
+
+  // Chat-type desktop/OS notification tap while this room is open — see the
+  // matching listener in Navbar.jsx (the desktop chrome that isn't mounted
+  // while a room is), which this exists to cover for the "still inside the
+  // room, alt-tabbed away, tapped a notification" case. A tap for THIS
+  // room's own group chat surfaces RoomChatPanel itself (the tab the user
+  // actually reads live messages in) rather than layering the floating
+  // GlobalChatWidget on top of a chat they're already sitting inside; any
+  // other chat (a DM, or a different room) opens in GlobalChatWidget the
+  // same way Navbar/BottomNav already handle it outside a room.
+  useEffect(() => {
+    const handler = (e) => {
+      const chatData = e.detail;
+      if (!chatData?.chatId) return;
+      const isThisRoomGroup = chatData.type !== 'dm' && chatData.chatId.toLowerCase() === (roomId || '').toLowerCase();
+      if (isThisRoomGroup) {
+        setChatTab('group');
+        setRightPanelTab('chat');
+        return;
+      }
+      setPendingOpenChat({ partner: chatData.chatId, type: chatData.type === 'dm' ? 'private' : 'room' });
+      setShowRecentChats(true);
+    };
+    window.addEventListener('open_chat_from_notification', handler);
+    return () => window.removeEventListener('open_chat_from_notification', handler);
+  }, [roomId]);
 
   // Called by GlobalChatWidget or RoomChatPanel when "Mark all as read" is clicked
   const handleMarkAllRead = useCallback(() => {
@@ -14142,6 +14172,8 @@ const Room = () => {
                 onMarkRead={handleMarkRead}
                 onMarkAllRead={handleMarkAllRead}
                 onNewMessage={handleNewMessage}
+                pendingOpenChat={pendingOpenChat}
+                onPendingOpenChatHandled={() => setPendingOpenChat(null)}
                 activeRoomTab={(isMobile || rightPanelTab === 'chat') ? chatTab : null}
                 activeRoomPartner={(isMobile || rightPanelTab === 'chat') ? (chatTab === 'dm' ? dmTarget : roomId) : null}
                 // Always set (not gated on tab focus) — this room's own chat

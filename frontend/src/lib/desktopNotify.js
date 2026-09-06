@@ -34,6 +34,51 @@ function getTauriNotify() {
   return tauriNotifyModPromise;
 }
 
+// A tapped notification should land the user on the specific chat it was
+// about — mirrors the native Android app's own tap handling (see
+// nativePush.js's pushNotificationActionPerformed listener), which already
+// dispatches this exact event for BottomNav.jsx/Navbar.jsx to pick up and
+// navigate. Without this, clicking a desktop/Tauri toast only refocused the
+// window and left the user staring at whatever page happened to be open.
+function dispatchChatOpenFromNotification(data) {
+  if (!data || !data.chatId) return;
+  try {
+    window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
+  } catch {}
+}
+
+// Brings the Tauri window to the front on a notification click — a
+// backgrounded/minimized window doesn't automatically come forward just
+// because its own JS ran an event handler. Dynamically imported (like
+// @tauri-apps/plugin-notification above) so this file still loads harmlessly
+// in a plain browser tab or the Capacitor app, neither of which ever takes
+// the isTauriApp() branch that calls this.
+function focusTauriWindow() {
+  import('@tauri-apps/api/window').then(async (mod) => {
+    try {
+      const win = mod.getCurrentWindow();
+      if (await win.isMinimized()) await win.unminimize();
+      await win.show();
+      await win.setFocus();
+    } catch {}
+  }).catch(() => {});
+}
+
+// Registered once (guarded by desktopNotifyPermissionRequested below) for
+// the lifetime of the app — Tauri's onAction fires for a click on the toast
+// itself (not just an explicit action button), carrying back whatever
+// `extra` payload sendNotification attached, so this is the one place a
+// click turns into "focus the window and open this chat."
+function registerTauriActionHandler() {
+  getTauriNotify().then((mod) => {
+    if (!mod) return;
+    mod.onAction((notification) => {
+      focusTauriWindow();
+      dispatchChatOpenFromNotification(notification?.extra);
+    }).catch(() => {});
+  }).catch(() => {});
+}
+
 export function ensureDesktopNotifyPermission() {
   if (isCapacitorApp() || desktopNotifyPermissionRequested) return;
   desktopNotifyPermissionRequested = true;
@@ -43,6 +88,7 @@ export function ensureDesktopNotifyPermission() {
       const granted = await mod.isPermissionGranted();
       if (!granted) await mod.requestPermission();
     }).catch(() => {});
+    registerTauriActionHandler();
     return;
   }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -75,27 +121,35 @@ export function openWindowsNotificationSettings() {
     .catch(() => {});
 }
 
-function sendTauriNotification(title, body) {
+function sendTauriNotification(title, body, data) {
   getTauriNotify().then(async (mod) => {
     if (!mod) return;
     const granted = await mod.isPermissionGranted();
     if (!granted) return;
-    mod.sendNotification({ title, body });
+    // extra: round-tripped back on the onAction callback registered in
+    // registerTauriActionHandler above when the user clicks this toast.
+    mod.sendNotification(data ? { title, body, extra: data } : { title, body });
   }).catch(() => {});
 }
 
-export function showDesktopNotification(title, body, tag) {
+// data: optional { chatId, type } — when present, clicking the notification
+// (or the Tauri toast) dispatches 'open_chat_from_notification' so
+// BottomNav.jsx/Navbar.jsx open that exact chat, the same event the native
+// Android app's own notification tap already produces. Omit for
+// notifications with nowhere specific to navigate (e.g. calls, which already
+// surface their own always-mounted GlobalCallOverlay).
+export function showDesktopNotification(title, body, tag, data) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
   // Window/tab is visible AND focused — an in-page UI already covers this;
   // showing an OS notification too would just be a redundant duplicate.
   if (!document.hidden && document.hasFocus()) return;
-  if (isTauriApp()) { sendTauriNotification(title, body); return null; }
+  if (isTauriApp()) { sendTauriNotification(title, body, data); return null; }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
   try {
     const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
-    n.onclick = () => { window.focus(); n.close(); };
+    n.onclick = () => { window.focus(); n.close(); dispatchChatOpenFromNotification(data); };
     return n;
   } catch {
     return null;

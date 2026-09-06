@@ -24,6 +24,7 @@
     "@hyperbeam/web": "^0.0.38",
     "@react-oauth/google": "^0.13.4",
     "@sentry/react": "^10.65.0",
+    "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-notification": "^2.4.0",
     "@tauri-apps/plugin-opener": "^2.5.5",
     "date-fns": "^4.1.0",

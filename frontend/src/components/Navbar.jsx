@@ -169,6 +169,27 @@ const Navbar = () => {
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 
+  // Chat-type notification tap — the desktop equivalent of BottomNav.jsx's
+  // own pendingOpenChat handling below, which never runs here since Navbar
+  // (not BottomNav) is what actually renders on desktop/Tauri and a plain
+  // (non-standalone) mobile browser tab. Without this, clicking a desktop
+  // notification (see desktopNotify.js's showDesktopNotification) focused
+  // the window and did nothing else — there was no listener anywhere that
+  // reacted to a chatId-carrying tap outside the native/standalone app.
+  const [pendingOpenChat, setPendingOpenChat] = useState(null);
+  useEffect(() => {
+    const handler = (e) => {
+      const chatData = e.detail;
+      if (!chatData?.chatId) return;
+      setShowNotifications(false);
+      setShowSearch(false);
+      setPendingOpenChat({ partner: chatData.chatId, type: chatData.type === 'dm' ? 'private' : 'room' });
+      setShowRecentChats(true);
+    };
+    window.addEventListener('open_chat_from_notification', handler);
+    return () => window.removeEventListener('open_chat_from_notification', handler);
+  }, []);
+
   // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1037,13 +1058,15 @@ const Navbar = () => {
 
       {/* Self-contained Global Chat Widget */}
       {isLoggedIn && (
-        <GlobalChatWidget 
-          ref={chatWidgetRef} 
-          isOpen={showRecentChats} 
-          onClose={() => setShowRecentChats(false)} 
-          unreadCounts={unreadCounts} 
-          onMarkRead={handleMarkRead} 
-          onNewMessage={handleNewMessage} 
+        <GlobalChatWidget
+          ref={chatWidgetRef}
+          isOpen={showRecentChats}
+          onClose={() => setShowRecentChats(false)}
+          unreadCounts={unreadCounts}
+          onMarkRead={handleMarkRead}
+          onNewMessage={handleNewMessage}
+          pendingOpenChat={pendingOpenChat}
+          onPendingOpenChatHandled={() => setPendingOpenChat(null)}
         />
       )}
 

@@ -3790,8 +3790,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // raw, un-templated control string as toast text (e.g.
           // `sahaplay_call{"callType":"voice","status":"m...`). The call's
           // own native/JS UI already told the user it ended; this toast
-          // would just be unwanted, malformed-looking noise on top of that.
-          if (msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX)) skipToast = true;
+          // (and the desktop notification below) would just be unwanted,
+          // malformed-looking noise on top of that — the only one of these
+          // checks that also applies to the desktop notification, since
+          // CallContext.jsx already sends its own dedicated call
+          // notifications.
+          const isCallLog = !!(msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX));
+          if (isCallLog) skipToast = true;
           // 1. Check if user is looking at this chat in the Global Widget itself
           if (isViewingThis) skipToast = true;
 
@@ -3800,41 +3805,56 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const lowerActivePartner = (activeRoomPartnerRef.current || '').toLowerCase();
           if (isGroup) {
              if (activeRoomTabRef.current === 'group' && lowerPartner === lowerActivePartner) skipToast = true;
-             // 2b. This widget instance's own host room's group chat — always
-             // suppressed, not just when its tab happens to be focused (see
-             // hostRoomId's own comment above for why).
+             // 2b. This widget instance's own host room's group chat — suppress
+             // just the in-page TOAST unconditionally, not just when its tab
+             // happens to be focused (see hostRoomId's own comment above for
+             // why): RoomChatPanel.jsx renders the message live the instant it
+             // arrives regardless of which of its own tabs is active, so a
+             // toast popping up on top of the room UI would be redundant.
+             //
+             // Deliberately NOT applied to the desktop notification below —
+             // that was the actual bug behind "I closed the room's chat panel
+             // (not just switched tabs) but left the room open, then
+             // backgrounded the app, and got nothing for a new group
+             // message." RoomChatPanel has no notification of its own to fall
+             // back on once its chat isn't the visible content, and
+             // showDesktopNotification already has its own, better-targeted
+             // guard for "the user is currently looking at this window at
+             // all" (document.hidden / hasFocus()) — this blanket per-room
+             // suppression only needs to protect the toast.
              if (hostRoomIdRef.current && lowerPartner === hostRoomIdRef.current.toLowerCase()) skipToast = true;
           } else {
              if (activeRoomTabRef.current === 'dm' && lowerPartner === lowerActivePartner) skipToast = true;
           }
 
-          if (!skipToast) {
-            if (!isMuted && isNotifyCategoryEnabled('messages')) {
+          if (!isMuted && isNotifyCategoryEnabled('messages')) {
+            // Robust Room Name Lookup from conversation cache if msg payload lacks it
+            let groupName = msg.roomName || msg.displayName;
+            if (isGroup && !groupName) {
+               const cached = conversationsRef.current.find(c => c.partner === partner);
+               if (cached) groupName = cached.displayName;
+            }
+            if (!groupName) groupName = isGroup ? 'Group Chat' : 'User';
+
+            const msgSender = msg.senderName || msg.username || partner || 'User';
+
+            // ─── Hidden Chat: show privacy-safe preview if this chat is hidden ───
+            let isHidden = false;
+            try {
+              const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${myUsername}`) || '[]');
+              if (hiddenList.some(u => u.toLowerCase() === partner.toLowerCase())) isHidden = true;
+            } catch {}
+
+            const cachedConv = conversationsRef.current.find(c => c.partner === partner || c.id === partner);
+            const unreadCount = (cachedConv?.unread || 0) + 1;
+            const msgStr = unreadCount === 1 ? '1 new message' : `${unreadCount} new messages`;
+
+            if (!skipToast) {
               // User's chosen message tone (see AppSettings.jsx's Sound
               // section) — mirrored into localStorage the same way
               // notifyCalls already is, since this widget has no settings-
               // fetch of its own. Defaults to 'chime' when never set.
               try { playNotificationTone(localStorage.getItem('watch_notify_sound') || 'chime'); } catch {}
-              // Robust Room Name Lookup from conversation cache if msg payload lacks it
-              let groupName = msg.roomName || msg.displayName;
-              if (isGroup && !groupName) {
-                 const cached = conversationsRef.current.find(c => c.partner === partner);
-                 if (cached) groupName = cached.displayName;
-              }
-              if (!groupName) groupName = isGroup ? 'Group Chat' : 'User';
-
-              const msgSender = msg.senderName || msg.username || partner || 'User';
-
-              // ─── Hidden Chat: show privacy-safe preview if this chat is hidden ───
-              let isHidden = false;
-              try {
-                const hiddenList = JSON.parse(localStorage.getItem(`hidden_chats_${myUsername}`) || '[]');
-                if (hiddenList.some(u => u.toLowerCase() === partner.toLowerCase())) isHidden = true;
-              } catch {}
-
-              const cachedConv = conversationsRef.current.find(c => c.partner === partner || c.id === partner);
-              const unreadCount = (cachedConv?.unread || 0) + 1;
-              const msgStr = unreadCount === 1 ? '1 new message' : `${unreadCount} new messages`;
 
               const textToDisplay = isHidden
                 ? (isGroup ? `${groupName}: ${msgSender}: ${msgStr}` : `${msgSender}: ${msgStr}`)
@@ -3843,9 +3863,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   : `${msgSender}: ${finalizedPreview}`);
 
               toast(textToDisplay, { id: `msg-${msgKey || Date.now()}`, icon: '💬', duration: 3500 });
+            }
 
+            if (!isCallLog) {
               const notifBody = isHidden ? msgStr : finalizedPreview;
-              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower);
+              // chatId/type let a click open this exact chat — see
+              // showDesktopNotification's own comment on the 4th param.
+              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' });
             }
           }
         }
