@@ -20,10 +20,11 @@ import { isCapacitorApp, isTauriApp } from './platform';
 // hear the notification sound but no push notification"). So the Tauri
 // path instead invokes a native Rust command (show_windows_toast, see
 // src-tauri/src/main.rs) that builds the toast directly via
-// tauri-winrt-notification, bypassing the WebView entirely — deliberately
-// with no click handling for now (dropped to cut down on moving parts
-// while the more basic problem, nothing showing up at all, gets solved
-// first).
+// tauri-winrt-notification, bypassing the WebView entirely. Clicking it
+// fires desktop_toast_clicked from Rust's on_activated handler, which
+// dispatchChatOpenFromNotification below turns into the same
+// open_chat_from_notification event the plain-browser path (and the native
+// Android app) already produce.
 //
 // The command reports back over desktop_toast_result — Rust's own view of
 // whether Toast::show() succeeded or not. A failure is surfaced via a
@@ -43,9 +44,12 @@ let tauriToastBridgeReady = false;
 // about — mirrors the native Android app's own tap handling (see
 // nativePush.js's pushNotificationActionPerformed listener), which already
 // dispatches this exact event for BottomNav.jsx/Navbar.jsx/Room.jsx to pick
-// up and navigate. Only reachable from the plain-browser Notification path
-// below for now — the Tauri path has no click handling (see above).
+// up and navigate.
 function dispatchChatOpenFromNotification(data) {
+  // Two shapes reach here: a chat tap ({ chatId, type: 'dm'|'room' }) and a
+  // friend-request tap ({ type: 'friend_request'|'friend_accept', username })
+  // — both ride the same event, so this only needs to rule out "nothing to
+  // act on."
   if (!data || (!data.chatId && !data.type)) return;
   try {
     window.dispatchEvent(new CustomEvent('open_chat_from_notification', { detail: data }));
@@ -65,12 +69,21 @@ function showDiagnosticBanner(message, isError) {
   } catch {}
 }
 
-// One-time listener for the result event show_windows_toast's Rust side
+// One-time listeners for the two events show_windows_toast's Rust side
 // emits. Safe to call repeatedly — only wires up once per page load.
 function ensureTauriToastBridge() {
   if (tauriToastBridgeReady || !isTauriApp()) return;
   tauriToastBridgeReady = true;
   import('@tauri-apps/api/event').then(({ listen }) => {
+    listen('desktop_toast_clicked', (event) => {
+      try {
+        const data = event.payload ? JSON.parse(event.payload) : null;
+        dispatchChatOpenFromNotification(data);
+      } catch (e) {
+        console.error('[desktopNotify] failed to parse toast click payload', e);
+      }
+    }).catch((e) => console.error('[desktopNotify] failed to listen for desktop_toast_clicked', e));
+
     listen('desktop_toast_result', (event) => {
       const { tag, ok, error } = event.payload || {};
       if (ok) {
@@ -141,11 +154,15 @@ async function isTauriWindowActuallyOnScreen() {
   }
 }
 
-function showTauriToast(title, body, tag) {
+function showTauriToast(title, body, tag, data) {
   ensureTauriToastBridge();
   import('@tauri-apps/api/core').then(({ invoke }) => {
-    invoke('show_windows_toast', { title, body, tag: tag || 'sahaplay' })
-      .catch((e) => console.error('[desktopNotify] show_windows_toast invoke failed', e));
+    invoke('show_windows_toast', {
+      title,
+      body,
+      tag: tag || 'sahaplay',
+      launchData: data ? JSON.stringify(data) : null,
+    }).catch((e) => console.error('[desktopNotify] show_windows_toast invoke failed', e));
   }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/core failed to load', e));
 }
 
@@ -180,7 +197,7 @@ export function showDesktopNotification(title, body, tag, data) {
   if (typeof document === 'undefined') return;
   if (isTauriApp()) {
     isTauriWindowActuallyOnScreen().then((onScreen) => {
-      if (!onScreen) showTauriToast(title, body, tag);
+      if (!onScreen) showTauriToast(title, body, tag, data);
     });
     return null;
   }

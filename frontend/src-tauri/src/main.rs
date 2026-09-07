@@ -39,32 +39,41 @@ fn log_toast_attempt(app: &AppHandle, line: &str) {
 // the app's notification sound (a plain <audio> element, unrelated to this
 // API) played fine while no toast ever appeared.
 //
-// Deliberately as close as possible to what @tauri-apps/plugin-notification
-// itself does under the hood (same tauri-winrt-notification crate, same
-// app_id = the Tauri `identifier`, same tauri::async_runtime::spawn wrapping)
-// — that exact combination was confirmed to display a real toast on this
-// app before (see git history), the only problem with it being that its
-// Actions API for click-to-open is mobile-only. Click support is out of
-// scope for now; this only needs to get a toast on screen at all. No
-// on_activated handler is registered — one extra difference from the
-// proven-working path was one too many variables while debugging "nothing
-// shows up at all."
-//
-// Both outcomes are reported back over two independent channels so a
-// failure (or even a same-page mismatch — Rust says it showed, Windows
-// still didn't display it) is never silently invisible again: the
-// desktop_toast_result JS event (see desktopNotify.js, shown as an
-// on-screen banner that doesn't depend on any React component being
-// mounted) and notify-debug.log on disk as a backstop if even that event
-// never reaches JS.
+// Click-to-open goes through on_activated directly rather than
+// @tauri-apps/plugin-notification's Actions API — that API is documented as
+// mobile-only, confirmed by the plugin's own open GitHub issue for exactly
+// this ("Notification onclick event" is still a feature request there).
+// on_activated fires for a plain body click too, not just toast buttons: the
+// event handler is registered on the live ToastNotification COM object
+// itself, which WinRT/COM reference-counting keeps alive independently of
+// this async fn's own scope once handed to the OS, so it still fires
+// whenever the user actually clicks, however much later that is.
+// launch_data (the same { chatId, type } / { type, username } shape
+// dispatchChatOpenFromNotification in desktopNotify.js already knows how to
+// route) is captured directly by the closure rather than round-tripped
+// through the toast itself — this crate has no .launch()/argument builder,
+// so there's nothing for Windows to hand back on activation; the closure
+// already has what it needs.
 #[tauri::command]
-fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String) {
+fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, launch_data: Option<String>) {
     let identifier = app.config().identifier.clone();
     let result_handle = app.clone();
     let log_handle = app.clone();
+    let activate_handle = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let toast = Toast::new(&identifier).title(&title).text1(&body);
+        let toast = Toast::new(&identifier)
+            .title(&title)
+            .text1(&body)
+            .on_activated(move |_arg| {
+                if let Some(window) = activate_handle.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                let _ = activate_handle.emit("desktop_toast_clicked", launch_data.clone());
+                Ok(())
+            });
 
         match toast.show() {
             Ok(()) => {
